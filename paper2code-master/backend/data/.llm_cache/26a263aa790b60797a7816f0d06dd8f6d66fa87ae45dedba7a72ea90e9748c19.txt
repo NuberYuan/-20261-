@@ -1,0 +1,4 @@
+{
+  "accuracy_targets.primary.target": "Perfect answers to 50 test instances of 100 digits",
+  "accuracy_targets.secondary.accuracy": "NOT_FOUND"
+}

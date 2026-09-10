@@ -1,0 +1,173 @@
+import numpy as np
+import torch
+
+
+def compute_metrics(y_true, y_pred, quantiles=(0.5, 0.9), config=None):
+    """
+    Compute evaluation metrics for multi-horizon time series forecasting.
+
+    Implements Normalized quantile losses (P50 and P90 risk) as described in
+    the Temporal Fusion Transformers paper.
+
+    Args:
+        y_true (np.ndarray or torch.Tensor): Ground truth values of shape
+            (num_samples, num_horizons) or (num_samples, num_horizons, 1).
+        y_pred (np.ndarray or torch.Tensor): Predicted quantile values of shape
+            (num_samples, num_horizons, num_quantiles) where the quantile
+            dimension corresponds to the order in `quantiles`.
+        quantiles (tuple): Quantile levels used in predictions. Default (0.5, 0.9).
+        config (dict, optional): Configuration dictionary. If provided, quantiles
+            may be overridden by config['model']['quantiles'] if present.
+
+    Returns:
+        dict: A dictionary containing:
+            - 'P50_loss': Normalized quantile loss at quantile 0.5
+            - 'P90_loss': Normalized quantile loss at quantile 0.9
+            - 'P50_risk': Alias for P50_loss (normalized)
+            - 'P90_risk': Alias for P90_loss (normalized)
+            - 'quantiles': The quantile levels used
+    """
+    # Convert inputs to numpy arrays for consistent processing
+    if isinstance(y_true, torch.Tensor):
+        y_true = y_true.detach().cpu().numpy()
+    if isinstance(y_pred, torch.Tensor):
+        y_pred = y_pred.detach().cpu().numpy()
+
+    y_true = np.asarray(y_true, dtype=np.float64)
+    y_pred = np.asarray(y_pred, dtype=np.float64)
+
+    # Validate shapes
+    if y_true.ndim == 1:
+        y_true = y_true.reshape(-1, 1)
+    if y_true.ndim == 3 and y_true.shape[-1] == 1:
+        y_true = y_true.squeeze(-1)
+    if y_pred.ndim == 2:
+        # Assume single quantile prediction
+        y_pred = y_pred.reshape(y_pred.shape[0], y_pred.shape[1], 1)
+    if y_pred.ndim == 3 and y_pred.shape[-1] == 1:
+        y_pred = y_pred.squeeze(-1).reshape(y_pred.shape[0], y_pred.shape[1], 1)
+
+    # Determine quantiles from config if provided
+    if config is not None:
+        model_quantiles = config.get('model', {}).get('quantiles', None)
+        if model_quantiles is not None:
+            quantiles = tuple(model_quantiles)
+
+    num_quantiles = y_pred.shape[-1]
+    if num_quantiles != len(quantiles):
+        # If mismatch, assume quantiles are evenly spaced or use provided ones
+        # Fallback: use default quantiles if shape doesn't match
+        if num_quantiles == 1:
+            quantiles = (0.5,)
+        elif num_quantiles == 2:
+            quantiles = (0.5, 0.9)
+        else:
+            quantiles = tuple(np.linspace(0.1, 0.9, num_quantiles))
+
+    # Ensure y_true and y_pred have compatible shapes
+    if y_true.shape[0] != y_pred.shape[0]:
+        raise ValueError(
+            f"Batch size mismatch: y_true has {y_true.shape[0]} samples, "
+            f"y_pred has {y_pred.shape[0]} samples"
+        )
+
+    # Broadcast y_true to match y_pred shape if needed
+    if y_true.shape[1] != y_pred.shape[1]:
+        # If horizons differ, truncate to the minimum
+        min_horizon = min(y_true.shape[1], y_pred.shape[1])
+        y_true = y_true[:, :min_horizon]
+        y_pred = y_pred[:, :min_horizon, :]
+
+    # Compute normalization factor: sum of absolute true values
+    # This follows the paper's normalization scheme
+    normalization_factor = np.sum(np.abs(y_true))
+
+    if normalization_factor == 0:
+        # Avoid division by zero; use a small epsilon
+        normalization_factor = 1e-8
+
+    # Compute quantile losses
+    quantile_losses = {}
+    for i, q in enumerate(quantiles):
+        # Extract predictions for this quantile
+        pred_q = y_pred[:, :, i] if y_pred.ndim == 3 else y_pred
+
+        # Ensure pred_q has same shape as y_true
+        if pred_q.ndim == 1:
+            pred_q = pred_q.reshape(-1, 1)
+        if pred_q.shape[1] != y_true.shape[1]:
+            min_horizon = min(pred_q.shape[1], y_true.shape[1])
+            pred_q = pred_q[:, :min_horizon]
+            y_true_trunc = y_true[:, :min_horizon]
+        else:
+            y_true_trunc = y_true
+
+        # Quantile loss formula:
+        # L_q(y, y_hat) = max(q * (y - y_hat), (q - 1) * (y - y_hat))
+        error = y_true_trunc - pred_q
+        loss = np.maximum(q * error, (q - 1) * error)
+
+        # Sum over all samples and horizons
+        total_loss = np.sum(loss)
+
+        # Normalize by sum of absolute true values
+        normalized_loss = total_loss / normalization_factor
+
+        quantile_losses[f'P{int(q * 100)}_loss'] = float(normalized_loss)
+        quantile_losses[f'P{int(q * 100)}_risk'] = float(normalized_loss)
+
+    # Add quantiles info to result
+    quantile_losses['quantiles'] = list(quantiles)
+
+    # Also compute overall metrics if needed
+    # Mean Absolute Error (MAE) for reference
+    if 0.5 in quantiles:
+        idx_50 = list(quantiles).index(0.5)
+        pred_50 = y_pred[:, :, idx_50] if y_pred.ndim == 3 else y_pred
+        if pred_50.ndim == 1:
+            pred_50 = pred_50.reshape(-1, 1)
+        min_horizon = min(pred_50.shape[1], y_true.shape[1])
+        mae = np.mean(np.abs(y_true[:, :min_horizon] - pred_50[:, :min_horizon]))
+        quantile_losses['MAE'] = float(mae)
+
+    return quantile_losses
+
+
+def compute_metrics_from_tensors(y_true, y_pred, quantiles=(0.5, 0.9), config=None):
+    """
+    Convenience wrapper that accepts PyTorch tensors directly.
+
+    Args:
+        y_true (torch.Tensor): Ground truth tensor.
+        y_pred (torch.Tensor): Prediction tensor.
+        quantiles (tuple): Quantile levels.
+        config (dict, optional): Configuration dictionary.
+
+    Returns:
+        dict: Metrics dictionary.
+    """
+    return compute_metrics(y_true, y_pred, quantiles=quantiles, config=config)
+
+
+# Alias for backward compatibility
+def normalized_quantile_loss(y_true, y_pred, quantiles=(0.5, 0.9), config=None):
+    """
+    Alias for compute_metrics focusing on normalized quantile losses.
+
+    Args:
+        y_true: Ground truth values.
+        y_pred: Predicted quantile values.
+        quantiles: Quantile levels.
+        config: Optional configuration.
+
+    Returns:
+        dict: Dictionary with P50 and P90 normalized losses.
+    """
+    metrics = compute_metrics(y_true, y_pred, quantiles=quantiles, config=config)
+    result = {
+        'P50_loss': metrics.get('P50_loss', metrics.get('P50_risk', None)),
+        'P90_loss': metrics.get('P90_loss', metrics.get('P90_risk', None)),
+        'P50_risk': metrics.get('P50_risk', metrics.get('P50_loss', None)),
+        'P90_risk': metrics.get('P90_risk', metrics.get('P90_loss', None)),
+    }
+    return result

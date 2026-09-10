@@ -1,0 +1,175 @@
+```python
+import sys
+import json
+import os
+import numpy as np
+import cv2
+from PIL import Image
+
+def analyze_image(image_path, ocr_text):
+    """Analyze scientific paper image and classify it."""
+    
+    # Default result
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+    
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return result
+        
+        # Get basic image info
+        height, width = img.shape[:2]
+        
+        # Convert OCR text to lowercase for matching
+        ocr_lower = ocr_text.lower()
+        
+        # Define keywords for each category
+        architecture_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        experiment_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "curve", "performance", "comparison", "training", "validation"
+        ]
+        
+        dataset_keywords = [
+            "dataset", "sample", "example", "input", "class", "category",
+            "image", "data"
+        ]
+        
+        # Check for experiment results first (highest priority)
+        is_experiment = False
+        experiment_components = []
+        
+        if "epoch" in ocr_lower or "accuracy" in ocr_lower or "loss" in ocr_lower:
+            is_experiment = True
+            if "epoch" in ocr_lower:
+                experiment_components.append("Epoch")
+            if "accuracy" in ocr_lower:
+                experiment_components.append("Accuracy")
+            if "loss" in ocr_lower:
+                experiment_components.append("Loss")
+            if "precision" in ocr_lower:
+                experiment_components.append("Precision")
+            if "recall" in ocr_lower:
+                experiment_components.append("Recall")
+            if "f1" in ocr_lower:
+                experiment_components.append("F1-score")
+        
+        # Check for architecture
+        is_architecture = False
+        architecture_components = []
+        
+        for keyword in architecture_keywords:
+            if keyword in ocr_lower:
+                is_architecture = True
+                # Extract specific model names
+                if "alexnet" in ocr_lower:
+                    architecture_components.append("AlexNet")
+                if "resnet" in ocr_lower:
+                    architecture_components.append("ResNet")
+                if "vgg" in ocr_lower:
+                    architecture_components.append("VGG")
+                if "googlenet" in ocr_lower:
+                    architecture_components.append("GoogLeNet")
+                if "transformer" in ocr_lower:
+                    architecture_components.append("Transformer")
+                if "attention" in ocr_lower:
+                    architecture_components.append("Attention Module")
+                if "encoder" in ocr_lower:
+                    architecture_components.append("Encoder")
+                if "decoder" in ocr_lower:
+                    architecture_components.append("Decoder")
+                if "embedding" in ocr_lower:
+                    architecture_components.append("Embedding Layer")
+                if "classifier" in ocr_lower:
+                    architecture_components.append("Classifier")
+                if "feature extractor" in ocr_lower:
+                    architecture_components.append("Feature Extractor")
+                break
+        
+        # Check for dataset
+        is_dataset = False
+        if any(keyword in ocr_lower for keyword in dataset_keywords):
+            # Check if it's showing data samples or examples
+            if "dataset" in ocr_lower or "sample" in ocr_lower or "example" in ocr_lower:
+                is_dataset = True
+        
+        # Determine final type based on priority
+        if is_experiment:
+            result["type"] = "experiment_result"
+            result["description"] = "展示实验结果和性能指标对比"
+            result["important_components"] = list(set(experiment_components))
+            result["code_relevant_information"] = "需要实现实验评估模块，包含指标计算和结果可视化"
+        elif is_architecture:
+            result["type"] = "architecture"
+            result["description"] = "展示模型网络结构和数据流关系"
+            result["important_components"] = list(set(architecture_components))
+            result["code_relevant_information"] = "需要实现模型架构，包含特征提取和分类模块"
+        elif is_dataset:
+            result["type"] = "dataset"
+            result["description"] = "展示数据集样本和类别信息"
+            result["important_components"] = []
+            result["code_relevant_information"] = "需要实现数据加载和预处理模块"
+        else:
+            # Check for specific OCR patterns
+            if "dataset type" in ocr_lower:
+                result["type"] = "dataset"
+                result["description"] = "展示数据集类型和属性信息"
+                result["important_components"] = []
+                result["code_relevant_information"] = "需要实现数据集配置和加载逻辑"
+            elif "color" in ocr_lower or "grayscale" in ocr_lower or "segmented" in ocr_lower:
+                result["type"] = "dataset"
+                result["description"] = "展示数据预处理方式和图像属性"
+                result["important_components"] = []
+                result["code_relevant_information"] = "需要实现图像预处理模块，支持颜色转换和分割"
+        
+        return result
+        
+    except Exception as e:
+        # Return default result on any error
+        return result
+
+def main():
+    # Get image path from command line
+    if len(sys.argv) < 2:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }))
+        return
+    
+    image_path = sys.argv[1]
+    
+    # OCR text provided externally
+    ocr_text = """1.0
+Dataset Type
+0.5
+Color
+GrayScale
+Segmented
+0.4
+Epochs"""
+    
+    # Analyze the image
+    result = analyze_image(image_path, ocr_text)
+    
+    # Output JSON
+    print(json.dumps(result, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```

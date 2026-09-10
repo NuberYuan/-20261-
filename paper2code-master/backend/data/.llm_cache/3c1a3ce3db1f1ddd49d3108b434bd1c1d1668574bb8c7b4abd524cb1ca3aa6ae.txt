@@ -1,0 +1,1 @@
+{"data_source": "synthetic", "acquisition": "n/a", "data_source_note": "论文未命名真实公开数据集，实验所用的各类主图和根循环图属于程序化生成的合成图类，仅由运行时从磁盘读取解析。"}

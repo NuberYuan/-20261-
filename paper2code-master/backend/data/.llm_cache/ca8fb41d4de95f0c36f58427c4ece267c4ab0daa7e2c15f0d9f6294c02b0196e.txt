@@ -1,0 +1,271 @@
+```python
+import torch
+import torch.nn as nn
+import yaml
+from typing import Optional, Tuple
+
+
+class Lstm(nn.Module):
+    """
+    LSTM encoder-decoder used in the sequence-to-sequence layer for local processing.
+    The cell state and hidden state of the first LSTM are initialized with context
+    vectors from static covariate encoders.
+
+    This model receives static covariates, past observed inputs, and future known
+    inputs. Each variable is transformed into a d_model-dimensional vector.
+    Outputs quantile forecasts (e.g., 10th, 50th, 90th percentiles) for each horizon.
+
+    Reference: Temporal Fusion Transformers for Interpretable Multihorizon
+    Time Series Forecasting (Lim et al., 2021).
+    """
+
+    def __init__(self, config: Optional[dict] = None):
+        """
+        Initialize the LSTM model.
+
+        Args:
+            config: Configuration dictionary loaded from config/config.yaml.
+                If None, a default configuration is used for basic testing.
+        """
+        super(Lstm, self).__init__()
+
+        if config is None:
+            config = self._load_default_config()
+
+        # ------------------------------------------------------------------
+        # Extract hyperparameters from config with safe fallbacks.
+        # The paper does not specify exact values for some hyperparameters;
+        # we use reasonable defaults derived from the TFT architecture.
+        # ------------------------------------------------------------------
+
+        # d_model: hidden dimension for all LSTM layers and embeddings.
+        # Default 64 is a common choice in TFT implementations.
+        self.d_model = config.get("d_model", 64)
+
+        # Number of LSTM layers in the encoder.
+        # Default 1 matches the original TFT sequence-to-sequence layer.
+        self.num_layers = config.get("num_layers", 1)
+
+        # Dropout ratio applied to LSTM outputs.
+        # Default 0.1 is a reasonable regularization choice.
+        dropout_ratio = config.get("dropout_ratio", 0.1)
+        if dropout_ratio is None:
+            dropout_ratio = 0.1
+        self.dropout = nn.Dropout(p=float(dropout_ratio))
+
+        # Number of quantile outputs (10th, 50th, 90th percentiles).
+        # The paper uses 3 quantiles.
+        self.num_quantiles = config.get("num_quantiles", 3)
+
+        # ------------------------------------------------------------------
+        # Input feature dimensions.
+        # These are derived from the TFT architecture:
+        #   - static covariates (categorical + continuous)
+        #   - past observed inputs (target + known inputs)
+        #   - future known inputs
+        # For the LSTM component, we assume the input is already embedded
+        # into a d_model-dimensional vector by the variable selection network.
+        # ------------------------------------------------------------------
+
+        # Input dimension to the LSTM encoder.
+        # Default 64 matches d_model (inputs are pre-embedded).
+        input_size = config.get("input_size", self.d_model)
+
+        # ------------------------------------------------------------------
+        # LSTM Encoder
+        # ------------------------------------------------------------------
+        self.encoder_lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=self.d_model,
+            num_layers=self.num_layers,
+            batch_first=True,
+            dropout=float(dropout_ratio) if self.num_layers > 1 else 0.0,
+        )
+
+        # ------------------------------------------------------------------
+        # LSTM Decoder
+        # ------------------------------------------------------------------
+        self.decoder_lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=self.d_model,
+            num_layers=self.num_layers,
+            batch_first=True,
+            dropout=float(dropout_ratio) if self.num_layers > 1 else 0.0,
+        )
+
+        # ------------------------------------------------------------------
+        # Output projection: map decoder hidden states to quantile forecasts.
+        # ------------------------------------------------------------------
+        self.output_projection = nn.Linear(self.d_model, self.num_quantiles)
+
+        # ------------------------------------------------------------------
+        # Static covariate context encoders.
+        # The paper initializes the LSTM cell state and hidden state with
+        # context vectors from static covariate encoders.
+        # We use a simple linear projection for each static context.
+        # ------------------------------------------------------------------
+        # Context vector for initial hidden state (h0)
+        self.static_h_encoder = nn.Linear(self.d_model, self.d_model)
+        # Context vector for initial cell state (c0)
+        self.static_c_encoder = nn.Linear(self.d_model, self.d_model)
+
+        # ------------------------------------------------------------------
+        # Initialize weights (Kaiming normal as per config).
+        # Note: Weight initialization is also handled in training/train.py
+        # via initialize_model. We do a basic initialization here for
+        # standalone testing.
+        # ------------------------------------------------------------------
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        """Initialize model weights using Kaiming normal initialization."""
+        for name, param in self.named_parameters():
+            if "weight" in name and param.dim() >= 2:
+                nn.init.kaiming_normal_(param, mode="fan_in", nonlinearity="relu")
+            elif "bias" in name:
+                nn.init.constant_(param, 0.0)
+
+    def _load_default_config(self) -> dict:
+        """
+        Load default configuration for standalone testing.
+
+        Returns:
+            dict: Default configuration dictionary.
+        """
+        default_config = {
+            "d_model": 64,
+            "num_layers": 1,
+            "dropout_ratio": 0.1,
+            "num_quantiles": 3,
+            "input_size": 64,
+        }
+        return default_config
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        static_context: Optional[torch.Tensor] = None,
+        hidden_state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+    ) -> torch.Tensor:
+        """
+        Forward pass of the LSTM model.
+
+        Args:
+            x: Input tensor of shape (batch_size, seq_len, input_size).
+                For the encoder, this is the past observed inputs.
+                For the decoder, this is the future known inputs.
+            static_context: Optional static covariate context tensor of shape
+                (batch_size, d_model). Used to initialize the encoder's
+                hidden and cell states.
+            hidden_state: Optional tuple of (h, c) for the encoder LSTM.
+                If None, hidden state is initialized from static_context
+                or zeros.
+
+        Returns:
+            torch.Tensor: Quantile forecasts of shape
+                (batch_size, seq_len, num_quantiles).
+        """
+        batch_size, seq_len, _ = x.shape
+
+        # ------------------------------------------------------------------
+        # Initialize encoder hidden state
+        # ------------------------------------------------------------------
+        if hidden_state is None:
+            if static_context is not None:
+                # Use static context to initialize hidden and cell states
+                h0 = self.static_h_encoder(static_context)
+                c0 = self.static_c_encoder(static_context)
+                # Reshape to (num_layers, batch_size, d_model)
+                h0 = h0.unsqueeze(0).repeat(self.num_layers, 1, 1)
+                c0 = c0.unsqueeze(0).repeat(self.num_layers, 1, 1)
+                encoder_state = (h0.contiguous(), c0.contiguous())
+            else:
+                # Zero initialization
+                encoder_state = None
+        else:
+            encoder_state = hidden_state
+
+        # ------------------------------------------------------------------
+        # Encoder forward pass
+        # ------------------------------------------------------------------
+        encoder_outputs, encoder_state = self.encoder_lstm(x, encoder_state)
+
+        # Apply dropout to encoder outputs
+        encoder_outputs = self.dropout(encoder_outputs)
+
+        # ------------------------------------------------------------------
+        # Decoder forward pass
+        # The decoder uses the same input sequence (auto-regressive style)
+        # and the final encoder state as its initial state.
+        # In the TFT architecture, the decoder processes future known inputs.
+        # For simplicity and generality, we use the same input tensor.
+        # ------------------------------------------------------------------
+        decoder_outputs, _ = self.decoder_lstm(x, encoder_state)
+
+        # Apply dropout to decoder outputs
+        decoder_outputs = self.dropout(decoder_outputs)
+
+        # ------------------------------------------------------------------
+        # Output projection to quantile forecasts
+        # ------------------------------------------------------------------
+        quantile_forecasts = self.output_projection(decoder_outputs)
+
+        return quantile_forecasts
+
+
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the configuration file.
+
+    Returns:
+        dict: Configuration dictionary.
+    """
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+if __name__ == "__main__":
+    # ------------------------------------------------------------------
+    # Standalone test for basic validation
+    # ------------------------------------------------------------------
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Load config
+    try:
+        cfg = load_config()
+        model_config = cfg.get("model", {})
+    except FileNotFoundError:
+        # Fallback to default config for testing
+        model_config = None
+
+    # Create model
+    model = Lstm(config=model_config).to(device)
+
+    # Test forward pass
+    batch_size, seq_len, input_size = 4, 10, 64
+    x = torch.randn(batch_size, seq_len, input_size).to(device)
+    static_context = torch.randn(batch_size, 64).to(device)
+
+    # Forward pass with static context
+    output = model(x, static_context=static_context)
+    print(f"Output shape with static context: {output.shape}")
+
+    # Forward pass without static context
+    output = model(x)
+    print(f"Output shape without static context: {output.shape}")
+
+    # Count parameters
+    num_params = sum(p.numel() for p in model.parameters())
+    print(f"Total parameters: {num_params:,}")
+
+    # Verify output shape
+    expected_shape = (batch_size, seq_len, 3)  # 3 quantiles
+    assert output.shape == expected_shape, (
+        f"Expected shape {expected_shape}, got {output.shape}"
+    )
+    print("Forward pass test passed!")
+```

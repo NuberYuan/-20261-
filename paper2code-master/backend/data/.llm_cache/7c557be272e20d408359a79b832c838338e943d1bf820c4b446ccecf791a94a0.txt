@@ -1,0 +1,425 @@
+```python
+import argparse
+import json
+import logging
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import torch
+import yaml
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).resolve().parents[0]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders, load_config
+from training.train import initialize_model, train_model
+from evaluation.evaluate import evaluate_model, generate_report
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments.
+
+    Returns:
+        Parsed arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Learning Simple Algorithms from Examples - Time Series Prediction"
+    )
+    parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="Index of the experiment run to execute (from experiment.runs). "
+             "If omitted, all runs are executed.",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/config.yaml",
+        help="Path to the configuration file. Default: config/config.yaml",
+    )
+    return parser.parse_args()
+
+
+def setup_logging(config: Dict[str, Any]) -> None:
+    """Setup logging configuration.
+
+    Args:
+        config: Configuration dictionary.
+    """
+    log_config = config.get("logging", {})
+    log_dir = log_config.get("log_dir", "logs")
+    log_level = log_config.get("log_level", "INFO")
+
+    # Create log directory
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+
+    # Setup logging
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler(Path(log_dir) / "main.log"),
+            logging.StreamHandler(),
+        ],
+    )
+
+
+def load_config_from_path(config_path: str) -> Dict[str, Any]:
+    """Load configuration from a YAML file.
+
+    Args:
+        config_path: Path to the configuration file.
+
+    Returns:
+        Configuration dictionary.
+    """
+    if not os.path.exists(config_path):
+        logging.warning(f"Config file not found at {config_path}, using empty config")
+        return {}
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config if config is not None else {}
+
+
+def run_single_experiment(
+    run_config: Dict[str, Any],
+    config: Dict[str, Any],
+    run_index: int,
+    output_dir: Path,
+) -> Dict[str, Any]:
+    """Run a single experiment.
+
+    Args:
+        run_config: Configuration for this specific run.
+        config: Global configuration dictionary.
+        run_index: Index of this run in experiment.runs.
+        output_dir: Directory where reports should be saved.
+
+    Returns:
+        Dictionary with run results.
+    """
+    run_name = run_config.get("name", f"run_{run_index}")
+    dataset_version = run_config.get("dataset_version", "default")
+
+    logging.info(f"Starting run '{run_name}' (index {run_index})")
+    logging.info(f"Dataset version: {dataset_version}")
+
+    # Check dataset status
+    data_config = config.get("data", {})
+    version_config = data_config.get(dataset_version, {})
+    status = version_config.get("status", "resolved")
+
+    if status == "unresolved":
+        logging.warning(
+            f"Dataset version '{dataset_version}' has status 'unresolved'. "
+            f"Skipping run '{run_name}'."
+        )
+        return {
+            "run_name": run_name,
+            "run_index": run_index,
+            "status": "skipped",
+            "reason": f"Dataset version '{dataset_version}' is unresolved",
+        }
+
+    # Determine device
+    device_config = config.get("system", {}).get("device")
+    if device_config is not None:
+        device = torch.device(device_config)
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Get batch size from config
+    batch_size = config.get("training", {}).get("batch_size", {}).get("default", 20)
+
+    # Get dataloaders
+    dataloaders = get_dataloaders(
+        config=config,
+        version=dataset_version,
+        batch_size=batch_size,
+        seed=config.get("system", {}).get("seed", 42),
+    )
+
+    train_loader = dataloaders["train"]
+    val_loader = dataloaders["val"]
+    test_loader = dataloaders["test"]
+
+    # Determine reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # In strict mode, don't use validation loader
+    if reproduction_mode == "strict":
+        val_loader = None
+
+    # Initialize model
+    model = initialize_model(config)
+
+    # Record training start time
+    training_start_time = time.time()
+
+    # Train model
+    history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        config=config,
+        device=device,
+    )
+
+    # Record training end time
+    training_end_time = time.time()
+    training_time_seconds = training_end_time - training_start_time
+
+    logging.info(f"Training completed in {training_time_seconds:.2f} seconds")
+
+    # Evaluate model on test set
+    metrics = evaluate_model(
+        model=model,
+        test_loader=test_loader,
+        config=config,
+        device=device,
+        training_time_seconds=training_time_seconds,
+    )
+
+    # Generate report for this run
+    report_path = generate_report(
+        metrics=metrics,
+        run_name=run_name,
+        output_dir=str(output_dir),
+        config=config,
+    )
+
+    logging.info(f"Report generated at {report_path}")
+
+    return {
+        "run_name": run_name,
+        "run_index": run_index,
+        "status": "completed",
+        "report_path": report_path,
+        "metrics": metrics,
+        "training_time_seconds": training_time_seconds,
+    }
+
+
+def generate_summary_report(
+    results: List[Dict[str, Any]],
+    output_dir: Path,
+    config: Dict[str, Any],
+) -> Path:
+    """Generate a summary report for all runs.
+
+    Args:
+        results: List of run result dictionaries.
+        output_dir: Directory where the summary report should be saved.
+        config: Configuration dictionary.
+
+    Returns:
+        Path to the summary report file.
+    """
+    summary_path = output_dir / "summary_report.txt"
+
+    lines = []
+    lines.append("=" * 70)
+    lines.append("SUMMARY REPORT - LEARNING SIMPLE ALGORITHMS FROM EXAMPLES")
+    lines.append("=" * 70)
+    lines.append(f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(f"Reproduction mode: {config.get('reproduction_mode', 'engineering')}")
+    lines.append("")
+
+    # Count runs by status
+    completed_runs = [r for r in results if r.get("status") == "completed"]
+    skipped_runs = [r for r in results if r.get("status") == "skipped"]
+    failed_runs = [r for r in results if r.get("status") == "failed"]
+
+    lines.append(f"Total runs: {len(results)}")
+    lines.append(f"  Completed: {len(completed_runs)}")
+    lines.append(f"  Skipped: {len(skipped_runs)}")
+    lines.append(f"  Failed: {len(failed_runs)}")
+    lines.append("")
+
+    if completed_runs:
+        lines.append("-" * 70)
+        lines.append("COMPLETED RUNS")
+        lines.append("-" * 70)
+
+        for run in completed_runs:
+            run_name = run.get("run_name", "unknown")
+            metrics = run.get("metrics", {})
+
+            lines.append(f"\nRun: {run_name}")
+            lines.append(f"  Report: {run.get('report_path', 'N/A')}")
+
+            if metrics:
+                success_rate = metrics.get("success_rate", 0.0)
+                training_time_minutes = metrics.get("training_time_minutes", 0.0)
+                accuracy_by_complexity = metrics.get("accuracy_by_complexity", {})
+
+                lines.append(f"  Success rate: {success_rate:.2f}%")
+                lines.append(f"  Training time: {training_time_minutes:.2f} minutes")
+
+                if accuracy_by_complexity:
+                    lines.append("  Accuracy by complexity:")
+                    for complexity, accuracy in sorted(accuracy_by_complexity.items()):
+                        lines.append(f"    Complexity {complexity}: {accuracy:.2f}%")
+
+        # Compare runs dynamically
+        if len(completed_runs) > 1:
+            lines.append("\n" + "-" * 70)
+            lines.append("RUN COMPARISON (computed from actual results)")
+            lines.append("-" * 70)
+
+            # Compare success rates
+            best_run = max(completed_runs, key=lambda r: r.get("metrics", {}).get("success_rate", 0.0))
+            best_success_rate = best_run.get("metrics", {}).get("success_rate", 0.0)
+
+            lines.append(f"\nHighest success rate: {best_success_rate:.2f}% (run '{best_run.get('run_name', 'unknown')}')")
+
+            # Compare training times
+            fastest_run = min(completed_runs, key=lambda r: r.get("training_time_seconds", float("inf")))
+            fastest_time = fastest_run.get("training_time_seconds", 0.0)
+
+            lines.append(f"Fastest training: {fastest_time:.2f} seconds (run '{fastest_run.get('run_name', 'unknown')}')")
+
+            # Note about dynamic comparison
+            lines.append("\nNote: Comparisons are computed dynamically from actual evaluation results.")
+            lines.append("No conclusions are hardcoded; all statements reflect measured outcomes.")
+    else:
+        lines.append("No runs completed successfully.")
+
+    if skipped_runs:
+        lines.append("\n" + "-" * 70)
+        lines.append("SKIPPED RUNS")
+        lines.append("-" * 70)
+        for run in skipped_runs:
+            lines.append(f"  Run '{run.get('run_name', 'unknown')}': {run.get('reason', 'Unknown reason')}")
+
+    if failed_runs:
+        lines.append("\n" + "-" * 70)
+        lines.append("FAILED RUNS")
+        lines.append("-" * 70)
+        for run in failed_runs:
+            lines.append(f"  Run '{run.get('run_name', 'unknown')}': {run.get('error', 'Unknown error')}")
+
+    lines.append("\n" + "=" * 70)
+    lines.append("END OF SUMMARY REPORT")
+    lines.append("=" * 70)
+
+    # Write summary report
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    logging.info(f"Summary report saved to {summary_path}")
+    return summary_path
+
+
+def main() -> None:
+    """Main entry point for the project."""
+    # Parse command line arguments
+    args = parse_args()
+
+    # Load configuration
+    config = load_config_from_path(args.config)
+
+    if not config:
+        logging.error("Failed to load configuration. Exiting.")
+        sys.exit(1)
+
+    # Setup logging
+    setup_logging(config)
+
+    logging.info("=" * 70)
+    logging.info("LEARNING SIMPLE ALGORITHMS FROM EXAMPLES")
+    logging.info("Task: time_series_prediction")
+    logging.info("=" * 70)
+
+    # Get experiment configuration
+    experiment_config = config.get("experiment", {})
+    runs = experiment_config.get("runs", [])
+
+    if not runs:
+        logging.warning("No experiment runs found in configuration.")
+        return
+
+    # Determine which runs to execute
+    if args.run is not None:
+        if args.run < 0 or args.run >= len(runs):
+            logging.error(f"Run index {args.run} is out of range (0-{len(runs) - 1}).")
+            sys.exit(1)
+        run_indices = [args.run]
+        logging.info(f"Executing only run at index {args.run}")
+    else:
+        run_indices = list(range(len(runs)))
+        logging.info(f"Executing all {len(runs)} runs")
+
+    # Initialize report output directory before the loop
+    output_dir = Path("reports")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    logging.info(f"Report output directory: {output_dir}")
+
+    # Execute runs
+    results: List[Dict[str, Any]] = []
+
+    for run_index in run_indices:
+        run_config = runs[run_index]
+
+        try:
+            result = run_single_experiment(
+                run_config=run_config,
+                config=config,
+                run_index=run_index,
+                output_dir=output_dir,
+            )
+            results.append(result)
+        except Exception as e:
+            logging.error(f"Run at index {run_index} failed: {e}", exc_info=True)
+            results.append({
+                "run_name": run_config.get("name", f"run_{run_index}"),
+                "run_index": run_index,
+                "status": "failed",
+                "error": str(e),
+            })
+
+    # Generate summary report
+    summary_path = generate_summary_report(
+        results=results,
+        output_dir=output_dir,
+        config=config,
+    )
+
+    logging.info(f"Summary report: {summary_path}")
+
+    # Print summary to console
+    print("\n" + "=" * 70)
+    print("EXECUTION SUMMARY")
+    print("=" * 70)
+
+    for result in results:
+        status = result.get("status", "unknown")
+        run_name = result.get("run_name", "unknown")
+
+        if status == "completed":
+            metrics = result.get("metrics", {})
+            success_rate = metrics.get("success_rate", 0.0)
+            training_time = metrics.get("training_time_minutes", 0.0)
+            print(f"  {run_name}: COMPLETED - Success rate: {success_rate:.2f}%, "
+                  f"Training time: {training_time:.2f} min")
+        elif status == "skipped":
+            print(f"  {run_name}: SKIPPED - {result.get('reason', 'Unknown reason')}")
+        elif status == "failed":
+            print(f"  {run_name}: FAILED - {result.get('error', 'Unknown error')}")
+
+    print("=" * 70)
+    print(f"Summary report saved to: {summary_path}")
+    print("=" * 70)
+
+
+if __name__ == "__main__":
+    main()
+```

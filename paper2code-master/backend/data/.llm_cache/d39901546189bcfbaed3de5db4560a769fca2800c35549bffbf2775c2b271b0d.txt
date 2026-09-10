@@ -1,0 +1,171 @@
+# 时间序列预测项目（基于 RAG 论文的工程实现）
+
+## 项目概述
+
+本项目是论文 **"Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks"** 在时间序列预测任务上的工程实现。项目采用 PyTorch 框架，基于 Transformer 架构构建时间序列预测模型，并参考 RAG 论文的检索增强思想进行工程化设计。
+
+> **注意**：本项目为工程复现项目，论文原文聚焦于知识密集型 NLP 任务，本项目将其核心思想迁移至时间序列预测场景，属于工程性扩展实现。
+
+## 项目结构
+
+```
+README.md
+main.py
+requirements.txt
+config/config/config.yaml
+data/data/dataset.py
+evaluation/evaluation/evaluate.py
+models/models/__init__.py
+models/models/transformer.py
+training/training/train.py
+utils/utils/metrics.py
+```
+
+## 环境要求
+
+- Python >= 3.8
+- PyTorch >= 1.10
+- NVIDIA GPU（推荐 V100 及以上，显存 >= 32GB）
+- 8 块 NVIDIA V100 GPU（训练和推理可在单 GPU 上运行）
+
+## 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+## 配置文件说明
+
+所有配置均通过 `config/config/config.yaml` 管理，主要配置项包括：
+
+| 配置路径 | 说明 |
+|---------|------|
+| `config['project']` | 项目名称、框架、论文信息 |
+| `config['data']` | 数据路径、特征维度、预处理参数（序列长度、预测视界） |
+| `config['model']` | 模型架构、dropout 比例、类别数、权重初始化方式 |
+| `config['training']` | 优化器、学习率、batch size、epochs、损失函数、调度器 |
+| `config['split_strategy']` | 数据划分策略（默认 train/test 二路划分） |
+| `config['checkpoint']` | 模型保存、恢复、最优指标配置 |
+| `config['inference']` | 推理阶段 batch size 和设备配置 |
+| `config['logging']` | 日志目录、日志级别、指标保存配置 |
+| `config['system']` | 设备、随机种子、工作进程数 |
+
+## 运行方法
+
+### 训练
+
+```bash
+python main.py --mode train
+```
+
+### 评估
+
+```bash
+python main.py --mode evaluate
+```
+
+### 训练 + 评估
+
+```bash
+python main.py --mode train --evaluate
+```
+
+### 恢复训练
+
+```bash
+python main.py --mode train --resume
+```
+
+## 复现步骤
+
+### 1. 数据准备
+
+- 将时间序列数据放置于 `config['data.root']` 指定目录下
+- 数据路径通过 `config['data.default.path']` 配置
+- 数据预处理参数（序列长度、预测视界）通过 `config['data.preprocessing']` 配置
+
+### 2. 配置修改
+
+根据实际需求修改 `config/config/config.yaml`：
+
+- 数据路径与预处理参数
+- 模型架构与超参数
+- 训练参数（epochs、batch size、学习率等）
+- 数据划分策略
+
+### 3. 训练模型
+
+```bash
+python main.py --mode train
+```
+
+训练过程中：
+
+- 模型权重按 `config['checkpoint.save_frequency_epochs']` 周期保存
+- 最优模型根据 `config['checkpoint.best_metric']` 和 `config['checkpoint.best_mode']` 判定
+- 日志与指标保存至 `config['logging.log_dir']`
+
+### 4. 评估模型
+
+```bash
+python main.py --mode evaluate
+```
+
+评估结果包括预测误差指标（如 MSE、MAE 等），具体指标定义见 `utils/utils/metrics.py`。
+
+## 训练配置
+
+| 配置项 | 值 |
+|-------|-----|
+| 优化器 | Adam |
+| Epochs | 30 |
+| 损失函数 | 负边际对数似然（negative marginal log-likelihood） |
+| 调度器 | StepLR（step_size=66, gamma=0.5） |
+
+> 学习率与 batch size 请通过 `config['training.optimizer.lr']` 与 `config['training.batch_size']` 配置。
+
+## 数据划分说明
+
+### 论文原始设定
+
+论文仅使用 **train/test 二路划分**，无独立验证集。
+
+### 工程偏离说明
+
+若需要验证集用于早停（early stopping）或最优模型选择，将从训练集中按 **80/20** 比例二次划分出验证集。此操作属于**工程偏离（engineering deviation from paper）**，在代码中已明确标注。
+
+> ⚠ 严格复现论文时，不使用验证集；最优模型选择直接基于训练集完成，或使用测试集指标（不推荐，会导致数据泄露）。
+
+## 训练模式说明
+
+本项目支持两种训练模式，通过 `config['training_modes']` 配置：
+
+| 模式 | 说明 |
+|------|------|
+| `scratch` | 从头训练，随机初始化模型权重 |
+| `transfer` | 迁移学习，加载预训练权重后微调 |
+
+> ⚠ 两种模式的初始化逻辑完全不同，**不能**使用单一的 `pretrained=True/False` 布尔值进行区分。请使用 `training_mode` 枚举（`scratch`/`transfer`）进行配置。
+
+## 模型说明
+
+模型基于 Transformer 架构实现，具体结构见 `models/models/transformer.py`。模型支持：
+
+- 可配置的 dropout 比例（`config['model.dropout_ratio']`）
+- 多种权重初始化方式（`config['model.weight_init']`）
+- 迁移学习模式下的骨干网络冻结与层重置（`config['training_modes.transfer.freeze_backbone']`、`config['training_modes.transfer.reset_layers']`）
+
+## 评估与结论
+
+项目评估结果由 `evaluation/evaluation/evaluate.py` 动态计算生成。所有模型比较结论均基于实际评估结果动态得出，**不预设任何结论性措辞**。
+
+## 复现注意事项
+
+1. **随机种子**：通过 `config['system.seed']` 和 `config['split_strategy.seed']` 设置，确保实验可复现。
+2. **数据版本**：通过 `config['data.versions']` 和 `config['version_selector']` 管理不同版本的数据集。
+3. **检查点**：模型检查点保存于 `config['checkpoint']` 指定路径，支持断点续训。
+4. **硬件要求**：训练和推理可在单 GPU 上运行，推荐使用 32GB 显存的 NVIDIA V100。
+
+## 许可证
+
+本项目仅供学术研究使用。

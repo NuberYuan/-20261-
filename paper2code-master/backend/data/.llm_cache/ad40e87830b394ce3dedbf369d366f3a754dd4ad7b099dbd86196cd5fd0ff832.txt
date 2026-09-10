@@ -1,0 +1,209 @@
+```python
+import torch
+import torch.nn as nn
+import yaml
+from pathlib import Path
+
+
+class UNet(nn.Module):
+    """
+    U-Net model for medical image segmentation.
+
+    Architecture based on the original U-Net paper:
+    "U-Net: Convolutional Networks for Biomedical Image Segmentation"
+    (Ronneberger et al., 2015).
+
+    The model follows the classic encoder-decoder structure with skip connections.
+    All layers are randomly initialized (no pretrained weights).
+    """
+
+    def __init__(self, config=None):
+        """
+        Initialize the U-Net model.
+
+        Args:
+            config (dict, optional): Configuration dictionary loaded from config.yaml.
+                If None, default values are used.
+        """
+        super(UNet, self).__init__()
+
+        # Load configuration
+        if config is None:
+            config = self._load_default_config()
+
+        # Extract model parameters from config with safe access
+        model_config = config.get('model', {})
+        # Default num_classes=1 for binary segmentation (foreground/background)
+        # The paper uses binary segmentation for medical images (e.g., cell membranes)
+        self.num_classes = model_config.get('num_classes', 1)
+        if self.num_classes is None:
+            # Fallback: binary segmentation (foreground vs background)
+            self.num_classes = 1
+
+        # Dropout ratio (not used in original U-Net, but kept for flexibility)
+        dropout_ratio = model_config.get('dropout_ratio', None)
+        if dropout_ratio is None:
+            dropout_ratio = 0.0
+
+        # Base number of channels (64 in original paper)
+        base_channels = 64
+
+        # Encoder (contracting path)
+        # Each block: Conv3x3 -> ReLU -> Conv3x3 -> ReLU -> MaxPool
+        self.enc1 = self._conv_block(3, base_channels, dropout_ratio)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.enc2 = self._conv_block(base_channels, base_channels * 2, dropout_ratio)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.enc3 = self._conv_block(base_channels * 2, base_channels * 4, dropout_ratio)
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.enc4 = self._conv_block(base_channels * 4, base_channels * 8, dropout_ratio)
+        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Bottleneck
+        self.bottleneck = self._conv_block(base_channels * 8, base_channels * 16, dropout_ratio)
+
+        # Decoder (expanding path)
+        # Each block: Upsample -> Conv3x3 -> ReLU -> Conv3x3 -> ReLU
+        self.upconv4 = nn.ConvTranspose2d(base_channels * 16, base_channels * 8, kernel_size=2, stride=2)
+        self.dec4 = self._conv_block(base_channels * 16, base_channels * 8, dropout_ratio)
+
+        self.upconv3 = nn.ConvTranspose2d(base_channels * 8, base_channels * 4, kernel_size=2, stride=2)
+        self.dec3 = self._conv_block(base_channels * 8, base_channels * 4, dropout_ratio)
+
+        self.upconv2 = nn.ConvTranspose2d(base_channels * 4, base_channels * 2, kernel_size=2, stride=2)
+        self.dec2 = self._conv_block(base_channels * 4, base_channels * 2, dropout_ratio)
+
+        self.upconv1 = nn.ConvTranspose2d(base_channels * 2, base_channels, kernel_size=2, stride=2)
+        self.dec1 = self._conv_block(base_channels * 2, base_channels, dropout_ratio)
+
+        # Output layer
+        self.final_conv = nn.Conv2d(base_channels, self.num_classes, kernel_size=1)
+
+    def _conv_block(self, in_channels, out_channels, dropout_ratio=0.0):
+        """
+        Create a convolutional block: Conv3x3 -> ReLU -> Conv3x3 -> ReLU.
+
+        Args:
+            in_channels (int): Number of input channels.
+            out_channels (int): Number of output channels.
+            dropout_ratio (float): Dropout probability (0.0 means no dropout).
+
+        Returns:
+            nn.Sequential: Convolutional block.
+        """
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+        ]
+        if dropout_ratio > 0:
+            layers.append(nn.Dropout2d(p=dropout_ratio))
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        """
+        Forward pass of the U-Net model.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, channels, height, width).
+
+        Returns:
+            torch.Tensor: Output segmentation map of shape (batch_size, num_classes, height, width).
+        """
+        # Encoder
+        enc1 = self.enc1(x)
+        enc2 = self.enc2(self.pool1(enc1))
+        enc3 = self.enc3(self.pool2(enc2))
+        enc4 = self.enc4(self.pool3(enc3))
+
+        # Bottleneck
+        bottleneck = self.bottleneck(self.pool4(enc4))
+
+        # Decoder with skip connections
+        dec4 = self.upconv4(bottleneck)
+        # Handle potential size mismatch (crop or pad if needed)
+        if dec4.size() != enc4.size():
+            dec4 = self._match_size(dec4, enc4.size())
+        dec4 = torch.cat([dec4, enc4], dim=1)
+        dec4 = self.dec4(dec4)
+
+        dec3 = self.upconv3(dec4)
+        if dec3.size() != enc3.size():
+            dec3 = self._match_size(dec3, enc3.size())
+        dec3 = torch.cat([dec3, enc3], dim=1)
+        dec3 = self.dec3(dec3)
+
+        dec2 = self.upconv2(dec3)
+        if dec2.size() != enc2.size():
+            dec2 = self._match_size(dec2, enc2.size())
+        dec2 = torch.cat([dec2, enc2], dim=1)
+        dec2 = self.dec2(dec2)
+
+        dec1 = self.upconv1(dec2)
+        if dec1.size() != enc1.size():
+            dec1 = self._match_size(dec1, enc1.size())
+        dec1 = torch.cat([dec1, enc1], dim=1)
+        dec1 = self.dec1(dec1)
+
+        # Output
+        output = self.final_conv(dec1)
+        return output
+
+    def _match_size(self, tensor, target_size):
+        """
+        Match the spatial dimensions of a tensor to a target size.
+
+        Args:
+            tensor (torch.Tensor): Tensor to resize.
+            target_size (tuple): Target size (batch, channels, height, width).
+
+        Returns:
+            torch.Tensor: Resized tensor.
+        """
+        if tensor.dim() != 4:
+            raise ValueError(f"Expected 4D tensor, got {tensor.dim()}D")
+
+        _, _, h, w = tensor.size()
+        _, _, target_h, target_w = target_size
+
+        if h > target_h or w > target_w:
+            # Crop
+            h_start = (h - target_h) // 2
+            w_start = (w - target_w) // 2
+            tensor = tensor[:, :, h_start:h_start + target_h, w_start:w_start + target_w]
+        elif h < target_h or w < target_w:
+            # Pad
+            pad_h = target_h - h
+            pad_w = target_w - w
+            pad_top = pad_h // 2
+            pad_bottom = pad_h - pad_top
+            pad_left = pad_w // 2
+            pad_right = pad_w - pad_left
+            tensor = nn.functional.pad(tensor, (pad_left, pad_right, pad_top, pad_bottom))
+
+        return tensor
+
+    def _load_default_config(self):
+        """
+        Load default configuration from config.yaml.
+
+        Returns:
+            dict: Configuration dictionary.
+        """
+        config_path = Path(__file__).parent.parent / 'config' / 'config.yaml'
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        except FileNotFoundError:
+            # Return minimal default config if file not found
+            return {
+                'model': {
+                    'num_classes': 1,
+                    'dropout_ratio': 0.0
+                }
+            }
+```

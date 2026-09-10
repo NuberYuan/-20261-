@@ -1,0 +1,7 @@
+{
+  "models[0].num_classes": "NOT_FOUND",
+  "models[0].pretrained": "NOT_FOUND",
+  "models[0].architecture.total_layers": "1",
+  "models[0].architecture.param_count": "NOT_FOUND",
+  "models[0].architecture.final_classifier": "A linear layer on top of the controller maps the hidden state to either action for a given interface or the target symbol."
+}

@@ -1,0 +1,12 @@
+{
+  "table_id": "table_13",
+  "table_type": "other",
+  "caption_summary": "A table showing the relationship between retrieval methods and the ISREL metric, with only a header row and no data values.",
+  "extracted_data": {
+    "metrics": ["ISREL"],
+    "methods": ["Retrieve"],
+    "best_result": null,
+    "key_values": []
+  },
+  "table_summary": "The table appears to be a placeholder or incomplete extraction, containing only the header 'ISREL' and a row label 'Retrieve' with no numerical values or additional context. It likely represents a comparison of retrieval methods on the ISREL metric, but the data is missing or was not captured in the extraction process."
+}

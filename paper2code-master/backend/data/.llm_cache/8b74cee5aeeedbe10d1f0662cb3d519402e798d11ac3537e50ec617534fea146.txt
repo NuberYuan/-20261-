@@ -1,0 +1,6 @@
+{
+"type":"other",
+"description":"无法确定图片类型",
+"important_components":[],
+"code_relevant_information":""
+}

@@ -1,0 +1,235 @@
+```python
+import argparse
+import logging
+import os
+import sys
+import time
+from pathlib import Path
+
+import torch
+import yaml
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import SyntheticArithmeticTasksDataset, load_config
+from training.train import initialize_model, train_model, save_model
+from evaluation.evaluate import evaluate_model, generate_report
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Time series prediction training and evaluation")
+    parser.add_argument("--run", type=int, default=None, help="Index of the run to execute (from experiment.runs)")
+    parser.add_argument("--config", type=str, default="config/config.yaml", help="Path to config file")
+    return parser.parse_args()
+
+
+def setup_logging(config):
+    logging_cfg = config.get("logging", {})
+    log_dir = logging_cfg.get("log_dir", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    logging.basicConfig(
+        level=getattr(logging, logging_cfg.get("log_level", "INFO")),
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler(os.path.join(log_dir, "main.log"), encoding="utf-8"),
+            logging.StreamHandler(),
+        ],
+    )
+    return logging.getLogger(__name__)
+
+
+def main():
+    args = parse_args()
+
+    config = load_config(args.config)
+    if not config:
+        config = {}
+
+    logger = setup_logging(config)
+
+    system_cfg = config.get("system", {})
+    device_str = system_cfg.get("device", None)
+    if device_str is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(device_str)
+
+    seed = system_cfg.get("seed", 42)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    experiment_cfg = config.get("experiment", {})
+    runs = experiment_cfg.get("runs", [])
+    if not runs:
+        runs = [{"name": "default_run", "dataset_version": "default", "training_mode": "scratch"}]
+
+    if args.run is not None:
+        if args.run < 0 or args.run >= len(runs):
+            logger.error(f"Run index {args.run} out of range (0-{len(runs)-1})")
+            sys.exit(1)
+        runs = [runs[args.run]]
+
+    training_cfg = config.get("training", {})
+    batch_size_cfg = training_cfg.get("batch_size", {})
+    if isinstance(batch_size_cfg, dict):
+        batch_size = batch_size_cfg.get("default", 20)
+    else:
+        batch_size = batch_size_cfg
+
+    split_cfg = config.get("split_strategy", {})
+    val_split_ratio = split_cfg.get("val_split_ratio", 0.2)
+    default_train_ratio = split_cfg.get("default_train_ratio", 0.8)
+
+    output_dir = Path("reports")
+    output_dir.mkdir(exist_ok=True)
+
+    all_run_metrics = []
+    skipped_runs = []
+
+    for run_idx, run in enumerate(runs):
+        run_name = run.get("name", f"run_{run_idx}")
+        dataset_version = run.get("dataset_version", "default")
+        training_mode = run.get("training_mode", "scratch")
+
+        logger.info(f"Processing run: {run_name} (dataset_version={dataset_version})")
+
+        data_cfg = config.get("data", {})
+        version_cfg = data_cfg.get(dataset_version, {})
+        status = version_cfg.get("status", "resolved")
+
+        if status == "unresolved":
+            logger.warning(f"Skipping run {run_name}: dataset_version '{dataset_version}' is unresolved")
+            skipped_runs.append(run_name)
+            continue
+
+        try:
+            if reproduction_mode == "strict":
+                dataloaders = SyntheticArithmeticTasksDataset.get_dataloaders(
+                    config=config,
+                    batch_size=batch_size,
+                    train_ratio=1.0,
+                    val_ratio=0.0,
+                    seed=seed,
+                    version=dataset_version,
+                )
+                train_loader = dataloaders["train"]
+                val_loader = None
+            else:
+                dataloaders = SyntheticArithmeticTasksDataset.get_dataloaders(
+                    config=config,
+                    batch_size=batch_size,
+                    train_ratio=default_train_ratio,
+                    val_ratio=val_split_ratio,
+                    seed=seed,
+                    version=dataset_version,
+                )
+                train_loader = dataloaders["train"]
+                val_loader = dataloaders["val"]
+
+            test_loader = dataloaders["test"]
+
+            model = initialize_model(config=config, device=device)
+            logger.info(f"Model initialized: {model.__class__.__name__}")
+
+            start_time = time.time()
+            trained_model, history = train_model(
+                model=model,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                config=config,
+                device=device,
+            )
+            training_time_seconds = time.time() - start_time
+
+            checkpoint_cfg = config.get("checkpoint", {})
+            log_dir = config.get("logging", {}).get("log_dir", "logs")
+            os.makedirs(log_dir, exist_ok=True)
+
+            if checkpoint_cfg.get("save_final", True):
+                final_path = os.path.join(log_dir, f"{run_name}_final.pth")
+                save_model(
+                    model=trained_model,
+                    path=final_path,
+                    optimizer=None,
+                    epoch=training_cfg.get("epochs", 30),
+                    history=history,
+                    config=config,
+                )
+                logger.info(f"Final model saved to {final_path}")
+
+            metrics = evaluate_model(
+                model=trained_model,
+                test_loader=test_loader,
+                config=config,
+                device=device,
+                training_time_seconds=training_time_seconds,
+            )
+
+            report_path = generate_report(
+                metrics=metrics,
+                run_name=run_name,
+                output_dir=str(output_dir),
+                config=config,
+            )
+            logger.info(f"Report generated: {report_path}")
+
+            run_metrics = {
+                "run_name": run_name,
+                "accuracy": metrics.get("accuracy", 0.0),
+                "success_rate": metrics.get("success_rate", 0.0),
+                "training_time_minutes": metrics.get("training_time_minutes", 0.0),
+                "test_loss": metrics.get("test_loss", 0.0),
+                "num_samples": metrics.get("num_samples", 0),
+                "num_correct": metrics.get("num_correct", 0),
+            }
+            all_run_metrics.append(run_metrics)
+
+        except Exception as e:
+            logger.error(f"Run {run_name} failed: {e}")
+            continue
+
+    summary_path = output_dir / "summary_report.txt"
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write("=" * 70 + "\n")
+        f.write("Summary Report\n")
+        f.write("=" * 70 + "\n")
+        f.write(f"Total runs: {len(runs)}\n")
+        f.write(f"Successful runs: {len(all_run_metrics)}\n")
+        f.write(f"Skipped runs: {len(skipped_runs)}\n")
+        if skipped_runs:
+            f.write(f"Skipped run names: {', '.join(skipped_runs)}\n")
+        f.write("\n")
+
+        if all_run_metrics:
+            f.write("Run Metrics:\n")
+            for rm in all_run_metrics:
+                f.write(f"  Run: {rm['run_name']}\n")
+                f.write(f"    Accuracy: {rm['accuracy']:.4f}\n")
+                f.write(f"    Success rate: {rm['success_rate']:.2f}%\n")
+                f.write(f"    Training time (minutes): {rm['training_time_minutes']:.2f}\n")
+                f.write(f"    Test loss: {rm['test_loss']:.4f}\n")
+                f.write(f"    Samples: {rm['num_samples']}, Correct: {rm['num_correct']}\n")
+                f.write("\n")
+        else:
+            f.write("No successful runs to report.\n")
+
+        f.write("=" * 70 + "\n")
+
+    logger.info(f"Summary report saved to {summary_path}")
+
+    if args.run is not None and all_run_metrics:
+        rm = all_run_metrics[0]
+        print(f"Run {args.run} ({rm['run_name']}) metrics:")
+        print(f"  Accuracy: {rm['accuracy']:.4f}")
+        print(f"  Success rate: {rm['success_rate']:.2f}%")
+        print(f"  Training time (minutes): {rm['training_time_minutes']:.2f}")
+
+
+if __name__ == "__main__":
+    main()
+```

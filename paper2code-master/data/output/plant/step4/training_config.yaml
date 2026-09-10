@@ -1,0 +1,18 @@
+paper_name: plant
+training:
+  batch_size: not mentioned
+  epochs: '30'
+  optimizer:
+    name: SGD
+    lr: '0.005'
+    momentum: NOT_FOUND
+    weight_decay: NOT_FOUND
+  scheduler:
+    name: StepLR
+    step_size: NOT_FOUND
+    gamma: NOT_FOUND
+  loss_function: not mentioned (likely softmax cross-entropy loss)
+  early_stopping: NOT_FOUND
+inference:
+  device: cuda
+  batch_size: NOT_FOUND

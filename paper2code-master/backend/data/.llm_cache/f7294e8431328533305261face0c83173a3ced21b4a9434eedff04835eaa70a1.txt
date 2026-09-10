@@ -1,0 +1,421 @@
+```python
+import argparse
+import json
+import logging
+import os
+import sys
+from pathlib import Path
+
+import yaml
+import torch
+
+# Add project root to path so that local imports work
+PROJECT_ROOT = Path(__file__).parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders
+from training.train import initialize_model, train_model, combined_loss, validate, load_config
+from evaluation.evaluate import evaluate_model, generate_report
+
+
+def setup_logging(config):
+    """Set up logging configuration."""
+    log_config = config.get('logging', {})
+    log_dir = log_config.get('log_dir', './logs')
+    log_level = log_config.get('log_level', 'INFO')
+
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, 'main.log')
+
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    return logging.getLogger(__name__)
+
+
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='UNet++ Medical Image Segmentation')
+    parser.add_argument('--run', type=int, default=None,
+                        help='Index of the run in experiment.runs to execute (default: all runs)')
+    parser.add_argument('--config', type=str, default='config/config.yaml',
+                        help='Path to configuration file (default: config/config.yaml)')
+    return parser.parse_args()
+
+
+def load_config_from_path(config_path):
+    """Load configuration from the given path."""
+    config_path = Path(config_path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def get_run_config(config, run_index):
+    """Get the configuration for a specific run."""
+    runs = config.get('experiment', {}).get('runs', [])
+    if run_index is not None:
+        if run_index < 0 or run_index >= len(runs):
+            raise IndexError(f"Run index {run_index} out of range. Available runs: 0-{len(runs)-1}")
+        return [runs[run_index]]
+    return runs
+
+
+def check_dataset_version_status(config, dataset_version):
+    """Check if a dataset version is resolved or unresolved."""
+    data_config = config.get('data', {})
+    version_config = data_config.get(dataset_version, {})
+    status = version_config.get('status', 'resolved')
+    reason = version_config.get('reason', 'No reason provided.')
+    return status, reason
+
+
+def run_single_experiment(config, run, run_index, logger, device, output_dir):
+    """Run a single experiment."""
+    run_name = run.get('name', f'run_{run_index}')
+    mode = run.get('mode', 'scratch')
+    dataset_version = run.get('dataset_version', 'color')
+
+    logger.info(f"Starting run: {run_name}")
+    logger.info(f"Mode: {mode}, Dataset version: {dataset_version}")
+
+    # Check dataset version status
+    status, reason = check_dataset_version_status(config, dataset_version)
+    if status == 'unresolved':
+        logger.warning(f"Skipping run '{run_name}': Dataset version '{dataset_version}' is unresolved: {reason}")
+        return {
+            'run_name': run_name,
+            'status': 'skipped',
+            'reason': reason,
+            'metrics': None
+        }
+
+    # Get training configuration
+    training_config = config.get('training', {})
+    batch_size = training_config.get('batch_size', 32)
+    if batch_size is None:
+        batch_size = 32
+
+    num_workers = config.get('system', {}).get('num_workers', 4)
+    if num_workers is None:
+        num_workers = 4
+
+    # Get dataloaders
+    logger.info(f"Loading data with version: {dataset_version}")
+    dataloaders = get_dataloaders(
+        config=config,
+        version=dataset_version,
+        batch_size=batch_size,
+        num_workers=num_workers
+    )
+
+    train_loader = dataloaders['train']
+    val_loader = dataloaders['val']
+    test_loader = dataloaders['test']
+
+    # Initialize model
+    logger.info("Initializing model...")
+    model = initialize_model(config=config, model_name='UNetPlusPlus')
+    model = model.to(device)
+
+    # Count parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"Model parameters: Total={total_params:,}, Trainable={trainable_params:,}")
+
+    # Train model
+    logger.info("Starting training...")
+    model, history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        config=config,
+        device=device,
+        model_name=run_name
+    )
+
+    # Evaluate on test set
+    logger.info("Evaluating on test set...")
+    criterion = lambda pred, target: combined_loss(pred, target, bce_weight=0.5, dice_weight=0.5)
+    test_loss, test_acc = validate(model, test_loader, criterion, device)
+    logger.info(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%")
+
+    # Compute evaluation metrics
+    logger.info("Computing evaluation metrics...")
+    metrics = evaluate_model(
+        model=model,
+        test_loader=test_loader,
+        config=config,
+        device=device,
+        threshold=0.5,
+        batch_size=batch_size
+    )
+
+    # Add test loss and accuracy to metrics
+    metrics['test_loss'] = test_loss
+    metrics['test_accuracy'] = test_acc
+
+    # Generate report for this run
+    run_output_dir = output_dir / run_name
+    run_output_dir.mkdir(parents=True, exist_ok=True)
+
+    report_path = generate_report(
+        metrics=metrics,
+        run_name=run_name,
+        output_dir=str(run_output_dir),
+        config=config
+    )
+    logger.info(f"Report generated: {report_path}")
+
+    # Save final model with test metrics
+    checkpoint_dir = PROJECT_ROOT / 'checkpoints'
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    final_path = checkpoint_dir / f'{run_name}_final.pth'
+
+    from training.train import save_model
+    save_model(
+        model=model,
+        filepath=final_path,
+        config=config,
+        epoch=training_config.get('epochs', 30),
+        metrics={
+            'test_loss': test_loss,
+            'test_acc': test_acc,
+            'iou': metrics.get('iou', 0.0),
+            'dice': metrics.get('dice', 0.0),
+            'train_loss': history['train_loss'][-1] if history['train_loss'] else 0.0,
+            'train_acc': history['train_acc'][-1] if history['train_acc'] else 0.0
+        }
+    )
+
+    logger.info(f"Run {run_name} completed successfully.")
+
+    return {
+        'run_name': run_name,
+        'status': 'completed',
+        'reason': None,
+        'metrics': metrics,
+        'report_path': report_path
+    }
+
+
+def generate_summary_report(results, output_dir, config):
+    """Generate a summary report for all runs."""
+    summary_path = output_dir / 'summary_report.txt'
+
+    report_lines = []
+    report_lines.append("=" * 70)
+    report_lines.append("Summary Report - UNet++ Medical Image Segmentation")
+    report_lines.append("=" * 70)
+    report_lines.append("")
+
+    # Project info
+    project_config = config.get('project', {})
+    report_lines.append(f"Project: {project_config.get('name', 'N/A')}")
+    report_lines.append(f"Paper: {project_config.get('paper', 'N/A')}")
+    report_lines.append("")
+
+    # Reproduction mode
+    reproduction_mode = config.get('reproduction_mode', 'engineering')
+    report_lines.append(f"Reproduction Mode: {reproduction_mode}")
+    report_lines.append("")
+
+    # Training config
+    training_config = config.get('training', {})
+    report_lines.append("-" * 70)
+    report_lines.append("Training Configuration")
+    report_lines.append("-" * 70)
+    report_lines.append(f"  Epochs: {training_config.get('epochs', 'N/A')}")
+    report_lines.append(f"  Batch Size: {training_config.get('batch_size', 'N/A')}")
+    report_lines.append(f"  Loss Function: {training_config.get('loss_function', 'N/A')}")
+
+    optimizer_config = training_config.get('optimizer', {})
+    report_lines.append(f"  Optimizer: {optimizer_config.get('name', 'N/A')}")
+    report_lines.append(f"  Learning Rate: {optimizer_config.get('lr', 'N/A')}")
+
+    scheduler_config = training_config.get('scheduler', {})
+    report_lines.append(f"  Scheduler: {scheduler_config.get('name', 'N/A')}")
+    report_lines.append("")
+
+    # Results per run
+    report_lines.append("-" * 70)
+    report_lines.append("Run Results")
+    report_lines.append("-" * 70)
+
+    completed_runs = []
+    skipped_runs = []
+
+    for result in results:
+        run_name = result['run_name']
+        status = result['status']
+
+        if status == 'completed':
+            completed_runs.append(result)
+            metrics = result['metrics']
+            report_lines.append(f"\n  Run: {run_name}")
+            report_lines.append(f"    Status: Completed")
+            report_lines.append(f"    IoU: {metrics.get('iou', 0.0):.4f}")
+            report_lines.append(f"    Dice Coefficient: {metrics.get('dice', 0.0):.4f}")
+            report_lines.append(f"    Test Accuracy: {metrics.get('test_accuracy', 0.0):.2f}%")
+            report_lines.append(f"    Test Loss: {metrics.get('test_loss', 0.0):.4f}")
+            report_lines.append(f"    Report: {result.get('report_path', 'N/A')}")
+        elif status == 'skipped':
+            skipped_runs.append(result)
+            report_lines.append(f"\n  Run: {run_name}")
+            report_lines.append(f"    Status: Skipped")
+            report_lines.append(f"    Reason: {result.get('reason', 'Unknown')}")
+
+    # Comparison section
+    if len(completed_runs) >= 2:
+        report_lines.append("")
+        report_lines.append("-" * 70)
+        report_lines.append("Model Comparison")
+        report_lines.append("-" * 70)
+
+        # Sort runs by IoU
+        sorted_runs = sorted(completed_runs, key=lambda x: x['metrics'].get('iou', 0.0), reverse=True)
+
+        report_lines.append("\n  Runs sorted by IoU (descending):")
+        for i, run in enumerate(sorted_runs):
+            report_lines.append(f"    {i+1}. {run['run_name']}: IoU={run['metrics'].get('iou', 0.0):.4f}, "
+                              f"Dice={run['metrics'].get('dice', 0.0):.4f}")
+
+        # Compute IoU gains between best and others
+        if len(sorted_runs) >= 2:
+            best_run = sorted_runs[0]
+            best_iou = best_run['metrics'].get('iou', 0.0)
+            report_lines.append(f"\n  Best run by IoU: {best_run['run_name']} (IoU={best_iou:.4f})")
+
+            for run in sorted_runs[1:]:
+                iou_diff = best_iou - run['metrics'].get('iou', 0.0)
+                report_lines.append(f"    IoU gain of {best_run['run_name']} over {run['run_name']}: {iou_diff:.4f}")
+
+    # Summary statistics
+    report_lines.append("")
+    report_lines.append("-" * 70)
+    report_lines.append("Summary Statistics")
+    report_lines.append("-" * 70)
+    report_lines.append(f"  Total runs: {len(results)}")
+    report_lines.append(f"  Completed runs: {len(completed_runs)}")
+    report_lines.append(f"  Skipped runs: {len(skipped_runs)}")
+
+    if completed_runs:
+        avg_iou = sum(r['metrics'].get('iou', 0.0) for r in completed_runs) / len(completed_runs)
+        avg_dice = sum(r['metrics'].get('dice', 0.0) for r in completed_runs) / len(completed_runs)
+        report_lines.append(f"  Average IoU (completed runs): {avg_iou:.4f}")
+        report_lines.append(f"  Average Dice (completed runs): {avg_dice:.4f}")
+
+    report_lines.append("")
+    report_lines.append("=" * 70)
+    report_lines.append("End of Summary Report")
+    report_lines.append("=" * 70)
+
+    with open(summary_path, 'w', encoding='utf-8') as f:
+        f.write("\n".join(report_lines))
+
+    return str(summary_path)
+
+
+def main():
+    """Main entry point for the project."""
+    # Parse command line arguments
+    args = parse_args()
+
+    # Load configuration
+    try:
+        config = load_config_from_path(args.config)
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+    # Set up logging
+    logger = setup_logging(config)
+
+    # Set random seed for reproducibility
+    seed = config.get('system', {}).get('seed', 42)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # Determine device
+    device_name = config.get('system', {}).get('device', 'cuda')
+    device = torch.device(device_name if torch.cuda.is_available() else 'cpu')
+    logger.info(f"Using device: {device}")
+
+    # Get reproduction mode
+    reproduction_mode = config.get('reproduction_mode', 'engineering')
+    logger.info(f"Reproduction mode: {reproduction_mode}")
+
+    # Get runs to execute
+    try:
+        runs = get_run_config(config, args.run)
+    except IndexError as e:
+        logger.error(str(e))
+        sys.exit(1)
+
+    if not runs:
+        logger.warning("No runs found in configuration. Exiting.")
+        return
+
+    # Initialize report output directory before the loop
+    output_dir = Path('reports')
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Execute runs
+    results = []
+    for run_index, run in enumerate(runs):
+        try:
+            result = run_single_experiment(
+                config=config,
+                run=run,
+                run_index=run_index,
+                logger=logger,
+                device=device,
+                output_dir=output_dir
+            )
+            results.append(result)
+        except Exception as e:
+            logger.error(f"Error in run {run.get('name', f'run_{run_index}')}: {str(e)}")
+            results.append({
+                'run_name': run.get('name', f'run_{run_index}'),
+                'status': 'failed',
+                'reason': str(e),
+                'metrics': None
+            })
+
+    # Generate summary report
+    logger.info("Generating summary report...")
+    summary_path = generate_summary_report(results, output_dir, config)
+    logger.info(f"Summary report generated: {summary_path}")
+
+    # Print summary to console
+    print("\n" + "=" * 70)
+    print("SUMMARY")
+    print("=" * 70)
+    for result in results:
+        run_name = result['run_name']
+        status = result['status']
+        if status == 'completed':
+            metrics = result['metrics']
+            print(f"  {run_name}: IoU={metrics.get('iou', 0.0):.4f}, "
+                  f"Dice={metrics.get('dice', 0.0):.4f}, "
+                  f"Acc={metrics.get('test_accuracy', 0.0):.2f}%")
+        elif status == 'skipped':
+            print(f"  {run_name}: SKIPPED ({result.get('reason', 'Unknown')})")
+        else:
+            print(f"  {run_name}: FAILED ({result.get('reason', 'Unknown')})")
+    print(f"\nSummary report: {summary_path}")
+
+
+if __name__ == '__main__':
+    main()
+```

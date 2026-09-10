@@ -1,0 +1,399 @@
+import torch
+import torch.nn as nn
+import yaml
+import os
+
+
+class Llama27B(nn.Module):
+    """
+    Llama27B model structure for SELF-RAG.
+
+    This class defines a randomly initialized Llama2-7B style transformer model.
+    It is designed to receive preprocessed input (token ids) and output logits
+    over a vocabulary. The model architecture follows the Llama2 design with
+    RMSNorm, rotary positional embeddings, and grouped-query attention.
+
+    Note: This is a structural definition only. No pretrained weights are loaded.
+    Weight initialization is handled externally in training/train.py.
+    """
+
+    def __init__(self, config=None):
+        """
+        Initialize the Llama27B model.
+
+        Args:
+            config (dict, optional): Configuration dictionary loaded from config.yaml.
+                If None, a default configuration is used for basic testing.
+        """
+        super(Llama27B, self).__init__()
+
+        # Load config if provided, otherwise use defaults
+        if config is None:
+            config = self._load_default_config()
+
+        # --- Model hyperparameters ---
+        # These values are derived from the Llama2-7B architecture described in the paper.
+        # The paper specifies a 7B parameter model. The following dimensions are standard
+        # for Llama2-7B and are used as defaults when config values are null.
+        #
+        # Default vocabulary size: 32000 (standard Llama2 tokenizer).
+        # This is a concrete int fallback since config['model.num_classes'] is null
+        # (the paper does not specify a classification head; it's a generative LM).
+        self.vocab_size = 32000  # Default Llama2 vocabulary size
+
+        # Try to read from config if available, but never pass None to nn.Embedding
+        if config.get('model', {}).get('num_classes') is not None:
+            # For a generative LM, num_classes in config might be misused.
+            # We keep vocab_size as the embedding dimension.
+            pass  # vocab_size stays at default
+
+        self.hidden_size = 4096       # Llama2-7B hidden size
+        self.intermediate_size = 11008  # Llama2-7B FFN intermediate size
+        self.num_hidden_layers = 32    # Llama2-7B number of layers
+        self.num_attention_heads = 32  # Llama2-7B number of attention heads
+        self.num_key_value_heads = 32  # Llama2-7B uses grouped-query attention with 32 KV heads (same as Q for 7B)
+        self.max_position_embeddings = 4096  # Llama2 context length
+        self.rms_norm_eps = 1e-6       # Llama2 RMSNorm epsilon
+        self.dropout_rate = 0.0        # Llama2 typically has no dropout in attention/FFN
+
+        # Read dropout from config if available (with float fallback)
+        dropout_from_config = config.get('model', {}).get('dropout_ratio')
+        if dropout_from_config is not None:
+            self.dropout_rate = float(dropout_from_config)
+
+        # --- Token embedding ---
+        self.embed_tokens = nn.Embedding(self.vocab_size, self.hidden_size)
+
+        # --- Rotary positional embedding (computed on the fly) ---
+        # We precompute the inverse frequency for rotary embeddings
+        self.register_buffer(
+            "inv_freq",
+            1.0 / (10000 ** (torch.arange(0, self.hidden_size, 2).float() / self.hidden_size)),
+            persistent=False,
+        )
+
+        # --- Transformer layers ---
+        self.layers = nn.ModuleList(
+            [self._build_layer() for _ in range(self.num_hidden_layers)]
+        )
+
+        # --- Final layer norm ---
+        self.norm = RMSNorm(self.hidden_size, eps=self.rms_norm_eps)
+
+        # --- Output projection (tied weights with embedding) ---
+        # Llama2 ties the output projection with the input embedding.
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self.lm_head.weight = self.embed_tokens.weight  # weight tying
+
+        # --- Dropout (applied to embeddings and attention outputs if dropout_rate > 0) ---
+        self.dropout = nn.Dropout(self.dropout_rate)
+
+        # Initialize weights (simple init; external init may override)
+        self._init_weights()
+
+    def _build_layer(self):
+        """Build a single transformer decoder layer."""
+        return TransformerDecoderLayer(
+            hidden_size=self.hidden_size,
+            intermediate_size=self.intermediate_size,
+            num_attention_heads=self.num_attention_heads,
+            num_key_value_heads=self.num_key_value_heads,
+            rms_norm_eps=self.rms_norm_eps,
+            dropout_rate=self.dropout_rate,
+        )
+
+    def _init_weights(self):
+        """Initialize weights with normal distribution (standard for transformers)."""
+        # Embedding and output projection are tied, so we init once
+        nn.init.normal_(self.embed_tokens.weight, mean=0.0, std=0.02)
+        # Linear layers in transformer blocks
+        for layer in self.layers:
+            for name, param in layer.named_parameters():
+                if 'weight' in name and param.dim() >= 2:
+                    nn.init.normal_(param, mean=0.0, std=0.02)
+                elif 'bias' in name:
+                    nn.init.zeros_(param)
+
+    def _rotate_half(self, x):
+        """Rotate half the hidden dims of the input."""
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2:]
+        return torch.cat((-x2, x1), dim=-1)
+
+    def _apply_rotary_pos_emb(self, q, k, cos, sin, position_ids):
+        """
+        Apply rotary positional embedding to query and key tensors.
+
+        Args:
+            q: Query tensor of shape (batch, num_heads, seq_len, head_dim)
+            k: Key tensor of shape (batch, num_kv_heads, seq_len, head_dim)
+            cos: Cosine values of shape (seq_len, head_dim)
+            sin: Sine values of shape (seq_len, head_dim)
+            position_ids: Position ids of shape (batch, seq_len)
+
+        Returns:
+            q_embed, k_embed: Rotated query and key tensors
+        """
+        # Gather cos and sin based on position_ids
+        cos = cos[position_ids].unsqueeze(1)  # (batch, 1, seq_len, head_dim)
+        sin = sin[position_ids].unsqueeze(1)  # (batch, 1, seq_len, head_dim)
+
+        # Apply rotation
+        q_embed = (q * cos) + (self._rotate_half(q) * sin)
+        k_embed = (k * cos) + (self._rotate_half(k) * sin)
+        return q_embed, k_embed
+
+    def forward(self, input_ids, attention_mask=None, position_ids=None):
+        """
+        Forward pass of the Llama27B model.
+
+        Args:
+            input_ids (torch.Tensor): Token ids of shape (batch_size, seq_len).
+                Values must be in range [0, vocab_size).
+            attention_mask (torch.Tensor, optional): Attention mask of shape
+                (batch_size, seq_len) with 1 for valid positions and 0 for padding.
+                If None, all positions are considered valid.
+            position_ids (torch.Tensor, optional): Position ids of shape
+                (batch_size, seq_len). If None, positions are inferred as
+                [0, 1, ..., seq_len-1] for each batch.
+
+        Returns:
+            torch.Tensor: Logits of shape (batch_size, seq_len, vocab_size).
+        """
+        batch_size, seq_len = input_ids.shape
+
+        # Clamp input_ids to valid range to avoid embedding errors
+        input_ids = torch.clamp(input_ids, min=0, max=self.vocab_size - 1)
+
+        # Get token embeddings
+        hidden_states = self.embed_tokens(input_ids)
+        hidden_states = self.dropout(hidden_states)
+
+        # Create position_ids if not provided
+        if position_ids is None:
+            position_ids = torch.arange(seq_len, dtype=torch.long, device=input_ids.device)
+            position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
+
+        # Precompute rotary embedding cos/sin
+        inv_freq = self.inv_freq.to(input_ids.device)
+        # Compute angles for each position
+        position_ids_flat = position_ids.reshape(-1)
+        angles = torch.outer(position_ids_flat.float(), inv_freq)  # (batch*seq, head_dim/2)
+        # Add extra dimension for head_dim (we have head_dim/2 values, need head_dim)
+        # Actually for rotary we need head_dim values, but inv_freq has head_dim/2.
+        # We'll expand to head_dim by repeating.
+        # Standard implementation: angles shape (batch*seq, head_dim/2)
+        # Then cos/sin are computed and repeated for the two halves.
+        emb = torch.cat([angles, angles], dim=-1)  # (batch*seq, head_dim)
+        cos = emb.cos().view(batch_size, seq_len, -1)  # (batch, seq, head_dim)
+        sin = emb.sin().view(batch_size, seq_len, -1)
+
+        # Pass through transformer layers
+        for layer in self.layers:
+            hidden_states = layer(
+                hidden_states,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                cos=cos,
+                sin=sin,
+            )
+
+        # Final layer norm
+        hidden_states = self.norm(hidden_states)
+
+        # Output projection (tied weights)
+        logits = self.lm_head(hidden_states)
+
+        return logits
+
+    def _load_default_config(self):
+        """Load default config from config.yaml if available, else return empty dict."""
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        except FileNotFoundError:
+            return {}
+
+
+class RMSNorm(nn.Module):
+    """Root Mean Square Layer Normalization (used in Llama2)."""
+
+    def __init__(self, hidden_size, eps=1e-6):
+        super(RMSNorm, self).__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, hidden_states):
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        return self.weight * hidden_states.to(input_dtype)
+
+
+class TransformerDecoderLayer(nn.Module):
+    """Single transformer decoder layer with self-attention and FFN."""
+
+    def __init__(self, hidden_size, intermediate_size, num_attention_heads,
+                 num_key_value_heads, rms_norm_eps, dropout_rate):
+        super(TransformerDecoderLayer, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
+        self.head_dim = hidden_size // num_attention_heads
+
+        # Self-attention
+        self.self_attn = SelfAttention(
+            hidden_size=hidden_size,
+            num_attention_heads=num_attention_heads,
+            num_key_value_heads=num_key_value_heads,
+            head_dim=self.head_dim,
+            dropout_rate=dropout_rate,
+        )
+
+        # MLP (FFN)
+        self.mlp = MLP(
+            hidden_size=hidden_size,
+            intermediate_size=intermediate_size,
+            dropout_rate=dropout_rate,
+        )
+
+        # Layer norms
+        self.input_layernorm = RMSNorm(hidden_size, eps=rms_norm_eps)
+        self.post_attention_layernorm = RMSNorm(hidden_size, eps=rms_norm_eps)
+
+    def forward(self, hidden_states, attention_mask=None, position_ids=None, cos=None, sin=None):
+        # Self-attention with pre-norm
+        residual = hidden_states
+        hidden_states = self.input_layernorm(hidden_states)
+        hidden_states = self.self_attn(
+            hidden_states,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            cos=cos,
+            sin=sin,
+        )
+        hidden_states = residual + hidden_states
+
+        # MLP with pre-norm
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states = self.mlp(hidden_states)
+        hidden_states = residual + hidden_states
+
+        return hidden_states
+
+
+class SelfAttention(nn.Module):
+    """Grouped-query self-attention (Llama2 style)."""
+
+    def __init__(self, hidden_size, num_attention_heads, num_key_value_heads,
+                 head_dim, dropout_rate):
+        super(SelfAttention, self).__init__()
+        self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
+        self.head_dim = head_dim
+
+        # Projection layers
+        self.q_proj = nn.Linear(hidden_size, num_attention_heads * head_dim, bias=False)
+        self.k_proj = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=False)
+        self.v_proj = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=False)
+        self.o_proj = nn.Linear(num_attention_heads * head_dim, hidden_size, bias=False)
+
+        self.dropout = nn.Dropout(dropout_rate)
+
+    def forward(self, hidden_states, attention_mask=None, position_ids=None, cos=None, sin=None):
+        batch_size, seq_len, _ = hidden_states.shape
+
+        # Project to q, k, v
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+
+        # Reshape to (batch, num_heads, seq_len, head_dim)
+        query_states = query_states.view(batch_size, seq_len, self.num_attention_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(batch_size, seq_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(batch_size, seq_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+
+        # Apply rotary positional embeddings
+        if cos is not None and sin is not None:
+            query_states, key_states = self._apply_rotary_pos_emb(
+                query_states, key_states, cos, sin, position_ids
+            )
+
+        # Repeat k/v heads to match query heads (grouped-query attention)
+        if self.num_key_value_heads != self.num_attention_heads:
+            # Repeat each kv head to match number of query heads
+            repeat_factor = self.num_attention_heads // self.num_key_value_heads
+            key_states = key_states.repeat_interleave(repeat_factor, dim=1)
+            value_states = value_states.repeat_interleave(repeat_factor, dim=1)
+
+        # Scaled dot-product attention
+        attn_weights = torch.matmul(query_states, key_states.transpose(-2, -1)) / (self.head_dim ** 0.5)
+
+        # Apply attention mask (causal + padding mask)
+        if attention_mask is not None:
+            # attention_mask shape: (batch, seq_len) with 1 for valid, 0 for padding
+            # Expand to (batch, 1, seq_len, seq_len) for broadcasting
+            mask = attention_mask.unsqueeze(1).unsqueeze(2)  # (batch, 1, 1, seq_len)
+            mask = mask.expand(-1, -1, seq_len, -1)  # (batch, 1, seq_len, seq_len)
+            # Convert to additive mask: 0 for valid, -inf for padding
+            additive_mask = (1.0 - mask) * torch.finfo(attn_weights.dtype).min
+            attn_weights = attn_weights + additive_mask
+
+        # Causal mask (prevent attending to future tokens)
+        causal_mask = torch.triu(
+            torch.ones(seq_len, seq_len, dtype=torch.bool, device=attn_weights.device),
+            diagonal=1,
+        )
+        attn_weights = attn_weights.masked_fill(causal_mask, torch.finfo(attn_weights.dtype).min)
+
+        # Softmax
+        attn_weights = torch.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        attn_weights = self.dropout(attn_weights)
+
+        # Weighted sum
+        attn_output = torch.matmul(attn_weights, value_states)  # (batch, num_heads, seq_len, head_dim)
+
+        # Reshape and project
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
+        attn_output = self.o_proj(attn_output)
+
+        return attn_output
+
+    def _rotate_half(self, x):
+        """Rotate half the hidden dims of the input."""
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2:]
+        return torch.cat((-x2, x1), dim=-1)
+
+    def _apply_rotary_pos_emb(self, q, k, cos, sin, position_ids):
+        """Apply rotary positional embedding to query and key tensors."""
+        # cos/sin shape: (batch, seq_len, head_dim)
+        # Gather based on position_ids
+        cos = cos[position_ids].unsqueeze(1)  # (batch, 1, seq_len, head_dim)
+        sin = sin[position_ids].unsqueeze(1)  # (batch, 1, seq_len, head_dim)
+
+        q_embed = (q * cos) + (self._rotate_half(q) * sin)
+        k_embed = (k * cos) + (self._rotate_half(k) * sin)
+        return q_embed, k_embed
+
+
+class MLP(nn.Module):
+    """Multi-layer perceptron (FFN) with SwiGLU activation (Llama2 style)."""
+
+    def __init__(self, hidden_size, intermediate_size, dropout_rate):
+        super(MLP, self).__init__()
+        self.gate_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.up_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.down_proj = nn.Linear(intermediate_size, hidden_size, bias=False)
+        self.dropout = nn.Dropout(dropout_rate)
+
+    def forward(self, x):
+        # SwiGLU activation: silu(gate(x)) * up(x)
+        gate = torch.nn.functional.silu(self.gate_proj(x))
+        up = self.up_proj(x)
+        hidden = gate * up
+        output = self.down_proj(hidden)
+        return self.dropout(output)

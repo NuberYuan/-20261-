@@ -1,0 +1,23 @@
+execution:
+  total: 1
+  planned: 1
+  success: 1
+  failed: 0
+  skipped: 0
+success:
+- experiment_id: None_None_default
+  status: SUCCESS
+  warnings: []
+  exit_code: 0
+  duration_seconds: 1.86
+  logs:
+    stdout: D:\applications\paper2code-master\paper2code-master\backend\data\output\RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME\step8\experiments\experiment_001\stdout.log
+    stderr: D:\applications\paper2code-master\paper2code-master\backend\data\output\RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME\step8\experiments\experiment_001\stderr.log
+  result_files:
+  - reports/reports/default_confusion_matrix.png
+  - reports/reports/default_evaluation_report.txt
+  - reports/reports/default_metrics.json
+  - reports/reports/default_metrics_bar_chart.png
+  output_dir: D:\applications\paper2code-master\paper2code-master\backend\data\output\RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME\step8\experiments\experiment_001
+failed: []
+skipped: []

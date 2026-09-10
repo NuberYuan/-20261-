@@ -1,0 +1,16 @@
+{
+  "table_id": "table_5",
+  "table_type": "other",
+  "caption_summary": "A table with a single column listing values 100, 100, and 50, likely representing some parameter or setting.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Item", "value": "100"},
+      {"label": "Item", "value": "100"},
+      {"label": "Item", "value": "50"}
+    ]
+  },
+  "table_summary": "The table contains only a column labeled 'Item' with three numerical entries: 100, 100, and 50. Without additional context or headers, it is not possible to determine the exact meaning of these values. They may represent hyperparameters, dataset sizes, or other experimental settings, but the table lacks sufficient information for a definitive classification."
+}

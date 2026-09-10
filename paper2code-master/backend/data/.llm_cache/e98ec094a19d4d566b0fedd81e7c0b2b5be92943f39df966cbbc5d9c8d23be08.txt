@@ -1,0 +1,133 @@
+import sys
+import json
+import numpy as np
+import cv2
+
+OCR_TEXT = """Quantile Forecasts
+9t+1(0.1)   9t+1(0.5)  9t+1(0.9)
+Yt+r(0.1)  Yt+r(0.5)  yt+r(0.9)
+Add & Norm
+Gate
+Dense
+Residual
+Dropout
+Connection
+Temporal Fusion Decoder
+ELU
+External
+Primary
+Context
+Position-wise
+GRN
+Input
+(Optional)
+Feed-forward
+Temporal
+Gated Residual Network (GRN)
+Self-Attention
+Masked Interpretable Multi-head Attention
+(j) c(j)
+vxt &{
+j=1
+Static
+Variable
+Selection
+Enrichment
+"""
+
+
+def analyze(image_path):
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+
+    try:
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        if img is not None:
+            height, width = img.shape[:2]
+            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            saturation = float(np.mean(hsv[:, :, 1]))
+            brightness = float(np.mean(hsv[:, :, 2]))
+            _ = (height, width, saturation, brightness)
+    except Exception:
+        pass
+
+    txt = OCR_TEXT.lower()
+
+    exp_keywords = [
+        "accuracy", "loss", "epoch", "precision", "recall",
+        "f1-score", "f1 score", "f1", "curve", "performance",
+        "comparison", "validation", "training", "test accuracy"
+    ]
+
+    arch_keywords = [
+        "cnn", "transformer", "attention", "encoder", "decoder",
+        "block", "embedding", "classifier", "feature extractor",
+        "alexnet", "resnet", "vgg", "googlenet",
+        "temporal fusion decoder", "gated residual network", "grn",
+        "self-attention", "masked interpretable multi-head attention",
+        "variable selection", "enrichment", "feed-forward", "residual",
+        "dense", "dropout", "add & norm"
+    ]
+
+    dataset_keywords = [
+        "sample", "class", "example", "input"
+    ]
+
+    contains_exp = any(k in txt for k in exp_keywords)
+    contains_arch = any(k in txt for k in arch_keywords)
+    contains_dataset = any(k in txt for k in dataset_keywords)
+
+    if contains_exp:
+        result["type"] = "experiment_result"
+        result["description"] = "展示实验性能曲线或指标对比结果"
+        components = []
+        for name in ["AlexNet", "ResNet", "VGG", "GoogLeNet", "Transformer", "CNN"]:
+            if name.lower() in txt:
+                components.append(name)
+        for metric in ["Accuracy", "Loss", "Precision", "Recall", "F1-score"]:
+            if metric.lower() in txt:
+                components.append(metric)
+        result["important_components"] = components
+        result["code_relevant_information"] = "需要实现模型评估、指标计算和结果可视化"
+
+    elif contains_arch:
+        result["type"] = "architecture"
+        result["description"] = "展示模型网络结构和数据流关系"
+        components = []
+        if "temporal fusion decoder" in txt:
+            components.append("Temporal Fusion Decoder")
+        if "gated residual network" in txt or "grn" in txt:
+            components.append("Gated Residual Network")
+        if "masked interpretable multi-head attention" in txt:
+            components.append("Masked Interpretable Multi-head Attention")
+        if "self-attention" in txt:
+            components.append("Self-Attention")
+        if "variable selection" in txt:
+            components.append("Variable Selection")
+        if "enrichment" in txt:
+            components.append("Enrichment")
+        result["important_components"] = components
+        result["code_relevant_information"] = "需要实现Temporal Fusion Decoder、Gated Residual Network、Self-Attention等模块及其数据流连接"
+
+    elif contains_dataset:
+        result["type"] = "dataset"
+        result["description"] = "展示数据样本、类别或输入示例"
+        result["important_components"] = []
+        result["code_relevant_information"] = "需要准备对应格式的数据集并实现数据加载"
+
+    return result
+
+
+if __name__ == "__main__":
+    try:
+        image_path = sys.argv[1]
+    except Exception:
+        image_path = ""
+
+    result = analyze(image_path)
+    print(json.dumps(result, ensure_ascii=False, indent=2))

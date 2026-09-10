@@ -1,0 +1,792 @@
+{
+  "title": "LEARNING SIMPLE ALGORITHMS FROM EXAMPLES",
+  "research_problem": "如何让神经网络模型从输入输出示例中学习简单算法（如复制、多位数加法、单位数乘法），并能泛化到比训练序列长得多的测试序列。",
+  "motivation": "许多日常任务需要多步交互与操作序列的精确协调。传统方法大多使用连续接口，可通过反向传播训练；而本文关注离散接口，必须依赖强化学习，更具挑战性。作者希望探索控制器在仅有稀疏奖励的情况下学习正确操作序列的能力。",
+  "main_contribution": "提出一种控制器-接口抽象框架，通过Q-learning的多种增强（动态折扣、Watkins Q(λ)、Q函数惩罚项）训练RNN控制器，在六个算法任务上成功学习并泛化到数千位数字的测试序列，同时揭示了控制器容量与泛化能力之间的权衡。",
+  "methodology": {
+    "method_name": "Controller-Interface framework with enhanced Q-learning",
+    "core_idea": "用一个RNN控制器通过一组离散接口（输入磁带、输入网格、输出磁带）与环境交互，控制器通过强化学习学习离散动作序列，同时通过反向传播学习输出符号。",
+    "pipeline": "控制器接收当前状态和接口读数。控制器输出离散动作和符号。接口根据动作更新读写头位置或写入符号。训练时符号输出用交叉熵损失通过反向传播更新。动作输出用增强Q-learning更新。训练采用课程学习，从复杂度6开始，达到100%准确率后增加4，直到能解决长度为100的验证序列。",
+    "model": "LSTM, GRU, Feedforward Network",
+    "model_architecture": {
+      "input": "控制器输入包括当前时间步的接口读数和控制器上一时间步的隐藏状态",
+      "output": "控制器输出包括离散动作（如移动读写头、写入符号）和符号（从词汇表的softmax输出中取最大值）",
+      "feature_extraction": "RNN控制器（LSTM或GRU）或前馈网络将输入映射到隐藏状态",
+      "classification": "在隐藏状态之上加一个线性层，将隐藏状态映射到给定接口的动作或目标符号",
+      "pretrained_model": "NOT_FOUND",
+      "special_modules": "输入磁带接口、输入网格接口、输出磁带接口",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "NOT_FOUND",
+      "lstm": "论文探索了两种不同大小的1层LSTM（200单元和400单元），以及1层GRU（200单元）和1层前馈网络（200单元）作为控制器。"
+    }
+  },
+  "dataset": {
+    "dataset_name": "Synthetic algorithmic tasks (copy, reverse, walk, addition, 3-number addition, single digit multiplication)",
+    "dataset_source": "NOT_FOUND",
+    "dataset_size": "每个模型训练使用3×10^7个字符",
+    "number_of_classes": "NOT_FOUND",
+    "data_type": "算术和序列操作任务的合成输入输出对",
+    "train_test_split": "训练时使用课程学习，从复杂度6开始，达到100%准确率后增加4，直到模型能解决长度为100的验证序列。测试使用50个长度为100的测试实例，以及长度为1000的测试序列。",
+    "preprocessing": "所有算术运算使用十进制（base 10）。3行加法任务使用额外课程：初始示例不涉及进位且包含许多零。"
+  },
+  "implementation_details": {
+    "programming_framework": "NOT_FOUND",
+    "optimizer": "NOT_FOUND",
+    "learning_rate": "0.1",
+    "batch_size": "20",
+    "epoch": "NOT_FOUND",
+    "loss_function": "Cross-entropy loss for symbol prediction; Q-learning loss with penalty term for action learning",
+    "hardware": "NOT_FOUND",
+    "training_strategy": "控制器为1层GRU，200单元。使用与Glorot & Bengio (2010)相同的初始化但乘以2。学习率α=0.1，batch size=20。每个模型训练使用3×10^7个字符，约需4小时。使用ϵ-greedy策略，ϵ=0.05。课程学习从复杂度6开始，达到100%准确率后增加4，直到能解决长度为100的验证序列。Q-learning增强包括：动态折扣（将Q函数除以剩余符号数）、Watkins Q(λ)（λ=1）、Q函数惩罚项κ||∑_a Q̂(s,a)-1||^2（初始κ=0，在短样本上达到良好准确率后设为非零）。奖励为每个正确预测的数字给1，错误给0，一旦预测错误即终止训练episode。"
+  },
+  "experiment": {
+    "evaluation_metrics": "Success rate, Test accuracy, Median training time",
+    "baseline_methods": "Standard Q-learning, Supervised learning with ground truth actions",
+    "comparison_results": "标准Q-learning在大多数任务上失败（copy 90%, reverse 0%, walk 0%, 2-row addition 70%, 3-row addition 0%, single digit multiplication 100%）。使用全部三种增强后，copy 100%, reverse (FF) 100%, walk (FF) 100%, 2-row addition 100%, 3-row addition (extra curriculum) 80%, single digit multiplication 100%。在长度为1000的测试序列上，除乘法（0%）外，其他任务仍能泛化（copy 100%, reverse (FF) 100%, walk (FF) 100%, 2-row addition 100%, 3-row addition 60%）。",
+    "ablation_study": "论文通过表2对比了不同配置：不同控制器容量（600, 400, 200单元）、不同折扣因子（γ=1, 0.99, 0.95）、是否使用动态折扣（D）、是否使用Watkins Q(λ)、是否使用惩罚项。结果表明增加控制器容量会降低性能；动态折扣、Watkins Q(λ)和惩罚项各自都能显著提升性能，三者结合效果最佳。附录B研究了词汇量大小（base 2到10）对训练时间的影响，发现不频繁但可靠的奖励优于频繁但嘈杂的奖励。附录C研究了三种奖励结构（0/1奖励、离散化奖励、连续奖励），发现0/1奖励训练最快。",
+    "important_results": "使用全部三种Q-learning增强后，模型在所有六个任务上都能成功学习（测试长度100）。在长度为1000的测试序列上，除乘法任务外仍能泛化。监督学习实验中，前馈控制器在copy、reverse、walk任务上完美泛化，但在需要记忆的任务上完全失败。RNN控制器容量过大会导致学习到依赖序列长度的错误自动机，从而无法泛化到更长序列。"
+  },
+  "reproduction_requirements": {
+    "required_modules": [
+      "RNN控制器（LSTM或GRU）",
+      "输入磁带接口",
+      "输入网格接口",
+      "输出磁带接口",
+      "Q-learning with dynamic discount",
+      "Watkins Q(λ)",
+      "Q-function penalty term"
+    ],
+    "important_parameters": {
+      "learning_rate": "0.1",
+      "batch_size": "20",
+      "epsilon": "0.05",
+      "lambda": "1",
+      "controller_units": "200",
+      "controller_type": "GRU",
+      "training_characters": "3×10^7",
+      "curriculum_start_complexity": "6",
+      "curriculum_increment": "4",
+      "validation_length": "100",
+      "test_length": "100",
+      "test_length_long": "1000",
+      "num_test_instances": "50",
+      "num_runs": "10",
+      "scheduler": "StepLR",
+      "scheduler_step_size": "0",
+      "scheduler_gamma": "2."
+    },
+    "possible_difficulties": [
+      "环境非平稳性：符号预测的持续学习使Q-learning环境不断变化",
+      "控制器容量选择困难：容量过小无法解决需要记忆的任务，容量过大则过拟合训练序列长度",
+      "3行加法任务需要特殊课程学习才能成功",
+      "乘法任务在长度为1000的测试序列上无法泛化",
+      "强化学习性能高度随机，需要多次重复实验"
+    ]
+  },
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "model_architecture",
+      "description": "展示输入磁带和网格接口（a）、控制器-接口抽象概览（b）、以及加法任务中模型在两个时间步的操作示例（c）。"
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "data_example",
+      "description": "展示六个任务（copy, reverse, walk, addition, 3 number addition, single digit multiplication）的初始状态示例。黄色框表示输入接口上读写头的起始位置，输出磁带上的灰色字符是训练中使用的目标符号。",
+      "data_characteristics": "每个任务有不同的输入接口（磁带或网格）和输出要求",
+      "categories": [
+        "Copy",
+        "Reverse",
+        "Walk",
+        "Addition",
+        "3 number addition",
+        "Single digit multiplication"
+      ],
+      "visual_features": "黄色框标记读写头起始位置，灰色字符标记目标输出符号"
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "experiment_result",
+      "description": "监督学习设置下，前馈网络（绿色）、GRU（红色）和LSTM（黄色）控制器在六个任务上的测试准确率随复杂度变化曲线（10次运行）。",
+      "x_axis": "复杂度（解决任务所需的时间步数）",
+      "y_axis": "测试准确率",
+      "trend": "前馈控制器在copy、reverse、walk任务上完美泛化，但在需要记忆的任务上完全失败。RNN控制器在不同任务上表现不一，准确率随复杂度增加而下降。",
+      "conclusion": "前馈控制器在简单任务上泛化良好，但缺乏记忆能力；RNN控制器在需要记忆的任务上表现更好，但存在泛化问题。"
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "other",
+      "description": "展示reverse问题的正确自动机（a）和过表达模型学到的错误自动机（b）。",
+      "conclusion": "过表达模型（如LSTM）倾向于学习依赖序列长度的错误自动机，无法泛化到任意长度序列。"
+    },
+    {
+      "figure_number": "Figure 5",
+      "type": "experiment_result",
+      "description": "标准Q-learning（蓝色）和增强版Q-learning（动态折扣、Watkins Q(λ)和惩罚项）的测试准确率随任务复杂度变化曲线（10次运行）。",
+      "x_axis": "任务复杂度",
+      "y_axis": "测试准确率",
+      "trend": "增强版Q-learning在所有复杂度上均优于标准Q-learning。在非常高的复杂度（数千位数字）时，准确率开始下降。",
+      "conclusion": "Q-learning增强显著提升性能，但高复杂度下的性能下降与监督学习中的趋势一致，表明瓶颈在控制器能力而非Q-learning。"
+    },
+    {
+      "figure_number": "Figure 6",
+      "type": "other",
+      "description": "展示模型在加法任务上发现的三种不同解决方案，箭头显示读写头在输入网格上的移动轨迹。",
+      "conclusion": "模型能够发现多种正确的解决方案，每种方案有不同的移动模式。"
+    },
+    {
+      "figure_number": "Table 1",
+      "type": "experiment_result",
+      "description": "三种不同控制器（前馈、200单元LSTM、400单元LSTM）在reverse任务上的动作置信度和自相关矩阵对比。",
+      "x_axis": "时间步",
+      "y_axis": "动作置信度/自相关",
+      "trend": "前馈模型的自相关矩阵显示两个明显的高相关块，对应两个不同状态；LSTM控制器的这种结构只松散存在。",
+      "conclusion": "高容量LSTM控制器未能学习正确的两状态自动机，而前馈控制器成功学习了正确的算法结构。"
+    }
+  ],
+  "table_analysis": {
+    "tables_analyzed": 6,
+    "table_results": [
+      {
+        "table_id": "table_1",
+        "table_type": "other",
+        "caption_summary": "Diagram-like table showing the input, output, and memory interfaces of a controller, with labels for Controller Output, State Controller, Future, and Controller Input.",
+        "extracted_data": {
+          "metrics": [],
+          "methods": [],
+          "best_result": null,
+          "key_values": [
+            {
+              "label": "Input Interface",
+              "value": "Controller Input"
+            },
+            {
+              "label": "Output Interface",
+              "value": "Controller Output"
+            },
+            {
+              "label": "Memory Interface",
+              "value": "State Controller Future"
+            }
+          ]
+        },
+        "table_summary": "This table appears to be a structural diagram or schematic representation rather than a numerical results table. It shows the interfaces of a controller system, including Input Interface, Output Interface, and Memory Interface, with associated labels such as Controller Input, Controller Output, State Controller, and Future. No quantitative data or experimental metrics are present."
+      },
+      {
+        "table_id": "table_2",
+        "table_type": "other",
+        "caption_summary": "Fragment of a table describing input symbol lengths for arithmetic tasks and a Q-learning method",
+        "extracted_data": {
+          "metrics": [],
+          "methods": [
+            "Q-LEARNING"
+          ],
+          "best_result": null,
+          "key_values": [
+            {
+              "label": "input symbols; for addition would involve two",
+              "value": "104"
+            },
+            {
+              "label": "long numbers; for",
+              "value": "3"
+            },
+            {
+              "label": "long numbers and for single digit multiplication would involve a single",
+              "value": ""
+            }
+          ]
+        },
+        "table_summary": "The table appears to be a partial or malformed extraction from a paper, containing fragments about input symbol lengths for arithmetic tasks and a mention of Q-learning. The numerical values 104 and 3 likely refer to input lengths or number of symbols, but the table is too incomplete to interpret reliably."
+      },
+      {
+        "table_id": "table_3",
+        "table_type": "other",
+        "caption_summary": "A bullet list containing five numeric values: 2, 0, 3, 2, 0.",
+        "extracted_data": {
+          "metrics": [],
+          "methods": [],
+          "best_result": null,
+          "key_values": [
+            {
+              "label": "Item 1",
+              "value": "2"
+            },
+            {
+              "label": "Item 2",
+              "value": "0"
+            },
+            {
+              "label": "Item 3",
+              "value": "3"
+            },
+            {
+              "label": "Item 4",
+              "value": "2"
+            },
+            {
+              "label": "Item 5",
+              "value": "0"
+            }
+          ]
+        },
+        "table_summary": "The table consists of a bullet list with five numeric entries: 2, 0, 3, 2, and 0. Without additional context, it is unclear what these values represent, as no headers, labels, or descriptive text are provided. The table does not appear to contain experimental results, comparisons, or other standard academic table structures."
+      },
+      {
+        "table_id": "table_4",
+        "table_type": "ablation_study",
+        "caption_summary": "Ablation results showing task performance (percentage solved) under different test lengths, number of units, discount factors, Watkins Q(λ), and task penalty configurations.",
+        "extracted_data": {
+          "metrics": [
+            "Copying",
+            "Reverse",
+            "Reverse (FF controller)",
+            "Walk",
+            "Walk (FF controller)",
+            "2-row Addition",
+            "3-row Addition",
+            "3-row Addition (extra curriculum)",
+            "Single Digit Multiplication"
+          ],
+          "methods": [
+            "Test length 100, #Units 600, γ 1, no Watkins Q(λ), no Task Penalty",
+            "Test length 100, #Units 400, γ 1, no Watkins Q(λ), no Task Penalty",
+            "Test length 100, #Units 200, γ 1, no Watkins Q(λ), no Task Penalty",
+            "Test length 100, #Units 200, γ 0.99, no Watkins Q(λ), no Task Penalty",
+            "Test length 100, #Units 200, γ 0.95, no Watkins Q(λ), no Task Penalty",
+            "Test length 100, #Units 200, γ D, no Watkins Q(λ), no Task Penalty",
+            "Test length 100, #Units 200, γ D, Watkins Q(λ), no Task Penalty",
+            "Test length 100, #Units 200, γ D, Watkins Q(λ), Task Penalty",
+            "Test length 1000, #Units 200, γ D, Watkins Q(λ), no Task Penalty",
+            "Test length 1000, #Units 200, γ D, Watkins Q(λ), Task Penalty"
+          ],
+          "best_result": {
+            "method": "Test length 100, #Units 200, γ D, Watkins Q(λ), Task Penalty",
+            "metric": "2-row Addition",
+            "value": "100%"
+          },
+          "key_values": [
+            {
+              "label": "Copying",
+              "value": "30%, 60%, 90%, 50%, 70%, 90%, 100%, 100%, 100%, 100%"
+            },
+            {
+              "label": "Reverse",
+              "value": "0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%"
+            },
+            {
+              "label": "Reverse (FF controller)",
+              "value": "0%, 0%, 0%, 0%, 0%, 0%, 100%, 90%, 100%, 90%"
+            },
+            {
+              "label": "Walk",
+              "value": "0%, 0%, 0%, 0%, 0%, 0%, 10%, 90%, 10%, 80%"
+            },
+            {
+              "label": "Walk (FF controller)",
+              "value": "0%, 0%, 0%, 0%, 0%, 0%, 100%, 100%, 100%, 100%"
+            },
+            {
+              "label": "2-row Addition",
+              "value": "10%, 70%, 70%, 70%, 80%, 60%, 60%, 100%, 40%, 100%"
+            },
+            {
+              "label": "3-row Addition",
+              "value": "0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%"
+            },
+            {
+              "label": "3-row Addition (extra curriculum)",
+              "value": "0%, 50%, 80%, 40%, 50%, 50%, 80%, 80%, 10%, 60%"
+            },
+            {
+              "label": "Single Digit Multiplication",
+              "value": "0%, 0%, 0%, 0%, 0%, 100%, 100%, 100%, 0%, 0%"
+            }
+          ]
+        },
+        "table_summary": "This ablation table reports the percentage of tasks solved under varying configurations of test length, number of units, discount factor γ, Watkins Q(λ), and task penalty. The best overall performance is achieved with test length 100, 200 units, discount D, Watkins Q(λ) enabled, and task penalty enabled, where Copying, 2-row Addition, and Single Digit Multiplication all reach 100%. Reverse and 3-row Addition remain unsolved (0%) across all configurations, while Reverse and Walk improve substantially only when a feedforward (FF) controller is used."
+      },
+      {
+        "table_id": "table_5",
+        "table_type": "other",
+        "caption_summary": "Vocabulary size (in thousands) for different tasks as a function of the number of symbols in the vocabulary.",
+        "extracted_data": {
+          "metrics": [
+            "Vocabulary Size"
+          ],
+          "methods": [
+            "Coping",
+            "Reverse (FF controller)",
+            "Walk (FF controller)",
+            "Addition",
+            "3-number Addition (extra curriculum)",
+            "Single Digit Multiplication"
+          ],
+          "best_result": null,
+          "key_values": [
+            {
+              "label": "Coping, vocab size 2",
+              "value": "1.4"
+            },
+            {
+              "label": "Reverse (FF controller), vocab size 2",
+              "value": "6.5"
+            },
+            {
+              "label": "Walk (FF controller), vocab size 2",
+              "value": "8.7"
+            },
+            {
+              "label": "Addition, vocab size 2",
+              "value": "250.0"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 2",
+              "value": "250.0"
+            },
+            {
+              "label": "Single Digit Multiplication, vocab size 2",
+              "value": "invalid"
+            },
+            {
+              "label": "Single Digit Multiplication, vocab size 3",
+              "value": "1.4"
+            },
+            {
+              "label": "Single Digit Multiplication, vocab size 4",
+              "value": "0.6"
+            },
+            {
+              "label": "Single Digit Multiplication, vocab size 5",
+              "value": "0.6"
+            },
+            {
+              "label": "Single Digit Multiplication, vocab size 6",
+              "value": "0.6"
+            },
+            {
+              "label": "Single Digit Multiplication, vocab size 7",
+              "value": "0.6"
+            },
+            {
+              "label": "Single Digit Multiplication, vocab size 8",
+              "value": "0.5"
+            },
+            {
+              "label": "Single Digit Multiplication, vocab size 9",
+              "value": "0.6"
+            },
+            {
+              "label": "Single Digit Multiplication, vocab size 10",
+              "value": "0.6"
+            },
+            {
+              "label": "Reverse (FF controller), vocab size 3",
+              "value": "6.5"
+            },
+            {
+              "label": "Reverse (FF controller), vocab size 4",
+              "value": "23.8"
+            },
+            {
+              "label": "Reverse (FF controller), vocab size 5",
+              "value": "3.1"
+            },
+            {
+              "label": "Reverse (FF controller), vocab size 6",
+              "value": "3.6"
+            },
+            {
+              "label": "Reverse (FF controller), vocab size 7",
+              "value": "3.8"
+            },
+            {
+              "label": "Reverse (FF controller), vocab size 8",
+              "value": "2.5"
+            },
+            {
+              "label": "Reverse (FF controller), vocab size 9",
+              "value": "2.8"
+            },
+            {
+              "label": "Reverse (FF controller), vocab size 10",
+              "value": "2.0"
+            },
+            {
+              "label": "Walk (FF controller), vocab size 3",
+              "value": "8.7"
+            },
+            {
+              "label": "Walk (FF controller), vocab size 4",
+              "value": "6.9"
+            },
+            {
+              "label": "Walk (FF controller), vocab size 5",
+              "value": "6.8"
+            },
+            {
+              "label": "Walk (FF controller), vocab size 6",
+              "value": "4.0"
+            },
+            {
+              "label": "Walk (FF controller), vocab size 7",
+              "value": "6.2"
+            },
+            {
+              "label": "Walk (FF controller), vocab size 8",
+              "value": "5.3"
+            },
+            {
+              "label": "Walk (FF controller), vocab size 9",
+              "value": "4.4"
+            },
+            {
+              "label": "Walk (FF controller), vocab size 10",
+              "value": "3.9"
+            },
+            {
+              "label": "Addition, vocab size 3",
+              "value": "250.0"
+            },
+            {
+              "label": "Addition, vocab size 4",
+              "value": "30.9"
+            },
+            {
+              "label": "Addition, vocab size 5",
+              "value": "14.5"
+            },
+            {
+              "label": "Addition, vocab size 6",
+              "value": "26.1"
+            },
+            {
+              "label": "Addition, vocab size 7",
+              "value": "21.8"
+            },
+            {
+              "label": "Addition, vocab size 8",
+              "value": "21.9"
+            },
+            {
+              "label": "Addition, vocab size 9",
+              "value": "25.0"
+            },
+            {
+              "label": "Addition, vocab size 10",
+              "value": "23.4"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 3",
+              "value": "250.0"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 4",
+              "value": "61.5"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 5",
+              "value": "250.0"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 6",
+              "value": "250.0"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 7",
+              "value": "112.2"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 8",
+              "value": "178.2"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 9",
+              "value": "93.8"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 10",
+              "value": "79.1"
+            },
+            {
+              "label": "3-number Addition (extra curriculum), vocab size 11",
+              "value": "81.9"
+            }
+          ]
+        },
+        "table_summary": "This table reports the vocabulary size (in thousands) for various tasks as the number of symbols in the vocabulary increases from 2 to 10. Tasks such as Coping, Reverse, Walk, Addition, and 3-number Addition show varying vocabulary sizes, with some entries marked as invalid or reaching a maximum of 250.0. The Single Digit Multiplication task has an invalid entry at vocabulary size 2 and then maintains a small vocabulary size around 0.5-1.4 for larger vocabularies."
+      },
+      {
+        "table_id": "table_6",
+        "table_type": "ablation_study",
+        "caption_summary": "Comparison of task performance across three reward types: 0/1 reward, discretized reward, and continuous reward.",
+        "extracted_data": {
+          "metrics": [
+            "reward_type_performance"
+          ],
+          "methods": [
+            "0/1 reward",
+            "Discretized reward",
+            "Continuous reward"
+          ],
+          "best_result": {
+            "method": "Continuous reward",
+            "metric": "Single Digit Multiplication",
+            "value": 131.9
+          },
+          "key_values": [
+            {
+              "label": "Coping Reverse (FF controller) - 0/1 reward",
+              "value": "0.6"
+            },
+            {
+              "label": "Coping Reverse (FF controller) - Discretized reward",
+              "value": "0.6"
+            },
+            {
+              "label": "Coping Reverse (FF controller) - Continuous reward",
+              "value": "0.8"
+            },
+            {
+              "label": "Walk (FF controller) - 0/1 reward",
+              "value": "3.1"
+            },
+            {
+              "label": "Walk (FF controller) - Discretized reward",
+              "value": "3.1"
+            },
+            {
+              "label": "Walk (FF controller) - Continuous reward",
+              "value": "59.7"
+            },
+            {
+              "label": "Addition - 0/1 reward",
+              "value": "11.1"
+            },
+            {
+              "label": "Addition - Discretized reward",
+              "value": "9.5"
+            },
+            {
+              "label": "Addition - Continuous reward",
+              "value": "250.0"
+            },
+            {
+              "label": "3-number Addition (extra curriculum) - 0/1 reward",
+              "value": "21.1"
+            },
+            {
+              "label": "3-number Addition (extra curriculum) - Discretized reward",
+              "value": "21.6"
+            },
+            {
+              "label": "3-number Addition (extra curriculum) - Continuous reward",
+              "value": "24.2"
+            },
+            {
+              "label": "Single Digit Multiplication - 0/1 reward",
+              "value": "81.9"
+            },
+            {
+              "label": "Single Digit Multiplication - Discretized reward",
+              "value": "77.9"
+            },
+            {
+              "label": "Single Digit Multiplication - Continuous reward",
+              "value": "131.9"
+            },
+            {
+              "label": "Coping - 0/1 reward",
+              "value": "24.7"
+            },
+            {
+              "label": "Coping - Discretized reward",
+              "value": "26.5"
+            },
+            {
+              "label": "Coping - Continuous reward",
+              "value": "26.6"
+            }
+          ]
+        },
+        "table_summary": "This table presents an ablation study comparing the effect of three reward types (0/1 reward, discretized reward, and continuous reward) on task performance across several tasks. The continuous reward generally yields the highest values, particularly for Walk (FF controller) at 59.7, Addition at 250.0, and Single Digit Multiplication at 131.9, while 0/1 and discretized rewards show similar lower performance. The results suggest that continuous reward provides the most effective learning signal for these tasks."
+      }
+    ],
+    "aggregated_findings": {
+      "experiment_results": [],
+      "comparisons": [],
+      "ablation_studies": [
+        "This ablation table reports the percentage of tasks solved under varying configurations of test length, number of units, discount factor γ, Watkins Q(λ), and task penalty. The best overall performance is achieved with test length 100, 200 units, discount D, Watkins Q(λ) enabled, and task penalty enabled, where Copying, 2-row Addition, and Single Digit Multiplication all reach 100%. Reverse and 3-row Addition remain unsolved (0%) across all configurations, while Reverse and Walk improve substantially only when a feedforward (FF) controller is used.",
+        "This table presents an ablation study comparing the effect of three reward types (0/1 reward, discretized reward, and continuous reward) on task performance across several tasks. The continuous reward generally yields the highest values, particularly for Walk (FF controller) at 59.7, Addition at 250.0, and Single Digit Multiplication at 131.9, while 0/1 and discretized rewards show similar lower performance. The results suggest that continuous reward provides the most effective learning signal for these tasks."
+      ],
+      "best_reported_result": "",
+      "aggregated_summary": "Based on the table analyses, the main experimental findings are as follows. The ablation study indicates that the best overall performance is achieved with a test length of 100, 200 units, a specific discount factor, Watkins Q(λ) enabled, and task penalty enabled, where Copying, 2-row Addition, and Single Digit Multiplication all reach 100% solved; however, Reverse and 3-row Addition remain unsolved across all configurations, and Reverse and Walk improve substantially only when a feedforward controller is used. Vocabulary size experiments show that tasks such as Copying, Reverse, Walk, and Addition exhibit varying vocabulary sizes as the number of symbols increases, while Single Digit Multiplication maintains a small vocabulary size and has an invalid entry at vocabulary size 2. A comparis"
+    }
+  },
+  "image_analysis": [
+    {
+      "type": "experiment_result",
+      "description": "展示实验结果和性能指标",
+      "important_components": [],
+      "code_relevant_information": "需要实现实验评估和性能对比功能",
+      "id": "image_1",
+      "page": 2
+    },
+    {
+      "type": "architecture",
+      "description": "展示模型网络结构和数据流关系",
+      "important_components": [
+        "Input Layer",
+        "Hidden State",
+        "State Module",
+        "Grid Module",
+        "Tape Module"
+      ],
+      "code_relevant_information": "需要实现模型架构中的各组件及数据流传递逻辑",
+      "id": "image_2",
+      "page": 2
+    },
+    {
+      "type": "architecture",
+      "description": "展示模型网络结构和数据流关系",
+      "important_components": [],
+      "code_relevant_information": "需要实现模型架构中的各个组件和模块",
+      "id": "image_3",
+      "page": 3
+    },
+    {
+      "type": "architecture",
+      "description": "展示模型网络结构和数据流关系",
+      "important_components": [],
+      "code_relevant_information": "需要实现网络结构和模块连接",
+      "id": "image_4",
+      "page": 3
+    },
+    {
+      "type": "architecture",
+      "description": "展示模型网络结构和数据流关系",
+      "important_components": [],
+      "code_relevant_information": "需要实现网络结构模块和数据流处理",
+      "id": "image_5",
+      "page": 3
+    },
+    {
+      "type": "architecture",
+      "description": "展示模型网络结构和数据流关系",
+      "important_components": [],
+      "code_relevant_information": "需要实现模型架构，包括网络层定义和前向传播",
+      "id": "image_6",
+      "page": 3
+    },
+    {
+      "type": "architecture",
+      "description": "展示模型网络结构和数据流关系",
+      "important_components": [
+        "Input Layer",
+        "Output Layer"
+      ],
+      "code_relevant_information": "需要实现网络结构定义和前向传播逻辑",
+      "id": "image_7",
+      "page": 3
+    },
+    {
+      "type": "dataset",
+      "description": "展示数据样本和类别示例",
+      "important_components": [],
+      "code_relevant_information": "需要准备数据加载和预处理代码",
+      "id": "image_8",
+      "page": 3
+    },
+    {
+      "type": "dataset",
+      "description": "展示数据样本或类别图片",
+      "important_components": [],
+      "code_relevant_information": "需要准备相应的数据集和预处理代码",
+      "id": "image_9",
+      "page": 6
+    },
+    {
+      "type": "other",
+      "description": "无法确定图片类型",
+      "important_components": [],
+      "code_relevant_information": "",
+      "id": "image_10",
+      "page": 6
+    },
+    {
+      "type": "other",
+      "description": "无法确定图片类型",
+      "important_components": [],
+      "code_relevant_information": "",
+      "id": "image_11",
+      "page": 6
+    }
+  ],
+  "paper_figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "model_architecture",
+      "description": "展示输入磁带和网格接口（a）、控制器-接口抽象概览（b）、以及加法任务中模型在两个时间步的操作示例（c）。"
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "data_example",
+      "description": "展示六个任务（copy, reverse, walk, addition, 3 number addition, single digit multiplication）的初始状态示例。黄色框表示输入接口上读写头的起始位置，输出磁带上的灰色字符是训练中使用的目标符号。",
+      "data_characteristics": "每个任务有不同的输入接口（磁带或网格）和输出要求",
+      "categories": [
+        "Copy",
+        "Reverse",
+        "Walk",
+        "Addition",
+        "3 number addition",
+        "Single digit multiplication"
+      ],
+      "visual_features": "黄色框标记读写头起始位置，灰色字符标记目标输出符号"
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "experiment_result",
+      "description": "监督学习设置下，前馈网络（绿色）、GRU（红色）和LSTM（黄色）控制器在六个任务上的测试准确率随复杂度变化曲线（10次运行）。",
+      "x_axis": "复杂度（解决任务所需的时间步数）",
+      "y_axis": "测试准确率",
+      "trend": "前馈控制器在copy、reverse、walk任务上完美泛化，但在需要记忆的任务上完全失败。RNN控制器在不同任务上表现不一，准确率随复杂度增加而下降。",
+      "conclusion": "前馈控制器在简单任务上泛化良好，但缺乏记忆能力；RNN控制器在需要记忆的任务上表现更好，但存在泛化问题。"
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "other",
+      "description": "展示reverse问题的正确自动机（a）和过表达模型学到的错误自动机（b）。",
+      "conclusion": "过表达模型（如LSTM）倾向于学习依赖序列长度的错误自动机，无法泛化到任意长度序列。"
+    },
+    {
+      "figure_number": "Figure 5",
+      "type": "experiment_result",
+      "description": "标准Q-learning（蓝色）和增强版Q-learning（动态折扣、Watkins Q(λ)和惩罚项）的测试准确率随任务复杂度变化曲线（10次运行）。",
+      "x_axis": "任务复杂度",
+      "y_axis": "测试准确率",
+      "trend": "增强版Q-learning在所有复杂度上均优于标准Q-learning。在非常高的复杂度（数千位数字）时，准确率开始下降。",
+      "conclusion": "Q-learning增强显著提升性能，但高复杂度下的性能下降与监督学习中的趋势一致，表明瓶颈在控制器能力而非Q-learning。"
+    },
+    {
+      "figure_number": "Figure 6",
+      "type": "other",
+      "description": "展示模型在加法任务上发现的三种不同解决方案，箭头显示读写头在输入网格上的移动轨迹。",
+      "conclusion": "模型能够发现多种正确的解决方案，每种方案有不同的移动模式。"
+    },
+    {
+      "figure_number": "Table 1",
+      "type": "experiment_result",
+      "description": "三种不同控制器（前馈、200单元LSTM、400单元LSTM）在reverse任务上的动作置信度和自相关矩阵对比。",
+      "x_axis": "时间步",
+      "y_axis": "动作置信度/自相关",
+      "trend": "前馈模型的自相关矩阵显示两个明显的高相关块，对应两个不同状态；LSTM控制器的这种结构只松散存在。",
+      "conclusion": "高容量LSTM控制器未能学习正确的两状态自动机，而前馈控制器成功学习了正确的算法结构。"
+    }
+  ]
+}

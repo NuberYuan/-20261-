@@ -1,0 +1,1 @@
+{"data_source": "external_dataset", "acquisition": "local_path", "data_source_note": "论文明确使用 UCI Electricity、UCI Traffic、Kaggle Favorita Retail 和 OMI realized Volatility 等公开真实数据集进行实验。"}

@@ -1,0 +1,4 @@
+{
+  "experiment_matrix.known_best": "RAG-Sequence在NQ上达到44.5 EM，TQA上68.0（Wiki测试集），WQ上45.2，CT上52.2；RAG-Token在Jeopardy上Q-BLEU-1为22.2；RAG在FEVER-3way上准确率72.5%，FEVER-2way上89.5%。",
+  "experiment_matrix.known_worst": "NOT_FOUND"
+}

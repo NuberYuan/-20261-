@@ -1,0 +1,24 @@
+```python
+# models/__init__.py
+"""
+模型模块的初始化文件，便于统一导入。
+
+该模块导出了 SELF-RAG 项目所需的所有模型类：
+- Llama27B: 7B 参数的 LLaMA 模型，用于生成任务
+- Llama213B: 13B 参数的 LLaMA 模型，用于生成任务
+- GPT4DataCollection: GPT-4 数据收集模型，用于生成训练数据
+- ContrieverMSMARCORetriever: Contriever 检索器，基于 MS MARCO 训练，用于检索任务
+"""
+
+from .llama27_b import Llama27B
+from .llama213_b import Llama213B
+from .gpt4_data_collection import GPT4DataCollection
+from .contriever_msmarco_retriever import ContrieverMSMARCORetriever
+
+__all__ = [
+    "Llama27B",
+    "Llama213B",
+    "GPT4DataCollection",
+    "ContrieverMSMARCORetriever",
+]
+```

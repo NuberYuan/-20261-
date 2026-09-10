@@ -1,0 +1,580 @@
+```python
+#!/usr/bin/env python3
+"""Main entry point for the AdaDec framework.
+
+This module orchestrates the entire pipeline: configuration loading, dataset
+construction, model initialization, training, evaluation, and report generation.
+It supports running individual experiments via the --run flag and custom
+config paths via the --config flag.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import os
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import torch
+import yaml
+
+# Add project root to sys.path for imports
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders, load_config
+from training.train import initialize_model, train_model, save_model
+from evaluation.evaluate import evaluate_model, generate_report
+
+logger = logging.getLogger(__name__)
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments.
+
+    Returns:
+        Parsed arguments namespace.
+    """
+    parser = argparse.ArgumentParser(
+        description="AdaDec: Uncertainty-Guided Lookahead Decoding Framework"
+    )
+    parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="Index of the experiment run to execute (from experiment.runs). "
+             "If omitted, all runs are executed.",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/config.yaml",
+        help="Path to the configuration file (default: config/config.yaml).",
+    )
+    return parser.parse_args()
+
+
+def setup_logging(config: Optional[Dict[str, Any]] = None) -> None:
+    """Configure logging based on config or defaults.
+
+    Args:
+        config: Configuration dictionary.
+    """
+    log_level = logging.INFO
+    log_dir = "logs"
+
+    if config is not None:
+        logging_config = config.get("logging", {})
+        log_level_name = logging_config.get("log_level", "INFO")
+        log_level = getattr(logging, log_level_name, logging.INFO)
+        log_dir = logging_config.get("log_dir", "logs")
+
+    # Create log directory if it doesn't exist
+    os.makedirs(log_dir, exist_ok=True)
+
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(
+                os.path.join(log_dir, "adadec.log"),
+                encoding="utf-8",
+            ),
+        ],
+    )
+
+
+def _get_device(config: Optional[Dict[str, Any]] = None) -> torch.device:
+    """Determine the device to use.
+
+    Args:
+        config: Configuration dictionary.
+
+    Returns:
+        torch.device: Device to use.
+    """
+    if config is None:
+        config = {}
+
+    system_config = config.get("system", {})
+    device_name = system_config.get("device", "cuda")
+
+    if device_name == "cuda" and torch.cuda.is_available():
+        return torch.device("cuda")
+    elif device_name == "cpu":
+        return torch.device("cpu")
+    else:
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _set_seed(seed: int) -> None:
+    """Set random seeds for reproducibility.
+
+    Args:
+        seed: Random seed.
+    """
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def _get_run_config(
+    config: Dict[str, Any],
+    run_index: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Get the list of runs to execute.
+
+    Args:
+        config: Configuration dictionary.
+        run_index: Optional index of a single run to execute.
+
+    Returns:
+        List of run configurations.
+    """
+    experiment_config = config.get("experiment", {})
+    runs = experiment_config.get("runs", [])
+
+    if not runs:
+        logger.warning("No experiment runs configured.")
+        return []
+
+    if run_index is not None:
+        if run_index < 0 or run_index >= len(runs):
+            logger.error(
+                "Run index %d out of range (0-%d).",
+                run_index,
+                len(runs) - 1,
+            )
+            return []
+        return [runs[run_index]]
+
+    return runs
+
+
+def _check_dataset_status(
+    config: Dict[str, Any],
+    dataset_version: str,
+) -> bool:
+    """Check if a dataset version is resolved.
+
+    Args:
+        config: Configuration dictionary.
+        dataset_version: Dataset version to check.
+
+    Returns:
+        True if the dataset is resolved, False if unresolved.
+    """
+    data_config = config.get("data", {})
+    version_config = data_config.get(dataset_version, {})
+
+    if isinstance(version_config, dict):
+        status = version_config.get("status", "resolved")
+        return status != "unresolved"
+
+    # If version config is not a dict, assume resolved
+    return True
+
+
+def _run_single_experiment(
+    run: Dict[str, Any],
+    run_index: int,
+    config: Dict[str, Any],
+    device: torch.device,
+    checkpoint_dir: Path,
+    report_dir: Path,
+) -> Optional[Dict[str, Any]]:
+    """Execute a single experiment run.
+
+    Args:
+        run: Run configuration dictionary.
+        run_index: Index of the run.
+        config: Global configuration dictionary.
+        device: Device to use.
+        checkpoint_dir: Directory for checkpoints.
+        report_dir: Directory for reports.
+
+    Returns:
+        Dictionary with run results, or None if the run was skipped/failed.
+    """
+    run_name = run.get("name", f"run_{run_index}")
+    dataset_version = run.get("dataset_version", "default")
+    training_mode = run.get("training_mode", "scratch")
+    run_seed = int(run.get("seed", config.get("system", {}).get("seed", 42)))
+
+    logger.info("=" * 70)
+    logger.info("Starting run: %s", run_name)
+    logger.info("Dataset version: %s", dataset_version)
+    logger.info("Training mode: %s", training_mode)
+    logger.info("Run seed: %d", run_seed)
+    logger.info("=" * 70)
+
+    # Check dataset status
+    if not _check_dataset_status(config, dataset_version):
+        logger.warning(
+            "Dataset version '%s' has status 'unresolved'. Skipping run '%s'.",
+            dataset_version,
+            run_name,
+        )
+        return {
+            "run_name": run_name,
+            "run_index": run_index,
+            "status": "skipped",
+            "reason": f"Dataset version '{dataset_version}' is unresolved",
+        }
+
+    # Set seed for this run
+    _set_seed(run_seed)
+
+    # Get training configuration
+    training_config = config.get("training", {})
+    batch_size_config = training_config.get("batch_size", {})
+    if isinstance(batch_size_config, dict):
+        batch_size = int(batch_size_config.get("default", 1))
+    else:
+        batch_size = int(batch_size_config) if batch_size_config is not None else 1
+
+    epochs = int(training_config.get("epochs", 30))
+    loss_function = training_config.get("loss_function", "Binary cross-entropy loss")
+
+    # Get system configuration
+    system_config = config.get("system", {})
+    num_workers = int(system_config.get("num_workers", 4))
+
+    # Get reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # Create run-specific directories
+    run_checkpoint_dir = checkpoint_dir / run_name
+    run_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    run_report_dir = report_dir / run_name
+    run_report_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Get dataloaders
+        logger.info("Loading dataloaders for dataset version '%s'...", dataset_version)
+        dataloaders = get_dataloaders(
+            config=config,
+            version=dataset_version,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            shuffle=True,
+            seed=run_seed,
+        )
+
+        train_loader = dataloaders["train_loader"]
+        val_loader = dataloaders["val_loader"]
+
+        # In strict reproduction mode, don't use validation
+        if reproduction_mode == "strict":
+            val_loader = None
+            logger.info("Strict reproduction mode: No validation set used.")
+
+        # Initialize model
+        logger.info("Initializing model...")
+        model = initialize_model(config=config)
+
+        # Train model
+        logger.info("Starting training for %d epochs...", epochs)
+        history = train_model(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            config=config,
+            device=device,
+            checkpoint_dir=str(run_checkpoint_dir),
+        )
+
+        # Save final model
+        final_model_path = run_checkpoint_dir / "final_model.pt"
+        save_model(
+            model=model,
+            filepath=str(final_model_path),
+            config=config,
+            epoch=epochs - 1,
+            history=history,
+        )
+        logger.info("Final model saved to %s", final_model_path)
+
+        # Evaluate model
+        logger.info("Evaluating model on test set...")
+        metrics = evaluate_model(
+            model=model,
+            test_loader=None,
+            config=config,
+            device=device,
+            threshold=0.5,
+            batch_size=batch_size,
+        )
+
+        # Generate report
+        logger.info("Generating evaluation report...")
+        report_path = generate_report(
+            metrics=metrics,
+            run_name=run_name,
+            output_dir=str(run_report_dir),
+            config=config,
+        )
+        logger.info("Report saved to %s", report_path)
+
+        # Return results
+        return {
+            "run_name": run_name,
+            "run_index": run_index,
+            "status": "completed",
+            "metrics": metrics,
+            "report_path": report_path,
+            "checkpoint_dir": str(run_checkpoint_dir),
+            "final_model_path": str(final_model_path),
+        }
+
+    except Exception as e:
+        logger.error("Run '%s' failed: %s", run_name, e, exc_info=True)
+        return {
+            "run_name": run_name,
+            "run_index": run_index,
+            "status": "failed",
+            "error": str(e),
+        }
+
+
+def _generate_summary_report(
+    results: List[Dict[str, Any]],
+    report_dir: Path,
+    config: Dict[str, Any],
+) -> str:
+    """Generate a summary report for all runs.
+
+    Args:
+        results: List of run result dictionaries.
+        report_dir: Directory to save the report.
+        config: Configuration dictionary.
+
+    Returns:
+        Path to the summary report file.
+    """
+    summary_path = report_dir / "summary_report.txt"
+
+    lines = []
+    lines.append("=" * 70)
+    lines.append("AdaDec Summary Report")
+    lines.append("=" * 70)
+    lines.append("")
+
+    # Project info
+    project_config = config.get("project", {})
+    lines.append(f"Project: {project_config.get('name', 'AdaDec')}")
+    lines.append(f"Paper: {project_config.get('paper', '')}")
+    lines.append(f"Framework: {project_config.get('framework', 'PyTorch')}")
+    lines.append("")
+
+    # Reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+    lines.append(f"Reproduction mode: {reproduction_mode}")
+    lines.append("")
+
+    # Training configuration
+    training_config = config.get("training", {})
+    lines.append("-" * 50)
+    lines.append("Training Configuration")
+    lines.append("-" * 50)
+    lines.append(f"Epochs: {training_config.get('epochs', 'N/A')}")
+    lines.append(f"Loss function: {training_config.get('loss_function', 'N/A')}")
+
+    optimizer_config = training_config.get("optimizer", {})
+    lines.append(f"Optimizer: {optimizer_config.get('name', 'N/A')}")
+    lines.append(f"Learning rate: {optimizer_config.get('lr', 'N/A')}")
+
+    scheduler_config = training_config.get("scheduler", {})
+    lines.append(f"Scheduler: {scheduler_config.get('name', 'N/A')}")
+    lines.append(f"Scheduler step size: {scheduler_config.get('step_size', 'N/A')}")
+    lines.append(f"Scheduler gamma: {scheduler_config.get('gamma', 'N/A')}")
+    lines.append("")
+
+    # Runs summary
+    lines.append("-" * 50)
+    lines.append("Run Summary")
+    lines.append("-" * 50)
+
+    completed_runs = 0
+    skipped_runs = 0
+    failed_runs = 0
+
+    for result in results:
+        run_name = result.get("run_name", "unknown")
+        status = result.get("status", "unknown")
+
+        if status == "completed":
+            completed_runs += 1
+            metrics = result.get("metrics", {})
+            pass_at_1 = metrics.get("pass@1", 0.0)
+            lines.append(f"  {run_name}: COMPLETED, Pass@1 = {pass_at_1:.4f}")
+        elif status == "skipped":
+            skipped_runs += 1
+            reason = result.get("reason", "Unknown reason")
+            lines.append(f"  {run_name}: SKIPPED ({reason})")
+        elif status == "failed":
+            failed_runs += 1
+            error = result.get("error", "Unknown error")
+            lines.append(f"  {run_name}: FAILED ({error})")
+        else:
+            lines.append(f"  {run_name}: {status.upper()}")
+
+    lines.append("")
+    lines.append(f"Total runs: {len(results)}")
+    lines.append(f"Completed: {completed_runs}")
+    lines.append(f"Skipped: {skipped_runs}")
+    lines.append(f"Failed: {failed_runs}")
+    lines.append("")
+
+    # Pass@1 comparison
+    if completed_runs > 0:
+        lines.append("-" * 50)
+        lines.append("Pass@1 Comparison")
+        lines.append("-" * 50)
+
+        pass_at_1_values = []
+        for result in results:
+            if result.get("status") == "completed":
+                metrics = result.get("metrics", {})
+                pass_at_1 = metrics.get("pass@1", 0.0)
+                if isinstance(pass_at_1, (int, float)):
+                    pass_at_1_values.append((result.get("run_name", "unknown"), float(pass_at_1)))
+
+        if pass_at_1_values:
+            # Sort by Pass@1 descending
+            pass_at_1_values.sort(key=lambda x: x[1], reverse=True)
+
+            for i, (run_name, pass_at_1) in enumerate(pass_at_1_values):
+                lines.append(f"  {i + 1}. {run_name}: {pass_at_1:.4f}")
+
+            # Compute improvement over baseline (first run)
+            if len(pass_at_1_values) >= 2:
+                best_run, best_pass = pass_at_1_values[0]
+                baseline_run, baseline_pass = pass_at_1_values[-1]
+                if baseline_pass > 0:
+                    improvement = (best_pass - baseline_pass) / baseline_pass * 100
+                    lines.append("")
+                    lines.append(
+                        f"Best Pass@1: {best_run} ({best_pass:.4f}), "
+                        f"improvement over {baseline_run} ({baseline_pass:.4f}): {improvement:.2f}%"
+                    )
+
+    lines.append("")
+    lines.append("=" * 70)
+    lines.append("End of Summary Report")
+    lines.append("=" * 70)
+
+    # Write report
+    try:
+        with open(summary_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        logger.info("Summary report saved to %s", summary_path)
+    except Exception as e:
+        logger.error("Failed to write summary report: %s", e)
+
+    return str(summary_path)
+
+
+def main() -> None:
+    """Main entry point for the AdaDec framework."""
+    # Parse command-line arguments
+    args = parse_args()
+
+    # Load configuration
+    config_path = args.config
+    if not os.path.exists(config_path):
+        logger.error("Config file not found at %s", config_path)
+        sys.exit(1)
+
+    config = load_config(config_path)
+
+    if not config:
+        logger.error("Failed to load configuration from %s", config_path)
+        sys.exit(1)
+
+    # Setup logging
+    setup_logging(config)
+
+    # Get device
+    device = _get_device(config)
+    logger.info("Using device: %s", device)
+
+    # Get system configuration
+    system_config = config.get("system", {})
+    seed = int(system_config.get("seed", 42))
+    _set_seed(seed)
+
+    # Get checkpoint configuration
+    checkpoint_config = config.get("checkpoint", {})
+    checkpoint_dir = Path("checkpoints")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    # Initialize report directory before the run loop
+    report_dir = Path("reports")
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get runs to execute
+    runs = _get_run_config(config, args.run)
+
+    if not runs:
+        logger.error("No runs to execute.")
+        sys.exit(1)
+
+    # Execute runs
+    results: List[Dict[str, Any]] = []
+
+    for run_index, run in enumerate(runs):
+        result = _run_single_experiment(
+            run=run,
+            run_index=run_index,
+            config=config,
+            device=device,
+            checkpoint_dir=checkpoint_dir,
+            report_dir=report_dir,
+        )
+
+        if result is not None:
+            results.append(result)
+
+    # Generate summary report
+    logger.info("Generating summary report...")
+    summary_path = _generate_summary_report(
+        results=results,
+        report_dir=report_dir,
+        config=config,
+    )
+    logger.info("Summary report saved to %s", summary_path)
+
+    # Print summary to console
+    print("\n" + "=" * 70)
+    print("AdaDec Execution Summary")
+    print("=" * 70)
+
+    for result in results:
+        run_name = result.get("run_name", "unknown")
+        status = result.get("status", "unknown")
+
+        if status == "completed":
+            metrics = result.get("metrics", {})
+            pass_at_1 = metrics.get("pass@1", 0.0)
+            print(f"  {run_name}: COMPLETED, Pass@1 = {pass_at_1:.4f}")
+        elif status == "skipped":
+            reason = result.get("reason", "Unknown reason")
+            print(f"  {run_name}: SKIPPED ({reason})")
+        elif status == "failed":
+            error = result.get("error", "Unknown error")
+            print(f"  {run_name}: FAILED ({error})")
+
+    print(f"\nSummary report: {summary_path}")
+    print("=" * 70)
+
+
+if __name__ == "__main__":
+    main()
+```

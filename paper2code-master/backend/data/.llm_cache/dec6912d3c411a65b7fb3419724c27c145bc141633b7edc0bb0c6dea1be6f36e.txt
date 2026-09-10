@@ -1,0 +1,55 @@
+{
+  "code_requirements": {
+    "data/dataset.py": {
+      "description": "Generates synthetic arithmetic tasks (copy, reverse, walk, addition, 3-number addition, single digit multiplication) as sequences of symbols. Provides a PyTorch Dataset that yields input sequences, target sequences, and interface configurations (tape or grid). Supports curriculum learning by generating sequences of a given complexity (length).",
+      "class": "ArithmeticDataset",
+      "parent_class": "torch.utils.data.Dataset",
+      "methods": ["__init__", "__len__", "__getitem__"],
+      "functions": ["generate_sequence", "generate_grid", "preprocess"],
+      "pseudocode": "class ArithmeticDataset(Dataset):\n    def __init__(self, task, complexity, vocab_size, seed):\n        self.task = task\n        self.complexity = complexity\n        self.vocab_size = vocab_size\n        self.seed = seed\n        self.data = self.generate_sequences()\n\n    def __len__(self):\n        return len(self.data)\n\n    def __getitem__(self, idx):\n        input_seq, target_seq, interface = self.data[idx]\n        return input_seq, target_seq, interface\n\n    def generate_sequences(self):\n        # Generate a list of (input_seq, target_seq, interface) based on task\n        # For arithmetic tasks, create grid with right-aligned numbers\n        # For copy/reverse/walk, create 1-D tape\n        pass\n\n    def generate_grid(self, numbers):\n        # Create 2-D grid representation with right alignment\n        pass\n\n    def preprocess(self, seq):\n        # Convert symbols to indices\n        pass"
+    },
+    "models/lstm.py": {
+      "description": "Defines the LSTM-based controller model. The controller reads input symbols one at a time, maintains a hidden state, and outputs a discrete action (e.g., move left/right, write) and a symbol from the vocabulary. The model is used for Q-learning, where the Q-value for each action is computed from the hidden state.",
+      "class": "LstmController",
+      "parent_class": "torch.nn.Module",
+      "methods": ["__init__", "forward", "act"],
+      "functions": [],
+      "pseudocode": "class LstmController(nn.Module):\n    def __init__(self, input_size, hidden_size, num_actions, vocab_size):\n        super().__init__()\n        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)\n        self.action_head = nn.Linear(hidden_size, num_actions)\n        self.symbol_head = nn.Linear(hidden_size, vocab_size)\n\n    def forward(self, x, hidden=None):\n        # x: (batch, seq_len, input_size)\n        out, hidden = self.lstm(x, hidden)\n        return out, hidden\n\n    def act(self, hidden):\n        # hidden: (batch, hidden_size)\n        action_logits = self.action_head(hidden)\n        symbol_logits = self.symbol_head(hidden)\n        return action_logits, symbol_logits"
+    },
+    "training/train.py": {
+      "description": "Implements the training loop for the Q-learning with dynamic discount, Watkins Q(λ), and penalty on Q-function. Uses curriculum learning: start with complexity 6, increase by 4 when 100% accuracy on held-out examples is achieved. Trains the controller to maximize reward (1 for correct symbol, 0 otherwise).",
+      "functions": ["train_epoch", "validate", "main"],
+      "uses": ["models.lstm.LstmController", "data.dataset.ArithmeticDataset", "utils.metrics"],
+      "pseudocode": "def train_epoch(model, dataloader, optimizer, criterion, gamma, lambda_, kappa):\n    # For each batch:\n    #   - Initialize hidden state\n    #   - For each time step:\n    #       - Get action and symbol from model\n    #       - Compute reward (1 if symbol matches target, else 0)\n    #       - Compute Q-learning loss with dynamic discount and penalty\n    #       - Update model\n    pass\n\ndef validate(model, dataloader):\n    # Compute accuracy on held-out examples\n    pass\n\ndef main():\n    # Load config\n    # Initialize model, optimizer, dataset\n    # For each epoch:\n    #   - Train\n    #   - Validate\n    #   - If accuracy == 100% on current complexity, increase complexity\n    pass"
+    },
+    "evaluation/evaluate.py": {
+      "description": "Evaluates the trained model on test instances of length 100 and 1000 digits. Computes success rate (percentage of test instances solved perfectly) and accuracy as a function of complexity.",
+      "functions": ["evaluate", "main"],
+      "uses": ["models.lstm.LstmController", "data.dataset.ArithmeticDataset", "utils.metrics"],
+      "pseudocode": "def evaluate(model, test_loader):\n    # For each test instance:\n    #   - Run model to generate output sequence\n    #   - Compare with target sequence\n    #   - Count perfect matches\n    # Return success rate\n    pass\n\ndef main():\n    # Load config and model\n    # Load test data for lengths 100 and 1000\n    # Evaluate and print results\n    pass"
+    },
+    "utils/metrics.py": {
+      "description": "Provides utility functions for computing accuracy, success rate, and other metrics used in training and evaluation.",
+      "functions": ["compute_accuracy", "compute_success_rate", "compute_loss"],
+      "pseudocode": "def compute_accuracy(predictions, targets):\n    # Compute per-token accuracy\n    pass\n\ndef compute_success_rate(predictions, targets):\n    # Compute percentage of sequences that are exactly correct\n    pass\n\ndef compute_loss(predictions, targets, criterion):\n    # Compute cross-entropy loss\n    pass"
+    },
+    "config/config.yaml": {
+      "description": "Configuration file containing hyperparameters and training settings. Must include the exact values specified: batch_size: 20, epochs: 30, learning_rate: 0.1, scheduler.name: StepLR, scheduler.step_size: 0, scheduler.gamma: 2.0. Other parameters (optimizer, momentum, weight_decay) are NOT_FOUND and should be set to null or omitted.",
+      "pseudocode": "batch_size: 20\nepochs: 30\noptimizer: null\nlearning_rate: 0.1\nmomentum: null\nweight_decay: null\nscheduler:\n  name: StepLR\n  step_size: 0\n  gamma: 2.0"
+    },
+    "main.py": {
+      "description": "Entry point for the project. Loads configuration, initializes data, model, and training, and runs the training and evaluation pipeline.",
+      "functions": ["main"],
+      "uses": ["config.config", "data.dataset", "models.lstm", "training.train", "evaluation.evaluate"],
+      "pseudocode": "def main():\n    # Load config from config/config.yaml\n    # Set random seeds\n    # Initialize dataset and dataloaders\n    # Initialize model\n    # Train model using training.train.main\n    # Evaluate model using evaluation.evaluate.main\n    pass"
+    },
+    "README.md": {
+      "description": "Provides an overview of the project, installation instructions, usage, and reproduction notes. Includes details on the paper, model architecture, training procedure, and how to run the code.",
+      "pseudocode": "# LEARNING SIMPLE ALGORITHMS FROM EXAMPLES\n\n## Overview\n...\n\n## Installation\n...\n\n## Usage\n...\n\n## Reproduction Notes\n..."
+    },
+    "requirements.txt": {
+      "description": "Lists the required Python packages for the project.",
+      "pseudocode": "torch\nnumpy\npyyaml\nscikit-learn\n"
+    }
+  }
+}

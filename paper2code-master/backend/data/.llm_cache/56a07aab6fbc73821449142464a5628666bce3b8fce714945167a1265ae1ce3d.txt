@@ -1,0 +1,203 @@
+import sys
+import json
+import numpy as np
+import cv2
+
+OCR_TEXT_DEFAULT = """
+4.5
+Loss Type
+Loss(Test)
+4.0
+Loss(Train)
+3.5
+2.5
+2.0
+1.5
+1.0
+0.5
+0.0
+Epochs
+"""
+
+
+def load_image(image_path):
+    data = np.fromfile(image_path, dtype=np.uint8)
+    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("无法解码图片")
+    return img
+
+
+def get_visual_features(img):
+    h, w = img.shape[:2]
+    scale = min(1.0, 100.0 / max(h, w))
+    if scale < 1.0:
+        img_small = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    else:
+        img_small = img.copy()
+
+    hsv = cv2.cvtColor(img_small, cv2.COLOR_BGR2HSV)
+    avg_saturation = float(np.mean(hsv[:, :, 1]))
+
+    quantized = (img_small // 32).astype(np.uint8)
+    unique_colors = len(np.unique(quantized.reshape(-1, 3), axis=0))
+
+    non_white_ratio = float(np.mean(np.any(img_small < 240, axis=2)))
+
+    return avg_saturation, unique_colors, non_white_ratio
+
+
+def extract_model_components(text_lower):
+    components = []
+    if 'alexnet' in text_lower:
+        components.append('AlexNet')
+    if 'resnet' in text_lower:
+        components.append('ResNet')
+    if 'vgg' in text_lower:
+        components.append('VGG')
+    if 'googlenet' in text_lower:
+        components.append('GoogLeNet')
+    if 'cnn' in text_lower:
+        components.append('CNN')
+    if 'transformer' in text_lower:
+        components.append('Transformer')
+    if 'attention' in text_lower:
+        components.append('Attention Module')
+    if 'encoder' in text_lower:
+        components.append('Encoder')
+    if 'decoder' in text_lower:
+        components.append('Decoder')
+    if 'feature extractor' in text_lower:
+        components.append('Feature Extractor')
+    return components
+
+
+def extract_components(ocr_text, img_type):
+    text_lower = ocr_text.lower()
+    components = []
+
+    if img_type == 'experiment_result':
+        components.extend(extract_model_components(text_lower))
+        metric_map = {
+            'loss': 'Loss',
+            'epoch': 'Epoch',
+            'accuracy': 'Accuracy',
+            'precision': 'Precision',
+            'recall': 'Recall',
+            'f1': 'F1-score',
+            'auc': 'AUC',
+            'roc': 'ROC',
+            'bleu': 'BLEU'
+        }
+        for key, standard in metric_map.items():
+            if key in text_lower:
+                components.append(standard)
+    elif img_type == 'architecture':
+        components.extend(extract_model_components(text_lower))
+        if 'block' in text_lower:
+            components.append('Block')
+        if 'embedding' in text_lower:
+            components.append('Embedding Layer')
+        if 'classifier' in text_lower:
+            components.append('Classifier')
+    elif img_type == 'dataset':
+        pass
+
+    seen = set()
+    unique = []
+    for c in components:
+        if c not in seen:
+            seen.add(c)
+            unique.append(c)
+    return unique
+
+
+def classify(ocr_text, img):
+    text_lower = ocr_text.lower()
+
+    exp_keywords = ['loss', 'epoch', 'accuracy', 'precision', 'recall', 'f1', 'auc', 'roc', 'bleu']
+    arch_keywords = [
+        'cnn', 'transformer', 'attention', 'encoder', 'decoder', 'block',
+        'embedding', 'classifier', 'feature extractor', 'alexnet', 'resnet',
+        'vgg', 'googlenet'
+    ]
+    dataset_keywords = [
+        'dataset', 'sample', 'example', 'input image', 'image class',
+        'cifar', 'imagenet', 'mnist', 'training examples'
+    ]
+
+    has_exp = any(k in text_lower for k in exp_keywords)
+    has_arch = any(k in text_lower for k in arch_keywords)
+    has_dataset = any(k in text_lower for k in dataset_keywords)
+
+    avg_sat, unique_colors, non_white = get_visual_features(img)
+
+    if has_exp:
+        return 'experiment_result'
+    if has_arch:
+        return 'architecture'
+    if has_dataset:
+        return 'dataset'
+
+    if avg_sat > 50 and unique_colors > 20 and non_white > 0.3:
+        return 'dataset'
+
+    return 'other'
+
+
+def build_description(img_type, components):
+    if img_type == 'experiment_result':
+        if components:
+            return f"展示实验性能曲线，包含{'、'.join(components)}等指标变化。"
+        return "展示实验性能曲线或结果对比。"
+    if img_type == 'architecture':
+        if components:
+            return f"展示模型网络结构和数据流关系，包含{'、'.join(components)}等组件。"
+        return "展示模型网络结构和数据流关系。"
+    if img_type == 'dataset':
+        return "展示数据集样本或输入示例。"
+    return "无法确定图片类型"
+
+
+def build_code_info(img_type, components):
+    if img_type == 'experiment_result':
+        if components:
+            return f"需要实现实验评估逻辑，计算并记录{'、'.join(components)}，并绘制结果曲线。"
+        return "需要实现实验评估逻辑并绘制结果曲线。"
+    if img_type == 'architecture':
+        if components:
+            return f"需要实现{'、'.join(components)}及其数据流连接。"
+        return "需要实现对应模型模块及其数据流连接。"
+    if img_type == 'dataset':
+        return "需要准备或加载对应的数据集样本。"
+    return ""
+
+
+def main():
+    try:
+        image_path = sys.argv[1]
+        ocr_text = sys.argv[2] if len(sys.argv) > 2 else OCR_TEXT_DEFAULT
+
+        img = load_image(image_path)
+        img_type = classify(ocr_text, img)
+        components = extract_components(ocr_text, img_type)
+
+        result = {
+            "type": img_type,
+            "description": build_description(img_type, components),
+            "important_components": components,
+            "code_relevant_information": build_code_info(img_type, components)
+        }
+    except Exception:
+        result = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+    print(json.dumps(result, ensure_ascii=True))
+
+
+if __name__ == "__main__":
+    main()

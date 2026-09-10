@@ -1,0 +1,19 @@
+paper_name: 论文3
+models:
+- name: UNet++
+  type: other
+  code_class_name: UNet
+  input: 'Input sizes per dataset: cell nuclei 96×96, colon polyp 224×224, liver 512×512,
+    lung nodule 64×64×64'
+  output: Full-resolution segmentation maps at multiple semantic levels; deep supervision
+    generates four segmentation maps, which are averaged to generate the final segmentation
+    map
+  num_classes: NOT_FOUND
+  pretrained: NOT_FOUND
+  architecture_summary: NOT_FOUND
+  architecture:
+    total_layers: NOT_FOUND
+    param_count: NOT_FOUND
+    special_components: []
+    final_classifier: NOT_FOUND
+    implementation_notes: []

@@ -1,0 +1,11 @@
+experiment_id: None_None_default
+execution:
+  status: SUCCESS
+  exit_code: 0
+  started_at: '2026-09-01T14:29:47'
+  finished_at: '2026-09-01T14:29:49'
+  duration_seconds: 1.86
+  working_directory: D:\applications\paper2code-master\paper2code-master\backend\data\output\RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME\step7\generated_project
+logs:
+  stdout: D:\applications\paper2code-master\paper2code-master\backend\data\output\RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME\step8\experiments\experiment_001\stdout.log
+  stderr: D:\applications\paper2code-master\paper2code-master\backend\data\output\RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME\step8\experiments\experiment_001\stderr.log

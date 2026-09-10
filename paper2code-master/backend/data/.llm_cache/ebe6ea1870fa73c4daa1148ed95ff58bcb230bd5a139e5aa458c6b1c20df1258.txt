@@ -1,0 +1,90 @@
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+import yaml
+from torchvision.models import AlexNet
+
+__all__ = ["Alexnet"]
+
+_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+
+
+def _load_config(config: Optional[Union[str, Path, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Load config from a dict, a path, or the project default config path."""
+    if isinstance(config, dict):
+        return config
+
+    if isinstance(config, (str, Path)):
+        path = Path(config)
+    else:
+        path = _DEFAULT_CONFIG_PATH
+
+    if not path.exists():
+        fallback_path = Path("config/config.yaml")
+        if fallback_path.exists():
+            path = fallback_path
+        else:
+            return {}
+
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def _get_num_classes(config: Dict[str, Any]) -> int:
+    """Return num_classes from config with a paper-derived fallback.
+
+    The adapted PlantVillage AlexNet in the paper has an fc8 layer with
+    38 outputs, corresponding to 38 crop-disease pairs.  We never pass
+    None to nn.Linear.
+    """
+    model_cfg = config.get("model", {}) if isinstance(config, dict) else {}
+    num_classes = model_cfg.get("num_classes")
+    if num_classes is None:
+        # Paper description: "fc8 has 38 outputs in the adapted version."
+        num_classes = 38
+    return int(num_classes)
+
+
+def _get_dropout_ratio(config: Dict[str, Any]) -> float:
+    """Return dropout ratio from config with a paper-derived fallback.
+
+    The paper mentions dropout rate 0.5 for the first two fully connected
+    layers of AlexNet.
+    """
+    model_cfg = config.get("model", {}) if isinstance(config, dict) else {}
+    dropout_ratio = model_cfg.get("dropout_ratio")
+    if dropout_ratio is None:
+        dropout_ratio = 0.5
+    return float(dropout_ratio)
+
+
+class Alexnet(AlexNet):
+    """AlexNet architecture for 38-class image classification.
+
+    This class directly inherits from ``torchvision.models.AlexNet`` so that
+    ImageNet-pretrained weights can be loaded without shape mismatches or
+    silent key loss.  Only ``num_classes`` and ``dropout_ratio`` are read from
+    config; weight initialization (scratch/transfer) is handled externally in
+    ``training/train.py``.
+    """
+
+    def __init__(
+        self,
+        config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+        num_classes: Optional[int] = None,
+        dropout_ratio: Optional[float] = None,
+    ) -> None:
+        cfg = _load_config(config)
+
+        if num_classes is None:
+            num_classes = _get_num_classes(cfg)
+        if dropout_ratio is None:
+            dropout_ratio = _get_dropout_ratio(cfg)
+
+        # torchvision AlexNet builds the standard five conv layers followed by
+        # a classifier with dropout and a final Linear(4096, num_classes).
+        super().__init__(num_classes=num_classes, dropout=dropout_ratio)
+
+    def forward(self, x):
+        """Run AlexNet forward pass and return class scores."""
+        return super().forward(x)

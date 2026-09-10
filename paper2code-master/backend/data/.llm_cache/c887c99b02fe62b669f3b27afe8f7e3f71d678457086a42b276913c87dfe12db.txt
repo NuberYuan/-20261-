@@ -1,0 +1,195 @@
+import sys
+import os
+import json
+import numpy as np
+import cv2
+
+
+def get_combined_text(image_path):
+    ocr_text = os.environ.get("OCR_TEXT", "")
+    path_text = image_path.replace("\\", " ").replace("/", " ")
+    return f"{ocr_text} {path_text}".lower()
+
+
+def extract_components(text, category):
+    components = []
+    architecture_terms = [
+        "alexnet", "resnet", "vgg", "googlenet", "cnn", "transformer",
+        "attention", "encoder", "decoder", "block", "embedding",
+        "classifier", "feature extractor"
+    ]
+    experiment_terms = [
+        "accuracy", "loss", "epoch", "precision", "recall", "f1-score",
+        "f1", "auc", "roc", "validation", "training"
+    ]
+    display_map = {
+        "alexnet": "AlexNet",
+        "resnet": "ResNet",
+        "vgg": "VGG",
+        "googlenet": "GoogLeNet",
+        "cnn": "CNN",
+        "transformer": "Transformer",
+        "attention": "Attention",
+        "encoder": "Encoder",
+        "decoder": "Decoder",
+        "block": "Block",
+        "embedding": "Embedding",
+        "classifier": "Classifier",
+        "feature extractor": "Feature Extractor",
+        "accuracy": "Accuracy",
+        "loss": "Loss",
+        "epoch": "Epoch",
+        "precision": "Precision",
+        "recall": "Recall",
+        "f1-score": "F1-score",
+        "f1": "F1",
+        "auc": "AUC",
+        "roc": "ROC",
+        "validation": "Validation",
+        "training": "Training"
+    }
+    terms = architecture_terms if category == "architecture" else architecture_terms + experiment_terms
+    for term in terms:
+        if term in text:
+            display = display_map.get(term, term)
+            if display not in components:
+                components.append(display)
+    return components
+
+
+def main():
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+    try:
+        if len(sys.argv) < 2:
+            print(json.dumps(result, ensure_ascii=False))
+            return
+
+        image_path = sys.argv[1]
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        if img is None:
+            print(json.dumps(result, ensure_ascii=False))
+            return
+
+        text = get_combined_text(image_path)
+
+        experiment_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "f1-score", "validation", "training", "performance",
+            "comparison", "curve", "auc", "roc",
+            "准确率", "损失", "精度", "召回率", "训练", "验证",
+            "性能", "曲线", "实验", "对比"
+        ]
+        architecture_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet",
+            "卷积神经网络", "注意力", "编码器", "解码器", "模块",
+            "特征提取", "分类器"
+        ]
+        dataset_keywords = [
+            "sample", "example", "input image", "dataset", "class", "label",
+            "样本", "示例", "输入图像", "数据集", "类别", "标签"
+        ]
+
+        experiment_hit = any(k in text for k in experiment_keywords)
+        architecture_hit = any(k in text for k in architecture_keywords)
+        dataset_hit = any(k in text for k in dataset_keywords)
+
+        h, w = img.shape[:2]
+        max_dim = 400
+        if max(h, w) > max_dim:
+            scale = max_dim / float(max(h, w))
+            img_small = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        else:
+            img_small = img.copy()
+
+        hsv = cv2.cvtColor(img_small, cv2.COLOR_BGR2HSV)
+        sat_mean = float(np.mean(hsv[:, :, 1]))
+
+        white_thresh = 230
+        non_white_mask = np.any(img_small < white_thresh, axis=2)
+        non_white_ratio = float(np.mean(non_white_mask))
+
+        color_count = 0
+        if np.any(non_white_mask):
+            quantized = (img_small // 32).astype(np.uint8)
+            nw_quantized = quantized[non_white_mask]
+            unique_colors = np.unique(nw_quantized, axis=0)
+            color_count = len(unique_colors)
+
+        aspect = w / h if h > 0 else 1.0
+
+        visual_architecture = (
+            0.03 < non_white_ratio < 0.35 and
+            color_count <= 12 and
+            sat_mean < 60
+        )
+        visual_experiment = (
+            non_white_ratio > 0.08 and
+            color_count > 8 and
+            sat_mean > 40 and
+            aspect > 1.2
+        )
+        visual_dataset = (
+            non_white_ratio > 0.4 and
+            color_count > 30 and
+            sat_mean > 50
+        )
+
+        if experiment_hit:
+            result.update({
+                "type": "experiment_result",
+                "description": "展示实验性能指标或训练过程曲线",
+                "important_components": extract_components(text, "experiment"),
+                "code_relevant_information": "需要实现模型训练和评估流程，包括准确率、Loss等指标计算"
+            })
+        elif architecture_hit and visual_architecture:
+            result.update({
+                "type": "architecture",
+                "description": "展示模型网络结构和数据流关系",
+                "important_components": extract_components(text, "architecture"),
+                "code_relevant_information": "需要实现模型特征提取和分类层等结构"
+            })
+        elif dataset_hit:
+            result.update({
+                "type": "dataset",
+                "description": "展示数据样本或类别示例",
+                "important_components": [],
+                "code_relevant_information": "需要准备和加载相应数据集"
+            })
+        elif visual_dataset:
+            result.update({
+                "type": "dataset",
+                "description": "展示数据样本或类别示例",
+                "important_components": [],
+                "code_relevant_information": "需要准备和加载相应数据集"
+            })
+        elif visual_experiment:
+            result.update({
+                "type": "experiment_result",
+                "description": "展示实验性能指标或训练过程曲线",
+                "important_components": [],
+                "code_relevant_information": "需要实现模型训练和评估流程，包括准确率、Loss等指标计算"
+            })
+        else:
+            pass
+
+    except Exception:
+        result = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

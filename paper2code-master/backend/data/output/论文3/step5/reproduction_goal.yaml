@@ -1,0 +1,32 @@
+paper_name: 论文3
+title: 'UNet++: A Nested U-Net Architecture for Medical Image Segmentation'
+research_problem: Existing encoder-decoder segmentation models with plain skip connections
+  fuse semantically dissimilar feature maps from encoder and decoder, which may limit
+  segmentation accuracy; medical image segmentation demands higher accuracy than natural
+  images because even marginal segmentation errors can affect clinical interpretation
+  and downstream computer-generated diagnosis.
+motivation: Plain skip connections directly combine high-resolution encoder feature
+  maps with semantically rich decoder feature maps, resulting in fusion of semantically
+  dissimilar feature maps. The authors hypothesize that the network would deal with
+  an easier learning task when feature maps from decoder and encoder are semantically
+  similar, and that gradually enriching encoder feature maps before fusion can better
+  recover fine-grained details of foreground objects.
+main_contribution: The paper proposes UNet++, a medical image segmentation architecture
+  based on nested and dense skip connections. It introduces redesigned skip pathways
+  with dense convolution blocks to bridge the semantic gap between encoder and decoder
+  feature maps, and deep supervision to enable model pruning and improved accuracy.
+  UNet++ with deep supervision achieves average IoU gains of 3.9 and 3.4 points over
+  U-Net and wide U-Net respectively.
+paper_type: empirical_comparison
+task: image_classification
+input: 'Input sizes per dataset: cell nuclei 96×96, colon polyp 224×224, liver 512×512,
+  lung nodule 64×64×64'
+output: Full-resolution segmentation maps at multiple semantic levels; deep supervision
+  generates four segmentation maps, which are averaged to generate the final segmentation
+  map
+num_classes: NOT_FOUND
+reproduction_targets:
+- 复现训练/微调流程
+- 实现统一的评估协议
+- 复现对比实验结果
+is_trainable: true

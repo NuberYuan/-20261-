@@ -1,0 +1,392 @@
+```python
+import math
+from typing import Optional, Tuple
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import yaml
+from pathlib import Path
+
+
+class RMSNorm(nn.Module):
+    """Root Mean Square Layer Normalization.
+
+    Used in Qwen3 models instead of standard LayerNorm.
+    """
+
+    def __init__(self, hidden_size: int, eps: float = 1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        return self.weight * hidden_states.to(input_dtype)
+
+
+class RotaryEmbedding(nn.Module):
+    """Rotary Position Embedding (RoPE).
+
+    Implements rotary position embeddings as described in
+    "RoFormer: Enhanced Transformer with Rotary Position Embedding".
+    """
+
+    def __init__(self, dim: int, max_position_embeddings: int = 32768, base: float = 10000.0):
+        super().__init__()
+        self.dim = dim
+        self.max_position_embeddings = max_position_embeddings
+        self.base = base
+        inv_freq = 1.0 / (self.base ** (torch.arange(0, self.dim, 2).float() / self.dim))
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+
+    def _rotate_half(self, x: torch.Tensor) -> torch.Tensor:
+        """Rotates half the hidden dims of the input."""
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2:]
+        return torch.cat((-x2, x1), dim=-1)
+
+    def forward(self, x: torch.Tensor, position_ids: torch.Tensor) -> torch.Tensor:
+        """Apply rotary position embedding to input tensor.
+
+        Args:
+            x: Input tensor of shape [batch_size, seq_len, num_heads, head_dim]
+            position_ids: Position ids of shape [batch_size, seq_len]
+
+        Returns:
+            Tensor with rotary position embedding applied.
+        """
+        inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
+        position_ids_expanded = position_ids[:, None, :].float()
+        freqs = (inv_freq_expanded @ position_ids_expanded).transpose(1, 2)
+        emb = torch.cat((freqs, freqs), dim=-1)
+        cos = emb.cos()
+        sin = emb.sin()
+
+        x_embed = x.float()
+        cos = cos.unsqueeze(2)
+        sin = sin.unsqueeze(2)
+        x_embed = x_embed * cos + self._rotate_half(x_embed) * sin
+        return x_embed.to(x.dtype)
+
+
+class Attention(nn.Module):
+    """Multi-head attention with GQA (Grouped Query Attention) and RoPE."""
+
+    def __init__(
+        self,
+        hidden_size: int,
+        num_heads: int,
+        num_kv_heads: int,
+        head_dim: int,
+        max_position_embeddings: int = 32768,
+        rope_base: float = 10000.0,
+        dropout_ratio: float = 0.0,
+    ):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_heads = num_heads
+        self.num_kv_heads = num_kv_heads
+        self.head_dim = head_dim
+        self.num_kv_groups = num_heads // num_kv_heads
+
+        self.q_proj = nn.Linear(hidden_size, num_heads * head_dim, bias=True)
+        self.k_proj = nn.Linear(hidden_size, num_kv_heads * head_dim, bias=True)
+        self.v_proj = nn.Linear(hidden_size, num_kv_heads * head_dim, bias=True)
+        self.o_proj = nn.Linear(num_heads * head_dim, hidden_size, bias=False)
+
+        self.rotary_emb = RotaryEmbedding(head_dim, max_position_embeddings, rope_base)
+        self.dropout = nn.Dropout(dropout_ratio)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        position_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        batch_size, seq_len, _ = hidden_states.shape
+
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+
+        query_states = query_states.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(batch_size, seq_len, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(batch_size, seq_len, self.num_kv_heads, self.head_dim).transpose(1, 2)
+
+        query_states = self.rotary_emb(query_states, position_ids)
+        key_states = self.rotary_emb(key_states, position_ids)
+
+        # GQA: repeat k/v heads to match query heads
+        key_states = key_states.repeat_interleave(self.num_kv_groups, dim=1)
+        value_states = value_states.repeat_interleave(self.num_kv_groups, dim=1)
+
+        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
+
+        if attention_mask is not None:
+            attn_weights = attn_weights + attention_mask
+
+        attn_weights = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        attn_weights = self.dropout(attn_weights)
+
+        attn_output = torch.matmul(attn_weights, value_states)
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_len, -1)
+        attn_output = self.o_proj(attn_output)
+        return attn_output
+
+
+class MLP(nn.Module):
+    """Multi-layer perceptron with SwiGLU activation."""
+
+    def __init__(self, hidden_size: int, intermediate_size: int, dropout_ratio: float = 0.0):
+        super().__init__()
+        self.gate_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.up_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.down_proj = nn.Linear(intermediate_size, hidden_size, bias=False)
+        self.dropout = nn.Dropout(dropout_ratio)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        gate = F.silu(self.gate_proj(x))
+        up = self.up_proj(x)
+        output = self.down_proj(gate * up)
+        return self.dropout(output)
+
+
+class DecoderLayer(nn.Module):
+    """Single transformer decoder layer."""
+
+    def __init__(
+        self,
+        hidden_size: int,
+        num_heads: int,
+        num_kv_heads: int,
+        head_dim: int,
+        intermediate_size: int,
+        max_position_embeddings: int = 32768,
+        rope_base: float = 10000.0,
+        dropout_ratio: float = 0.0,
+    ):
+        super().__init__()
+        self.self_attn = Attention(
+            hidden_size=hidden_size,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            head_dim=head_dim,
+            max_position_embeddings=max_position_embeddings,
+            rope_base=rope_base,
+            dropout_ratio=dropout_ratio,
+        )
+        self.mlp = MLP(hidden_size, intermediate_size, dropout_ratio)
+        self.input_layernorm = RMSNorm(hidden_size, eps=1e-6)
+        self.post_attention_layernorm = RMSNorm(hidden_size, eps=1e-6)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        position_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        residual = hidden_states
+        hidden_states = self.input_layernorm(hidden_states)
+        hidden_states = self.self_attn(hidden_states, position_ids, attention_mask)
+        hidden_states = residual + hidden_states
+
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states = self.mlp(hidden_states)
+        hidden_states = residual + hidden_states
+        return hidden_states
+
+
+class Qwen317B(nn.Module):
+    """Qwen3-1.7B model for code generation.
+
+    This is a randomly initialized implementation of the Qwen3-1.7B architecture.
+    The model is a decoder-only transformer with:
+    - 28 layers
+    - 16 attention heads
+    - 8 KV heads (GQA)
+    - 128 head dimension
+    - 2048 hidden size
+    - 8192 intermediate size
+    - 151936 vocabulary size
+    - 32768 max position embeddings
+
+    The architecture follows the Qwen3 model family design with RMSNorm,
+    SwiGLU activation, and rotary position embeddings.
+
+    Note: This is a structural implementation with random initialization.
+    No pretrained weights are loaded. Weight initialization is handled
+    externally in training/train.py.
+    """
+
+    def __init__(self, config: Optional[dict] = None):
+        """Initialize the Qwen3-1.7B model.
+
+        Args:
+            config: Configuration dictionary loaded from config/config.yaml.
+                If None, uses default values matching the Qwen3-1.7B architecture.
+        """
+        super().__init__()
+
+        # Load config if provided, otherwise use defaults
+        if config is None:
+            config = {}
+
+        # Model architecture parameters
+        # These values match the Qwen3-1.7B architecture from the paper
+        # Default values are used when config doesn't specify them
+        self.vocab_size = 151936  # Qwen3-1.7B vocabulary size
+        self.hidden_size = 2048
+        self.num_hidden_layers = 28
+        self.num_attention_heads = 16
+        self.num_key_value_heads = 8
+        self.head_dim = 128
+        self.intermediate_size = 8192
+        self.max_position_embeddings = 32768
+        self.rope_base = 10000.0
+
+        # Dropout ratio from config, default to 0.0 if not specified
+        dropout_ratio = 0.0
+        if config.get("model") and config["model"].get("dropout_ratio") is not None:
+            dropout_ratio = float(config["model"]["dropout_ratio"])
+        elif config.get("training") and config["training"].get("dropout_ratio") is not None:
+            dropout_ratio = float(config["training"]["dropout_ratio"])
+        self.dropout_ratio = dropout_ratio
+
+        # Token embeddings
+        self.embed_tokens = nn.Embedding(self.vocab_size, self.hidden_size)
+
+        # Transformer layers
+        self.layers = nn.ModuleList(
+            [
+                DecoderLayer(
+                    hidden_size=self.hidden_size,
+                    num_heads=self.num_attention_heads,
+                    num_kv_heads=self.num_key_value_heads,
+                    head_dim=self.head_dim,
+                    intermediate_size=self.intermediate_size,
+                    max_position_embeddings=self.max_position_embeddings,
+                    rope_base=self.rope_base,
+                    dropout_ratio=self.dropout_ratio,
+                )
+                for _ in range(self.num_hidden_layers)
+            ]
+        )
+
+        # Final layer norm
+        self.norm = RMSNorm(self.hidden_size, eps=1e-6)
+
+        # Output projection (tied with input embeddings)
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+
+        # Initialize weights
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize model weights."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+    ) -> dict:
+        """Forward pass of the Qwen3-1.7B model.
+
+        Args:
+            input_ids: Token indices of shape [batch_size, seq_len]
+            attention_mask: Attention mask of shape [batch_size, seq_len]
+                where 1 indicates valid positions and 0 indicates padding.
+            position_ids: Position indices of shape [batch_size, seq_len].
+                If None, positions are computed from attention_mask.
+            labels: Optional target token indices for loss computation.
+
+        Returns:
+            dict containing:
+                - logits: Output logits of shape [batch_size, seq_len, vocab_size]
+                - loss: Cross-entropy loss if labels are provided, else None
+        """
+        batch_size, seq_len = input_ids.shape
+
+        # Compute position_ids if not provided
+        if position_ids is None:
+            if attention_mask is not None:
+                position_ids = attention_mask.long().cumsum(-1) - 1
+                position_ids = position_ids.clamp(min=0)
+            else:
+                position_ids = torch.arange(seq_len, device=input_ids.device)
+                position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
+
+        # Convert attention_mask to additive mask for attention
+        if attention_mask is not None:
+            attention_mask = attention_mask[:, None, None, :]
+            attention_mask = (1.0 - attention_mask) * torch.finfo(torch.float32).min
+            attention_mask = attention_mask.to(input_ids.dtype)
+
+        # Embed tokens
+        hidden_states = self.embed_tokens(input_ids)
+
+        # Pass through transformer layers
+        for layer in self.layers:
+            hidden_states = layer(hidden_states, position_ids, attention_mask)
+
+        # Final layer norm
+        hidden_states = self.norm(hidden_states)
+
+        # Compute logits
+        logits = self.lm_head(hidden_states)
+
+        # Compute loss if labels are provided
+        loss = None
+        if labels is not None:
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            loss = F.cross_entropy(
+                shift_logits.view(-1, shift_logits.size(-1)),
+                shift_labels.view(-1),
+                ignore_index=-100,
+            )
+
+        return {"logits": logits, "loss": loss}
+
+
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the config file.
+
+    Returns:
+        Configuration dictionary.
+    """
+    config_path = Path(config_path)
+    if not config_path.exists():
+        return {}
+    with open(config_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def create_qwen317b(config_path: str = "config/config.yaml") -> Qwen317B:
+    """Create a Qwen3-1.7B model instance.
+
+    Args:
+        config_path: Path to the config file.
+
+    Returns:
+        Qwen317B model instance.
+    """
+    config = load_config(config_path)
+    return Qwen317B(config)
+```

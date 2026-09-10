@@ -1,0 +1,195 @@
+import sys
+import json
+import numpy as np
+import cv2
+
+ARCH_KEYWORDS = [
+    "CNN", "Transformer", "Attention", "Encoder", "Decoder",
+    "Block", "Embedding", "Classifier", "Feature Extractor",
+    "AlexNet", "ResNet", "VGG", "GoogLeNet"
+]
+EXP_KEYWORDS = ["Accuracy", "Loss", "Epoch", "Precision", "Recall", "F1"]
+DATASET_KEYWORDS = [
+    "sample", "example", "dataset", "input image",
+    "training example", "category", "class"
+]
+
+FALLBACK = {
+    "type": "other",
+    "description": "无法确定图片类型",
+    "important_components": [],
+    "code_relevant_information": ""
+}
+
+
+def load_image(image_path):
+    data = np.fromfile(image_path, dtype=np.uint8)
+    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    return img
+
+
+def compute_features(img):
+    h, w = img.shape[:2]
+    aspect_ratio = w / max(h, 1)
+
+    max_dim = 512
+    if max(h, w) > max_dim:
+        scale = max_dim / max(h, w)
+        nh, nw = int(h * scale), int(w * scale)
+        img_small = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_AREA)
+    else:
+        img_small = img
+
+    hsv = cv2.cvtColor(img_small, cv2.COLOR_BGR2HSV)
+    sat = hsv[:, :, 1].astype(np.float32)
+    val = hsv[:, :, 2].astype(np.float32)
+
+    bgr = img_small.astype(np.float32)
+    white_mask = (bgr[:, :, 0] > 235) & (bgr[:, :, 1] > 235) & (bgr[:, :, 2] > 235)
+    background_ratio = float(np.mean(white_mask))
+
+    color_mask = sat > 50
+    color_ratio = float(np.mean(color_mask))
+
+    gray_mask = sat < 20
+    gray_ratio = float(np.mean(gray_mask))
+
+    avg_sat = float(np.mean(sat))
+    avg_val = float(np.mean(val))
+
+    quantized = (img_small // 64).astype(np.uint8)
+    flat = quantized.reshape(-1, 3)
+    unique_colors = int(len(np.unique(flat[:, 0] * 16 + flat[:, 1] * 4 + flat[:, 2])))
+
+    return {
+        "aspect_ratio": aspect_ratio,
+        "background_ratio": background_ratio,
+        "color_ratio": color_ratio,
+        "gray_ratio": gray_ratio,
+        "avg_sat": avg_sat,
+        "avg_val": avg_val,
+        "unique_colors": unique_colors
+    }
+
+
+def classify_visual(f):
+    bg = f["background_ratio"]
+    color = f["color_ratio"]
+    unique = f["unique_colors"]
+    avg_sat = f["avg_sat"]
+    aspect = f["aspect_ratio"]
+
+    if bg < 0.5 and (color > 0.25 or avg_sat > 90):
+        return "dataset"
+
+    if bg >= 0.6:
+        if color < 0.12:
+            if f["gray_ratio"] > 0.85 and color < 0.02:
+                return "other"
+            if aspect > 1.15 and unique <= 10:
+                return "experiment_result"
+            if unique > 10 or aspect <= 1.15:
+                return "architecture"
+            return "experiment_result"
+        else:
+            if unique > 8:
+                return "architecture"
+            if color > 0.2 and bg < 0.8:
+                return "dataset"
+
+    return "other"
+
+
+def classify(ocr_text, features):
+    ocr_lower = ocr_text.lower()
+
+    for kw in EXP_KEYWORDS:
+        if kw.lower() in ocr_lower:
+            return "experiment_result"
+
+    for kw in ARCH_KEYWORDS:
+        if kw.lower() in ocr_lower:
+            return "architecture"
+
+    for kw in DATASET_KEYWORDS:
+        if kw.lower() in ocr_lower:
+            return "dataset"
+
+    return classify_visual(features)
+
+
+def extract_components(ocr_text, img_type):
+    if not ocr_text:
+        return []
+
+    ocr_lower = ocr_text.lower()
+    components = []
+
+    if img_type == "architecture":
+        for kw in ARCH_KEYWORDS:
+            if kw.lower() in ocr_lower and kw not in components:
+                components.append(kw)
+
+    elif img_type == "experiment_result":
+        for kw in EXP_KEYWORDS:
+            if kw.lower() in ocr_lower and kw not in components:
+                components.append(kw)
+        for kw in ARCH_KEYWORDS:
+            if kw.lower() in ocr_lower and kw not in components:
+                components.append(kw)
+
+    return components
+
+
+def build_result(img_type, ocr_text):
+    if img_type == "architecture":
+        return {
+            "type": "architecture",
+            "description": "展示模型网络结构和数据流关系",
+            "important_components": extract_components(ocr_text, img_type),
+            "code_relevant_information": "需要实现深度学习模型的前向传播和模块连接"
+        }
+
+    if img_type == "experiment_result":
+        return {
+            "type": "experiment_result",
+            "description": "展示实验性能变化或对比结果",
+            "important_components": extract_components(ocr_text, img_type),
+            "code_relevant_information": "需要实现训练过程并记录Loss、Accuracy等评估指标"
+        }
+
+    if img_type == "dataset":
+        return {
+            "type": "dataset",
+            "description": "展示数据样本或输入示例",
+            "important_components": [],
+            "code_relevant_information": "需要实现数据加载、预处理和增强流程"
+        }
+
+    return FALLBACK
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(json.dumps(FALLBACK, ensure_ascii=False))
+        return
+
+    image_path = sys.argv[1]
+    ocr_text = sys.argv[2] if len(sys.argv) > 2 else ""
+
+    try:
+        img = load_image(image_path)
+        if img is None:
+            print(json.dumps(FALLBACK, ensure_ascii=False))
+            return
+
+        features = compute_features(img)
+        img_type = classify(ocr_text, features)
+        result = build_result(img_type, ocr_text)
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception:
+        print(json.dumps(FALLBACK, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

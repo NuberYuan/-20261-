@@ -1,0 +1,210 @@
+import sys
+import json
+import numpy as np
+import cv2
+from PIL import Image
+
+def analyze_image(image_path):
+    try:
+        # OCR文字（外部提供）
+        ocr_text = "outpat 31842\nTape\nInput\nGr id"
+        
+        # 读取图片
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # 获取图片基本信息
+        height, width = img.shape[:2]
+        
+        # 分析OCR文字
+        ocr_lower = ocr_text.lower()
+        
+        # 定义关键词
+        architecture_keywords = [
+            'cnn', 'transformer', 'attention', 'encoder', 'decoder', 
+            'block', 'embedding', 'classifier', 'feature extractor',
+            'alexnet', 'resnet', 'vgg', 'googlenet', 'network', 'layer',
+            'convolution', 'pooling', 'fully connected', 'softmax'
+        ]
+        
+        experiment_keywords = [
+            'accuracy', 'loss', 'epoch', 'precision', 'recall', 'f1',
+            'performance', 'comparison', 'result', 'experiment',
+            'training', 'validation', 'test', 'curve', 'plot',
+            'baseline', 'improvement', 'error rate', 'convergence'
+        ]
+        
+        dataset_keywords = [
+            'sample', 'example', 'input', 'class', 'category',
+            'dataset', 'image', 'data', 'instance', 'label'
+        ]
+        
+        # 检查OCR中的关键词
+        arch_found = any(kw in ocr_lower for kw in architecture_keywords)
+        exp_found = any(kw in ocr_lower for kw in experiment_keywords)
+        dataset_found = any(kw in ocr_lower for kw in dataset_keywords)
+        
+        # 分析图片视觉特征
+        # 转换为灰度图
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # 计算图片的基本统计信息
+        mean_val = np.mean(gray)
+        std_val = np.std(gray)
+        
+        # 检测图片中是否有大量文本区域（通过边缘密度）
+        edges = cv2.Canny(gray, 50, 150)
+        edge_density = np.sum(edges > 0) / (height * width)
+        
+        # 检测颜色分布
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        color_std = np.std(hsv[:,:,0])
+        
+        # 判断图片类型
+        # 优先级：experiment_result > architecture > dataset > other
+        
+        # 检查是否是实验结果图
+        if exp_found:
+            # 提取模型名称和指标
+            components = []
+            model_names = ['alexnet', 'resnet', 'vgg', 'googlenet', 'cnn', 'transformer']
+            metric_names = ['accuracy', 'loss', 'precision', 'recall', 'f1', 'epoch']
+            
+            for model in model_names:
+                if model in ocr_lower:
+                    components.append(model.capitalize())
+            
+            for metric in metric_names:
+                if metric in ocr_lower:
+                    components.append(metric.capitalize())
+            
+            return {
+                "type": "experiment_result",
+                "description": "展示实验结果和性能指标对比",
+                "important_components": components if components else [],
+                "code_relevant_information": "需要实现模型训练和评估代码，包括性能指标计算"
+            }
+        
+        # 检查是否是架构图
+        if arch_found:
+            # 提取架构组件
+            components = []
+            arch_components = [
+                'cnn', 'transformer', 'attention', 'encoder', 'decoder',
+                'block', 'embedding', 'classifier', 'feature extractor',
+                'alexnet', 'resnet', 'vgg', 'googlenet', 'convolution',
+                'pooling', 'fully connected', 'softmax'
+            ]
+            
+            for comp in arch_components:
+                if comp in ocr_lower:
+                    # 格式化组件名称
+                    if comp == 'cnn':
+                        components.append('CNN')
+                    elif comp == 'transformer':
+                        components.append('Transformer')
+                    elif comp == 'attention':
+                        components.append('Attention Module')
+                    elif comp == 'encoder':
+                        components.append('Encoder')
+                    elif comp == 'decoder':
+                        components.append('Decoder')
+                    elif comp == 'block':
+                        components.append('Block')
+                    elif comp == 'embedding':
+                        components.append('Embedding')
+                    elif comp == 'classifier':
+                        components.append('Classifier')
+                    elif comp == 'feature extractor':
+                        components.append('Feature Extractor')
+                    elif comp == 'alexnet':
+                        components.append('AlexNet')
+                    elif comp == 'resnet':
+                        components.append('ResNet')
+                    elif comp == 'vgg':
+                        components.append('VGG')
+                    elif comp == 'googlenet':
+                        components.append('GoogLeNet')
+                    elif comp == 'convolution':
+                        components.append('Convolution Layer')
+                    elif comp == 'pooling':
+                        components.append('Pooling Layer')
+                    elif comp == 'fully connected':
+                        components.append('Fully Connected Layer')
+                    elif comp == 'softmax':
+                        components.append('Softmax')
+            
+            return {
+                "type": "architecture",
+                "description": "展示模型网络结构和数据流关系",
+                "important_components": components if components else [],
+                "code_relevant_information": "需要实现网络结构定义和前向传播逻辑"
+            }
+        
+        # 检查是否是数据集展示
+        if dataset_found:
+            return {
+                "type": "dataset",
+                "description": "展示数据样本和类别示例",
+                "important_components": [],
+                "code_relevant_information": "需要准备数据加载和预处理代码"
+            }
+        
+        # 基于视觉特征判断
+        # 如果图片包含"Input"和"Grid"等词，可能是架构图
+        if 'input' in ocr_lower and ('grid' in ocr_lower or 'tape' in ocr_lower):
+            return {
+                "type": "architecture",
+                "description": "展示模型输入处理流程和网络结构",
+                "important_components": [],
+                "code_relevant_information": "需要实现输入处理模块和网络结构"
+            }
+        
+        # 默认返回other
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        
+    except Exception as e:
+        # 任何异常都返回other类型
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    try:
+        if len(sys.argv) < 2:
+            result = {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        else:
+            image_path = sys.argv[1]
+            result = analyze_image(image_path)
+        
+        # 输出JSON
+        print(json.dumps(result, ensure_ascii=False))
+    except:
+        # 最终保底输出
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))

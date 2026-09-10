@@ -1,0 +1,310 @@
+# Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting
+
+本项目面向时间序列预测任务，基于 PyTorch 复现论文 **Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting** 中的关键训练与评估流程，并在 NVIDIA Tesla V100 GPU 环境下运行。
+
+> 说明：本仓库中的模型实现与训练脚本以 `config/config/config.yaml` 中的配置为入口。所有模型性能结论应基于实际评估结果动态计算得出，不应在注释、README 或报告中写死“某模型必然优于另一模型”等结论性措辞。
+
+---
+
+## 1. 项目结构
+
+本仓库当前文件结构如下：
+
+```text
+README.md
+main.py
+requirements.txt
+config/config/config.yaml
+data/data/dataset.py
+evaluation/evaluation/evaluate.py
+models/models/__init__.py
+models/models/lstm.py
+models/models/transformer.py
+training/training/train.py
+utils/utils/metrics.py
+```
+
+请勿在复现过程中假设存在 `configs/`、`setup.py`、`experiments/`、`results/`、`tests/`、`src/models/`、`src/training/` 等未列出的目录或文件。
+
+---
+
+## 2. 环境依赖
+
+推荐使用 Python 3.8+ 与 PyTorch 1.12+，硬件为 NVIDIA Tesla V100 GPU。
+
+安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 3. 配置说明
+
+主要配置文件位于：
+
+```text
+config/config/config.yaml
+```
+
+常用配置路径包括但不限于：
+
+- 数据配置：`config['data']`
+  - `config['data.root']`
+  - `config['data.default.path']`
+  - `config['data.default.description']`
+  - `config['data.feature_dim']`
+  - `config['data.normalization']`
+- 训练配置：`config['training']`
+  - `config['training.epochs']`
+  - `config['training.batch_size']`
+  - `config['training.batch_size.Electricity']`
+  - `config['training.batch_size.Traffic']`
+  - `config['training.batch_size.Retail']`
+  - `config['training.batch_size.Volatility']`
+  - `config['training.optimizer']`
+  - `config['training.optimizer.name']`
+  - `config['training.optimizer.lr']`
+  - `config['training.optimizer.weight_decay']`
+  - `config['training.loss_function']`
+  - `config['training.scheduler']`
+- 模型配置：`config['model']`
+  - `config['model.dropout_ratio.Electricity']`
+  - `config['model.dropout_ratio.Traffic']`
+  - `config['model.dropout_ratio.Retail']`
+  - `config['model.dropout_ratio.Volatility']`
+- 系统配置：`config['system']`
+  - `config['system.device']`
+  - `config['system.num_workers']`
+  - `config['system.seed']`
+- 划分配置：`config['split_strategy']`
+  - `config['split_strategy.method']`
+  - `config['split_strategy.default_train_ratio']`
+  - `config['split_strategy.val_split_ratio']`
+  - `config['split_strategy.ratios']`
+  - `config['split_strategy.seed']`
+- 日志与检查点：`config['logging']`、`config['checkpoint']`
+
+配置文件中 `config['training.optimizer']` 与 `config['training.scheduler']` 当前标记为 `NOT_FOUND`，需要在实验前根据实际实现补充具体优化器与调度器设置。当前学习率为：
+
+```yaml
+training.optimizer.lr: 0.01
+```
+
+---
+
+## 4. 数据准备
+
+论文常用数据集包括 Electricity、Traffic、Retail、Volatility。数据应放置到 `config['data.root']` 指定的根目录下，具体数据集路径由 `config['data.default.path']` 或对应数据版本配置指定。
+
+在运行训练前，请确认：
+
+1. 数据集已下载并放在正确路径。
+2. `config['data.default.status']` 与 `config['data.default.path']` 指向实际数据。
+3. 数据处理逻辑由 `data/data/dataset.py` 提供，特征维度与归一化方式见 `config['data.feature_dim']` 和 `config['data.normalization']`。
+
+---
+
+## 5. 训练配置
+
+本节列出当前复现实验的关键训练设置。
+
+### 5.1 训练轮数与批次大小
+
+训练轮数：
+
+```text
+epochs: 30
+```
+
+各数据集 batch size：
+
+| 数据集 | batch_size |
+| --- | --- |
+| Electricity | 64 |
+| Traffic | 128 |
+| Retail | 128 |
+| Volatility | 64 |
+
+对应的配置路径：
+
+```text
+config['training.batch_size.Electricity']
+config['training.batch_size.Traffic']
+config['training.batch_size.Retail']
+config['training.batch_size.Volatility']
+```
+
+### 5.2 优化器与调度器
+
+当前配置中优化器与调度器均为 `NOT_FOUND`：
+
+```text
+optimizer: NOT_FOUND
+scheduler: NOT_FOUND
+```
+
+学习率配置为：
+
+```text
+lr: 0.01
+```
+
+由于优化器与调度器缺失，复现时应根据原始论文或实验需要设置 `config['training.optimizer.name']`、`config['training.optimizer.weight_decay']`、`config['training.scheduler.name']` 等参数。未设置前不应直接启动训练。
+
+### 5.3 损失函数
+
+本项目使用 Quantile loss。对单个样本与单个 quantile：
+
+```text
+QL(y, yhat, q) = q * (y - yhat)_+ + (1 - q) * (yhat - y)_+
+```
+
+训练损失为：
+
+```text
+L = (1 / (M * tau_max)) *
+    sum_{t in Omega}
+        sum_{tau=1}^{tau_max}
+            sum_{q in {0.1, 0.5, 0.9}}
+                QL(y_t, yhat(q, t - tau, tau), q)
+```
+
+其中：
+
+- `M` 为训练样本数；
+- `tau_max` 为最大预测 horizon；
+- `q` 为 quantile 输出，取 `{0.1, 0.5, 0.9}`；
+- `yhat(q, t - tau, tau)` 表示在时刻 `t - tau` 对时刻 `t` 的 `tau` 步预测值。
+
+测试集上的 q-Risk 定义为：
+
+```text
+q-Risk = 2 * sum_{y_t in Omega_tilde}
+              sum_{tau=1}^{tau_max}
+                  QL(y_t, yhat(q, t - tau, tau), q)
+         / sum_{tau=1}^{tau_max} |y_t|
+```
+
+其中 `Omega_tilde` 表示测试集样本。
+
+该损失函数的具体实现应位于训练与评估模块中，配置路径为 `config['training.loss_function']`。
+
+---
+
+## 6. 运行方法
+
+### 6.1 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 6.2 配置路径
+
+编辑 `config/config/config.yaml`，重点检查：
+
+```text
+config['data.root']
+config['data.default.path']
+config['training.optimizer.name']
+config['training.optimizer.lr']
+config['training.scheduler.name']
+config['system.device']
+```
+
+### 6.3 启动入口
+
+使用 `main.py` 作为统一入口：
+
+```bash
+python main.py
+```
+
+如需选择数据集、训练模式或推理模式，应根据 `main.py` 中暴露的命令行参数或配置文件中的 `config['version_selector']` 与 `config['training_modes']` 进行设置。
+
+---
+
+## 7. 复现步骤
+
+### 7.1 数据集下载与配置
+
+1. 下载 Electricity、Traffic、Retail、Volatility 数据集。
+2. 将数据放入 `config['data.root']` 指定目录。
+3. 在 `config/config/config.yaml` 中配置数据集路径、版本、特征维度与归一化方式。
+
+### 7.2 设置训练超参数
+
+根据本 README 第 5 节设置：
+
+- `epochs = 30`
+- `learning_rate = 0.01`
+- 各数据集 batch_size 如上表
+- 补齐优化器与调度器配置
+- 使用 Quantile loss 作为训练目标
+
+### 7.3 训练与评估
+
+```bash
+python main.py
+```
+
+训练完成后，评估脚本应基于 `evaluation/evaluation/evaluate.py` 计算测试集指标。
+
+### 7.4 验证集说明
+
+论文仅使用 train/test 二路划分，无独立验证集。若实现中需要 `val_loader` 用于早停、最优模型选择或检查点保存，应从训练集中按 **80/20** 比例二次划分出验证集，并标记为工程偏离：
+
+```text
+engineering deviation from paper: paper uses train/test split only;
+validation set is created by splitting the training set into 80/20.
+```
+
+### 7.5 检查点与最优模型选择
+
+论文无独立验证集。若将 `config['checkpoint.best_metric']` 设置为 `val_accuracy`，这属于工程偏离。严格复现论文时，应：
+
+- 从训练集中二次划分验证集，或
+- 直接使用测试集指标选择模型（不推荐，可能导致数据泄露）。
+
+建议在配置与实验记录中明确说明实际使用的最优模型选择策略。
+
+---
+
+## 8. 指标与评估
+
+量化评估应使用实际运行得到的测试结果，不应预先在 README、注释或报告中写死模型比较结论。所有关键发现应由评估脚本根据测试集指标动态计算得出。
+
+评估阶段建议关注：
+
+- Quantile loss 均值；
+- q-Risk；
+- 不同 horizon 下的预测误差；
+- 不同数据集上的相对性能。
+
+评估结果应以实际输出为准。
+
+---
+
+## 9. 常见问题
+
+### 9.1 配置中 `NOT_FOUND` 如何处理？
+
+`config['training.optimizer']` 与 `config['training.scheduler']` 为 `NOT_FOUND`，表示当前配置未提供完整训练设置。需要在 `config/config/config.yaml` 中补充具体优化器名称、权重衰减、调度器名称等参数后才能开始训练。
+
+### 9.2 是否需要验证集？
+
+论文原始设定不包含独立验证集。只有在需要早停或选择最优模型时才从训练集二次划分验证集，并标记为工程偏离。
+
+### 9.3 是否可以在 README 中写论文关键结论？
+
+不可以。论文关键发现必须由实际评估结果动态计算得出，不能在 README、报告或代码注释中写死“某模型 consistently outperforms 另一模型”等结论性措辞。
+
+---
+
+## 10. 参考
+
+- 论文：Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting
+- 框架：PyTorch
+- 硬件：NVIDIA Tesla V100 GPU

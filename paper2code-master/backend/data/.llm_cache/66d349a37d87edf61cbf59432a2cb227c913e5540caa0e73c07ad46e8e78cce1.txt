@@ -1,0 +1,294 @@
+```python
+import math
+from typing import Optional, Tuple
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import yaml
+from pathlib import Path
+
+
+class Transformer(nn.Module):
+    """
+    Transformer encoder for software defect prediction.
+
+    Implements a Transformer encoder with scaled dot-product attention.
+    The attention weights alpha_j are computed such that:
+        z_i = sum_j alpha_j * x_ij, where sum_j alpha_j = 1, alpha_j >= 0.
+
+    The model takes software metric feature vectors as input and outputs
+    binary defect predictions (0 or 1) along with prediction probabilities.
+
+    Architecture:
+        - Input projection layer (linear transformation to model dimension)
+        - Positional encoding (learnable)
+        - Transformer encoder layers (with multi-head self-attention)
+        - Classification head (linear layer for binary classification)
+
+    The model is randomly initialized (no pretrained weights).
+    """
+
+    def __init__(
+        self,
+        input_dim: int,
+        d_model: int = 64,
+        nhead: int = 4,
+        num_layers: int = 2,
+        dim_feedforward: int = 128,
+        dropout: float = 0.5,
+        num_classes: int = 1,
+        max_seq_len: int = 128,
+        config: Optional[dict] = None,
+    ):
+        """
+        Initialize the Transformer model.
+
+        Args:
+            input_dim: Dimension of input feature vectors (number of software metrics).
+            d_model: Dimension of the model (embedding dimension).
+            nhead: Number of attention heads.
+            num_layers: Number of transformer encoder layers.
+            dim_feedforward: Dimension of the feedforward network.
+            dropout: Dropout probability.
+            num_classes: Number of output classes (1 for binary classification).
+            max_seq_len: Maximum sequence length for positional encoding.
+            config: Configuration dictionary (optional, loaded from config.yaml if None).
+        """
+        super(Transformer, self).__init__()
+
+        # Load config if not provided
+        if config is None:
+            config = self._load_default_config()
+
+        # Extract parameters from config with defaults
+        # Note: config['model']['num_classes'] may be null in config.yaml,
+        # so we use the provided num_classes parameter as fallback.
+        self.num_classes = num_classes if num_classes is not None else 1
+        self.dropout_ratio = dropout if dropout is not None else 0.5
+
+        # Model dimensions
+        self.input_dim = input_dim
+        self.d_model = d_model
+        self.nhead = nhead
+        self.num_layers = num_layers
+        self.dim_feedforward = dim_feedforward
+        self.max_seq_len = max_seq_len
+
+        # Input projection: project input features to d_model dimension
+        self.input_projection = nn.Linear(input_dim, d_model)
+
+        # Positional encoding (learnable)
+        self.positional_encoding = nn.Parameter(
+            torch.zeros(1, max_seq_len, d_model)
+        )
+        nn.init.normal_(self.positional_encoding, mean=0.0, std=0.02)
+
+        # Dropout for input embeddings
+        self.embedding_dropout = nn.Dropout(self.dropout_ratio)
+
+        # Transformer encoder layers
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=self.dropout_ratio,
+            activation="relu",
+            batch_first=True,
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer, num_layers=num_layers
+        )
+
+        # Layer normalization before classification
+        self.layer_norm = nn.LayerNorm(d_model)
+
+        # Classification head
+        # For binary classification, output 1 logit (sigmoid applied in forward)
+        self.classifier = nn.Linear(d_model, self.num_classes)
+
+        # Initialize weights
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        """Initialize model weights using Kaiming normal initialization."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight, mode="fan_in", nonlinearity="relu")
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.constant_(module.weight, 1)
+                nn.init.constant_(module.bias, 0)
+
+    def _load_default_config(self) -> dict:
+        """
+        Load default configuration from config/config.yaml.
+
+        Returns:
+            dict: Configuration dictionary.
+        """
+        config_path = Path(__file__).resolve().parent.parent / "config" / "config.yaml"
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            return config
+        except FileNotFoundError:
+            # Return empty dict if config not found; defaults will be used
+            return {}
+
+    def forward(
+        self, x: torch.Tensor, return_attention: bool = False
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """
+        Forward pass of the Transformer model.
+
+        Args:
+            x: Input tensor of shape (batch_size, seq_len, input_dim) or (batch_size, input_dim).
+            return_attention: If True, return attention weights from the last layer.
+
+        Returns:
+            If return_attention is False:
+                logits: Tensor of shape (batch_size, num_classes)
+            If return_attention is True:
+                (logits, attention_weights): Tuple of logits and attention weights
+        """
+        # Handle input shape: if 2D (batch_size, input_dim), add sequence dimension
+        if x.dim() == 2:
+            x = x.unsqueeze(1)  # (batch_size, 1, input_dim)
+
+        batch_size, seq_len, _ = x.shape
+
+        # Project input to d_model dimension
+        x = self.input_projection(x)  # (batch_size, seq_len, d_model)
+
+        # Add positional encoding (truncate or pad to max_seq_len)
+        if seq_len > self.max_seq_len:
+            pos_encoding = self.positional_encoding[:, :seq_len, :]
+        else:
+            pos_encoding = self.positional_encoding[:, :seq_len, :]
+        x = x + pos_encoding
+
+        # Apply dropout
+        x = self.embedding_dropout(x)
+
+        # Create padding mask (all ones since we don't have padding in this use case)
+        # For software defect prediction, all features are valid
+        padding_mask = None
+
+        # Pass through transformer encoder
+        # Note: We don't use attention mask since all positions are valid
+        transformer_output = self.transformer_encoder(
+            x, mask=None, src_key_padding_mask=padding_mask
+        )
+
+        # Apply layer normalization
+        transformer_output = self.layer_norm(transformer_output)
+
+        # Global pooling: mean over sequence dimension
+        # This creates a fixed-size representation regardless of sequence length
+        pooled_output = transformer_output.mean(dim=1)  # (batch_size, d_model)
+
+        # Classification head
+        logits = self.classifier(pooled_output)  # (batch_size, num_classes)
+
+        if return_attention:
+            # For simplicity, return None for attention weights
+            # (full attention weight extraction would require custom implementation)
+            return logits, None
+
+        return logits
+
+    def predict_proba(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Predict class probabilities for input samples.
+
+        Args:
+            x: Input tensor of shape (batch_size, seq_len, input_dim) or (batch_size, input_dim).
+
+        Returns:
+            Tensor of shape (batch_size, num_classes) with probabilities.
+        """
+        logits = self.forward(x)
+        if self.num_classes == 1:
+            # Binary classification: apply sigmoid
+            probabilities = torch.sigmoid(logits)
+        else:
+            # Multi-class classification: apply softmax
+            probabilities = F.softmax(logits, dim=-1)
+        return probabilities
+
+    def predict(self, x: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
+        """
+        Predict class labels for input samples.
+
+        Args:
+            x: Input tensor of shape (batch_size, seq_len, input_dim) or (batch_size, input_dim).
+            threshold: Classification threshold for binary classification (default: 0.5).
+
+        Returns:
+            Tensor of shape (batch_size,) with predicted class labels (0 or 1).
+        """
+        probabilities = self.predict_proba(x)
+        if self.num_classes == 1:
+            # Binary classification
+            predictions = (probabilities >= threshold).long().squeeze(-1)
+        else:
+            # Multi-class classification
+            predictions = torch.argmax(probabilities, dim=-1)
+        return predictions
+
+
+def create_transformer_from_config(
+    input_dim: int, config: Optional[dict] = None
+) -> Transformer:
+    """
+    Create a Transformer model from configuration.
+
+    Args:
+        input_dim: Dimension of input features.
+        config: Configuration dictionary (optional).
+
+    Returns:
+        Transformer: Initialized Transformer model.
+    """
+    if config is None:
+        config_path = Path(__file__).resolve().parent.parent / "config" / "config.yaml"
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+        except FileNotFoundError:
+            config = {}
+
+    # Extract model configuration with safe defaults
+    model_config = config.get("model", {})
+
+    # num_classes: default to 1 for binary classification
+    # Note: config may have null for num_classes, so we default to 1
+    num_classes = model_config.get("num_classes", 1)
+    if num_classes is None:
+        num_classes = 1
+
+    # dropout_ratio: default to 0.5
+    dropout_ratio = model_config.get("dropout_ratio", 0.5)
+    if dropout_ratio is None:
+        dropout_ratio = 0.5
+
+    # Training config for additional parameters
+    training_config = config.get("training", {})
+
+    # Create model with defaults suitable for software defect prediction
+    model = Transformer(
+        input_dim=input_dim,
+        d_model=64,
+        nhead=4,
+        num_layers=2,
+        dim_feedforward=128,
+        dropout=dropout_ratio,
+        num_classes=num_classes,
+        max_seq_len=128,
+        config=config,
+    )
+
+    return model
+```

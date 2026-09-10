@@ -1,0 +1,23 @@
+{
+  "table_id": "table_2",
+  "table_type": "dataset_statistics",
+  "caption_summary": "Summary of datasets used in the study, including source, number of instances, features, label definition, and defect prevalence.",
+  "extracted_data": {
+    "metrics": ["No. of modules (instances)", "No. of metrics (features)", "Defect prevalence"],
+    "methods": ["NASA MDP", "Code4Code"],
+    "best_result": null,
+    "key_values": [
+      {"label": "NASA MDP - Official source/origin", "value": "NASA metrics data program (PROMISE repository)"},
+      {"label": "NASA MDP - No. of modules (instances)", "value": "Varies by project subset"},
+      {"label": "NASA MDP - No. of metrics (features)", "value": "20–22 static code metrics"},
+      {"label": "NASA MDP - Label definition", "value": "Binary defect label indicating whether a software module contains one or more recorded defects"},
+      {"label": "NASA MDP - Defect prevalence", "value": "Highly imbalanced; defective modules typically represent a minority class"},
+      {"label": "Code4Code - Official source/origin", "value": "Code4Code repository (ML4Code-style dataset)"},
+      {"label": "Code4Code - No. of modules (instances)", "value": "Project-dependent"},
+      {"label": "Code4Code - No. of metrics (features)", "value": "25 + static software metrics"},
+      {"label": "Code4Code - Label definition", "value": "Binary classification based on defect annotations in source code repositories"},
+      {"label": "Code4Code - Defect prevalence", "value": "Moderately imbalanced with fewer defective than non-defective modules"}
+    ]
+  },
+  "table_summary": "This table describes two datasets used in the study: NASA MDP and Code4Code. It details their sources, instance counts, feature counts, label definitions, and class imbalance characteristics. Both datasets are used for binary software defect prediction, with NASA MDP being highly imbalanced and Code4Code moderately imbalanced."
+}

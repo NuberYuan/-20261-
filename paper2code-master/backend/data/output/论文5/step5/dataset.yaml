@@ -1,0 +1,56 @@
+paper_name: 论文5
+data_source: external_dataset
+acquisition: local_path
+data_source_note: 论文明确使用 UCI Electricity、UCI Traffic、Kaggle Favorita Retail 和 OMI
+  realized Volatility 等公开真实数据集进行实验。
+datasets:
+- name: Electricity, Traffic, Retail, Volatility
+  source: 'Electricity: UCI Electricity Load Diagrams Dataset. Traffic: UCI PEM-SF
+    Traffic Dataset. Retail: Favorita Grocery Sales Dataset from Kaggle (https://www.kaggle.com/c/favoritagrocerysalesforecasting/).
+    Volatility: OMI realized library (https://realized.oxfordman.ox.ac.uk/).'
+  size: 'Electricity: 370 entities, 500k samples. Traffic: 440 entities, 500k samples.
+    Retail: 130k entities, 500k samples. Volatility: 41 entities, approximately 100k
+    samples.'
+  num_classes: NOT_FOUND
+  data_type: 'Multivariate multihorizon time series. Electricity: hourly electricity
+    consumption. Traffic: hourly occupancy rate. Retail: daily log product sales.
+    Volatility: daily realized volatility.'
+dataset_versions:
+- default
+preprocessing:
+  versions:
+    default:
+      description: 非图像数据：通用预处理（按数据语义做标准化/归一化）
+      preprocessing: 'Electricity: z-score normalization separately per entity for
+        real-valued inputs; inputs include electricity usage, day-of-week, hour-of-day,
+        time index; entity identifier is categorical. Traffic: z-score normalization
+        across all entities; inputs include traffic occupancy, day-of-week, hour-of-day,
+        time index; entity identifier is categorical. Retail: product-store pair as
+        entity; data resampled at regular daily intervals; missing days imputed with
+        last available observation; open flag included; holidays grouped into national,
+        regional, local variables; log transform on sales; z-score normalization across
+        all entities; log sales, transactions, oil are real-valued, rest categorical.
+        Volatility: target is 5-min subsampled realized volatility rv5_ss; daily open-to-close
+        returns added; date-related variables categorical; region categorical; log
+        transform on target; all inputs z-score normalized across all entities.'
+      normalization:
+        note: 非图像数据无 RGB 通道概念，按数据语义做标准化（如 z-score/归一化）
+      augmentation: []
+      note: 数据集无颜色/灰度/分割版本；仅单一 default 版本
+  version_selector:
+    config_key: dataset_version
+    values:
+    - default
+    default: default
+    note: 非图像数据仅一个 default 版本
+split_strategy:
+  method: random_split
+  ratios: 'Electricity: 500k samples from 2014-01-01 to 2014-09-01, first 90 percent
+    training, last 10 percent validation, testing over 7 days immediately following
+    training set. Traffic: 500k training samples before 2008-06-15, split same as
+    Electricity, testing over 7 days immediately following training set. Retail: training
+    set 450k samples from 2015-01-01 to 2015-12-01, validation set 50k samples from
+    30 days after training set, test set all entities over 30-day horizon following
+    validation set. Volatility: data from 2000-01-03 to 2019-06-28, training before
+    2016, validation 2016-2017, test from 2018 onwards.'
+  leaf_mapping_constraint: NOT_FOUND

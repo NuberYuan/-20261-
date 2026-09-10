@@ -1,0 +1,347 @@
+```python
+import torch
+import torch.nn as nn
+import yaml
+import os
+from typing import Optional, Dict, Any
+
+
+class ContrieverMSMARCORetriever(nn.Module):
+    """
+    Contriever-MS MARCO retriever model.
+
+    This model implements a dual-encoder retriever architecture based on the
+    Contriever approach, trained on MS MARCO data. It encodes queries and
+    passages into dense vectors and computes relevance scores via dot product.
+
+    The architecture follows the SELF-RAG paper's retriever component:
+    - Query encoder: Transformer-based encoder producing query embeddings
+    - Passage encoder: Transformer-based encoder producing passage embeddings
+    - Relevance scoring: Dot product between query and passage embeddings
+
+    Note: This is a random-initialized structure (no pretrained weights loaded).
+    Weight initialization is handled externally in training/train.py.
+    """
+
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        vocab_size: int = 30522,
+        hidden_size: int = 768,
+        num_hidden_layers: int = 12,
+        num_attention_heads: int = 12,
+        intermediate_size: int = 3072,
+        max_position_embeddings: int = 512,
+        dropout_ratio: float = 0.1,
+        embedding_dim: int = 768,
+    ):
+        """
+        Initialize the Contriever-MS MARCO retriever.
+
+        Args:
+            config: Configuration dictionary loaded from config.yaml.
+                    If None, uses default values derived from the paper.
+            vocab_size: Size of the vocabulary. Defaults to 30522 (BERT vocab size).
+            hidden_size: Hidden dimension size. Defaults to 768 (BERT base).
+            num_hidden_layers: Number of transformer layers. Defaults to 12.
+            num_attention_heads: Number of attention heads. Defaults to 12.
+            intermediate_size: Size of the feed-forward intermediate layer. Defaults to 3072.
+            max_position_embeddings: Maximum sequence length. Defaults to 512.
+            dropout_ratio: Dropout probability. Defaults to 0.1.
+            embedding_dim: Output embedding dimension. Defaults to 768.
+        """
+        super(ContrieverMSMARCORetriever, self).__init__()
+
+        # Load config if provided
+        if config is not None:
+            model_config = config.get("model", {})
+            # Read from config with safe defaults
+            # Note: config may have null values for these keys, so we use
+            # the provided defaults as fallback
+            self.vocab_size = vocab_size
+            self.hidden_size = hidden_size
+            self.num_hidden_layers = num_hidden_layers
+            self.num_attention_heads = num_attention_heads
+            self.intermediate_size = intermediate_size
+            self.max_position_embeddings = max_position_embeddings
+            self.dropout_ratio = dropout_ratio if dropout_ratio is not None else 0.1
+            self.embedding_dim = embedding_dim
+        else:
+            self.vocab_size = vocab_size
+            self.hidden_size = hidden_size
+            self.num_hidden_layers = num_hidden_layers
+            self.num_attention_heads = num_attention_heads
+            self.intermediate_size = intermediate_size
+            self.max_position_embeddings = max_position_embeddings
+            self.dropout_ratio = dropout_ratio if dropout_ratio is not None else 0.1
+            self.embedding_dim = embedding_dim
+
+        # Shared embedding layer for both query and passage encoders
+        self.word_embeddings = nn.Embedding(self.vocab_size, self.hidden_size, padding_idx=0)
+        self.position_embeddings = nn.Embedding(self.max_position_embeddings, self.hidden_size)
+        self.token_type_embeddings = nn.Embedding(2, self.hidden_size)
+
+        # Layer normalization for embeddings
+        self.layer_norm = nn.LayerNorm(self.hidden_size, eps=1e-12)
+        self.dropout = nn.Dropout(self.dropout_ratio)
+
+        # Transformer encoder layers (shared between query and passage)
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=self.hidden_size,
+            nhead=self.num_attention_heads,
+            dim_feedforward=self.intermediate_size,
+            dropout=self.dropout_ratio,
+            activation="gelu",
+            batch_first=True,
+            norm_first=True,
+        )
+        self.encoder = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=self.num_hidden_layers,
+        )
+
+        # Pooling layer to get sentence-level embeddings
+        # Use CLS token pooling (first token) as in BERT-based retrievers
+        self.pooler = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.Tanh(),
+        )
+
+        # Projection layer to get final embedding dimension
+        self.projection = nn.Linear(self.hidden_size, self.embedding_dim)
+
+        # Initialize weights
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize model weights with appropriate distributions."""
+        # Initialize embeddings
+        nn.init.normal_(self.word_embeddings.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.position_embeddings.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.token_type_embeddings.weight, mean=0.0, std=0.02)
+
+        # Initialize layer norm
+        nn.init.ones_(self.layer_norm.weight)
+        nn.init.zeros_(self.layer_norm.bias)
+
+        # Initialize projection layer
+        nn.init.normal_(self.projection.weight, mean=0.0, std=0.02)
+        nn.init.zeros_(self.projection.bias)
+
+        # Initialize pooler
+        for layer in self.pooler:
+            if isinstance(layer, nn.Linear):
+                nn.init.normal_(layer.weight, mean=0.0, std=0.02)
+                nn.init.zeros_(layer.bias)
+
+    def _create_attention_mask(self, input_ids: torch.Tensor) -> torch.Tensor:
+        """
+        Create attention mask from input_ids.
+
+        Args:
+            input_ids: Input token IDs of shape (batch_size, seq_len)
+
+        Returns:
+            Attention mask of shape (batch_size, seq_len) where 1 indicates
+            valid tokens and 0 indicates padding tokens.
+        """
+        # Create mask: 1 for non-padding tokens, 0 for padding tokens
+        attention_mask = (input_ids != 0).long()
+        return attention_mask
+
+    def _create_position_ids(self, input_ids: torch.Tensor) -> torch.Tensor:
+        """
+        Create position IDs for input tokens.
+
+        Args:
+            input_ids: Input token IDs of shape (batch_size, seq_len)
+
+        Returns:
+            Position IDs of shape (batch_size, seq_len)
+        """
+        batch_size, seq_len = input_ids.shape
+        position_ids = torch.arange(seq_len, dtype=torch.long, device=input_ids.device)
+        position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
+        return position_ids
+
+    def _encode(self, input_ids: torch.Tensor, token_type_ids: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Encode input sequences into dense embeddings.
+
+        Args:
+            input_ids: Input token IDs of shape (batch_size, seq_len)
+            token_type_ids: Token type IDs (0 for query, 1 for passage)
+
+        Returns:
+            Encoded embeddings of shape (batch_size, embedding_dim)
+        """
+        batch_size, seq_len = input_ids.shape
+
+        # Create token type IDs if not provided
+        if token_type_ids is None:
+            token_type_ids = torch.zeros_like(input_ids)
+
+        # Create attention mask
+        attention_mask = self._create_attention_mask(input_ids)
+
+        # Create position IDs
+        position_ids = self._create_position_ids(input_ids)
+
+        # Get embeddings
+        word_embeddings = self.word_embeddings(input_ids)
+        position_embeddings = self.position_embeddings(position_ids)
+        token_type_embeddings = self.token_type_embeddings(token_type_ids)
+
+        # Combine embeddings
+        embeddings = word_embeddings + position_embeddings + token_type_embeddings
+        embeddings = self.layer_norm(embeddings)
+        embeddings = self.dropout(embeddings)
+
+        # Create padding mask for transformer (True for padding positions)
+        padding_mask = (attention_mask == 0)
+
+        # Pass through transformer encoder
+        encoded = self.encoder(embeddings, src_key_padding_mask=padding_mask)
+
+        # Pool using CLS token (first token)
+        cls_output = encoded[:, 0, :]  # (batch_size, hidden_size)
+
+        # Apply pooler
+        pooled = self.pooler(cls_output)
+
+        # Project to final embedding dimension
+        output = self.projection(pooled)
+
+        return output
+
+    def forward(
+        self,
+        query_input_ids: torch.Tensor,
+        passage_input_ids: torch.Tensor,
+        query_token_type_ids: Optional[torch.Tensor] = None,
+        passage_token_type_ids: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the retriever.
+
+        Args:
+            query_input_ids: Query token IDs of shape (batch_size, seq_len)
+            passage_input_ids: Passage token IDs of shape (batch_size, seq_len)
+            query_token_type_ids: Optional token type IDs for queries
+            passage_token_type_ids: Optional token type IDs for passages
+
+        Returns:
+            Dictionary containing:
+                - query_embeddings: Query embeddings of shape (batch_size, embedding_dim)
+                - passage_embeddings: Passage embeddings of shape (batch_size, embedding_dim)
+                - scores: Relevance scores of shape (batch_size,)
+        """
+        # Encode queries and passages
+        query_embeddings = self._encode(query_input_ids, query_token_type_ids)
+        passage_embeddings = self._encode(passage_input_ids, passage_token_type_ids)
+
+        # Compute relevance scores via dot product
+        scores = torch.sum(query_embeddings * passage_embeddings, dim=-1)
+
+        return {
+            "query_embeddings": query_embeddings,
+            "passage_embeddings": passage_embeddings,
+            "scores": scores,
+        }
+
+
+def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the config file
+
+    Returns:
+        Configuration dictionary
+    """
+    if not os.path.exists(config_path):
+        return {}
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config if config is not None else {}
+
+
+def create_contriever_msmarco_retriever(
+    config: Optional[Dict[str, Any]] = None,
+) -> ContrieverMSMARCORetriever:
+    """
+    Factory function to create a ContrieverMSMARCORetriever instance.
+
+    Args:
+        config: Configuration dictionary. If None, loads from config.yaml.
+
+    Returns:
+        ContrieverMSMARCORetriever instance
+    """
+    if config is None:
+        config = load_config()
+
+    # Extract model configuration with safe defaults
+    # Default values derived from BERT-base architecture (Contriever uses BERT-base)
+    # vocab_size: 30522 (BERT uncased vocabulary)
+    # hidden_size: 768 (BERT-base hidden size)
+    # num_hidden_layers: 12 (BERT-base layers)
+    # num_attention_heads: 12 (BERT-base attention heads)
+    # intermediate_size: 3072 (BERT-base FFN size)
+    # max_position_embeddings: 512 (BERT-base max sequence length)
+    # embedding_dim: 768 (output embedding dimension)
+    model_config = config.get("model", {})
+
+    # Note: config values may be None (null in YAML), so we use defaults
+    # These defaults are derived from the Contriever paper and BERT-base architecture
+    vocab_size = 30522  # BERT uncased vocabulary size
+    hidden_size = 768  # BERT-base hidden size
+    num_hidden_layers = 12  # BERT-base number of layers
+    num_attention_heads = 12  # BERT-base attention heads
+    intermediate_size = 3072  # BERT-base FFN intermediate size
+    max_position_embeddings = 512  # BERT-base max sequence length
+    embedding_dim = 768  # Output embedding dimension
+
+    # Override with config values if they exist and are not None
+    dropout_ratio = model_config.get("dropout_ratio", 0.1)
+    if dropout_ratio is None:
+        dropout_ratio = 0.1
+
+    return ContrieverMSMARCORetriever(
+        config=config,
+        vocab_size=vocab_size,
+        hidden_size=hidden_size,
+        num_hidden_layers=num_hidden_layers,
+        num_attention_heads=num_attention_heads,
+        intermediate_size=intermediate_size,
+        max_position_embeddings=max_position_embeddings,
+        dropout_ratio=dropout_ratio,
+        embedding_dim=embedding_dim,
+    )
+
+
+if __name__ == "__main__":
+    # Basic test to verify the model can be instantiated and forward pass works
+    config = load_config()
+    model = create_contriever_msmarco_retriever(config)
+
+    # Test with dummy inputs
+    batch_size = 2
+    seq_len = 16
+
+    # Create dummy input IDs (random integers within vocab range)
+    query_ids = torch.randint(1, 100, (batch_size, seq_len))
+    passage_ids = torch.randint(1, 100, (batch_size, seq_len))
+
+    # Forward pass
+    output = model(query_ids, passage_ids)
+
+    print(f"Model parameter count: {sum(p.numel() for p in model.parameters()):,}")
+    print(f"Query embeddings shape: {output['query_embeddings'].shape}")
+    print(f"Passage embeddings shape: {output['passage_embeddings'].shape}")
+    print(f"Scores shape: {output['scores'].shape}")
+    print("Forward pass successful!")
+```

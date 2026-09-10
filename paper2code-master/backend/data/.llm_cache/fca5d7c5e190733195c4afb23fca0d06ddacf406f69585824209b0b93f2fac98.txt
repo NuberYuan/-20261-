@@ -1,0 +1,377 @@
+import argparse
+import copy
+import json
+import logging
+import random
+from pathlib import Path
+
+import numpy as np
+import torch
+
+from data.dataset import get_dataloaders
+from training.train import (
+    initialize_model,
+    load_config,
+    save_model,
+    train_model,
+)
+from evaluation.evaluate import evaluate_model, generate_report
+
+logger = logging.getLogger(__name__)
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description="TFT project entry point")
+    parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="Only run experiment.runs[run] instead of all runs.",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/config.yaml",
+        help="Path to configuration YAML file.",
+    )
+    return parser.parse_args()
+
+
+def _set_seed(config: dict) -> None:
+    """Set random seeds for reproducible execution."""
+    seed = int(config.get("system", {}).get("seed", 42))
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def _save_checkpoints(
+    model: torch.nn.Module,
+    history: dict,
+    run_name: str,
+    config: dict,
+) -> str:
+    """Save final model and, if applicable, best model weights.
+
+    Args:
+        model: Best model returned by training. If validation was disabled,
+            this is the final model.
+        history: Training history, containing ``final_model_state`` and
+            optional best-epoch information.
+        run_name: Name of the experiment run.
+        config: Configuration dictionary.
+
+    Returns:
+        Checkpoint directory path for this run.
+    """
+    checkpoint_cfg = config.get("checkpoint", {})
+    checkpoint_dir = Path("checkpoints") / run_name
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save final model weights. ``history`` may contain the final state from
+    # the training function even when the returned model is best-on-val.
+    final_model = copy.deepcopy(model)
+    final_state = history.get("final_model_state")
+    if final_state is not None:
+        final_model.load_state_dict(final_state)
+
+    final_path = checkpoint_dir / "final_model.pt"
+    save_model(
+        final_model,
+        str(final_path),
+        optimizer=None,
+        epoch=history.get("best_epoch"),
+        config=config,
+        extra_info={"run_name": run_name, "type": "final"},
+    )
+
+    # Save best model weights when requested.
+    if checkpoint_cfg.get("save_best", True):
+        best_path = checkpoint_dir / "best_model.pt"
+        save_model(
+            model,
+            str(best_path),
+            optimizer=None,
+            epoch=history.get("best_epoch"),
+            config=config,
+            extra_info={"run_name": run_name, "type": "best"},
+        )
+
+    logger.info("Saved checkpoints for run %s in %s", run_name, checkpoint_dir)
+    return str(checkpoint_dir)
+
+
+def _write_summary_report(results: list, output_dir: Path) -> Path:
+    """Write a summary report for all executed runs.
+
+    This function is intentionally independent of the training loop. It can
+    write successfully even when zero runs completed.
+
+    Args:
+        results: List of result dictionaries collected by main.
+        output_dir: Directory that already exists.
+
+    Returns:
+        Path to the summary report.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = output_dir / "summary_report.txt"
+
+    with summary_path.open("w", encoding="utf-8") as f:
+        f.write("TFT Multirun Summary Report\n")
+        f.write("==========================\n\n")
+
+        successful = [r for r in results if r.get("status") == "success"]
+        skipped = [r for r in results if r.get("status") == "skipped"]
+        failed = [r for r in results if r.get("status") == "failed"]
+
+        f.write(f"Total runs processed: {len(results)}\n")
+        f.write(f"Successful: {len(successful)}\n")
+        f.write(f"Skipped: {len(skipped)}\n")
+        f.write(f"Failed: {len(failed)}\n\n")
+
+        if successful:
+            f.write("Successful Runs\n")
+            f.write("---------------\n")
+            for r in successful:
+                f.write(
+                    f"- {r.get('run')} ({r.get('dataset')}) "
+                    f"report={r.get('report_path', 'N/A')}\n"
+                )
+                metrics = r.get("metrics", {})
+                q_risk = metrics.get("q_risk")
+                p50_risk = metrics.get("p50_risk")
+                p90_risk = metrics.get("p90_risk")
+                f.write(f"  q-Risk: {q_risk}\n")
+                f.write(f"  P50 risk: {p50_risk}\n")
+                f.write(f"  P90 risk: {p90_risk}\n")
+            f.write("\n")
+
+        if skipped:
+            f.write("Skipped Runs\n")
+            f.write("------------\n")
+            for r in skipped:
+                f.write(
+                    f"- {r.get('run')} ({r.get('dataset')}) "
+                    f"reason={r.get('reason', 'unknown')}\n"
+                )
+            f.write("\n")
+
+        if failed:
+            f.write("Failed Runs\n")
+            f.write("-----------\n")
+            for r in failed:
+                f.write(
+                    f"- {r.get('run')} ({r.get('dataset')}) "
+                    f"reason={r.get('reason', 'unknown')}\n"
+                )
+            f.write("\n")
+
+        if not results:
+            f.write("No runs were executed.\n")
+
+        f.write(
+            "Evaluation metrics are computed dynamically from test data; "
+            "see per-run reports for complete metrics.\n"
+        )
+
+    logger.info("Summary report written to %s", summary_path)
+    return summary_path
+
+
+def main() -> None:
+    """Project entry point.
+
+    Loads the YAML configuration, optionally selects one experiment run,
+    executes data loading, model training, evaluation, checkpointing, and
+    report generation.
+    """
+    args = parse_args()
+
+    # Load configuration. training.load_config already opens YAML files with
+    # encoding='utf-8'.
+    try:
+        config = load_config(args.config)
+    except FileNotFoundError:
+        logger.error("Configuration file not found: %s", args.config)
+        return
+
+    if not isinstance(config, dict):
+        logger.error("Configuration must be a YAML mapping: %s", args.config)
+        return
+
+    # Configure logging.
+    log_level = str(config.get("logging", {}).get("level", "INFO")).upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    _set_seed(config)
+
+    # Create report and checkpoint directories before processing any runs.
+    output_dir = Path("reports")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    Path("checkpoints").mkdir(parents=True, exist_ok=True)
+
+    runs = config.get("experiment", {}).get("runs", [])
+    if not isinstance(runs, list):
+        runs = []
+
+    selected_indices: list[int] = []
+    if args.run is not None:
+        if 0 <= args.run < len(runs):
+            selected_indices = [args.run]
+        else:
+            logger.error(
+                "Requested run index %d is out of range; experiment.runs has %d entries.",
+                args.run,
+                len(runs),
+            )
+    else:
+        selected_indices = list(range(len(runs)))
+
+    results: list[dict] = []
+
+    for run_idx in selected_indices:
+        run = runs[run_idx]
+        if not isinstance(run, dict):
+            logger.warning("experiment.runs[%d] is not a mapping; skipping.", run_idx)
+            results.append(
+                {
+                    "run": f"run_{run_idx}",
+                    "dataset": "unknown",
+                    "status": "skipped",
+                    "reason": "invalid_run_mapping",
+                }
+            )
+            continue
+
+        run_name = run.get("name", f"run_{run_idx}")
+        dataset_name = run.get("dataset", "Electricity")
+        dataset_version = run.get(
+            "dataset_version",
+            config.get("version_selector", {}).get("default", "default"),
+        )
+
+        # Skip unresolved dataset versions before attempting any training.
+        data_cfg = config.get("data", {})
+        version_cfg = {}
+        if isinstance(data_cfg, dict):
+            possible_version_cfg = data_cfg.get(dataset_version)
+            if isinstance(possible_version_cfg, dict):
+                version_cfg = possible_version_cfg
+
+        status = version_cfg.get("status") if version_cfg else None
+        if status is not None and str(status).lower() == "unresolved":
+            logger.warning(
+                "Skipping run %s: dataset version %s has status 'unresolved'.",
+                run_name,
+                dataset_version,
+            )
+            results.append(
+                {
+                    "run": run_name,
+                    "dataset": dataset_name,
+                    "status": "skipped",
+                    "reason": "unresolved_dataset_version",
+                }
+            )
+            continue
+
+        logger.info(
+            "Running experiment %s (dataset=%s, version=%s)",
+            run_name,
+            dataset_name,
+            dataset_version,
+        )
+
+        try:
+            # Pass dataset_version explicitly; do not rely on implicit default.
+            batch_size = run.get("batch_size")
+            train_loader, val_loader, test_loader = get_dataloaders(
+                version=dataset_version,
+                config=config,
+                dataset=dataset_name,
+                batch_size=batch_size,
+            )
+
+            # Strict reproduction mode means no validation loader is used. In
+            # engineering mode, the provided validation split is retained.
+            reproduction_mode = str(config.get("reproduction_mode", "engineering")).lower()
+            if reproduction_mode == "strict":
+                val_loader = None
+
+            model, _device = initialize_model(
+                config=config,
+                dataset_name=dataset_name,
+                config_path=args.config,
+            )
+
+            best_model, history = train_model(
+                model=model,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                config=config,
+                dataset_name=dataset_name,
+                config_path=args.config,
+            )
+
+            _save_checkpoints(best_model, history, run_name, config)
+
+            metrics = evaluate_model(
+                model=best_model,
+                test_loader=test_loader,
+                config=config,
+                dataset_name=dataset_name,
+            )
+
+            report_path = generate_report(
+                metrics=metrics,
+                run_name=run_name,
+                output_dir=str(output_dir),
+                config=config,
+            )
+
+            metrics["run_name"] = run_name
+            if args.run is not None:
+                # When only one run is requested, print its full metrics.
+                print(json.dumps(metrics, indent=2, sort_keys=True, default=str))
+
+            results.append(
+                {
+                    "run": run_name,
+                    "dataset": dataset_name,
+                    "status": "success",
+                    "report_path": report_path,
+                    "metrics": metrics,
+                }
+            )
+
+            logger.info(
+                "Run %s completed. q-Risk=%s, P50 risk=%s, P90 risk=%s",
+                run_name,
+                metrics.get("q_risk"),
+                metrics.get("p50_risk"),
+                metrics.get("p90_risk"),
+            )
+        except Exception as exc:  # noqa: BLE001 - main loop should isolate run failures
+            logger.exception("Run %s failed", run_name)
+            results.append(
+                {
+                    "run": run_name,
+                    "dataset": dataset_name,
+                    "status": "failed",
+                    "reason": str(exc),
+                }
+            )
+
+    _write_summary_report(results, output_dir)
+
+
+if __name__ == "__main__":
+    main()

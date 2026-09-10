@@ -1,0 +1,264 @@
+project:
+  name: Temporal_Fusion_Transformers_for_Interpretable_Mul
+  description: time_series_prediction
+  paper_type: model_proposing
+architecture:
+  modules:
+    data:
+      directory: data/
+      files:
+      - dataset.py
+      description: 数据加载与预处理
+    models:
+      directory: models/
+      files:
+      - lstm.py
+      - transformer.py
+      description: '模型定义: lstm, transformer'
+      classes:
+      - name: Lstm
+        type: RNN
+        input: Static metadata, past-observed time-varying inputs, and a priori known
+          future time-varying inputs. The model uses a finite lookback window k for
+          target and known inputs up to forecast start time t, and known inputs across
+          t-k to t+tau. Input types include static covariates si in R^{ms}, observed
+          inputs zi,t in R^{mz}, known inputs xi,t in R^{mx}, and scalar targets yi,t
+          in R.
+        output: 'Quantile forecasts for horizons tau=1,...,tau_max at each time step,
+          for quantiles q in {0.1, 0.5, 0.9}. Each quantile forecast is generated
+          by a linear transformation: yhat(q,t,tau)=Wq psi_tilde(t,tau)+bq.'
+        pretrained: NOT_FOUND
+        file: models/lstm.py
+      - name: Transformer
+        type: Transformer
+        input: Static metadata, past-observed time-varying inputs, and a priori known
+          future time-varying inputs. The model uses a finite lookback window k for
+          target and known inputs up to forecast start time t, and known inputs across
+          t-k to t+tau. Input types include static covariates si in R^{ms}, observed
+          inputs zi,t in R^{mz}, known inputs xi,t in R^{mx}, and scalar targets yi,t
+          in R.
+        output: 'Quantile forecasts for horizons tau=1,...,tau_max at each time step,
+          for quantiles q in {0.1, 0.5, 0.9}. Each quantile forecast is generated
+          by a linear transformation: yhat(q,t,tau)=Wq psi_tilde(t,tau)+bq.'
+        pretrained: NOT_FOUND
+        file: models/transformer.py
+    training:
+      directory: training/
+      files:
+      - train.py
+      description: 训练循环
+    evaluation:
+      directory: evaluation/
+      files:
+      - evaluate.py
+      description: 评估与对比
+    utils:
+      directory: utils/
+      files:
+      - metrics.py
+      description: 工具函数
+    config:
+      directory: config/
+      files:
+      - config.yaml
+      description: YAML 配置
+dependencies:
+  files:
+  - README.md
+  - config/config.yaml
+  - data/dataset.py
+  - evaluation/evaluate.py
+  - main.py
+  - models/lstm.py
+  - models/transformer.py
+  - requirements.txt
+  - training/train.py
+  - utils/metrics.py
+  external:
+  - torch
+  - torchvision
+  - numpy
+  - pyyaml
+  - scikit-learn
+  - pillow
+  - opencv-python
+execution_flow:
+- 1. 加载配置 (config/config.yaml)
+- '2. data/: 准备数据集和数据加载器'
+- '3. models/: 初始化模型'
+- '4. training/train.py: 训练循环与验证评估'
+- '5. evaluation/: 测试集评估'
+reproducibility_notes:
+- Full benchmark result tables and ablation study details are not included in the
+  provided excerpt
+- Programming framework and optimizer are not explicitly specified in the provided
+  excerpt
+- Multiple datasets require different optimal hyperparameters
+- Quantile loss and q-Risk evaluation need careful implementation
+- Variable selection and interpretable multi-head attention require reproducing complex
+  gating and attention mechanics
+code_requirements:
+  data/dataset.py:
+    description: 'PyTorch Dataset for loading and preprocessing multihorizon time
+      series datasets (Electricity, Traffic, Retail, Volatility). It converts raw
+      tables into model inputs: static covariates, past-observed features, future-known
+      features, and target values over lookback window k and forecast horizon tau_max.'
+    class: TimeSeriesDataset
+    parent_class: torch.utils.data.Dataset
+    methods:
+    - __init__
+    - __len__
+    - __getitem__
+    functions:
+    - load_data
+    - preprocess
+    - split_train_val_test
+    pseudocode: 'load_data(path): read raw CSV/parquet; parse entity id and timestamp;
+      separate static covariates, observed past inputs, known future inputs, and scalar
+      target. preprocess(df): normalize continuous variables, create entity embeddings
+      for categorical variables, build sliding windows with encoder length k and decoder
+      length tau_max. split_train_val_test(): chronological split to avoid leakage.
+      __getitem__(idx): return {''static'': tensor, ''past_observed'': tensor, ''future_known'':
+      tensor, ''target'': tensor, ''id'': str}.'
+  models/lstm.py:
+    description: Sequence-to-sequence LSTM encoder-decoder for local temporal processing.
+      The encoder consumes past selected features and the decoder consumes future
+      selected features. Static context vectors c_c and c_h initialize the first LSTM
+      cell state and hidden state. A gated skip connection is applied over this layer.
+    class: Lstm
+    parent_class: torch.nn.Module
+    methods:
+    - __init__
+    - forward
+    functions:
+    - _gated_skip_connection
+    pseudocode: 'class Lstm(nn.Module): __init__(d_model, hidden_size, num_layers,
+      dropout): define encoder_lstm = LSTM(d_model, hidden_size, num_layers, batch_first=True);
+      decoder_lstm = LSTM(d_model, hidden_size, num_layers, batch_first=True); gated_skip
+      = GatedResidualNetwork. forward(past_features, future_features, c_c, c_h): encoder_out,
+      (h, c) = encoder_lstm(past_features); decoder_out, _ = decoder_lstm(future_features,
+      (c_c, c_h)); out = gated_skip(encoder_out, decoder_out); return out  # [batch,
+      time, d_model]'
+  models/transformer.py:
+    description: Temporal Fusion Transformer (TFT) core implementation. Combines variable
+      selection networks, static covariate encoders, LSTM encoder-decoder, interpretable
+      multi-head attention, gated residual networks, and quantile output. The class
+      is named Transformer to match the project module registry but implements the
+      full TFT architecture.
+    class: Transformer
+    parent_class: torch.nn.Module
+    methods:
+    - __init__
+    - forward
+    - encode_static
+    - variable_selection
+    - temporal_fusion_decoder
+    - interpretable_multihead_attention
+    - quantile_output
+    functions:
+    - GatedLinearUnit
+    - GatedResidualNetwork
+    - VariableSelectionNetwork
+    - StaticCovariateEncoder
+    - InterpretableMultiHeadAttention
+    pseudocode: 'class Transformer(nn.Module): __init__(config): define input embeddings
+      for static, past, and future inputs; VSNs for static, past, future; static covariate
+      encoders producing c_s, c_e, c_c, c_h; LSTM encoder-decoder; InterpretableMultiHeadAttention
+      with d_v=d_attn=d_model/num_heads and shared value weights; GRN; quantile linear
+      heads per q. forward(static, past_observed, future_known): static_emb = embed(static);
+      past_emb = embed(past_observed); future_emb = embed(future_known); static_features
+      = VSN_static(static_emb); past_selected = VSN_past(past_emb, static_context);
+      future_selected = VSN_future(future_emb, static_context); c_s, c_e, c_c, c_h
+      = StaticCovariateEncoder(static_features); lstm_out = Lstm(past_selected, future_selected,
+      c_c, c_h); enriched = static_enrichment(lstm_out, c_e); attn_out = InterpretableMultiHeadAttention(enriched,
+      enriched, enriched, causal_mask=True); decoded = GRN(attn_out); forecasts =
+      stack([linear_q(decoded) for q in quantiles], dim=-1); return forecasts  # [batch,
+      tau_max, num_quantiles]'
+  training/train.py:
+    description: Training loop for TFT. Loads config and datasets, constructs model
+      and optimizer, runs training epochs with quantile loss, validates and saves
+      checkpoints.
+    functions:
+    - train_epoch
+    - validate
+    - main
+    - build_optimizer
+    uses:
+    - models.transformer
+    - models.lstm
+    - data.dataset
+    - utils.metrics
+    - config.config.yaml
+    pseudocode: 'main(): config = load_yaml(''config/config.yaml''); use dataset-specific
+      batch_size from config (Electricity 64, Traffic 128, Retail 128, Volatility
+      64); epochs=30; learning_rate=0.01; model=Transformer(config); optimizer=build_optimizer(config)  #
+      config optimizer is NOT_FOUND; default to Adam(lr=config.learning_rate) if not
+      specified; train_loader,val_loader = build_dataloaders(); for epoch in range(epochs):
+      train_epoch(epoch); validate(epoch); save best checkpoint. train_epoch(): model.train();
+      for batch in train_loader: forecasts = model(batch); loss = QuantileLoss(forecasts,
+      batch[''target'']); loss.backward(); optimizer.step(). validate(): model.eval();
+      compute validation quantile loss, q-risk and P50/P90 losses.'
+  evaluation/evaluate.py:
+    description: Evaluation and interpretation utilities for TFT. Computes test metrics,
+      compares against baselines, optionally extracts variable importance and attention
+      patterns.
+    functions:
+    - evaluate
+    - compute_metrics
+    - variable_importance
+    - plot_forecasts
+    uses:
+    - models.transformer
+    - data.dataset
+    - utils.metrics
+    pseudocode: 'evaluate(config, model_ckpt): load test dataset; model = Transformer(config);
+      model.load_state_dict(torch.load(model_ckpt)); for batch in test_loader: forecast
+      = model(batch); collect targets and forecasts. compute_metrics(y_true, y_pred):
+      return P50/P90 quantile loss, q-risk, MAE, RMSE. variable_importance(model,
+      dataloader): aggregate selection weights from VSNs to produce global variable
+      importance. plot_forecasts(y_true, y_pred, quantiles): save forecast plots.'
+  utils/metrics.py:
+    description: Metric functions for quantile regression evaluation, especially quantile
+      loss and q-risk as defined in the TFT paper.
+    functions:
+    - quantile_loss
+    - q_risk
+    - mae
+    - rmse
+    - mse
+    pseudocode: 'quantile_loss(y, yhat, q): return q * max(y-yhat, 0) + (1-q) * max(yhat-y,
+      0). q_risk(y_true, y_pred_quantiles): for each q in {0.1, 0.5, 0.9} and each
+      horizon tau sum quantile_loss over all samples; denominator = sum(|y_true|);
+      return 2 * sum_loss / denominator. mae(y_true, y_pred): mean(|y_true - y_pred|).
+      rmse(y_true, y_pred): sqrt(mean((y_true - y_pred)^2)).'
+  main.py:
+    description: Command-line entry point for training and evaluating the Temporal
+      Fusion Transformer.
+    functions:
+    - main
+    uses:
+    - training.train
+    - evaluation.evaluate
+    - config.config.yaml
+    pseudocode: 'main(): parse command-line arguments (--mode train|eval, --config
+      config/config.yaml); if mode == ''train'': training.train.main(config_path);
+      if mode == ''eval'': evaluation.evaluate.evaluate(config_path, checkpoint_path).'
+  config/config.yaml:
+    description: YAML configuration for TFT training and evaluation. Contains dataset-specific
+      batch sizes, training epochs, learning rate, and scheduler/optimizer placeholders
+      as specified in the training parameter table.
+    parameters:
+      batch_size:
+        Electricity: 64
+        Traffic: 128
+        Retail: 128
+        Volatility: 64
+      epochs: 30
+      optimizer: NOT_FOUND
+      learning_rate: 0.01
+      momentum: NOT_FOUND
+      weight_decay: NOT_FOUND
+      scheduler:
+        name: NOT_FOUND
+        step_size: NOT_FOUND
+        gamma: NOT_FOUND

@@ -1,0 +1,6 @@
+{
+  "models[0].pretrained": "NOT_FOUND",
+  "models[0].architecture.total_layers": "NOT_FOUND",
+  "models[0].architecture.param_count": "NOT_FOUND",
+  "models[0].architecture.final_classifier": "XGBoost分类器，基于梯度提升决策树，对加权特征向量进行分类。"
+}

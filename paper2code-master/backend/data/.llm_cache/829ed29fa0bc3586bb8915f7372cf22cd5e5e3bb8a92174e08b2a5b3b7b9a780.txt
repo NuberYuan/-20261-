@@ -1,0 +1,18 @@
+{
+  "table_id": "table_2",
+  "table_type": "other",
+  "caption_summary": "A fragment of a table showing abbreviations or variable names (ISREL, ISUSE, ISSUP) with unclear context, likely from a mathematical or methodological description.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "ISREL", "value": "given x, d and"},
+      {"label": "ISUSE", "value": "gi"},
+      {"label": "ISSUP", "value": "d on"},
+      {"label": "ISREL", "value": "ISUSE"},
+      {"label": "ISSUP", "value": "ISREL"}
+    ]
+  },
+  "table_summary": "The table appears to be a fragment or mis-extracted portion of a larger table, containing only abbreviations (ISREL, ISUSE, ISSUP) and partial phrases like 'given x, d and' and 'd on'. No numerical data or clear experimental results are present, making it impossible to classify as a standard results, ablation, or comparison table. The content likely relates to variable definitions or notation in the paper's methodology."
+}

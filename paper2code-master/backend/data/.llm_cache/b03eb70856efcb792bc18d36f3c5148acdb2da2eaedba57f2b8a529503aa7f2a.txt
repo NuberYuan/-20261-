@@ -1,0 +1,495 @@
+```python
+import math
+from typing import Optional, Tuple, Union
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import yaml
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass
+class StableCodeInstruct3BConfig:
+    """Configuration for StableCodeInstruct3B model.
+    
+    Defaults are derived from the StableCode-Instruct-3B architecture:
+    - vocab_size: 49152 (StableCode tokenizer vocabulary size)
+    - hidden_size: 2560 (3B parameter model hidden dimension)
+    - intermediate_size: 6912 (FFN intermediate dimension)
+    - num_hidden_layers: 32
+    - num_attention_heads: 32
+    - num_key_value_heads: 32 (grouped query attention, same as num heads for 3B)
+    - max_position_embeddings: 8192 (StableCode context length)
+    - rms_norm_eps: 1e-5
+    - rope_theta: 10000.0
+    - attention_dropout: 0.0
+    - hidden_dropout: 0.0
+    - pad_token_id: 0
+    - bos_token_id: 1
+    - eos_token_id: 2
+    - tie_word_embeddings: False
+    - initializer_range: 0.02
+    - use_cache: True
+    - num_classes: 2 (binary classification for code generation quality)
+    - dropout_ratio: 0.1 (default dropout for classification head)
+    """
+    vocab_size: int = 49152
+    hidden_size: int = 2560
+    intermediate_size: int = 6912
+    num_hidden_layers: int = 32
+    num_attention_heads: int = 32
+    num_key_value_heads: int = 32
+    max_position_embeddings: int = 8192
+    rms_norm_eps: float = 1e-5
+    rope_theta: float = 10000.0
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
+    pad_token_id: int = 0
+    bos_token_id: int = 1
+    eos_token_id: int = 2
+    tie_word_embeddings: bool = False
+    initializer_range: float = 0.02
+    use_cache: bool = True
+    num_classes: int = 2
+    dropout_ratio: float = 0.1
+
+
+def _load_config(config_path: Optional[str] = None) -> dict:
+    """Load configuration from YAML file.
+    
+    Args:
+        config_path: Path to config.yaml file. If None, uses default path.
+        
+    Returns:
+        Dictionary containing configuration.
+    """
+    if config_path is None:
+        config_path = str(Path(__file__).resolve().parent.parent / "config" / "config.yaml")
+    
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def _get_model_config(config: Optional[dict] = None) -> StableCodeInstruct3BConfig:
+    """Extract model configuration from config dictionary.
+    
+    Args:
+        config: Configuration dictionary loaded from config.yaml.
+        
+    Returns:
+        StableCodeInstruct3BConfig instance with values from config or defaults.
+    """
+    if config is None:
+        config = _load_config()
+    
+    model_cfg = config.get("model", {})
+    
+    # Get num_classes with fallback to 2 (binary classification)
+    num_classes = model_cfg.get("num_classes")
+    if num_classes is None:
+        num_classes = 2  # Default: binary classification for code quality
+    
+    # Get dropout_ratio with fallback to 0.1
+    dropout_ratio = model_cfg.get("dropout_ratio")
+    if dropout_ratio is None:
+        dropout_ratio = 0.1  # Default dropout ratio
+    
+    return StableCodeInstruct3BConfig(
+        num_classes=int(num_classes),
+        dropout_ratio=float(dropout_ratio),
+    )
+
+
+class RMSNorm(nn.Module):
+    """Root Mean Square Layer Normalization.
+    
+    From the LLaMA paper: https://arxiv.org/abs/2302.13971
+    """
+    def __init__(self, hidden_size: int, eps: float = 1e-5):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        return self.weight * hidden_states.to(input_dtype)
+
+
+def rotate_half(x: torch.Tensor) -> torch.Tensor:
+    """Rotates half the hidden dims of the input."""
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
+
+
+def apply_rotary_pos_emb(q: torch.Tensor, k: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Apply rotary position embeddings to query and key tensors."""
+    cos = cos.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, dim]
+    sin = sin.unsqueeze(0).unsqueeze(0)
+    q_embed = (q * cos) + (rotate_half(q) * sin)
+    k_embed = (k * cos) + (rotate_half(k) * sin)
+    return q_embed, k_embed
+
+
+class RotaryEmbedding(nn.Module):
+    """Rotary position embedding.
+    
+    From the RoFormer paper: https://arxiv.org/abs/2104.09864
+    """
+    def __init__(self, dim: int, max_position_embeddings: int = 8192, base: float = 10000.0):
+        super().__init__()
+        self.dim = dim
+        self.max_position_embeddings = max_position_embeddings
+        self.base = base
+        inv_freq = 1.0 / (self.base ** (torch.arange(0, self.dim, 2).float() / self.dim))
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self._build_cached_sin_cos(max_position_embeddings)
+
+    def _build_cached_sin_cos(self, max_seq_len: int):
+        """Build cached sin and cos values."""
+        t = torch.arange(max_seq_len, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
+        freqs = torch.einsum("i,j->ij", t, self.inv_freq)
+        emb = torch.cat((freqs, freqs), dim=-1)
+        self.register_buffer("cos_cached", emb.cos().unsqueeze(0).unsqueeze(0), persistent=False)
+        self.register_buffer("sin_cached", emb.sin().unsqueeze(0).unsqueeze(0), persistent=False)
+
+    def forward(self, q: torch.Tensor, k: torch.Tensor, position_ids: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Apply rotary embeddings to q and k."""
+        seq_len = position_ids.max() + 1
+        if seq_len > self.cos_cached.shape[2]:
+            self._build_cached_sin_cos(seq_len)
+        
+        cos = self.cos_cached[:, :, :seq_len, :]
+        sin = self.sin_cached[:, :, :seq_len, :]
+        
+        # Gather based on position_ids
+        cos = cos.squeeze(0).squeeze(0)[position_ids].unsqueeze(0).unsqueeze(0)
+        sin = sin.squeeze(0).squeeze(0)[position_ids].unsqueeze(0).unsqueeze(0)
+        
+        return apply_rotary_pos_emb(q, k, cos, sin)
+
+
+class Attention(nn.Module):
+    """Multi-head attention with grouped query attention."""
+    def __init__(self, config: StableCodeInstruct3BConfig):
+        super().__init__()
+        self.config = config
+        self.hidden_size = config.hidden_size
+        self.num_heads = config.num_attention_heads
+        self.num_key_value_heads = config.num_key_value_heads
+        self.head_dim = self.hidden_size // self.num_heads
+        self.num_key_value_groups = self.num_heads // self.num_key_value_heads
+        
+        if self.head_dim * self.num_heads != self.hidden_size:
+            raise ValueError(f"hidden_size must be divisible by num_heads")
+        
+        self.q_proj = nn.Linear(self.hidden_size, self.num_heads * self.head_dim, bias=False)
+        self.k_proj = nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=False)
+        self.v_proj = nn.Linear(self.hidden_size, self.num_key_value_heads * self.head_dim, bias=False)
+        self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
+        
+        self.rotary_emb = RotaryEmbedding(
+            self.head_dim,
+            max_position_embeddings=config.max_position_embeddings,
+            base=config.rope_theta,
+        )
+        
+        self.attention_dropout = nn.Dropout(config.attention_dropout)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        use_cache: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward pass for attention layer."""
+        bsz, q_len, _ = hidden_states.size()
+        
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+        
+        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        
+        if position_ids is None:
+            position_ids = torch.arange(q_len, device=hidden_states.device).unsqueeze(0).expand(bsz, -1)
+        
+        query_states, key_states = self.rotary_emb(query_states, key_states, position_ids)
+        
+        # Repeat key/value states for grouped query attention
+        key_states = key_states.repeat_interleave(self.num_key_value_groups, dim=1)
+        value_states = value_states.repeat_interleave(self.num_key_value_groups, dim=1)
+        
+        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
+        
+        if attention_mask is not None:
+            attn_weights = attn_weights + attention_mask
+        
+        attn_weights = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        attn_weights = self.attention_dropout(attn_weights)
+        
+        attn_output = torch.matmul(attn_weights, value_states)
+        attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, q_len, -1)
+        attn_output = self.o_proj(attn_output)
+        
+        return attn_output, attn_weights
+
+
+class MLP(nn.Module):
+    """Multi-layer perceptron with SiLU activation."""
+    def __init__(self, config: StableCodeInstruct3BConfig):
+        super().__init__()
+        self.gate_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
+        self.up_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=False)
+        self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
+        self.act_fn = nn.SiLU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass for MLP."""
+        return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+
+
+class DecoderLayer(nn.Module):
+    """Transformer decoder layer."""
+    def __init__(self, config: StableCodeInstruct3BConfig):
+        super().__init__()
+        self.hidden_size = config.hidden_size
+        self.self_attn = Attention(config)
+        self.mlp = MLP(config)
+        self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        use_cache: bool = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward pass for decoder layer."""
+        residual = hidden_states
+        hidden_states = self.input_layernorm(hidden_states)
+        hidden_states, attn_weights = self.self_attn(
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            use_cache=use_cache,
+        )
+        hidden_states = residual + hidden_states
+        
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states = self.mlp(hidden_states)
+        hidden_states = residual + hidden_states
+        
+        return hidden_states, attn_weights
+
+
+class StableCodeInstruct3B(nn.Module):
+    """StableCode-Instruct-3B model for code generation.
+    
+    This model implements the StableCode-Instruct-3B architecture with:
+    - 32 transformer decoder layers
+    - 32 attention heads with grouped query attention
+    - 2560 hidden dimension
+    - 6912 intermediate dimension
+    - Rotary position embeddings
+    - RMS normalization
+    - SiLU activation
+    
+    The model is randomly initialized (no pretrained weights) and includes
+    a classification head for binary code quality prediction.
+    """
+    
+    def __init__(self, config: Optional[dict] = None):
+        """Initialize the StableCodeInstruct3B model.
+        
+        Args:
+            config: Configuration dictionary loaded from config.yaml.
+                   If None, loads from default config path.
+        """
+        super().__init__()
+        
+        if config is None:
+            config = _load_config()
+        
+        self.model_config = _get_model_config(config)
+        self.config = self.model_config
+        
+        self.vocab_size = self.model_config.vocab_size
+        self.hidden_size = self.model_config.hidden_size
+        self.num_hidden_layers = self.model_config.num_hidden_layers
+        self.num_attention_heads = self.model_config.num_attention_heads
+        self.num_key_value_heads = self.model_config.num_key_value_heads
+        self.max_position_embeddings = self.model_config.max_position_embeddings
+        self.pad_token_id = self.model_config.pad_token_id
+        
+        self.embed_tokens = nn.Embedding(
+            self.vocab_size,
+            self.hidden_size,
+            padding_idx=self.pad_token_id,
+        )
+        
+        self.layers = nn.ModuleList(
+            [DecoderLayer(self.model_config) for _ in range(self.num_hidden_layers)]
+        )
+        
+        self.norm = RMSNorm(self.hidden_size, eps=self.model_config.rms_norm_eps)
+        
+        # Classification head for binary code quality prediction
+        self.dropout = nn.Dropout(self.model_config.dropout_ratio)
+        self.classifier = nn.Linear(self.hidden_size, self.model_config.num_classes)
+        
+        # Initialize weights
+        self.apply(self._init_weights)
+        
+        # Tie word embeddings if configured
+        if self.model_config.tie_word_embeddings:
+            self.embed_tokens.weight = self.lm_head.weight
+    
+    def _init_weights(self, module: nn.Module):
+        """Initialize weights using normal distribution."""
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.model_config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.model_config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, RMSNorm):
+            module.weight.data.fill_(1.0)
+    
+    def _prepare_attention_mask(
+        self,
+        attention_mask: Optional[torch.Tensor],
+        input_shape: Tuple[int, int],
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Prepare causal attention mask."""
+        bsz, seq_len = input_shape
+        
+        # Create causal mask
+        causal_mask = torch.triu(
+            torch.ones((seq_len, seq_len), dtype=torch.bool, device=device),
+            diagonal=1,
+        )
+        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, seq_len]
+        
+        if attention_mask is not None:
+            # Expand attention mask to 4D
+            if attention_mask.dim() == 2:
+                attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)  # [bsz, 1, 1, seq_len]
+            elif attention_mask.dim() == 3:
+                attention_mask = attention_mask.unsqueeze(1)  # [bsz, 1, seq_len, seq_len]
+            
+            # Combine causal mask with attention mask
+            combined_mask = causal_mask | (~attention_mask.bool())
+        else:
+            combined_mask = causal_mask
+        
+        # Convert to additive mask
+        additive_mask = torch.zeros_like(combined_mask, dtype=dtype, device=device)
+        additive_mask = additive_mask.masked_fill(combined_mask, float("-inf"))
+        
+        return additive_mask
+    
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        use_cache: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Forward pass for the model.
+        
+        Args:
+            input_ids: Input token IDs of shape [batch_size, seq_len]
+            attention_mask: Attention mask of shape [batch_size, seq_len]
+            position_ids: Position IDs of shape [batch_size, seq_len]
+            labels: Optional labels for classification of shape [batch_size]
+            use_cache: Whether to use cache (not implemented, kept for API compatibility)
+            
+        Returns:
+            If labels is None: logits of shape [batch_size, num_classes]
+            If labels is provided: (loss, logits) tuple
+        """
+        batch_size, seq_len = input_ids.shape
+        
+        if position_ids is None:
+            position_ids = torch.arange(seq_len, device=input_ids.device).unsqueeze(0).expand(batch_size, -1)
+        
+        # Prepare attention mask
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
+        
+        causal_mask = self._prepare_attention_mask(
+            attention_mask,
+            (batch_size, seq_len),
+            dtype=torch.float32,
+            device=input_ids.device,
+        )
+        
+        # Embed tokens
+        hidden_states = self.embed_tokens(input_ids)
+        
+        # Pass through decoder layers
+        for layer in self.layers:
+            hidden_states, _ = layer(
+                hidden_states,
+                attention_mask=causal_mask,
+                position_ids=position_ids,
+                use_cache=use_cache,
+            )
+        
+        # Final normalization
+        hidden_states = self.norm(hidden_states)
+        
+        # Use the last token's hidden state for classification
+        # If attention_mask is provided, use the last non-padded token
+        if attention_mask is not None:
+            # Get last valid token position for each sequence
+            last_token_indices = attention_mask.sum(dim=1) - 1
+            last_token_indices = last_token_indices.clamp(min=0)
+            pooled = hidden_states[torch.arange(batch_size, device=hidden_states.device), last_token_indices]
+        else:
+            pooled = hidden_states[:, -1, :]
+        
+        # Classification head
+        pooled = self.dropout(pooled)
+        logits = self.classifier(pooled)
+        
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits, labels)
+            return loss, logits
+        
+        return logits
+    
+    def get_input_embeddings(self) -> nn.Embedding:
+        """Get the input embeddings."""
+        return self.embed_tokens
+    
+    def set_input_embeddings(self, value: nn.Embedding):
+        """Set the input embeddings."""
+        self.embed_tokens = value
+    
+    def get_num_parameters(self) -> int:
+        """Get the total number of parameters."""
+        return sum(p.numel() for p in self.parameters())
+    
+    def get_trainable_parameters(self) -> int:
+        """Get the number of trainable parameters."""
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+```

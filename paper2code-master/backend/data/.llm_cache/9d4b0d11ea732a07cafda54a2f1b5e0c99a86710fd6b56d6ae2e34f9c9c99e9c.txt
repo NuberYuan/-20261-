@@ -1,0 +1,16 @@
+numpy
+pillow
+pyyaml
+matplotlib
+torch
+torchvision
+tqdm
+tensorboard
+scikit-learn
+pandas
+opencv-python
+albumentations
+segmentation-models-pytorch
+einops
+pytorch-lightning
+wandb

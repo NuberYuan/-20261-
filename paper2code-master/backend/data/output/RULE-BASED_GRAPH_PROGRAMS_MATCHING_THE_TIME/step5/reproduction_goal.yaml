@@ -1,0 +1,32 @@
+paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+title: Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms
+research_problem: The paper addresses the challenge that rule-based graph programs
+  generally do not achieve the asymptotic runtime efficiency of imperative graph algorithms
+  because graph matching is expensive; previous GP 2 implementations required bounded
+  node degree and, for some algorithms, connected input graphs.
+motivation: 'The primary obstacle is the cost of graph matching: matching a rule left-hand
+  graph L in a host graph G generally requires time |G|^|L|, so standard linear-time
+  imperative graph algorithms may become nonlinear when recast as rule-based programs.
+  The authors aim to lift previous constraints on bounded node degree and connectivity
+  so rule-based programs can match imperative time complexity.'
+main_contribution: 'The paper enhances the GP 2 compiler graph data structure by storing
+  nodes in separate linked lists based on marks and giving each node a two-dimensional
+  array of linked lists for incident edges by mark and orientation. It presents three
+  case studies with correctness and time-complexity proofs plus runtime experiments:
+  connectedness checking in linear time on arbitrary input graphs with arbitrary node
+  degrees, acyclicity checking in linear time on arbitrary input graphs, and Bellman-Ford
+  single-source shortest paths in O(nm) on arbitrary input graphs, matching imperative
+  Bellman-Ford.'
+paper_type: algorithm
+task: other
+input: Host graphs over labels with directed labelled nodes and edges; input graphs
+  may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have integer
+  edge weights.
+output: Output host graph, or failure if the program fails or the input violates the
+  checked property.
+num_classes: NOT_FOUND
+reproduction_targets:
+- 实现论文提出的算法/方法
+- 构造输入并验证算法正确性
+- 验证与论文结果的一致性
+is_trainable: false

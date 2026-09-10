@@ -1,0 +1,1 @@
+{"data_source": "synthetic", "acquisition": "n/a", "data_source_note": "实验数据为程序化生成的算法任务输入输出对（copy、reverse、walk、加法、乘法等），无外部真实数据集依赖。"}

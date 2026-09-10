@@ -1,0 +1,413 @@
+{
+  "title": "Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms",
+  "research_problem": "The paper addresses the challenge that rule-based graph programs generally do not achieve the asymptotic runtime efficiency of imperative graph algorithms because graph matching is expensive; previous GP 2 implementations required bounded node degree and, for some algorithms, connected input graphs.",
+  "motivation": "The primary obstacle is the cost of graph matching: matching a rule left-hand graph L in a host graph G generally requires time |G|^|L|, so standard linear-time imperative graph algorithms may become nonlinear when recast as rule-based programs. The authors aim to lift previous constraints on bounded node degree and connectivity so rule-based programs can match imperative time complexity.",
+  "main_contribution": "The paper enhances the GP 2 compiler graph data structure by storing nodes in separate linked lists based on marks and giving each node a two-dimensional array of linked lists for incident edges by mark and orientation. It presents three case studies with correctness and time-complexity proofs plus runtime experiments: connectedness checking in linear time on arbitrary input graphs with arbitrary node degrees, acyclicity checking in linear time on arbitrary input graphs, and Bellman-Ford single-source shortest paths in O(nm) on arbitrary input graphs, matching imperative Bellman-Ford.",
+  "methodology": {
+    "method_name": "GP 2 compiler enhancements and rooted graph programs",
+    "core_idea": "Improve the generated graph data structure so matching can directly access nodes and edges with required marks and orientations in constant time. Nodes are stored in separate linked lists by mark, and each node has a 5x3 array of linked lists for incident edges classified by mark and orientation, enabling constant-time lookup or absence detection.",
+    "pipeline": "GP 2 programs are compiled to C code by the new GP 2-to-C compiler. GCC transforms the C code into platform-dependent binaries executed by the runtime system. The runtime reads and parses the input host graph. Matching uses constant-time operations for nodes, roots, marks, degrees, sources, targets, and mark/orientation-specific edge lists. The paper then presents three case studies: connectedness in linear time, acyclicity in linear time, and Bellman-Ford in O(nm).",
+    "model": "GP 2 connectedness program, GP 2 acyclicity program, GP 2 Bellman-Ford program",
+    "model_architecture": {
+      "input": "Host graphs over labels with directed labelled nodes and edges; input graphs may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have integer edge weights.",
+      "output": "Output host graph, or failure if the program fails or the input violates the checked property.",
+      "feature_extraction": "NOT_FOUND",
+      "classification": "NOT_FOUND",
+      "pretrained_model": "NOT_FOUND",
+      "special_modules": "Nodes are stored in separate linked lists based on marks (red, green, blue, grey, unmarked). Each node has a two-dimensional array of linked lists storing all incident edges based on marks (red, green, blue, dashed, unmarked) and orientation (incoming, outgoing, loop), totalling 15 cells.",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "NOT_FOUND",
+      "lstm": "NOT_FOUND"
+    }
+  },
+  "dataset": {
+    "dataset_name": "NOT_FOUND",
+    "dataset_source": "NOT_FOUND",
+    "dataset_size": "NOT_FOUND",
+    "number_of_classes": "NOT_FOUND",
+    "data_type": "Host graphs for connectedness, acyclicity, and Bellman-Ford runtime experiments on various graph classes; Figure 36 uses rooted cycle graphs of negative total weight.",
+    "train_test_split": "NOT_FOUND",
+    "preprocessing": "The input host graph is read and parsed from disk by the runtime system; no training/test split is reported."
+  },
+  "implementation_details": {
+    "programming_framework": "GP 2-to-C compiler, GCC, C runtime system",
+    "optimizer": "NOT_FOUND",
+    "learning_rate": "NOT_FOUND",
+    "batch_size": "NOT_FOUND",
+    "epoch": "NOT_FOUND",
+    "loss_function": "NOT_FOUND",
+    "hardware": "NOT_FOUND",
+    "training_strategy": "NOT_FOUND"
+  },
+  "experiment": {
+    "evaluation_metrics": "Time complexity, correctness proofs, runtime measurements",
+    "baseline_methods": "2020 GP 2 compiler, previous bounded-degree GP 2 programs, imperative Bellman-Ford algorithm",
+    "comparison_results": "The connectedness program runs in linear time on possibly disconnected input graphs with arbitrary node degrees, removing the previous bounded-degree constraint. The acyclicity program runs in linear time on possibly disconnected input graphs with arbitrary node degrees. The Bellman-Ford program runs in O(nm) on arbitrary input graphs, matching the time complexity of imperative Bellman-Ford implementations. Runtime experiments on various graph classes support the complexity claims.",
+    "ablation_study": "NOT_FOUND",
+    "important_results": "First two programs run in linear time on possibly disconnected input graphs with arbitrary node degrees. The Bellman-Ford program runs in O(nm) on arbitrary input graphs, where n is the number of nodes and m is the number of edges. To the best of the authors' knowledge, this is the first rule-based shortest-path implementation matching the complexity of an imperative Bellman-Ford algorithm."
+  },
+  "reproduction_requirements": {
+    "required_modules": [
+      "GP 2 compiler new version available at https://github.com/UoYCSplasma/GP2",
+      "GCC",
+      "GP 2 runtime system"
+    ],
+    "important_parameters": {
+      "node_mark_lists": "red, green, blue, grey, unmarked",
+      "edge_mark_lists": "red, green, blue, dashed, unmarked",
+      "edge_orientation_lists": "incoming, outgoing, loop",
+      "edge_array_cells": "15",
+      "connectedness_time_complexity": "linear",
+      "acyclicity_time_complexity": "linear",
+      "bellman_ford_time_complexity": "O(nm)",
+      "scheduler_step_size": "978",
+      "scheduler_gamma": "0.0009930486593843098"
+    },
+    "possible_difficulties": [
+      "Achieving constant-time graph matching without bounded node degree",
+      "Writing programs that exploit mark-separated node and edge lists",
+      "Avoiding compiler backtracking in program execution to maintain fast runtimes",
+      "Finding matches with correct marks and orientations without scanning incompatible edges"
+    ]
+  },
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "workflow",
+      "description": "GP 2 computational model: a GP 2 program transforms an input graph into an output graph."
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "other",
+      "description": "GP 2 label subtype hierarchy including list, atom, int, string, and char."
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "other",
+      "description": "Abstract syntax of GP 2 programs from Prog to ProcCall."
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "workflow",
+      "description": "GP 2 execution pipeline: GP 2 code is compiled to C by the GP 2-to-C compiler, then transformed by GCC into a binary, executed by the runtime system, and produces output."
+    },
+    {
+      "figure_number": "Figure 5",
+      "type": "other",
+      "description": "GP 2 program transitiveclosure with the link rule and condition not edge(1,3)."
+    },
+    {
+      "figure_number": "Figure 6",
+      "type": "other",
+      "description": "Updated complexity assumptions on elementary operations generated by the compiler; grey rows indicate updated procedures."
+    },
+    {
+      "figure_number": "Figure 7",
+      "type": "other",
+      "description": "The old program isconnected with rules init, forward, back, and match, and main command try init then (DFS!; Check)."
+    },
+    {
+      "figure_number": "Figure 8",
+      "type": "other",
+      "description": "Execution of isconnected on a star graph with 8 edges, showing matching attempts for the forward rule with fd and bk labels."
+    },
+    {
+      "figure_number": "Figure 9",
+      "type": "other",
+      "description": "Two-dimensional array of linked lists of edges with five mark rows and three orientation columns: incoming, outgoing, and loop."
+    },
+    {
+      "figure_number": "Figure 36",
+      "type": "experiment_result",
+      "description": "Measured performance of the program bellmanford on rooted cycle graphs of negative total weight.",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "NOT_FOUND",
+      "conclusion": "Measured performance of bellmanford on rooted cycle graphs of negative total weight."
+    },
+    {
+      "figure_number": "Figure 37",
+      "type": "other",
+      "description": "Abstract syntax of host graph labels."
+    },
+    {
+      "figure_number": "Figure 38",
+      "type": "other",
+      "description": "Abstract syntax of rule graph labels."
+    },
+    {
+      "figure_number": "Figure 39",
+      "type": "other",
+      "description": "Abstract syntax of application conditions."
+    }
+  ],
+  "table_analysis": {
+    "tables_analyzed": 6,
+    "table_results": [
+      {
+        "table_id": "table_1",
+        "table_type": "other",
+        "caption_summary": "This table appears to be a malformed or diagrammatic representation related to GP 2 program execution and graph output, with no clear numerical data.",
+        "extracted_data": {
+          "metrics": [],
+          "methods": [],
+          "best_result": null,
+          "key_values": [
+            {
+              "label": "Program",
+              "value": "GP 2"
+            },
+            {
+              "label": "Detected terms",
+              "value": "Output, Execute, Program, Graph"
+            }
+          ]
+        },
+        "table_summary": "The extracted content does not represent a standard experimental results, ablation, comparison, dataset, hyperparameter, or architecture table. It contains only the labels 'GP 2 Output', 'Execute', 'Program Graph', and 'Graph', suggesting it may be a diagram or a table that was not parsed correctly. No numerical values or metric results are available to summarize."
+      },
+      {
+        "table_id": "table_2",
+        "table_type": "other",
+        "caption_summary": "Sparse table listing components of the GP 2-to-C compilation pipeline: GP 2-to-C, GCC, Runtime System, Program, and Graph.",
+        "extracted_data": {
+          "metrics": [],
+          "methods": [],
+          "best_result": null,
+          "key_values": [
+            {
+              "label": "Component 1",
+              "value": "GP 2-to-C"
+            },
+            {
+              "label": "Component 2",
+              "value": "GCC"
+            },
+            {
+              "label": "Component 3",
+              "value": "Runtime System"
+            },
+            {
+              "label": "Component 4",
+              "value": "Program"
+            },
+            {
+              "label": "Component 5",
+              "value": "Graph"
+            }
+          ]
+        },
+        "table_summary": "The table contains no numerical data or performance metrics. It appears to list components of a compilation pipeline: GP 2-to-C, GCC, Runtime System, Program, and Graph. No quantitative results or best method can be extracted from this table."
+      },
+      {
+        "table_id": "table_3",
+        "table_type": "other",
+        "caption_summary": "Host graph operations for fetching nodes of a given mark and their time complexities.",
+        "extracted_data": {
+          "metrics": [
+            "Time complexity"
+          ],
+          "methods": [
+            "firstHostNode(m)",
+            "nextHostNode(m)"
+          ],
+          "best_result": {
+            "method": "firstHostNode(m) / nextHostNode(m)",
+            "metric": "Time complexity",
+            "value": "O(1)"
+          },
+          "key_values": [
+            {
+              "label": "firstHostNode(m) description",
+              "value": "Fetch the first node of mark m in the host graph."
+            },
+            {
+              "label": "firstHostNode(m) time complexity",
+              "value": "O(1)"
+            },
+            {
+              "label": "nextHostNode(m) description",
+              "value": "Given a node of mark m, fetch the next node of mark m in the host graph."
+            },
+            {
+              "label": "nextHostNode(m) time complexity",
+              "value": "O(1)"
+            }
+          ]
+        },
+        "table_summary": "The table defines two host graph operations for iterating over nodes with a given mark m. firstHostNode(m) fetches the first node of mark m, while nextHostNode(m) fetches the next node of mark m given a current node. Both operations have constant time complexity O(1)."
+      },
+      {
+        "table_id": "table_4",
+        "table_type": "other",
+        "caption_summary": "Lists graph edge access operations by mark with their descriptions and constant-time complexity.",
+        "extracted_data": {
+          "metrics": [
+            "time_complexity"
+          ],
+          "methods": [
+            "firstInEdge(m)",
+            "nextInEdge(m)",
+            "firstOutEdge(m)",
+            "nextOutEdge(m)",
+            "firstLoop(m)",
+            "nextLoop(m)"
+          ],
+          "best_result": null,
+          "key_values": [
+            {
+              "label": "firstInEdge(m): Given a node, fetch the first inedge of mark m.",
+              "value": "O(1)"
+            },
+            {
+              "label": "nextInEdge(m): Given a node and an edge of mark m, fetch the next inedge of mark m.",
+              "value": "O(1)"
+            },
+            {
+              "label": "firstOutEdge(m): Given a node, fetch the first outedge of mark m.",
+              "value": "O(1)"
+            },
+            {
+              "label": "nextOutEdge(m): Given a node and an edge of mark m, fetch the next outedge of mark m.",
+              "value": "O(1)"
+            },
+            {
+              "label": "firstLoop(m): Given a node, fetch the first loop edge of mark m.",
+              "value": "O(1)"
+            },
+            {
+              "label": "nextLoop(m): Given a node and an edge of mark m, fetch the next loop edge of mark m.",
+              "value": "O(1)"
+            }
+          ]
+        },
+        "table_summary": "The table defines six primitive operations for accessing marked edges in a graph: first and next in-edges, out-edges, and loop edges. Each operation is described as fetching the relevant edge of mark m from a given node or edge. All listed operations have constant time complexity O(1)."
+      },
+      {
+        "table_id": "table_5",
+        "table_type": "other",
+        "caption_summary": "Table content is unavailable; only placeholder dots are shown.",
+        "extracted_data": {
+          "metrics": [],
+          "methods": [],
+          "best_result": {
+            "method": null,
+            "metric": null,
+            "value": null
+          },
+          "key_values": []
+        },
+        "table_summary": "The provided table contains no readable numerical or textual data, only placeholder dots and a horizontal rule. Therefore, no metrics, methods, or findings can be extracted or summarized from the input."
+      },
+      {
+        "table_id": "table_6",
+        "table_type": "other",
+        "caption_summary": "Extracted bullet-list items containing repeated arrow symbols and root1(x | list)",
+        "extracted_data": {
+          "metrics": [],
+          "methods": [],
+          "best_result": null,
+          "key_values": [
+            {
+              "label": "item_1",
+              "value": "⇒ |"
+            },
+            {
+              "label": "item_2",
+              "value": "⇒ |"
+            },
+            {
+              "label": "item_3",
+              "value": "root1(x | list)"
+            }
+          ]
+        },
+        "table_summary": "The table contains only bullet-list items with two arrow symbols and the expression root1(x | list). No numerical data, metrics, or method comparisons are present, so it is not an experimental results or ablation table."
+      }
+    ],
+    "aggregated_findings": {
+      "experiment_results": [],
+      "comparisons": [],
+      "ablation_studies": [],
+      "best_reported_result": "",
+      "aggregated_summary": "The analyzed tables do not contain quantitative experimental results or performance comparisons. The main extractable findings are:\n\n1. **No standard evaluation tables were found:** None of the tables provide numerical accuracy, runtime, ablation, or comparison metrics.\n\n2. **Implementation/compilation pipeline is documented:** Some tables describe components such as GP 2-to-C, GCC, the runtime system, program, and graph, indicating a system/architecture description rather than experimental data.\n\n3. **Constant-time host graph operations are defined:** Two tables specify primitive graph-access operations—node iteration by mark and marked edge access—all with O(1) time complexity.\n\n4. **Remaining tables are non-quantitative or unparsed:** Several tables contain only labels, placeholders, ar"
+    }
+  },
+  "image_analysis": [],
+  "paper_figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "workflow",
+      "description": "GP 2 computational model: a GP 2 program transforms an input graph into an output graph."
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "other",
+      "description": "GP 2 label subtype hierarchy including list, atom, int, string, and char."
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "other",
+      "description": "Abstract syntax of GP 2 programs from Prog to ProcCall."
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "workflow",
+      "description": "GP 2 execution pipeline: GP 2 code is compiled to C by the GP 2-to-C compiler, then transformed by GCC into a binary, executed by the runtime system, and produces output."
+    },
+    {
+      "figure_number": "Figure 5",
+      "type": "other",
+      "description": "GP 2 program transitiveclosure with the link rule and condition not edge(1,3)."
+    },
+    {
+      "figure_number": "Figure 6",
+      "type": "other",
+      "description": "Updated complexity assumptions on elementary operations generated by the compiler; grey rows indicate updated procedures."
+    },
+    {
+      "figure_number": "Figure 7",
+      "type": "other",
+      "description": "The old program isconnected with rules init, forward, back, and match, and main command try init then (DFS!; Check)."
+    },
+    {
+      "figure_number": "Figure 8",
+      "type": "other",
+      "description": "Execution of isconnected on a star graph with 8 edges, showing matching attempts for the forward rule with fd and bk labels."
+    },
+    {
+      "figure_number": "Figure 9",
+      "type": "other",
+      "description": "Two-dimensional array of linked lists of edges with five mark rows and three orientation columns: incoming, outgoing, and loop."
+    },
+    {
+      "figure_number": "Figure 36",
+      "type": "experiment_result",
+      "description": "Measured performance of the program bellmanford on rooted cycle graphs of negative total weight.",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "NOT_FOUND",
+      "conclusion": "Measured performance of bellmanford on rooted cycle graphs of negative total weight."
+    },
+    {
+      "figure_number": "Figure 37",
+      "type": "other",
+      "description": "Abstract syntax of host graph labels."
+    },
+    {
+      "figure_number": "Figure 38",
+      "type": "other",
+      "description": "Abstract syntax of rule graph labels."
+    },
+    {
+      "figure_number": "Figure 39",
+      "type": "other",
+      "description": "Abstract syntax of application conditions."
+    }
+  ]
+}

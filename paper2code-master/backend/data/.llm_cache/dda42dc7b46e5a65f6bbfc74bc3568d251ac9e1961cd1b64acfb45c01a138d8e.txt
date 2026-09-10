@@ -1,0 +1,15 @@
+{
+  "table_id": "table_12",
+  "table_type": "other",
+  "caption_summary": "A sparse contingency table showing the relationship between two variables labeled ISSUP and ISREL, with only one cell value provided.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "ISSUP", "value": "ISREL"},
+      {"label": "cell_value", "value": "1"}
+    ]
+  },
+  "table_summary": "The table appears to be a fragment of a larger contingency or cross-tabulation table, with row and column headers 'ISSUP' and 'ISREL' respectively. Only a single cell value of 1 is visible, which is insufficient to determine the table's purpose or draw any meaningful conclusions. The table likely represents some form of categorical data relationship, but the extracted content is too incomplete for further analysis."
+}

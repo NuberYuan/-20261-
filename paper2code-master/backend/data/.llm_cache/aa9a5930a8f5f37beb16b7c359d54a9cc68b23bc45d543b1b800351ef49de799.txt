@@ -1,0 +1,661 @@
+"""PlantVillage dataset loading, preprocessing, and train/val/test splitting.
+
+The underlying ``PlantVillageDataset.__getitem__`` intentionally returns a PIL
+image and label without augmentation.  Train/val/test transformations are then
+applied through lightweight ``TransformSubset`` wrappers so shared ``Subset``
+objects do not have their ``transform`` attributes overwritten.
+"""
+
+import csv
+import json
+import random
+import re
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import torch
+import yaml
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset, Subset
+from torchvision import transforms
+
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+
+IMAGE_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".ppm",
+    ".bmp",
+    ".tif",
+    ".tiff",
+}
+
+
+def load_config(
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Load a config dict or YAML file.
+
+    Parameters
+    ----------
+    config:
+        A loaded config dict, a path to a YAML file, or ``None`` to load the
+        project default ``config/config.yaml``.
+
+    Returns
+    -------
+    Dict[str, Any]
+        The parsed config.
+    """
+    if config is not None:
+        if isinstance(config, dict):
+            return config
+
+        config_path = Path(config)
+        with config_path.open("r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    if not DEFAULT_CONFIG_PATH.exists():
+        raise FileNotFoundError(
+            f"Default config not found at {DEFAULT_CONFIG_PATH}. "
+            "Pass an explicit config path or create config/config.yaml."
+        )
+
+    with DEFAULT_CONFIG_PATH.open("r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def _resolve_version_dir(root_dir: Path, version: str) -> Path:
+    """Resolve the directory containing images for a dataset version.
+
+    PlantVillage data may be laid out either as ``root/version/class/img`` or as
+    ``root/class/img``.  This helper checks for the former and falls back to the
+    latter.
+    """
+    if not isinstance(root_dir, Path):
+        root_dir = Path(root_dir)
+
+    candidate = root_dir / version
+    if candidate.is_dir() and any(p.is_dir() for p in candidate.iterdir()):
+        return candidate
+    return root_dir
+
+
+def _infer_object_id_from_stem(stem: str) -> str:
+    """Infer a leaf/object identifier from an image stem.
+
+    The PlantVillage dataset does not always ship with a leaf mapping file.  If
+    no explicit mapping is found, this heuristic uses a trailing underscore
+    token when available.  It is intentionally conservative: if no clear token
+    exists, the full stem is used, which degrades to image-level grouping but
+    keeps training runs deterministic.
+    """
+    if not stem:
+        return "unknown"
+
+    if "__" in stem:
+        return stem.rsplit("__", 1)[-1]
+
+    match = re.search(r"_([^_]+)$", stem)
+    if match:
+        token = match.group(1)
+        if token:
+            return token
+
+    return stem
+
+
+def _load_sidecar_leaf_mapping(search_dirs: List[Path]) -> Dict[str, str]:
+    """Load an optional leaf mapping from local sidecar files.
+
+    The config file does not specify a leaf-mapping path.  This helper looks
+    for common optional sidecar names without requiring them.  All text files
+    are read with UTF-8 encoding.
+    """
+    mapping: Dict[str, str] = {}
+
+    for directory in search_dirs:
+        if directory is None or not directory.is_dir():
+            continue
+
+        for filename in (
+            "leaf_mapping.csv",
+            "leaf_mapping.json",
+            "leaf_mapping.txt",
+        ):
+            path = directory / filename
+            if not path.is_file():
+                continue
+
+            try:
+                if path.suffix.lower() == ".csv":
+                    with path.open("r", encoding="utf-8") as f:
+                        reader = csv.DictReader(f)
+                        for row in reader:
+                            image = (
+                                row.get("image")
+                                or row.get("image_path")
+                                or row.get("filename")
+                                or row.get("file")
+                                or row.get("image_name")
+                            )
+                            leaf = (
+                                row.get("leaf_id")
+                                or row.get("leaf")
+                                or row.get("object_id")
+                                or row.get("plant_id")
+                            )
+                            if image and leaf:
+                                image_path = Path(image)
+                                mapping[image_path.stem] = str(leaf)
+                                mapping[image_path.name] = str(leaf)
+
+                elif path.suffix.lower() == ".json":
+                    with path.open("r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    if isinstance(data, dict):
+                        # Format: {"leaf_id": ["img1.jpg", "img2.jpg"]}
+                        for leaf, images in data.items():
+                            if not isinstance(images, (list, tuple)):
+                                images = [images]
+                            for image in images:
+                                image_path = Path(image)
+                                mapping[image_path.stem] = str(leaf)
+                                mapping[image_path.name] = str(leaf)
+
+                    elif isinstance(data, list):
+                        for entry in data:
+                            if not isinstance(entry, dict):
+                                continue
+                            image = entry.get("image") or entry.get("filename")
+                            leaf = entry.get("leaf_id") or entry.get("leaf")
+                            if image and leaf:
+                                image_path = Path(image)
+                                mapping[image_path.stem] = str(leaf)
+                                mapping[image_path.name] = str(leaf)
+
+                else:
+                    # Simple two-column text file: image_path,leaf_id
+                    with path.open("r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line or line.startswith("#"):
+                                continue
+                            parts = [p.strip() for p in line.split(",")]
+                            if len(parts) >= 2:
+                                image_path = Path(parts[0])
+                                mapping[image_path.stem] = parts[1]
+                                mapping[image_path.name] = parts[1]
+
+            except Exception:
+                # Sidecar mappings are optional.  Malformed files should not
+                # crash dataset construction; training can fall back to the
+                # filename heuristic.
+                continue
+
+    return mapping
+
+
+class PlantVillageDataset(Dataset):
+    """PyTorch dataset for PlantVillage image classification.
+
+    Parameters
+    ----------
+    root_dir:
+        Root path containing images.  If ``None``, ``config['data']['root']``
+        is used.  This parameter, when supplied, overrides a missing config
+        root for the ``color`` and ``grayscale`` versions.
+    version:
+        One of ``"color"``, ``"grayscale"``, or ``"segmented"``.
+    config:
+        Loaded config dict, YAML path, or ``None`` to load default config.
+    leaf_mapping:
+        Optional explicit mapping from image name/stem to leaf/object id.
+    """
+
+    def __init__(
+        self,
+        root_dir: Optional[Union[str, Path]] = None,
+        version: str = "color",
+        config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+        leaf_mapping: Optional[Dict[str, str]] = None,
+    ) -> None:
+        self.version = version
+        self.config = load_config(config)
+
+        valid_versions = self.config.get("version_selector", {}).get(
+            "values", ["color", "grayscale", "segmented"]
+        )
+        if self.version not in valid_versions:
+            raise ValueError(
+                f"Unknown dataset version {self.version!r}. "
+                f"Expected one of {valid_versions}."
+            )
+
+        root_from_config = self.config.get("data", {}).get("root")
+        version_cfg = self.config.get("data", {}).get(self.version, {})
+        if not isinstance(version_cfg, dict):
+            version_cfg = {}
+        version_path = version_cfg.get("path")
+
+        if root_dir is not None:
+            root_path = Path(root_dir)
+        elif root_from_config:
+            root_path = Path(root_from_config)
+        elif version_path:
+            root_path = Path(version_path)
+        else:
+            root_path = None
+
+        if root_path is not None:
+            self._validate_version_availability(True)
+        elif self.version == "segmented":
+            self._validate_version_availability(False)
+
+        self.root_dir = Path(root_path) if root_path is not None else None
+        self.version_dir = (
+            _resolve_version_dir(self.root_dir, self.version)
+            if self.root_dir is not None
+            else None
+        )
+
+        # Combine explicit mapping and optional sidecar mapping.
+        self.leaf_mapping: Dict[str, str] = dict(leaf_mapping) if leaf_mapping else {}
+        if self.root_dir is not None and self.version_dir is not None:
+            self.leaf_mapping.update(
+                _load_sidecar_leaf_mapping([self.root_dir, self.version_dir])
+            )
+
+        self.image_paths: List[Path] = []
+        self.labels: List[int] = []
+        self.object_ids: List[str] = []
+        self.class_to_idx: Dict[str, int] = {}
+        self.idx_to_class: Dict[int, str] = {}
+
+        if self.root_dir is not None and self.version_dir is not None:
+            self._load_samples()
+        else:
+            # No local data root is configured.  Instantiate an empty dataset
+            # rather than failing immediately; training/inference entry points
+            # should configure data.root, data.<version>.path, or pass root_dir.
+            pass
+
+        if self.root_dir is not None and len(self.image_paths) != 54_306:
+            print(
+                f"Warning: PlantVillage {self.version} loaded "
+                f"{len(self.image_paths)} images; expected 54,306 images."
+            )
+
+    def _validate_version_availability(self, root_provided: bool) -> None:
+        """Validate whether the requested dataset version can be loaded.
+
+        ``segmented`` is treated as unresolved when the config status says so
+        because the paper does not provide the full segmentation algorithm and
+        a fallback would silently change the experiment.
+        """
+        version_cfg = self.config.get("data", {}).get(self.version, {})
+        if not isinstance(version_cfg, dict):
+            return
+
+        status = version_cfg.get("status")
+        if status != "unresolved":
+            return
+
+        reason = version_cfg.get(
+            "reason", f"{self.version} dataset status is unresolved."
+        )
+
+        if self.version == "segmented":
+            raise NotImplementedError(reason)
+
+        # For color/grayscale, ``unresolved`` in the provided config means the
+        # local root path was not configured.  An explicit ``root_dir``
+        # overrides that data-acquisition issue.
+        if not root_provided:
+            raise ValueError(
+                f"{reason} Provide root_dir or set config['data']['root']."
+            )
+
+    def _load_samples(self) -> None:
+        """Scan class subdirectories and collect image paths, labels, and object ids."""
+        if not self.version_dir.exists():
+            raise FileNotFoundError(
+                f"Dataset directory not found: {self.version_dir}"
+            )
+
+        class_dirs = sorted(
+            [p for p in self.version_dir.iterdir() if p.is_dir()]
+        )
+        if not class_dirs:
+            raise ValueError(
+                f"No class subdirectories found under {self.version_dir}. "
+                "Expected PlantVillage layout: version_dir/class_name/*.jpg"
+            )
+
+        self.class_to_idx = {p.name: idx for idx, p in enumerate(class_dirs)}
+        self.idx_to_class = {idx: name for name, idx in self.class_to_idx.items()}
+
+        for class_dir in class_dirs:
+            label = self.class_to_idx[class_dir.name]
+
+            for image_path in sorted(class_dir.iterdir()):
+                if image_path.suffix.lower() not in IMAGE_EXTENSIONS:
+                    continue
+
+                self.image_paths.append(image_path)
+                self.labels.append(label)
+                self.object_ids.append(self._assign_object_id(image_path))
+
+        if not self.image_paths:
+            raise ValueError(
+                f"No supported image files found under {self.version_dir}."
+            )
+
+    def _assign_object_id(self, image_path: Path) -> str:
+        """Return an object/leaf id for an image path.
+
+        Priority is: explicit/sidecar mapping, then a conservative filename
+        heuristic, then the full stem as a fallback.
+        """
+        candidates = [str(image_path), image_path.name, image_path.stem]
+        for candidate in candidates:
+            if candidate in self.leaf_mapping:
+                return str(self.leaf_mapping[candidate])
+
+        return _infer_object_id_from_stem(image_path.stem)
+
+    def __len__(self) -> int:
+        return len(self.image_paths)
+
+    def __getitem__(self, idx: int) -> Tuple[Image.Image, int]:
+        """Return a raw PIL image and integer label.
+
+        Transformations are intentionally not applied here.  Use
+        ``TransformSubset`` to wrap train/val/test splits with split-specific
+        transforms.
+        """
+        if idx < 0:
+            idx += len(self)
+
+        image_path = self.image_paths[idx]
+        label = self.labels[idx]
+
+        # Convert to RGB for consistent downstream transforms.  The grayscale
+        # version is converted back to single-channel in ``get_transform``.
+        image = Image.open(image_path).convert("RGB")
+        return image, label
+
+    def preprocess_image(
+        self,
+        image: Union[str, Path, Image.Image],
+        train: bool = False,
+    ) -> torch.Tensor:
+        """Apply the configured preprocessing/augmentation transform to an image.
+
+        This method is single-image oriented and is not used by
+        ``__getitem__``; it is useful for inference and testing.
+        """
+        if isinstance(image, (str, Path)):
+            image = Image.open(image).convert("RGB")
+
+        if not isinstance(image, Image.Image):
+            raise TypeError(
+                "preprocess_image expects a PIL.Image.Image or a path to an image."
+            )
+
+        transform = get_transform(
+            version=self.version, train=train, config=self.config
+        )
+        return transform(image)
+
+    def split_dataset(
+        self,
+        train_ratio: Optional[float] = None,
+        val_split_ratio: Optional[float] = None,
+        seed: Optional[int] = None,
+    ) -> Tuple[List[int], List[int], List[int]]:
+        """Split dataset indices into train, validation, and test sets.
+
+        The primary train/test split follows the paper's leaf-based strategy:
+        all images of the same leaf/object are kept together.  If a validation
+        split is requested, it is carved from the training set with the same
+        object-group constraint (engineering deviation from the paper).
+        """
+        split_cfg = self.config.get("split_strategy", {})
+
+        if train_ratio is None:
+            train_ratio = float(split_cfg.get("default_train_ratio", 0.8))
+        if val_split_ratio is None:
+            val_split_ratio = float(split_cfg.get("val_split_ratio", 0.2))
+        if seed is None:
+            seed = int(split_cfg.get("seed", 42))
+
+        train_indices, test_indices = self._split_groups_by_ratio(
+            indices=list(range(len(self))),
+            train_ratio=train_ratio,
+            seed=seed,
+        )
+
+        if val_split_ratio > 0.0:
+            train_indices, val_indices = self._split_groups_by_ratio(
+                indices=train_indices,
+                train_ratio=1.0 - val_split_ratio,
+                seed=seed + 1009,
+            )
+        else:
+            val_indices = []
+
+        return train_indices, val_indices, test_indices
+
+    def _split_groups_by_ratio(
+        self,
+        indices: List[int],
+        train_ratio: float,
+        seed: int,
+    ) -> Tuple[List[int], List[int]]:
+        """Group-aware split of ``indices`` into train and test lists.
+
+        Split ratios are approximate because no object group is ever broken.
+        """
+        if not indices:
+            return [], []
+
+        if not (0.0 <= train_ratio <= 1.0):
+            raise ValueError(f"train_ratio must be in [0,1], got {train_ratio}")
+
+        groups: Dict[str, List[int]] = defaultdict(list)
+        for idx in indices:
+            object_id = self.object_ids[idx]
+            groups[object_id].append(idx)
+
+        rng = random.Random(seed)
+        group_ids = list(groups.keys())
+        rng.shuffle(group_ids)
+
+        target_test_count = int(round(len(indices) * (1.0 - train_ratio)))
+
+        train_list: List[int] = []
+        test_list: List[int] = []
+
+        for object_id in group_ids:
+            group = groups[object_id]
+
+            if len(test_list) + len(group) <= target_test_count:
+                test_list.extend(group)
+            elif len(test_list) < target_test_count:
+                # Adding the group would overshoot.  Assign the group to the
+                # side that keeps the actual test ratio closer to the target.
+                overshoot = (len(test_list) + len(group)) - target_test_count
+                undershoot = target_test_count - len(test_list)
+                if overshoot <= undershoot:
+                    test_list.extend(group)
+                else:
+                    train_list.extend(group)
+            else:
+                train_list.extend(group)
+
+        return train_list, test_list
+
+
+class TransformSubset(Dataset):
+    """Lightweight wrapper that applies a transform to a ``Subset``.
+
+    This avoids mutating ``Subset.dataset.transform``, which is shared across
+    all splits when the same parent dataset is used.
+    """
+
+    def __init__(
+        self,
+        subset: Subset,
+        transform: Optional[object] = None,
+    ) -> None:
+        self.subset = subset
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.subset)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
+        image, label = self.subset[idx]
+        if self.transform is not None:
+            image = self.transform(image)
+        return image, label
+
+
+def get_transform(
+    version: str = "color",
+    train: bool = False,
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+) -> transforms.Compose:
+    """Build preprocessing/augmentation transform for a dataset version.
+
+    Training transforms include the paper-specified ``RandomHorizontalFlip``;
+    validation/test transforms do not include augmentation.
+    """
+    cfg = load_config(config)
+    data_cfg = cfg.get("data", {})
+
+    image_size = tuple(data_cfg.get("image_size", [256, 256]))
+    mean = data_cfg.get("mean", [0.485, 0.456, 0.406])
+    std = data_cfg.get("std", [0.229, 0.224, 0.225])
+    normalize = data_cfg.get("normalize", True)
+
+    if version not in ("color", "grayscale", "segmented"):
+        raise ValueError(
+            f"Unsupported dataset version {version!r}; "
+            "expected 'color', 'grayscale', or 'segmented'."
+        )
+
+    pipeline: List[object] = [transforms.Resize(image_size)]
+
+    if version == "grayscale":
+        pipeline.append(transforms.Grayscale(num_output_channels=1))
+
+    if train:
+        pipeline.append(transforms.RandomHorizontalFlip(p=0.5))
+
+    pipeline.append(transforms.ToTensor())
+
+    if version == "grayscale":
+        # The design decision is to repeat the single channel into three
+        # channels so ImageNet-pretrained models can be used unchanged.
+        pipeline.append(transforms.Lambda(lambda x: x.repeat(3, 1, 1)))
+
+    if normalize:
+        pipeline.append(transforms.Normalize(mean=mean, std=std))
+
+    return transforms.Compose(pipeline)
+
+
+def get_dataloaders(
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+    version: str = "color",
+    root_dir: Optional[Union[str, Path]] = None,
+    train_ratio: float = 0.8,
+    val_split_ratio: Optional[float] = None,
+    batch_size: int = 32,
+    num_workers: int = 0,
+    pin_memory: bool = False,
+    seed: Optional[int] = None,
+    train_shuffle: bool = True,
+) -> Dict[str, Any]:
+    """Create train/val/test DataLoaders for a given dataset version.
+
+    ``version`` is passed directly to ``PlantVillageDataset`` and is not read
+    from a config default, so different experiment runs can select different
+    dataset versions.
+    """
+    cfg = load_config(config)
+
+    if val_split_ratio is None:
+        val_split_ratio = float(
+            cfg.get("split_strategy", {}).get("val_split_ratio", 0.2)
+        )
+    if seed is None:
+        seed = int(cfg.get("split_strategy", {}).get("seed", 42))
+
+    dataset = PlantVillageDataset(
+        root_dir=root_dir,
+        version=version,
+        config=cfg,
+    )
+
+    train_indices, val_indices, test_indices = dataset.split_dataset(
+        train_ratio=train_ratio,
+        val_split_ratio=val_split_ratio,
+        seed=seed,
+    )
+
+    train_transform = get_transform(version=version, train=True, config=cfg)
+    eval_transform = get_transform(version=version, train=False, config=cfg)
+
+    train_dataset = TransformSubset(Subset(dataset, train_indices), train_transform)
+    val_dataset = TransformSubset(Subset(dataset, val_indices), eval_transform)
+    test_dataset = TransformSubset(Subset(dataset, test_indices), eval_transform)
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=train_shuffle,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+    )
+
+    val_loader = None
+    if len(val_dataset) > 0:
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+        )
+
+    test_loader = None
+    if len(test_dataset) > 0:
+        test_loader = DataLoader(
+            test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+        )
+
+    return {
+        "train_loader": train_loader,
+        "val_loader": val_loader,
+        "test_loader": test_loader,
+        "train_indices": train_indices,
+        "val_indices": val_indices,
+        "test_indices": test_indices,
+        "class_to_idx": dataset.class_to_idx,
+        "idx_to_class": dataset.idx_to_class,
+        "num_classes": len(dataset.class_to_idx),
+        "dataset": dataset,
+        "version": version,
+        "train_transform": train_transform,
+        "eval_transform": eval_transform,
+    }

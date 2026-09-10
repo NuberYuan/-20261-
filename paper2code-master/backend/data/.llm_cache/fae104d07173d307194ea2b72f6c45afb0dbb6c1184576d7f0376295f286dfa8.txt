@@ -1,0 +1,18 @@
+{
+  "table_id": "table_1",
+  "table_type": "other",
+  "caption_summary": "A table with unclear content, possibly a diagram or layout representation with labels z2, z3, z4.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "z4", "value": "present"},
+      {"label": "z3", "value": "present"},
+      {"label": "z2", "value": "present"},
+      {"label": "z", "value": "present"},
+      {"label": "1", "value": "present"}
+    ]
+  },
+  "table_summary": "The table appears to be a structural or hierarchical representation, possibly of a tree or layered system, with labels z2, z3, z4 and a single '1'. No numerical data or experimental results are present, making it impossible to classify as an experiment, ablation, comparison, or statistics table. The content is too sparse to derive any meaningful findings."
+}

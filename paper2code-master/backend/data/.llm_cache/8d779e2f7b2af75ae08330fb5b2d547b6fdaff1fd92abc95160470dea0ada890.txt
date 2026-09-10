@@ -1,0 +1,16 @@
+{
+  "table_id": "table_3",
+  "table_type": "other",
+  "caption_summary": "A table fragment showing a detection method labeled 'grid' with a column header 'Relevant' and a partially visible value 'Util: 5'.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Detection Method", "value": "grid"},
+      {"label": "Relevant", "value": "Partially"},
+      {"label": "Util", "value": "5"}
+    ]
+  },
+  "table_summary": "The table appears to be a fragment from a larger table, possibly related to detection methods or evaluation settings. It contains a row labeled 'Detection Method' with value 'grid', a column 'Relevant' with value 'Partially', and a value 'Util: 5' which may indicate a utility score or parameter. Due to the incomplete nature of the table, the full context and purpose cannot be determined."
+}

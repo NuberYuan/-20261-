@@ -1,0 +1,195 @@
+{
+  "code_requirements": {
+    "data/dataset.py": {
+      "description": "Loads and preprocesses code generation benchmark datasets (HumanEval+, MBPP+, DevEval, BigCodeBench) for training the uncertainty threshold classifier and for evaluating AdaDec decoding. Supports ground-truth-guided next-token prediction to generate positive/negative samples for logistic regression, with optional SBERT-based semantic similarity filtering to mitigate data contamination.",
+      "class": "CodeGenerationDataset",
+      "parent_class": "torch.utils.data.Dataset",
+      "methods": [
+        "__init__",
+        "__len__",
+        "__getitem__"
+      ],
+      "functions": [
+        "load_data",
+        "preprocess",
+        "generate_threshold_samples",
+        "balance_dataset"
+      ],
+      "pseudocode": "class CodeGenerationDataset(Dataset):\n    def __init__(self, data_path, tokenizer, model, max_length=1024, mode='eval', threshold_sample=False):\n        self.data = load_data(data_path)\n        self.tokenizer = tokenizer\n        self.model = model\n        self.mode = mode\n        if threshold_sample:\n            self.samples = generate_threshold_samples(self.data, tokenizer, model)\n            self.samples = balance_dataset(self.samples)\n        else:\n            self.samples = preprocess(self.data, tokenizer, max_length)\n\n    def __len__(self):\n        return len(self.samples)\n\n    def __getitem__(self, idx):\n        return self.samples[idx]\n\ndef load_data(path):\n    # Load JSON/JSONL files, return list of problems with prompt and ground-truth code\n\ndef preprocess(data, tokenizer, max_length):\n    # Tokenize prompts, return input_ids, attention_mask, and reference code\n\ndef generate_threshold_samples(data, tokenizer, model):\n    # For each problem, run model forward to get next-token distribution at each step\n    # Compute entropy and whether ground-truth token is top-1 (positive/negative label)\n    # Return list of (entropy, label) pairs\n\ndef balance_dataset(samples):\n    # Randomly downsample majority class to match minority class size"
+    },
+    "models/deepseekcoder13b67binstruct.py": {
+      "description": "Wrapper for DeepSeek-Coder-1.3B and 6.7B Instruct models using Hugging Face Transformers. Provides a unified interface to load the model and tokenizer, and to compute next-token logits and entropy for a given input sequence.",
+      "class": "DeepSeekCoder13B67BInstruct",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward",
+        "get_next_token_distribution",
+        "get_entropy"
+      ],
+      "functions": [],
+      "pseudocode": "class DeepSeekCoder13B67BInstruct(nn.Module):\n    def __init__(self, model_name='deepseek-ai/deepseek-coder-1.3b-instruct'):\n        self.model = AutoModelForCausalLM.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n\n    def forward(self, input_ids, attention_mask):\n        return self.model(input_ids, attention_mask=attention_mask)\n\n    def get_next_token_distribution(self, input_ids, attention_mask):\n        outputs = self.forward(input_ids, attention_mask)\n        logits = outputs.logits[:, -1, :]\n        probs = softmax(logits, dim=-1)\n        return probs\n\n    def get_entropy(self, input_ids, attention_mask):\n        probs = self.get_next_token_distribution(input_ids, attention_mask)\n        entropy = -sum(p * log(p) for p in probs)\n        return entropy"
+    },
+    "models/stablecodeinstruct3b.py": {
+      "description": "Wrapper for StableCode-Instruct-3B model using Hugging Face Transformers. Provides a unified interface to load the model and tokenizer, and to compute next-token logits and entropy.",
+      "class": "StableCodeInstruct3B",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward",
+        "get_next_token_distribution",
+        "get_entropy"
+      ],
+      "functions": [],
+      "pseudocode": "class StableCodeInstruct3B(nn.Module):\n    def __init__(self, model_name='stabilityai/stablecode-instruct-3b'):\n        self.model = AutoModelForCausalLM.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n\n    def forward(self, input_ids, attention_mask):\n        return self.model(input_ids, attention_mask=attention_mask)\n\n    def get_next_token_distribution(self, input_ids, attention_mask):\n        outputs = self.forward(input_ids, attention_mask)\n        logits = outputs.logits[:, -1, :]\n        probs = softmax(logits, dim=-1)\n        return probs\n\n    def get_entropy(self, input_ids, attention_mask):\n        probs = self.get_next_token_distribution(input_ids, attention_mask)\n        entropy = -sum(p * log(p) for p in probs)\n        return entropy"
+    },
+    "models/qwen25coder15b7binstruct.py": {
+      "description": "Wrapper for Qwen2.5-Coder-1.5B and 7B Instruct models using Hugging Face Transformers. Provides a unified interface to load the model and tokenizer, and to compute next-token logits and entropy.",
+      "class": "Qwen25Coder15B7BInstruct",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward",
+        "get_next_token_distribution",
+        "get_entropy"
+      ],
+      "functions": [],
+      "pseudocode": "class Qwen25Coder15B7BInstruct(nn.Module):\n    def __init__(self, model_name='Qwen/Qwen2.5-Coder-1.5B-Instruct'):\n        self.model = AutoModelForCausalLM.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n\n    def forward(self, input_ids, attention_mask):\n        return self.model(input_ids, attention_mask=attention_mask)\n\n    def get_next_token_distribution(self, input_ids, attention_mask):\n        outputs = self.forward(input_ids, attention_mask)\n        logits = outputs.logits[:, -1, :]\n        probs = softmax(logits, dim=-1)\n        return probs\n\n    def get_entropy(self, input_ids, attention_mask):\n        probs = self.get_next_token_distribution(input_ids, attention_mask)\n        entropy = -sum(p * log(p) for p in probs)\n        return entropy"
+    },
+    "models/qwen306b.py": {
+      "description": "Wrapper for Qwen3-0.6B model using Hugging Face Transformers. Provides a unified interface to load the model and tokenizer, and to compute next-token logits and entropy.",
+      "class": "Qwen306B",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward",
+        "get_next_token_distribution",
+        "get_entropy"
+      ],
+      "functions": [],
+      "pseudocode": "class Qwen306B(nn.Module):\n    def __init__(self, model_name='Qwen/Qwen3-0.6B'):\n        self.model = AutoModelForCausalLM.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n\n    def forward(self, input_ids, attention_mask):\n        return self.model(input_ids, attention_mask=attention_mask)\n\n    def get_next_token_distribution(self, input_ids, attention_mask):\n        outputs = self.forward(input_ids, attention_mask)\n        logits = outputs.logits[:, -1, :]\n        probs = softmax(logits, dim=-1)\n        return probs\n\n    def get_entropy(self, input_ids, attention_mask):\n        probs = self.get_next_token_distribution(input_ids, attention_mask)\n        entropy = -sum(p * log(p) for p in probs)\n        return entropy"
+    },
+    "models/qwen317b.py": {
+      "description": "Wrapper for Qwen3-1.7B model using Hugging Face Transformers. Provides a unified interface to load the model and tokenizer, and to compute next-token logits and entropy.",
+      "class": "Qwen317B",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward",
+        "get_next_token_distribution",
+        "get_entropy"
+      ],
+      "functions": [],
+      "pseudocode": "class Qwen317B(nn.Module):\n    def __init__(self, model_name='Qwen/Qwen3-1.7B'):\n        self.model = AutoModelForCausalLM.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n\n    def forward(self, input_ids, attention_mask):\n        return self.model(input_ids, attention_mask=attention_mask)\n\n    def get_next_token_distribution(self, input_ids, attention_mask):\n        outputs = self.forward(input_ids, attention_mask)\n        logits = outputs.logits[:, -1, :]\n        probs = softmax(logits, dim=-1)\n        return probs\n\n    def get_entropy(self, input_ids, attention_mask):\n        probs = self.get_next_token_distribution(input_ids, attention_mask)\n        entropy = -sum(p * log(p) for p in probs)\n        return entropy"
+    },
+    "models/qwen34b.py": {
+      "description": "Wrapper for Qwen3-4B model using Hugging Face Transformers. Provides a unified interface to load the model and tokenizer, and to compute next-token logits and entropy.",
+      "class": "Qwen34B",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward",
+        "get_next_token_distribution",
+        "get_entropy"
+      ],
+      "functions": [],
+      "pseudocode": "class Qwen34B(nn.Module):\n    def __init__(self, model_name='Qwen/Qwen3-4B'):\n        self.model = AutoModelForCausalLM.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n\n    def forward(self, input_ids, attention_mask):\n        return self.model(input_ids, attention_mask=attention_mask)\n\n    def get_next_token_distribution(self, input_ids, attention_mask):\n        outputs = self.forward(input_ids, attention_mask)\n        logits = outputs.logits[:, -1, :]\n        probs = softmax(logits, dim=-1)\n        return probs\n\n    def get_entropy(self, input_ids, attention_mask):\n        probs = self.get_next_token_distribution(input_ids, attention_mask)\n        entropy = -sum(p * log(p) for p in probs)\n        return entropy"
+    },
+    "models/qwen38b.py": {
+      "description": "Wrapper for Qwen3-8B model using Hugging Face Transformers. Provides a unified interface to load the model and tokenizer, and to compute next-token logits and entropy.",
+      "class": "Qwen38B",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward",
+        "get_next_token_distribution",
+        "get_entropy"
+      ],
+      "functions": [],
+      "pseudocode": "class Qwen38B(nn.Module):\n    def __init__(self, model_name='Qwen/Qwen3-8B'):\n        self.model = AutoModelForCausalLM.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n\n    def forward(self, input_ids, attention_mask):\n        return self.model(input_ids, attention_mask=attention_mask)\n\n    def get_next_token_distribution(self, input_ids, attention_mask):\n        outputs = self.forward(input_ids, attention_mask)\n        logits = outputs.logits[:, -1, :]\n        probs = softmax(logits, dim=-1)\n        return probs\n\n    def get_entropy(self, input_ids, attention_mask):\n        probs = self.get_next_token_distribution(input_ids, attention_mask)\n        entropy = -sum(p * log(p) for p in probs)\n        return entropy"
+    },
+    "training/train.py": {
+      "description": "Trains the uncertainty threshold classifier using logistic regression on entropy features. The training data is generated by ground-truth-guided next-token prediction on BigCodeBench. The script loads the dataset, trains the logistic regression model with binary cross-entropy loss, performs grid search over probability thresholds to find the optimal threshold maximizing classification accuracy, and saves the learned threshold for each model.",
+      "functions": [
+        "train_epoch",
+        "validate",
+        "main"
+      ],
+      "uses": [
+        "data.dataset",
+        "models.*",
+        "utils.metrics"
+      ],
+      "pseudocode": "def train_epoch(model, dataloader, optimizer, criterion):\n    model.train()\n    total_loss = 0\n    for batch in dataloader:\n        entropy, label = batch\n        optimizer.zero_grad()\n        logits = model(entropy)\n        loss = criterion(logits, label)\n        loss.backward()\n        optimizer.step()\n        total_loss += loss.item()\n    return total_loss / len(dataloader)\n\ndef validate(model, dataloader, criterion):\n    model.eval()\n    total_loss = 0\n    correct = 0\n    with torch.no_grad():\n        for batch in dataloader:\n            entropy, label = batch\n            logits = model(entropy)\n            loss = criterion(logits, label)\n            total_loss += loss.item()\n            preds = (torch.sigmoid(logits) > 0.5).float()\n            correct += (preds == label).sum().item()\n    return total_loss / len(dataloader), correct / len(dataloader.dataset)\n\ndef main():\n    # Load config\n    # Initialize model (e.g., DeepSeekCoder13B67BInstruct)\n    # Generate threshold samples using dataset.py\n    # Train logistic regression model\n    # Grid search over probability thresholds [0.01, 0.99] step 0.01\n    # Save best threshold to config or output file"
+    },
+    "utils/metrics.py": {
+      "description": "Implements evaluation metrics for code generation, primarily Pass@1. Also includes utility functions for computing entropy, ranking correlation, and pause rate statistics.",
+      "class": "None",
+      "parent_class": "None",
+      "methods": [],
+      "functions": [
+        "pass_at_k",
+        "compute_entropy",
+        "spearman_correlation",
+        "compute_pause_rate"
+      ],
+      "pseudocode": "def pass_at_k(n, c, k):\n    # Compute pass@k metric\n\ndef compute_entropy(logits):\n    # Compute Shannon entropy from logits\n\ndef spearman_correlation(entropy_list, rank_list):\n    # Compute Spearman rank correlation\n\ndef compute_pause_rate(total_steps, pause_steps):\n    # Return pause rate as percentage"
+    },
+    "utils/decoding.py": {
+      "description": "Implements the AdaDec decoding framework, including the entropy-guided pause-then-rerank mechanism with lookahead. Provides functions to perform greedy decoding, beam search, and AdaDec decoding for a given model and threshold.",
+      "class": "AdaDecDecoder",
+      "parent_class": "None",
+      "methods": [
+        "__init__",
+        "decode",
+        "_should_pause",
+        "_rerank_with_lookahead"
+      ],
+      "functions": [
+        "greedy_decode",
+        "beam_search_decode",
+        "adadec_decode"
+      ],
+      "pseudocode": "class AdaDecDecoder:\n    def __init__(self, model, tokenizer, threshold, top_k=5, lookahead_steps=3):\n        self.model = model\n        self.tokenizer = tokenizer\n        self.threshold = threshold\n        self.top_k = top_k\n        self.lookahead_steps = lookahead_steps\n\n    def decode(self, prompt, max_length=1024):\n        input_ids = tokenizer(prompt, return_tensors='pt').input_ids\n        generated = input_ids\n        while len(generated) < max_length:\n            entropy = self.model.get_entropy(generated, attention_mask)\n            if entropy <= self.threshold:\n                next_token = greedy_next_token(generated)\n            else:\n                next_token = self._rerank_with_lookahead(generated)\n            generated = concat(generated, next_token)\n            if next_token == eos_token_id:\n                break\n        return generated\n\n    def _should_pause(self, entropy):\n        return entropy > self.threshold\n\n    def _rerank_with_lookahead(self, input_ids):\n        # Get top-k candidates\n        # For each candidate, generate lookahead_steps tokens\n        # Score = average log-prob of candidate + lookahead tokens\n        # Return token with highest score\n\ndef greedy_decode(model, tokenizer, prompt, max_length):\n    # Standard greedy decoding\n\ndef beam_search_decode(model, tokenizer, prompt, max_length, num_beams):\n    # Standard beam search\n\ndef adadec_decode(model, tokenizer, prompt, threshold, max_length, top_k, lookahead_steps):\n    # Use AdaDecDecoder"
+    },
+    "config/config.yaml": {
+      "description": "Configuration file containing model names, dataset paths, decoding parameters, and training hyperparameters. Must include the exact training parameters specified: batch_size=1, epochs=30, scheduler StepLR with step_size=3808142 and gamma=0.0008733624454148472.",
+      "class": "None",
+      "parent_class": "None",
+      "methods": [],
+      "functions": [],
+      "pseudocode": "model:\n  name: deepseek-coder-1.3b-instruct\n  # other model names as needed\n\ndataset:\n  path: /path/to/datasets\n  name: humaneval_plus\n  version: default\n\ndecoding:\n  max_length: 1024\n  top_k: 5\n  lookahead_steps: 3\n  threshold: TO_BE_DETERMINED  # learned per model\n\ntraining:\n  batch_size: 1\n  epochs: 30\n  optimizer: NOT_FOUND\n  learning_rate: NOT_FOUND\n  momentum: NOT_FOUND\n  weight_decay: NOT_FOUND\n  scheduler:\n    name: StepLR\n    step_size: 3808142\n    gamma: 0.0008733624454148472"
+    },
+    "evaluation/evaluate.py": {
+      "description": "Evaluates the AdaDec framework against baselines (Greedy, Beam Search, AdapT) on code generation benchmarks. Computes Pass@1 scores and pause rates. Supports multiple models and datasets.",
+      "class": "Evaluator",
+      "parent_class": "None",
+      "methods": [
+        "__init__",
+        "evaluate",
+        "_run_single_problem"
+      ],
+      "functions": [
+        "evaluate_model",
+        "compute_pass_at_1"
+      ],
+      "pseudocode": "class Evaluator:\n    def __init__(self, model, tokenizer, dataset, decoding_method, threshold=None):\n        self.model = model\n        self.tokenizer = tokenizer\n        self.dataset = dataset\n        self.decoding_method = decoding_method\n        self.threshold = threshold\n\n    def evaluate(self):\n        pass_at_1 = 0\n        total = len(self.dataset)\n        for problem in self.dataset:\n            generated_code = self._run_single_problem(problem)\n            if check_correct(generated_code, problem.reference):\n                pass_at_1 += 1\n        return pass_at_1 / total\n\n    def _run_single_problem(self, problem):\n        # Use decoding method to generate code\n\ndef evaluate_model(model_name, dataset_name, decoding_method, threshold):\n    # Load model, dataset, run evaluation, print Pass@1 and pause rate"
+    },
+    "utils/logger.py": {
+      "description": "Provides logging utilities for tracking decoding steps, entropy values, pause events, and evaluation results. Supports console and file output.",
+      "class": "Logger",
+      "parent_class": "None",
+      "methods": [
+        "__init__",
+        "log",
+        "log_entropy",
+        "log_pause",
+        "save_results"
+      ],
+      "functions": [
+        "setup_logger"
+      ],
+      "pseudocode": "class Logger:\n    def __init__(self, log_file=None):\n        self.log_file = log_file\n        self.entries = []\n\n    def log(self, message):\n        print(message)\n        if self.log_file:\n            append to file\n\n    def log_entropy(self, step, entropy):\n        self.entries.append({'step': step, 'entropy': entropy})\n\n    def log_pause(self, step, candidates):\n        self.entries.append({'step': step, 'pause': True, 'candidates': candidates})\n\n    def save_results(self, path):\n        # Save entries to JSON"
+    }
+  }
+}

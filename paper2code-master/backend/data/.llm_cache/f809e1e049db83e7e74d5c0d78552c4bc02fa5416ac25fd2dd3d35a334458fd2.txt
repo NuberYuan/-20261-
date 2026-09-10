@@ -1,0 +1,18 @@
+{
+  "table_id": "table_3",
+  "table_type": "other",
+  "caption_summary": "A bullet list containing five numeric values: 2, 0, 3, 2, 0.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Item 1", "value": "2"},
+      {"label": "Item 2", "value": "0"},
+      {"label": "Item 3", "value": "3"},
+      {"label": "Item 4", "value": "2"},
+      {"label": "Item 5", "value": "0"}
+    ]
+  },
+  "table_summary": "The table consists of a bullet list with five numeric entries: 2, 0, 3, 2, and 0. Without additional context, it is unclear what these values represent, as no headers, labels, or descriptive text are provided. The table does not appear to contain experimental results, comparisons, or other standard academic table structures."
+}

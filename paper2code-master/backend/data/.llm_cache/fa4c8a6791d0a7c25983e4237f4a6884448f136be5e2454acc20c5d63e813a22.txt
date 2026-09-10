@@ -1,0 +1,101 @@
+{
+  "title": "An explainable AI framework for enhanced software defect prediction using transformer-assisted boosting",
+  "research_problem": "软件缺陷预测（SDP）中，现有机器学习或深度学习方法虽然预测精度高，但缺乏可解释性，导致软件质量保证（QA）团队难以理解和信任模型预测，从而难以在实际中应用。",
+  "motivation": "为了弥合预测性能与可解释性之间的差距，使软件缺陷预测模型不仅准确，而且能够提供可操作的见解，便于软件质量保证实践者使用。",
+  "main_contribution": "提出TABF（Transformer-Assisted Boosting Framework），将Transformer的自注意力机制与XGBoost结合，实现高预测精度和可解释性；使用SHAP解释特征重要性，并在两个真实数据集（NASA MDP和Code4Code）上验证了其优越性。",
+
+  "methodology": {
+    "method_name": "TABF (Transformer-Assisted Boosting Framework)",
+    "core_idea": "利用Transformer编码器对软件度量特征进行注意力加权，生成上下文感知的加权特征向量，再输入XGBoost分类器进行缺陷预测，并通过SHAP提供实例级解释。",
+    "pipeline": "数据预处理（缺失值迭代插补、异常值z-score去除、Min-Max归一化、SMOTE过采样、独热编码）。特征工程（提取共享特征：LOC、McCabe CC、Halstead Volume、Halstead Effort、Comment Density、Module Size）。Transformer编码器计算注意力权重，生成加权特征向量。加权特征向量输入XGBoost分类器进行缺陷预测。使用SHAP解释模型预测，提供特征重要性。",
+    "model": "Transformer, XGBoost",
+    "model_architecture": {
+      "input": "软件度量特征向量，维度为d（特征数量），例如NASA MDP和Code4Code数据集中的静态代码度量。",
+      "output": "二分类缺陷预测（0或1），以及预测概率。",
+      "feature_extraction": "Transformer编码器使用缩放点积注意力机制（Attention(Q,K,V)=Softmax(QK^T/√d_K)V）计算特征权重，生成加权特征向量。",
+      "classification": "XGBoost分类器，基于梯度提升决策树，对加权特征向量进行分类。",
+      "pretrained_model": "NOT_FOUND",
+      "special_modules": "Transformer编码器（自注意力机制）、XGBoost（梯度提升决策树）、SHAP（解释模块）。",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "Transformer编码器，使用缩放点积注意力，计算注意力权重α_j，生成加权表示z_i = Σ α_j x_ij，其中α_j满足Σα_j=1, α_j≥0。",
+      "lstm": "NOT_FOUND"
+    }
+  },
+
+  "dataset": {
+    "dataset_name": "NASA MDP (Metrics Data Program) 和 Code4Code",
+    "dataset_source": "NASA MDP: PROMISE repository; Code4Code: Code4Code repository (ML4Code-style dataset)",
+    "dataset_size": "NASA MDP: 按项目子集变化（如CM1有327个模块，PC1有705个模块）；Code4Code: 项目依赖",
+    "number_of_classes": "2 (二分类：有缺陷/无缺陷)",
+    "data_type": "静态代码度量数据（数值型），包括行数、圈复杂度、Halstead度量等。",
+    "train_test_split": "NOT_FOUND",
+    "preprocessing": "缺失值使用多元迭代插补（chained regression models）；异常值使用z-score方法（|z|>3）去除；Min-Max归一化到[0,1]；SMOTE应用于训练数据以平衡类别；独热编码用于分类变量。"
+  },
+
+  "implementation_details": {
+    "programming_framework": "NOT_FOUND",
+    "optimizer": "Adam (用于Transformer编码器), XGBoost使用二阶梯度提升",
+    "learning_rate": "NOT_FOUND",
+    "batch_size": "NOT_FOUND",
+    "epoch": "NOT_FOUND",
+    "loss_function": "二元交叉熵（Binary Cross-Entropy）",
+    "hardware": "NOT_FOUND",
+    "training_strategy": "训练分两个阶段：Transformer编码器通过梯度下降（Adam）学习注意力权重；XGBoost通过二阶梯度提升优化决策树。使用网格搜索和交叉验证进行超参数调优，包括注意力头数(H)、嵌入维度(d_model)、dropout率(p)、学习率(η)、最大树深度(d)、估计器数量(K)、正则化参数(λ, α)。"
+  },
+
+  "experiment": {
+    "evaluation_metrics": "准确率, 精确率, 召回率, F1分数, AUC-ROC, 对数损失",
+    "baseline_methods": "Random Forest, SVM, 以及其他传统机器学习模型",
+    "comparison_results": "TABF的AUC分数为0.95，ROC为0.96，优于Random Forest和SVM（准确率分别为92.5%和94.3%）。",
+    "ablation_study": "NOT_FOUND",
+    "important_results": "TABF在NASA MDP和Code4Code数据集上取得AUC 0.95和ROC 0.96；SHAP分析显示行数和McCabe圈复杂度是最重要的缺陷预测因子；将SHAP重要性分数用于初始化Transformer注意力权重，略微提升了预测性能。"
+  },
+
+  "reproduction_requirements": {
+    "required_modules": ["Transformer", "XGBoost", "SHAP", "scikit-learn", "imbalanced-learn (SMOTE)"],
+    "important_parameters": {
+      "attention_heads": "H",
+      "embedding_dim": "d_model",
+      "dropout_rate": "p",
+      "learning_rate": "η",
+      "max_tree_depth": "d",
+      "n_estimators": "K",
+      "regularization_lambda": "λ",
+      "regularization_alpha": "α"
+    },
+    "possible_difficulties": ["论文未提供具体超参数值，需要自行调优", "数据集的具体划分方式未明确", "Transformer和XGBoost的联合训练细节不完整"]
+  },
+
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "model_architecture",
+      "description": "TABF混合模型架构图，展示Transformer编码器（注意力机制）与XGBoost分类器的流水线。",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "NOT_FOUND",
+      "conclusion": "NOT_FOUND",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    },
+    {
+      "figure_number": "Figure 9",
+      "type": "experiment_result",
+      "description": "结构性和注释特征的影响图，展示SHAP分析结果。",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "NOT_FOUND",
+      "conclusion": "NOT_FOUND",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    }
+  ]
+}

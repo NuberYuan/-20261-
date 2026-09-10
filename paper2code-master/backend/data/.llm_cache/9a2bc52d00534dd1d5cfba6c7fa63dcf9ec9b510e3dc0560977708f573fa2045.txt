@@ -1,0 +1,579 @@
+```python
+import os
+import sys
+import argparse
+import logging
+from pathlib import Path
+from typing import Dict, Optional, Any, List, Tuple
+
+import numpy as np
+import torch
+import yaml
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders
+from training.train import (
+    load_config,
+    setup_logging,
+    initialize_model,
+    train_model,
+    validate,
+    save_model,
+)
+from evaluation.evaluate import evaluate_model, generate_report
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Temporal Fusion Transformer - Main Entry Point")
+    parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="Index of the experiment run to execute (from experiment.runs). If not provided, all runs are executed.",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/config.yaml",
+        help="Path to configuration file (default: config/config.yaml)",
+    )
+    return parser.parse_args()
+
+
+def setup_logging_for_main(log_dir: str = "./logs", log_level: str = "INFO") -> logging.Logger:
+    """Setup logging for the main entry point."""
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "main.log")
+
+    logger = logging.getLogger("tft_main")
+    logger.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+    # File handler
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+    # Formatter
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+
+    # Add handlers if not already present
+    if not logger.handlers:
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+
+    return logger
+
+
+def get_dataset_version_from_run(run: Dict[str, Any]) -> str:
+    """Extract dataset version from a run configuration."""
+    return run.get("dataset_version", "default")
+
+
+def is_dataset_resolved(config: Dict[str, Any], version: str) -> bool:
+    """Check if a dataset version is resolved (not 'unresolved')."""
+    data_cfg = config.get("data", {})
+    version_cfg = data_cfg.get(version, {})
+    status = version_cfg.get("status", "resolved")
+    return status != "unresolved"
+
+
+def get_batch_size(config: Dict[str, Any], run: Dict[str, Any]) -> int:
+    """Get batch size for a run from config."""
+    training_cfg = config.get("training", {})
+    batch_sizes = training_cfg.get("batch_size", {}).get("temporal_fusion_transformer", [64])
+    if isinstance(batch_sizes, list) and len(batch_sizes) > 0:
+        return int(batch_sizes[0])
+    return 64
+
+
+def get_epochs(config: Dict[str, Any]) -> int:
+    """Get number of epochs from config."""
+    training_cfg = config.get("training", {})
+    return int(training_cfg.get("epochs", 30))
+
+
+def get_num_workers(config: Dict[str, Any]) -> int:
+    """Get number of workers from config."""
+    system_cfg = config.get("system", {})
+    return int(system_cfg.get("num_workers", 4))
+
+
+def get_seed(config: Dict[str, Any]) -> int:
+    """Get random seed from config."""
+    system_cfg = config.get("system", {})
+    return int(system_cfg.get("seed", 42))
+
+
+def get_device(config: Dict[str, Any]) -> torch.device:
+    """Determine device from config."""
+    system_cfg = config.get("system", {})
+    device_name = system_cfg.get("device", "cuda")
+    if device_name == "cuda" and torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
+def set_random_seeds(seed: int) -> None:
+    """Set random seeds for reproducibility."""
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def run_single_experiment(
+    run: Dict[str, Any],
+    config: Dict[str, Any],
+    logger: logging.Logger,
+    output_dir: Path,
+) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
+    """
+    Execute a single experiment run.
+
+    Args:
+        run: Run configuration dictionary.
+        config: Global configuration dictionary.
+        logger: Logger instance.
+        output_dir: Directory to save outputs.
+
+    Returns:
+        Tuple of (success, metrics, report_path).
+    """
+    run_name = run.get("name", "tft_run")
+    dataset_name = run.get("dataset", "electricity")
+    dataset_version = get_dataset_version_from_run(run)
+    model_name = run.get("model", "temporal_fusion_transformer")
+    training_mode = run.get("training_mode", "scratch")
+    seed = run.get("seed", get_seed(config))
+
+    logger.info(f"Starting run: {run_name}")
+    logger.info(f"  Dataset: {dataset_name}, Version: {dataset_version}")
+    logger.info(f"  Model: {model_name}, Training mode: {training_mode}")
+
+    # Check if dataset is resolved
+    if not is_dataset_resolved(config, dataset_version):
+        logger.warning(f"Dataset version '{dataset_version}' is unresolved. Skipping run '{run_name}'.")
+        return False, None, None
+
+    # Set random seeds
+    set_random_seeds(seed)
+
+    # Get device
+    device = get_device(config)
+    logger.info(f"  Using device: {device}")
+
+    # Get training parameters
+    batch_size = get_batch_size(config, run)
+    epochs = get_epochs(config)
+    num_workers = get_num_workers(config)
+
+    # Create dataloaders
+    logger.info(f"  Creating dataloaders for dataset: {dataset_name}")
+    try:
+        dataloaders = get_dataloaders(
+            dataset_name=dataset_name,
+            version=dataset_version,
+            config=config,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            seed=seed,
+        )
+    except Exception as e:
+        logger.error(f"  Failed to create dataloaders: {e}")
+        return False, None, None
+
+    train_loader = dataloaders["train_loader"]
+    val_loader = dataloaders["val_loader"]
+    test_loader = dataloaders["test_loader"]
+
+    # Check reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # For engineering mode, create secondary validation split from training set
+    if reproduction_mode == "engineering":
+        logger.info("  Engineering mode: Creating secondary validation split from training set")
+        from data.dataset import create_secondary_validation_split
+        from torch.utils.data import DataLoader
+
+        val_split_ratio = config.get("split_strategy", {}).get("val_split_ratio", 0.2)
+
+        # Create secondary validation split
+        train_dataset = train_loader.dataset
+        train_subset, val_subset = create_secondary_validation_split(
+            train_dataset,
+            val_ratio=val_split_ratio,
+            seed=seed,
+        )
+
+        # Create new dataloaders
+        train_loader = DataLoader(
+            train_subset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
+        val_loader = DataLoader(
+            val_subset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
+        logger.info(f"  Train samples: {len(train_subset)}, Val samples: {len(val_subset)}")
+    else:
+        logger.info("  Strict mode: No validation split, using train/test only")
+        val_loader = None
+
+    # Initialize model
+    logger.info("  Initializing model from scratch")
+    try:
+        model = initialize_model(
+            config=config,
+            model_name=model_name,
+            device=device,
+        )
+    except Exception as e:
+        logger.error(f"  Failed to initialize model: {e}")
+        return False, None, None
+
+    # Log model info
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"  Model initialized with {num_params:,} trainable parameters")
+
+    # Train model
+    logger.info(f"  Starting training for {epochs} epochs with batch_size={batch_size}")
+    try:
+        history = train_model(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            config=config,
+            device=device,
+            logger=logger,
+            run_name=run_name,
+        )
+    except Exception as e:
+        logger.error(f"  Training failed: {e}")
+        return False, None, None
+
+    # Evaluate on test set
+    logger.info("  Evaluating on test set")
+    try:
+        eval_result = evaluate_model(
+            model=model,
+            test_loader=test_loader,
+            config=config,
+            device=device,
+        )
+    except Exception as e:
+        logger.error(f"  Evaluation failed: {e}")
+        return False, None, None
+
+    metrics = eval_result["metrics"]
+    logger.info(f"  Test metrics: P50={metrics.get('P50', 0.0):.6f}, "
+                f"P90={metrics.get('P90', 0.0):.6f}, "
+                f"q_risk={metrics.get('q_risk', 0.0):.6f}")
+
+    # Save final model
+    checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints", run_name)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    final_path = os.path.join(checkpoint_dir, "final_model.pt")
+    try:
+        save_model(
+            model=model,
+            config=config,
+            path=final_path,
+            epoch=epochs,
+            metric_value=metrics.get("P50", 0.0),
+        )
+        logger.info(f"  Final model saved to {final_path}")
+    except Exception as e:
+        logger.warning(f"  Failed to save final model: {e}")
+
+    # Generate report
+    report_dir = output_dir / run_name
+    report_dir.mkdir(exist_ok=True)
+    try:
+        report_path = generate_report(
+            metrics=metrics,
+            run_name=run_name,
+            output_dir=str(report_dir),
+            config=config,
+        )
+        logger.info(f"  Report saved to {report_path}")
+    except Exception as e:
+        logger.warning(f"  Failed to generate report: {e}")
+        report_path = None
+
+    logger.info(f"Run '{run_name}' completed successfully")
+    return True, metrics, report_path
+
+
+def generate_summary_report(
+    results: List[Dict[str, Any]],
+    output_dir: Path,
+    config: Dict[str, Any],
+) -> str:
+    """
+    Generate a summary report for all runs.
+
+    Args:
+        results: List of result dictionaries for each run.
+        output_dir: Directory to save the summary report.
+        config: Configuration dictionary.
+
+    Returns:
+        Path to the summary report file.
+    """
+    summary_path = output_dir / "summary_report.txt"
+
+    lines = []
+    lines.append("=" * 70)
+    lines.append("TFT Summary Report")
+    lines.append("=" * 70)
+    lines.append("")
+
+    # Project info
+    project_name = config.get("project", {}).get("name", "temporal_fusion_transformers")
+    paper_title = config.get("project", {}).get("paper", "")
+    lines.append(f"Project: {project_name}")
+    lines.append(f"Paper: {paper_title}")
+    lines.append("")
+
+    # Reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+    lines.append(f"Reproduction mode: {reproduction_mode}")
+    lines.append("")
+
+    # Results summary
+    lines.append("-" * 70)
+    lines.append("Run Results")
+    lines.append("-" * 70)
+    lines.append("")
+
+    successful_runs = 0
+    skipped_runs = 0
+    failed_runs = 0
+
+    for result in results:
+        run_name = result.get("run_name", "unknown")
+        status = result.get("status", "unknown")
+        metrics = result.get("metrics")
+
+        if status == "success":
+            successful_runs += 1
+            lines.append(f"Run: {run_name} - SUCCESS")
+            if metrics:
+                p50 = metrics.get("P50", 0.0)
+                p90 = metrics.get("P90", 0.0)
+                q_risk = metrics.get("q_risk", 0.0)
+                lines.append(f"  P50: {p50:.6f}")
+                lines.append(f"  P90: {p90:.6f}")
+                lines.append(f"  q-Risk: {q_risk:.6f}")
+        elif status == "skipped":
+            skipped_runs += 1
+            lines.append(f"Run: {run_name} - SKIPPED (dataset unresolved)")
+        else:
+            failed_runs += 1
+            lines.append(f"Run: {run_name} - FAILED")
+            error = result.get("error", "Unknown error")
+            lines.append(f"  Error: {error}")
+
+        lines.append("")
+
+    # Summary statistics
+    lines.append("-" * 70)
+    lines.append("Summary Statistics")
+    lines.append("-" * 70)
+    lines.append("")
+    lines.append(f"Total runs: {len(results)}")
+    lines.append(f"Successful: {successful_runs}")
+    lines.append(f"Skipped: {skipped_runs}")
+    lines.append(f"Failed: {failed_runs}")
+    lines.append("")
+
+    # Comparative analysis (dynamically computed from results)
+    if successful_runs > 1:
+        lines.append("-" * 70)
+        lines.append("Comparative Analysis (computed from actual results)")
+        lines.append("-" * 70)
+        lines.append("")
+
+        # Collect P50 values for comparison
+        p50_values = {}
+        for result in results:
+            if result.get("status") == "success" and result.get("metrics"):
+                run_name = result.get("run_name", "unknown")
+                p50 = result["metrics"].get("P50", 0.0)
+                p50_values[run_name] = p50
+
+        if len(p50_values) > 1:
+            # Find best and worst
+            best_run = min(p50_values, key=p50_values.get)
+            worst_run = max(p50_values, key=p50_values.get)
+            lines.append(f"Best P50: {best_run} ({p50_values[best_run]:.6f})")
+            lines.append(f"Worst P50: {worst_run} ({p50_values[worst_run]:.6f})")
+            lines.append("")
+            lines.append("Note: These comparisons are dynamically computed from actual")
+            lines.append("evaluation results and do not represent paper conclusions.")
+            lines.append("")
+
+    # Engineering notes
+    lines.append("-" * 70)
+    lines.append("Engineering Notes")
+    lines.append("-" * 70)
+    lines.append("")
+    lines.append("- The paper uses train/test split without a separate validation set.")
+    lines.append("- For engineering purposes, a validation split may be created from")
+    lines.append("  the training set (engineering deviation from paper).")
+    lines.append("- Metrics are computed on the test set only.")
+    lines.append("")
+
+    # Write summary report
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    return str(summary_path)
+
+
+def main() -> None:
+    """Main entry point for the TFT project."""
+    # Parse command line arguments
+    args = parse_args()
+
+    # Load configuration
+    config_path = args.config
+    if not os.path.exists(config_path):
+        # Try default path relative to project root
+        config_path = os.path.join(PROJECT_ROOT, "config", "config.yaml")
+
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    # Setup logging
+    log_dir = config.get("logging", {}).get("log_dir", "./logs")
+    log_level = config.get("logging", {}).get("log_level", "INFO")
+    logger = setup_logging_for_main(log_dir, log_level)
+
+    logger.info("=" * 70)
+    logger.info("Temporal Fusion Transformer - Main Entry Point")
+    logger.info("=" * 70)
+
+    # Get experiment runs
+    runs = config.get("experiment", {}).get("runs", [])
+    if not runs:
+        logger.error("No experiment runs found in config")
+        return
+
+    # Filter runs based on --run argument
+    if args.run is not None:
+        if args.run < 0 or args.run >= len(runs):
+            logger.error(f"Invalid run index: {args.run}. Valid range: 0-{len(runs) - 1}")
+            return
+        runs_to_execute = [runs[args.run]]
+        logger.info(f"Executing single run at index {args.run}: {runs[args.run].get('name', 'unknown')}")
+    else:
+        runs_to_execute = runs
+        logger.info(f"Executing all {len(runs)} runs")
+
+    # Initialize output directory before the loop
+    output_dir = Path("reports")
+    output_dir.mkdir(exist_ok=True)
+    logger.info(f"Output directory initialized: {output_dir}")
+
+    # Execute runs
+    results: List[Dict[str, Any]] = []
+
+    for run in runs_to_execute:
+        run_name = run.get("name", "tft_run")
+        dataset_name = run.get("dataset", "electricity")
+        dataset_version = get_dataset_version_from_run(run)
+
+        # Check if dataset is resolved
+        if not is_dataset_resolved(config, dataset_version):
+            logger.warning(f"Dataset version '{dataset_version}' is unresolved. Skipping run '{run_name}'.")
+            results.append({
+                "run_name": run_name,
+                "status": "skipped",
+                "metrics": None,
+                "error": f"Dataset version '{dataset_version}' is unresolved",
+            })
+            continue
+
+        # Execute the run
+        try:
+            success, metrics, report_path = run_single_experiment(
+                run=run,
+                config=config,
+                logger=logger,
+                output_dir=output_dir,
+            )
+
+            if success:
+                results.append({
+                    "run_name": run_name,
+                    "status": "success",
+                    "metrics": metrics,
+                    "report_path": report_path,
+                    "error": None,
+                })
+            else:
+                results.append({
+                    "run_name": run_name,
+                    "status": "failed",
+                    "metrics": None,
+                    "report_path": None,
+                    "error": "Run failed during execution",
+                })
+        except Exception as e:
+            logger.error(f"Unexpected error during run '{run_name}': {e}")
+            results.append({
+                "run_name": run_name,
+                "status": "failed",
+                "metrics": None,
+                "report_path": None,
+                "error": str(e),
+            })
+
+    # Generate summary report
+    logger.info("Generating summary report")
+    summary_path = generate_summary_report(
+        results=results,
+        output_dir=output_dir,
+        config=config,
+    )
+    logger.info(f"Summary report saved to {summary_path}")
+
+    # Log final summary
+    successful = sum(1 for r in results if r["status"] == "success")
+    skipped = sum(1 for r in results if r["status"] == "skipped")
+    failed = sum(1 for r in results if r["status"] == "failed")
+
+    logger.info("=" * 70)
+    logger.info("Execution Summary")
+    logger.info(f"  Total runs: {len(results)}")
+    logger.info(f"  Successful: {successful}")
+    logger.info(f"  Skipped: {skipped}")
+    logger.info(f"  Failed: {failed}")
+    logger.info("=" * 70)
+
+
+if __name__ == "__main__":
+    main()
+```

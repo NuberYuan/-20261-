@@ -1,0 +1,215 @@
+import torch
+import torch.nn as nn
+import yaml
+import os
+
+
+class UNet(nn.Module):
+    """
+    U-Net model for medical image segmentation.
+
+    Architecture based on the original U-Net paper:
+    "U-Net: Convolutional Networks for Biomedical Image Segmentation"
+    (Ronneberger et al., 2015).
+
+    The model consists of an encoder (contracting path) and a decoder
+    (expanding path) with skip connections. The encoder captures context,
+    while the decoder enables precise localization.
+
+    This implementation uses:
+    - Double convolution blocks (conv + BN + ReLU) at each level.
+    - Max pooling for downsampling in the encoder.
+    - Transposed convolutions for upsampling in the decoder.
+    - Skip connections that concatenate encoder features with decoder features.
+    - A final 1x1 convolution to produce the output segmentation map.
+
+    The model is randomly initialized (no pretrained weights).
+    """
+
+    def __init__(self, config=None):
+        """
+        Initialize the U-Net model.
+
+        Args:
+            config (dict, optional): Configuration dictionary loaded from
+                config/config.yaml. If None, default values are used.
+                Expected keys (with defaults if not present):
+                - model.num_classes: Number of output classes (default: 1).
+                - model.dropout_ratio: Dropout ratio (default: None, i.e., no dropout).
+        """
+        super(UNet, self).__init__()
+
+        # Load configuration
+        if config is None:
+            config = {}
+
+        # Safely extract parameters from config with defaults
+        model_config = config.get('model', {}) if isinstance(config, dict) else {}
+
+        # num_classes: default to 1 (binary segmentation as in the paper)
+        # The paper uses binary segmentation (foreground/background), so 1 output channel.
+        num_classes = model_config.get('num_classes', 1)
+        if num_classes is None:
+            # Fallback default: 1 (binary segmentation as described in the paper)
+            num_classes = 1
+
+        # dropout_ratio: default None (no dropout in the original U-Net)
+        dropout_ratio = model_config.get('dropout_ratio', None)
+        if dropout_ratio is not None and not isinstance(dropout_ratio, (int, float)):
+            dropout_ratio = None
+
+        # Base number of channels (as in the original U-Net paper)
+        base_channels = 64
+
+        # Encoder (contracting path)
+        # Each level: double conv block followed by max pooling
+        self.enc1 = self._double_conv(3, base_channels, dropout_ratio)          # 3 -> 64
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.enc2 = self._double_conv(base_channels, base_channels * 2, dropout_ratio)  # 64 -> 128
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.enc3 = self._double_conv(base_channels * 2, base_channels * 4, dropout_ratio)  # 128 -> 256
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.enc4 = self._double_conv(base_channels * 4, base_channels * 8, dropout_ratio)  # 256 -> 512
+        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Bottleneck
+        self.bottleneck = self._double_conv(base_channels * 8, base_channels * 16, dropout_ratio)  # 512 -> 1024
+
+        # Decoder (expanding path)
+        # Each level: upsampling + skip connection + double conv
+        self.up4 = nn.ConvTranspose2d(base_channels * 16, base_channels * 8, kernel_size=2, stride=2)
+        self.dec4 = self._double_conv(base_channels * 16, base_channels * 8, dropout_ratio)  # 1024 -> 512
+
+        self.up3 = nn.ConvTranspose2d(base_channels * 8, base_channels * 4, kernel_size=2, stride=2)
+        self.dec3 = self._double_conv(base_channels * 8, base_channels * 4, dropout_ratio)  # 512 -> 256
+
+        self.up2 = nn.ConvTranspose2d(base_channels * 4, base_channels * 2, kernel_size=2, stride=2)
+        self.dec2 = self._double_conv(base_channels * 4, base_channels * 2, dropout_ratio)  # 256 -> 128
+
+        self.up1 = nn.ConvTranspose2d(base_channels * 2, base_channels, kernel_size=2, stride=2)
+        self.dec1 = self._double_conv(base_channels * 2, base_channels, dropout_ratio)  # 128 -> 64
+
+        # Output layer: 1x1 convolution to produce the segmentation map
+        self.out_conv = nn.Conv2d(base_channels, num_classes, kernel_size=1)
+
+    def _double_conv(self, in_channels, out_channels, dropout_ratio=None):
+        """
+        Create a double convolution block: Conv2d -> BatchNorm2d -> ReLU -> Conv2d -> BatchNorm2d -> ReLU.
+
+        Args:
+            in_channels (int): Number of input channels.
+            out_channels (int): Number of output channels.
+            dropout_ratio (float, optional): Dropout ratio. If None, no dropout is applied.
+
+        Returns:
+            nn.Sequential: The double convolution block.
+        """
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        ]
+        if dropout_ratio is not None and dropout_ratio > 0:
+            layers.append(nn.Dropout2d(p=dropout_ratio))
+        layers.extend([
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        ])
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        """
+        Forward pass of the U-Net model.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, 3, H, W).
+
+        Returns:
+            torch.Tensor: Output segmentation map of shape (batch_size, num_classes, H, W).
+        """
+        # Encoder
+        enc1 = self.enc1(x)          # (B, 64, H, W)
+        enc2 = self.enc2(self.pool1(enc1))  # (B, 128, H/2, W/2)
+        enc3 = self.enc3(self.pool2(enc2))  # (B, 256, H/4, W/4)
+        enc4 = self.enc4(self.pool3(enc3))  # (B, 512, H/8, W/8)
+
+        # Bottleneck
+        bottleneck = self.bottleneck(self.pool4(enc4))  # (B, 1024, H/16, W/16)
+
+        # Decoder with skip connections
+        dec4 = self.up4(bottleneck)   # (B, 512, H/8, W/8)
+        dec4 = torch.cat([dec4, enc4], dim=1)  # (B, 1024, H/8, W/8)
+        dec4 = self.dec4(dec4)        # (B, 512, H/8, W/8)
+
+        dec3 = self.up3(dec4)         # (B, 256, H/4, W/4)
+        dec3 = torch.cat([dec3, enc3], dim=1)  # (B, 512, H/4, W/4)
+        dec3 = self.dec3(dec3)        # (B, 256, H/4, W/4)
+
+        dec2 = self.up2(dec3)         # (B, 128, H/2, W/2)
+        dec2 = torch.cat([dec2, enc2], dim=1)  # (B, 256, H/2, W/2)
+        dec2 = self.dec2(dec2)        # (B, 128, H/2, W/2)
+
+        dec1 = self.up1(dec2)         # (B, 64, H, W)
+        dec1 = torch.cat([dec1, enc1], dim=1)  # (B, 128, H, W)
+        dec1 = self.dec1(dec1)        # (B, 64, H, W)
+
+        # Output
+        out = self.out_conv(dec1)     # (B, num_classes, H, W)
+
+        return out
+
+
+def load_config(config_path=None):
+    """
+    Load configuration from a YAML file.
+
+    Args:
+        config_path (str, optional): Path to the config file.
+            If None, defaults to 'config/config.yaml' relative to the project root.
+
+    Returns:
+        dict: Configuration dictionary.
+    """
+    if config_path is None:
+        # Default path relative to this file's location
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(current_dir, '..', 'config', 'config.yaml')
+
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return config
+    except FileNotFoundError:
+        # Return empty dict if config file not found
+        return {}
+    except Exception:
+        # Return empty dict on any other error
+        return {}
+
+
+if __name__ == '__main__':
+    # Quick test to verify the model can be instantiated and forward pass works
+    config = load_config()
+
+    # Create model
+    model = UNet(config=config)
+
+    # Print model summary
+    print(f"Model: {model.__class__.__name__}")
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total parameters: {total_params:,}")
+    print(f"Trainable parameters: {trainable_params:,}")
+
+    # Test forward pass
+    batch_size = 2
+    input_channels = 3
+    height, width = 256, 256  # Typical input size for medical images
+    x = torch.randn(batch_size, input_channels, height, width)
+    output = model(x)
+    print(f"Input shape: {x.shape}")
+    print(f"Output shape: {output.shape}")

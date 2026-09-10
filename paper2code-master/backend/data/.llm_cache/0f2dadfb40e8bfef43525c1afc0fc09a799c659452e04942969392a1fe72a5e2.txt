@@ -1,0 +1,4 @@
+{
+  "pipeline[1].detail.resize": "NOT_FOUND",
+  "pipeline[1].detail.normalization": "NOT_FOUND"
+}

@@ -1,0 +1,211 @@
+```python
+import os
+import sys
+import json
+import numpy as np
+import cv2
+
+def analyze_image(image_path, ocr_text):
+    """Analyze paper image based on OCR text and basic visual info."""
+    
+    # Default result
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+    
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return result
+        
+        # Get basic image info
+        height, width = img.shape[:2]
+        
+        # Convert OCR text to lowercase for matching
+        ocr_lower = ocr_text.lower()
+        
+        # Architecture keywords
+        arch_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        # Experiment result keywords
+        exp_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "curve", "performance", "comparison"
+        ]
+        
+        # Dataset keywords
+        dataset_keywords = [
+            "sample", "example", "dataset", "input image", "class"
+        ]
+        
+        # Check for experiment result first (highest priority)
+        exp_matches = [kw for kw in exp_keywords if kw in ocr_lower]
+        has_exp_indicators = len(exp_matches) > 0
+        
+        # Check for architecture
+        arch_matches = [kw for kw in arch_keywords if kw in ocr_lower]
+        has_arch_indicators = len(arch_matches) > 0
+        
+        # Check for dataset
+        dataset_matches = [kw for kw in dataset_keywords if kw in ocr_lower]
+        has_dataset_indicators = len(dataset_matches) > 0
+        
+        # Determine image type based on priority
+        if has_exp_indicators:
+            result["type"] = "experiment_result"
+            result["description"] = "展示实验结果或性能对比数据"
+            
+            # Extract important components
+            components = []
+            for kw in ["accuracy", "loss", "precision", "recall", "f1"]:
+                if kw in ocr_lower:
+                    components.append(kw.capitalize())
+            
+            # Add model names if present
+            for model in ["alexnet", "resnet", "vgg", "googlenet", "cnn", "transformer"]:
+                if model in ocr_lower:
+                    components.append(model.upper() if model != "cnn" else "CNN")
+            
+            result["important_components"] = list(set(components))[:5]
+            result["code_relevant_information"] = "需要实现实验评估代码，包括指标计算和结果可视化"
+            
+        elif has_arch_indicators:
+            result["type"] = "architecture"
+            result["description"] = "展示模型网络结构和数据流关系"
+            
+            # Extract specific architecture components
+            components = []
+            arch_component_map = {
+                "alexnet": "AlexNet",
+                "resnet": "ResNet",
+                "vgg": "VGG",
+                "googlenet": "GoogLeNet",
+                "transformer": "Transformer",
+                "attention": "Attention Module",
+                "encoder": "Encoder",
+                "decoder": "Decoder",
+                "embedding": "Embedding Layer",
+                "classifier": "Classifier",
+                "feature extractor": "Feature Extractor",
+                "block": "Block",
+                "cnn": "CNN"
+            }
+            
+            for kw, component in arch_component_map.items():
+                if kw in ocr_lower:
+                    components.append(component)
+            
+            result["important_components"] = list(set(components))[:5]
+            result["code_relevant_information"] = "需要实现模型架构，包括特征提取和分类模块"
+            
+        elif has_dataset_indicators:
+            result["type"] = "dataset"
+            result["description"] = "展示数据集样本或输入示例"
+            result["important_components"] = []
+            result["code_relevant_information"] = "需要实现数据加载和预处理代码"
+            
+        else:
+            # Check visual characteristics as fallback
+            # Check if image is mostly grayscale (common in architecture diagrams)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            std_dev = np.std(gray)
+            
+            # Check color variance
+            color_variance = np.std(img[:,:,0]) + np.std(img[:,:,1]) + np.std(img[:,:,2])
+            
+            # Architecture diagrams often have low color variance
+            if color_variance < 50 and std_dev > 30:
+                result["type"] = "architecture"
+                result["description"] = "展示模型结构示意图"
+                result["important_components"] = []
+                result["code_relevant_information"] = "需要实现模型结构定义代码"
+            
+            # Experiment plots often have specific patterns
+            elif height > 200 and width > 200:
+                # Check if image has plot-like characteristics
+                # Look for axis-like patterns (lines near edges)
+                edges_x = np.mean(gray[5:15, :])
+                edges_y = np.mean(gray[:, 5:15])
+                center = np.mean(gray[height//2-10:height//2+10, width//2-10:width//2+10])
+                
+                if abs(edges_x - edges_y) < 30 and abs(center - np.mean(gray)) > 20:
+                    result["type"] = "experiment_result"
+                    result["description"] = "展示实验数据图表"
+                    result["important_components"] = []
+                    result["code_relevant_information"] = "需要实现数据可视化代码"
+        
+        return result
+        
+    except Exception as e:
+        # Return default result on any error
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+def main():
+    # Get image path from command line
+    if len(sys.argv) < 2:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }))
+        return
+    
+    image_path = sys.argv[1]
+    
+    # OCR text provided externally
+    ocr_text = """Feature: McCabe_Cyclomatic_Complexity
+Feature: Lines_of_Code
+0.06
+0.25
+0.20
+0.04
+0.15
+0.02
+0.10
+0.05
+0.00
+-0.02
+-0.05
+-0.10
+~0.04
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2
+1.4
+McCabe_Cyclomatic_Complexity
+Lines of Code
+Feature: Number_of Methods
+Feature: Number_of_Comments
+0.03
+0.01
+~0.05
+~0.10"""
+    
+    # Analyze the image
+    result = analyze_image(image_path, ocr_text)
+    
+    # Output JSON
+    print(json.dumps(result, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```

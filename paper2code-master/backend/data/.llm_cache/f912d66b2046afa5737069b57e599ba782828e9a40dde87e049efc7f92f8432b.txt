@@ -1,0 +1,119 @@
+# UNet++ 医学图像分割项目
+
+本项目基于论文 **"UNet++: A Nested U-Net Architecture for Medical Image Segmentation"** 实现了嵌套 U-Net 架构，并提供了完整的训练、评估与对比流程。项目框架为 PyTorch，支持多种 U-Net 变体（U-Net、Wide U-Net、UNet++）的构建与训练。
+
+## 项目结构
+
+```
+README.md
+main.py
+requirements.txt
+config/config/config.yaml
+data/data/dataset.py
+evaluation/evaluation/compare.py
+evaluation/evaluation/evaluate.py
+models/models/__init__.py
+models/models/u_net.py
+models/models/wide_u_net.py
+training/training/train.py
+utils/utils/metrics.py
+```
+
+## 环境要求
+
+- Python 3.8+
+- PyTorch 1.10+
+- CUDA 11.0+（推荐，用于 GPU 加速）
+- 其他依赖见 `requirements.txt`
+
+安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+## 配置说明
+
+所有实验配置均通过 `config/config/config.yaml` 文件管理，包括数据路径、模型架构、训练超参数、评估设置等。主要配置项如下：
+
+- **数据配置** (`data`)：数据根目录、特征维度、归一化方式、数据版本等。
+- **模型配置** (`model`)：模型架构选择、类别数、dropout 比例、权重初始化方式。
+- **训练配置** (`training`)：优化器（Adam）、学习率、批次大小、训练轮数、损失函数（BCE + Dice 系数组合）、学习率调度器等。
+- **评估配置** (`inference`)：推理设备、批次大小。
+- **日志配置** (`logging`)：日志目录、日志级别、是否保存 CSV。
+- **系统配置** (`system`)：设备、随机种子、并行工作线程数。
+
+> **注意**：论文中未设置独立验证集。本项目在训练过程中从训练集二次划分验证集，用于模型选择与早停判断，避免数据泄露。
+
+## 运行方法
+
+### 1. 训练模型
+
+通过 `main.py` 启动训练，默认读取 `config/config/config.yaml` 中的配置：
+
+```bash
+python main.py
+```
+
+训练过程中将：
+
+- 按配置的轮数（epochs）迭代训练；
+- 使用 Adam 优化器，学习率按配置设定；
+- 损失函数为二元交叉熵与 Dice 系数的组合；
+- 定期保存检查点（checkpoint），支持断点续训（`checkpoint.resume_from`）；
+- 记录训练/验证指标至日志目录。
+
+### 2. 评估模型
+
+训练完成后，使用评估脚本对测试集进行推理与指标计算：
+
+```bash
+python evaluation/evaluation/evaluate.py
+```
+
+评估指标包括 Dice 系数、IoU、准确率等，结果将保存至日志目录。
+
+### 3. 模型对比
+
+如需对比不同架构（如 U-Net vs UNet++）或不同训练策略（从头训练 vs 迁移学习），运行：
+
+```bash
+python evaluation/evaluation/compare.py
+```
+
+对比结果基于实际评估指标动态生成，不预设任何结论。
+
+## 复现步骤
+
+1. **准备数据**：将数据集按 `config.yaml` 中 `data.root` 指定的路径放置，确保目录结构与 `data/data/dataset.py` 中的加载逻辑一致。
+2. **修改配置**：根据实际需求调整 `config/config/config.yaml` 中的参数（如数据路径、批次大小、训练轮数等）。
+3. **训练模型**：运行 `python main.py` 启动训练。训练日志与检查点将保存至 `logging.log_dir` 与 `checkpoint` 指定路径。
+4. **评估模型**：运行 `python evaluation/evaluation/evaluate.py` 对训练好的模型进行测试集评估。
+5. **对比实验**：运行 `python evaluation/evaluation/compare.py` 比较不同模型或训练策略的表现。
+
+## 关键实现细节
+
+- **模型架构**：`models/models/` 目录下实现了 U-Net、Wide U-Net 与 UNet++ 三种架构，均支持自定义深度与宽度。
+- **损失函数**：训练采用二元交叉熵与 Dice 系数的组合损失，兼顾像素级精度与区域重叠度。
+- **学习率调度**：支持 StepLR 等调度策略，具体参数见 `training.scheduler` 配置项。
+- **随机种子**：通过 `system.seed` 固定随机种子，确保实验可复现。
+- **检查点管理**：支持保存最优模型（基于验证指标）与最终模型，可配置保存频率与是否保存优化器状态。
+
+## 注意事项
+
+- 论文中未设置独立验证集。本项目从训练集二次划分验证集用于模型选择，避免直接使用测试集导致的数据泄露。
+- 模型对比结论完全由实际评估结果动态计算得出，代码不预设任何模型优劣的结论性表述。
+- 若显存不足（如 12 GB 的 NVIDIA TITAN X），可适当降低 `training.batch_size` 或 `training.image_size`。
+
+## 引用
+
+若本项目对您的研究有帮助，请引用原论文：
+
+```bibtex
+@article{zhou2018unet++,
+  title={UNet++: A Nested U-Net Architecture for Medical Image Segmentation},
+  author={Zhou, Zongwei and Rahman Siddiquee, Md Mahfuzur and Tajbakhsh, Nima and Liang, Jianming},
+  journal={arXiv preprint arXiv:1807.10165},
+  year={2018}
+}
+```

@@ -1,0 +1,161 @@
+# Temporal Fusion Transformers for Interpretable Multi-horizon Time Series Forecasting
+
+本项目基于 PyTorch 实现时间序列预测任务，围绕论文 *Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting* 构建训练、评估与模型组件代码。项目在 NVIDIA Tesla V100 GPU 上运行验证。
+
+## 项目结构
+
+```text
+.
+├── README.md
+├── main.py
+├── requirements.txt
+├── config
+│   └── config
+│       └── config.yaml
+├── data
+│   └── data
+│       └── dataset.py
+├── evaluation
+│   └── evaluation
+│       └── evaluate.py
+├── models
+│   └── models
+│       ├── __init__.py
+│       ├── lstm.py
+│       └── transformer.py
+├── training
+│   └── training
+│       └── train.py
+└── utils
+    └── utils
+        └── metrics.py
+```
+
+## 主要文件说明
+
+- `main.py`：训练与评估入口。
+- `config/config/config.yaml`：训练、数据、模型等配置。
+- `data/data/dataset.py`：数据加载与预处理。
+- `models/models/`：模型组件，包含 LSTM 与 Transformer 相关模块。
+- `training/training/train.py`：训练循环实现。
+- `evaluation/evaluation/evaluate.py`：评估流程。
+- `utils/utils/metrics.py`：评估指标，包括 Quantile Loss 与测试 q-Risk。
+- `requirements.txt`：Python 依赖。
+
+## 环境安装
+
+```bash
+pip install -r requirements.txt
+```
+
+建议使用 Python 3.8+，并确保 CUDA 环境兼容 NVIDIA Tesla V100 GPU。
+
+## 数据准备
+
+本项目涉及以下数据集：
+
+- Electricity
+- Traffic
+- Retail
+- Volatility
+
+数据加载逻辑位于 `data/data/dataset.py`。请将原始数据放置在对应路径下，或根据 `config/config/config.yaml` 中的设置修改数据路径。
+
+## 训练配置
+
+默认配置见 `config/config/config.yaml`。当前训练参数如下：
+
+| 参数 | 值 |
+| --- | --- |
+| 优化器 | 未指定（NOT_FOUND），请检查 `config/config/config.yaml` |
+| 学习率 | 0.01 |
+| batch_size | 64（Electricity）、128（Traffic）、128（Retail）、64（Volatility） |
+| epochs | 30 |
+| 损失函数 | Quantile Loss |
+| 调度器 | 未指定（NOT_FOUND；step_size=NOT_FOUND，gamma=NOT_FOUND） |
+
+### Quantile Loss
+
+对于分位数 \(q \in \{0.1, 0.5, 0.9\}\)，Quantile Loss 定义为：
+
+\[
+QL(y, \hat y, q) = q(y - \hat y)_+ + (1 - q)(\hat y - y)_+
+\]
+
+其中 \((x)_+ = \max(0, x)\)。
+
+训练损失为所有分位数输出与所有预测步长 \(\tau = 1, \ldots, \tau_{\max}\) 上的 Quantile Loss 之和，再除以 \(M \times \tau_{\max}\)：
+
+\[
+\mathcal{L} = \frac{1}{M \tau_{\max}} \sum_{m=1}^{M} \sum_{\tau=1}^{\tau_{\max}} \sum_{q \in \{0.1, 0.5, 0.9\}} QL(y_m^{(\tau)}, \hat y_m^{(\tau, q)}, q)
+\]
+
+其中 \(M\) 为样本数，\(\tau_{\max}\) 为最大预测步长。
+
+### 测试 q-Risk
+
+测试阶段采用 q-Risk 指标：
+
+\[
+\text{Test q-Risk} = 2 \times \frac{\sum_{y_t \in \tilde\Omega} \sum_{\tau=1}^{\tau_{\max}} QL(y_t, \hat y(q, t-\tau, \tau), q)}{\sum_{\tau=1}^{\tau_{\max}} |y_t|}
+\]
+
+具体实现以 `utils/utils/metrics.py` 为准。
+
+## 运行方法
+
+训练与评估可通过 `main.py` 启动。示例：
+
+```bash
+python main.py --config config/config/config.yaml
+```
+
+运行前请确认以下内容：
+
+- 已安装依赖；
+- 数据已放置在正确路径；
+- `config/config/config.yaml` 中的数据集名称、batch size、学习率、epochs 等参数符合预期；
+- GPU 环境可用。
+
+## 复现步骤
+
+1. 安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+2. 准备数据集，确保 `data/data/dataset.py` 能正确读取。
+
+3. 检查并修改 `config/config/config.yaml`，例如选择数据集、设置 batch size 与学习率。
+
+4. 启动训练与评估：
+
+```bash
+python main.py --config config/config/config.yaml
+```
+
+5. 评估结果由 `evaluation/evaluation/evaluate.py` 输出。不同模型或配置的对比应以实际运行结果为准，不预先假设任何模型或设置具有绝对优势。
+
+## 验证集与早停说明
+
+论文仅使用 train/test 二路划分，没有独立验证集。本项目默认遵循论文设置，不单独划分验证集。
+
+如果代码中需要 `val_loader` 用于早停（early stopping）或最优模型选择，应从训练集中按 80/20 二次划分出验证集，并标记为**工程偏离（engineering deviation from paper）**。
+
+对应地，如果 `best_metric` 基于该验证集计算，也属于工程偏离。严格复现论文时，不应使用测试集进行模型选择，以避免数据泄露。
+
+## 指标与模型选择
+
+Quantile Loss 与测试 q-Risk 均以实际评估结果计算。`utils/utils/metrics.py` 中提供的指标用于评估预测性能。所有对比结论需从实际运行结果动态得出，不应在本文档或代码注释中写死特定模型或配置一定优于其他方案。
+
+## 引用
+
+```bibtex
+@article{lim2021temporal,
+  title={Temporal Fusion Transformers for Interpretable Multi-horizon Time Series Forecasting},
+  author={Lim, Bryan and Ar{\i}k, Sercan {\"O} and Loeff, Nicolas and Pfister, Tomas},
+  journal={International Journal of Forecasting},
+  year={2021}
+}
+```

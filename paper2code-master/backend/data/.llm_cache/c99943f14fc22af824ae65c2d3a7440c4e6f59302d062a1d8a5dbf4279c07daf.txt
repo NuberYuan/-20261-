@@ -1,0 +1,16 @@
+{
+  "table_id": "table_5",
+  "table_type": "other",
+  "caption_summary": "Table content is unavailable; only placeholder dots are shown.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": {
+      "method": null,
+      "metric": null,
+      "value": null
+    },
+    "key_values": []
+  },
+  "table_summary": "The provided table contains no readable numerical or textual data, only placeholder dots and a horizontal rule. Therefore, no metrics, methods, or findings can be extracted or summarized from the input."
+}

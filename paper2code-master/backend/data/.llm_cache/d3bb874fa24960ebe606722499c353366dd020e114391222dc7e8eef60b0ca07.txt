@@ -1,0 +1,635 @@
+```python
+"""Evaluation and report generation for SELF-RAG.
+
+This module implements the evaluation pipeline described in the paper
+"SELF-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection".
+It computes all required metrics (Accuracy, FactScore, STREM, ROUGE, MAUVE,
+citation precision, citation recall) and generates a text report plus
+optional matplotlib charts.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import sys
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
+
+# Add project root to path for imports
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+# Optional matplotlib import (must not crash if unavailable)
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+from utils.metrics import (
+    compute_accuracy,
+    compute_citation_precision,
+    compute_citation_recall,
+    compute_factscore,
+    compute_mauve,
+    compute_rouge,
+    compute_strem,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the config file. If None, uses default path.
+
+    Returns:
+        Configuration dictionary.
+    """
+    if config_path is None:
+        config_path = os.path.join(PROJECT_ROOT, "config", "config.yaml")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config if config is not None else {}
+
+
+def evaluate_model(
+    model: torch.nn.Module,
+    test_loader: DataLoader,
+    config: Optional[Dict[str, Any]] = None,
+    device: Optional[torch.device] = None,
+    threshold: float = 0.5,
+    batch_size: int = 32,
+) -> Dict[str, Any]:
+    """Evaluate a trained model on the test set.
+
+    Computes all required metrics: Accuracy, FactScore, STREM, ROUGE,
+    MAUVE, citation precision, and citation recall.
+
+    Args:
+        model: The trained PyTorch model to evaluate.
+        test_loader: DataLoader for the test set.
+        config: Configuration dictionary loaded from config.yaml.
+        device: Device to run evaluation on. If None, auto-detected.
+        threshold: Threshold for binary metrics.
+        batch_size: Batch size for evaluation (kept for API consistency).
+
+    Returns:
+        Dictionary containing all computed metrics plus predictions/references.
+    """
+    if config is None:
+        config = load_config()
+
+    # Determine device
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Move model to device and set to eval mode
+    model = model.to(device)
+    model.eval()
+
+    # Collect predictions and references
+    all_predictions: List[str] = []
+    all_references: List[str] = []
+    all_citations: List[List[str]] = []
+
+    logger.info(f"Evaluating model on {len(test_loader.dataset)} test samples")
+
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(test_loader):
+            # Extract batch data
+            instructions = batch["instruction"]
+            outputs = batch["output"]
+
+            # Generate predictions using the model
+            # This is a simplified generation - in practice, you'd use
+            # a proper decoding strategy (greedy, beam search, etc.)
+            for instr, ref in zip(instructions, outputs):
+                # Prepare input
+                text = f"{instr}"
+
+                # Simple character-level tokenization (placeholder)
+                tokens = [ord(c) % 32000 for c in text[:512]]
+
+                if len(tokens) < 2:
+                    tokens = [0, 0]
+
+                seq_len = 512
+                if len(tokens) < seq_len:
+                    tokens = tokens + [0] * (seq_len - len(tokens))
+                else:
+                    tokens = tokens[:seq_len]
+
+                input_ids = torch.tensor([tokens], dtype=torch.long, device=device)
+                attention_mask = (input_ids != 0).long().to(device)
+
+                # Forward pass
+                try:
+                    outputs_model = model(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                    )
+
+                    if isinstance(outputs_model, dict):
+                        logits = outputs_model.get("logits")
+                    else:
+                        logits = outputs_model
+
+                    # Greedy decoding (simplified)
+                    # Take the most likely token at each position
+                    predictions = logits.argmax(dim=-1)
+
+                    # Convert token IDs back to text (simplified)
+                    pred_tokens = predictions[0].cpu().tolist()
+                    # Filter out padding (0) and convert to characters
+                    pred_text = "".join(
+                        chr(t) if 32 <= t <= 126 else " " for t in pred_tokens if t != 0
+                    )
+                    # Clean up whitespace
+                    pred_text = " ".join(pred_text.split())
+
+                except Exception as e:
+                    logger.warning(f"Error during generation: {e}")
+                    pred_text = ""
+
+                all_predictions.append(pred_text)
+                all_references.append(ref)
+
+                # Extract citations from prediction (simplified)
+                citations = _extract_citations_from_text(pred_text)
+                all_citations.append(citations)
+
+            if (batch_idx + 1) % 10 == 0:
+                logger.info(f"Processed {batch_idx + 1}/{len(test_loader)} batches")
+
+    # Compute all metrics
+    metrics = compute_metrics(
+        predictions=all_predictions,
+        references=all_references,
+        citations=all_citations,
+        config=config,
+        threshold=threshold,
+        batch_size=batch_size,
+    )
+
+    # Add predictions and references to metrics for report generation
+    metrics["predictions"] = all_predictions
+    metrics["references"] = all_references
+    metrics["citations"] = all_citations
+
+    return metrics
+
+
+def compute_metrics(
+    predictions: Sequence[str],
+    references: Sequence[str],
+    citations: Optional[Sequence[Sequence[str]]] = None,
+    config: Optional[Dict[str, Any]] = None,
+    threshold: float = 0.5,
+    batch_size: int = 32,
+) -> Dict[str, Any]:
+    """Compute all evaluation metrics for SELF-RAG.
+
+    Args:
+        predictions: List of generated text sequences.
+        references: List of reference text sequences.
+        citations: Optional list of citation strings for each prediction.
+        config: Configuration dictionary (optional).
+        threshold: Threshold for binary metrics.
+        batch_size: Batch size for processing (kept for API consistency).
+
+    Returns:
+        Dictionary containing all computed metrics.
+    """
+    if len(predictions) != len(references):
+        logger.error(
+            f"Predictions and references must have the same length. "
+            f"Got {len(predictions)} and {len(references)}."
+        )
+        return {}
+
+    if len(predictions) == 0:
+        logger.warning("Empty predictions and references. Returning empty metrics.")
+        return {}
+
+    metrics: Dict[str, Any] = {}
+
+    # Accuracy
+    metrics["accuracy"] = compute_accuracy(predictions, references, threshold)
+
+    # FactScore
+    metrics["factscore"] = compute_factscore(predictions, references, threshold)
+
+    # STREM (correctness)
+    metrics["strem"] = compute_strem(predictions, references, threshold)
+
+    # ROUGE (correctness)
+    rouge_scores = compute_rouge(predictions, references, threshold)
+    metrics.update(rouge_scores)
+
+    # MAUVE (fluency)
+    metrics["mauve"] = compute_mauve(predictions, references, threshold)
+
+    # Citation metrics
+    metrics["citation_precision"] = compute_citation_precision(
+        predictions, references, citations, threshold
+    )
+    metrics["citation_recall"] = compute_citation_recall(
+        predictions, references, citations, threshold
+    )
+
+    # Log metrics
+    logger.info("Computed metrics:")
+    for name, value in metrics.items():
+        if isinstance(value, (int, float)):
+            logger.info(f"  {name}: {value:.4f}")
+
+    return metrics
+
+
+def _extract_citations_from_text(text: str) -> List[str]:
+    """Extract citation strings from generated text.
+
+    Citations are assumed to be in brackets like [citation] or [1].
+
+    Args:
+        text: Generated text.
+
+    Returns:
+        List of citation strings.
+    """
+    import re
+
+    citations = re.findall(r"\[([^\]]+)\]", text)
+    # Filter out pure numbers (likely reference indices)
+    return [c for c in citations if not c.strip().isdigit()]
+
+
+def generate_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generate a report for a single evaluation run.
+
+    Args:
+        metrics: Dictionary of computed metrics from evaluate_model.
+        run_name: Name of the run (e.g., 'self-rag-7b-scratch').
+        output_dir: Directory where the report should be saved.
+        config: Configuration dictionary loaded from config.yaml.
+
+    Returns:
+        Path to the generated report file.
+    """
+    if config is None:
+        config = load_config()
+
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Generate text report
+    report_path = os.path.join(output_dir, f"{run_name}_report.txt")
+    _write_text_report(metrics, run_name, report_path, config)
+
+    # Generate charts (if matplotlib is available)
+    if plt is not None:
+        try:
+            # Metrics bar chart
+            chart_path = os.path.join(output_dir, f"{run_name}_metrics.png")
+            _generate_metrics_bar_chart(metrics, chart_path, run_name)
+
+            # Confusion matrix plot (if available)
+            if "confusion_matrix" in metrics and metrics["confusion_matrix"] is not None:
+                cm_path = os.path.join(output_dir, f"{run_name}_confusion_matrix.png")
+                _generate_confusion_matrix_plot(metrics["confusion_matrix"], cm_path, run_name)
+        except Exception as e:
+            logger.warning(f"Failed to generate charts: {e}")
+
+    # Save metrics as JSON for programmatic access
+    json_path = os.path.join(output_dir, f"{run_name}_metrics.json")
+    # Remove non-serializable entries
+    serializable_metrics = {
+        k: v for k, v in metrics.items()
+        if isinstance(v, (int, float, str, bool)) or v is None
+    }
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(serializable_metrics, f, indent=2)
+
+    logger.info(f"Report saved to {report_path}")
+    logger.info(f"Metrics JSON saved to {json_path}")
+
+    return report_path
+
+
+def _write_text_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    report_path: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Write a text report for the evaluation results.
+
+    Args:
+        metrics: Dictionary of computed metrics.
+        run_name: Name of the run.
+        report_path: Path where the report should be saved.
+        config: Configuration dictionary.
+    """
+    if config is None:
+        config = {}
+
+    lines = []
+    lines.append("=" * 80)
+    lines.append(f"SELF-RAG Evaluation Report")
+    lines.append(f"Run: {run_name}")
+    lines.append("=" * 80)
+    lines.append("")
+
+    # Project info
+    project_config = config.get("project", {})
+    if project_config:
+        lines.append(f"Project: {project_config.get('name', 'self-rag')}")
+        lines.append(f"Paper: {project_config.get('paper', '')}")
+        lines.append("")
+
+    # Reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+    lines.append(f"Reproduction mode: {reproduction_mode}")
+    lines.append("")
+
+    # Model info
+    model_config = config.get("model", {})
+    architectures = model_config.get("architectures", [])
+    if architectures:
+        lines.append(f"Model architectures: {', '.join(architectures)}")
+    lines.append("")
+
+    # Training info
+    training_config = config.get("training", {})
+    epochs = training_config.get("epochs", "N/A")
+    loss_fn = training_config.get("loss_function", "N/A")
+    lines.append(f"Training epochs: {epochs}")
+    lines.append(f"Loss function: {loss_fn}")
+    lines.append("")
+
+    # Metrics section
+    lines.append("-" * 80)
+    lines.append("Evaluation Metrics")
+    lines.append("-" * 80)
+    lines.append("")
+
+    # Define metric display order and formatting
+    metric_display = [
+        ("accuracy", "Accuracy", "{:.4f}"),
+        ("factscore", "FactScore", "{:.4f}"),
+        ("strem", "STREM (correctness)", "{:.4f}"),
+        ("rouge1", "ROUGE-1 (correctness)", "{:.4f}"),
+        ("rouge2", "ROUGE-2 (correctness)", "{:.4f}"),
+        ("rougeL", "ROUGE-L (correctness)", "{:.4f}"),
+        ("mauve", "MAUVE (fluency)", "{:.4f}"),
+        ("citation_precision", "Citation Precision", "{:.4f}"),
+        ("citation_recall", "Citation Recall", "{:.4f}"),
+    ]
+
+    for key, display_name, format_str in metric_display:
+        if key in metrics and metrics[key] is not None:
+            value = metrics[key]
+            if isinstance(value, (int, float)):
+                lines.append(f"  {display_name}: {format_str.format(value)}")
+            else:
+                lines.append(f"  {display_name}: {value}")
+        else:
+            lines.append(f"  {display_name}: N/A")
+
+    lines.append("")
+
+    # Additional metrics if present
+    additional_metrics = [
+        ("precision", "Precision"),
+        ("recall", "Recall"),
+        ("f1", "F1 Score"),
+        ("mean_f1", "Mean F1"),
+    ]
+
+    has_additional = False
+    for key, display_name in additional_metrics:
+        if key in metrics and metrics[key] is not None:
+            if not has_additional:
+                lines.append("-" * 80)
+                lines.append("Additional Metrics")
+                lines.append("-" * 80)
+                lines.append("")
+                has_additional = True
+            value = metrics[key]
+            if isinstance(value, (int, float)):
+                lines.append(f"  {display_name}: {value:.4f}")
+            else:
+                lines.append(f"  {display_name}: {value}")
+
+    if has_additional:
+        lines.append("")
+
+    # Sample count
+    if "predictions" in metrics:
+        lines.append(f"Number of samples evaluated: {len(metrics['predictions'])}")
+        lines.append("")
+
+    # Paper reference values (from config note)
+    training_modes = config.get("training_modes", {})
+    transfer_note = training_modes.get("transfer", {}).get("note", "")
+    if transfer_note:
+        lines.append("-" * 80)
+        lines.append("Paper Reference Values (from config)")
+        lines.append("-" * 80)
+        lines.append(transfer_note)
+        lines.append("")
+
+    lines.append("=" * 80)
+    lines.append("End of Report")
+    lines.append("=" * 80)
+
+    # Write to file
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    logger.info(f"Text report written to {report_path}")
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any],
+    output_path: str,
+    run_name: str,
+) -> Optional[str]:
+    """Generate a bar chart of key evaluation metrics.
+
+    Args:
+        metrics: Complete metrics dictionary (must contain accuracy, precision,
+                 recall, mean_f1 keys if available).
+        output_path: Path where the chart should be saved.
+        run_name: Name of the run for the chart title.
+
+    Returns:
+        Path to the generated chart, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        logger.warning("matplotlib not available. Skipping bar chart generation.")
+        return None
+
+    # Extract metrics for the chart
+    chart_metrics = {}
+
+    # Primary metrics from SELF-RAG paper
+    metric_keys = [
+        ("accuracy", "Accuracy"),
+        ("factscore", "FactScore"),
+        ("strem", "STREM"),
+        ("rouge1", "ROUGE-1"),
+        ("rouge2", "ROUGE-2"),
+        ("rougeL", "ROUGE-L"),
+        ("mauve", "MAUVE"),
+        ("citation_precision", "Citation Prec."),
+        ("citation_recall", "Citation Recall"),
+    ]
+
+    for key, label in metric_keys:
+        if key in metrics and metrics[key] is not None:
+            value = metrics[key]
+            if isinstance(value, (int, float)):
+                chart_metrics[label] = float(value)
+
+    # Add precision/recall/f1 if available
+    for key, label in [("precision", "Precision"), ("recall", "Recall"), ("f1", "F1")]:
+        if key in metrics and metrics[key] is not None:
+            value = metrics[key]
+            if isinstance(value, (int, float)):
+                chart_metrics[label] = float(value)
+
+    if not chart_metrics:
+        logger.warning("No numeric metrics available for chart generation.")
+        return None
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Plot bars
+    labels = list(chart_metrics.keys())
+    values = list(chart_metrics.values())
+
+    bars = ax.bar(labels, values, color="steelblue", edgecolor="black", alpha=0.8)
+
+    # Add value labels on top of bars
+    for bar, value in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.01,
+            f"{value:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+
+    # Set labels and title
+    ax.set_xlabel("Metric", fontsize=12)
+    ax.set_ylabel("Score", fontsize=12)
+    ax.set_title(f"Evaluation Metrics - {run_name}", fontsize=14, fontweight="bold")
+    ax.set_ylim(0, 1.1)  # Metrics are typically between 0 and 1
+    ax.axhline(y=0.5, color="red", linestyle="--", alpha=0.5, label="0.5 threshold")
+    ax.legend()
+
+    # Rotate x-axis labels for readability
+    plt.xticks(rotation=45, ha="right")
+
+    # Adjust layout and save
+    plt.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    logger.info(f"Metrics bar chart saved to {output_path}")
+    return output_path
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: Any,
+    output_path: str,
+    run_name: str,
+) -> Optional[str]:
+    """Generate a confusion matrix plot.
+
+    Args:
+        confusion_matrix: 2D array-like confusion matrix.
+        output_path: Path where the plot should be saved.
+        run_name: Name of the run for the plot title.
+
+    Returns:
+        Path to the generated plot, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        logger.warning("matplotlib not available. Skipping confusion matrix plot.")
+        return None
+
+    if confusion_matrix is None:
+        logger.warning("Confusion matrix is None. Skipping plot.")
+        return None
+
+    try:
+        cm = np.array(confusion_matrix)
+
+        if cm.ndim != 2:
+            logger.warning(f"Confusion matrix must be 2D, got {cm.ndim}D. Skipping plot.")
+            return None
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        # Plot confusion matrix
+        im = ax.imshow(cm, interpolation="nearest", cmap="Blues")
+        ax.figure.colorbar(im, ax=ax)
+
+        # Set labels
+        classes = [str(i) for i in range(cm.shape[0])]
+        ax.set(
+            xticks=np.arange(cm.shape[1]),
+            yticks=np.arange(cm.shape[0]),
+            xticklabels=classes,
+            yticklabels=classes,
+            xlabel="Predicted",
+            ylabel="True",
+            title=f"Confusion Matrix - {run_name}",
+        )
+
+        # Add text annotations
+        thresh = cm.max() / 2.0 if cm.max() > 0 else 0.5
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                ax.text(
+                    j,
+                    i,
+                    format(cm[i, j], "d"),
+                    ha="center",
+                    va="center",
+                    color="white" if cm[i, j] > thresh else "black",
+                )
+
+        plt.tight_layout()
+        fig.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+        logger.info(f"Confusion matrix plot saved to {output_path}")
+        return output_path
+
+    except Exception as e:
+        logger.warning(f"Failed to generate confusion matrix plot: {e}")
+        return None
+```

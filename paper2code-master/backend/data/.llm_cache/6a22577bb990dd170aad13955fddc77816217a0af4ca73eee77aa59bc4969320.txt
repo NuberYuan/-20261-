@@ -1,0 +1,134 @@
+# Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms
+
+本项目是论文《Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms》的代码实现与评测仓库。项目使用 Python 标准库构建，围绕 GP2 规则图程序展开，覆盖以下图问题：
+
+- 无环性（acyclicity）
+- 连通性（connectedness）
+- Bellman-Ford 单源最短路径
+
+仓库提供规则程序、编译器增强与根图程序支持、评估脚本和指标工具。评测结论应由 `evaluation/evaluation/evaluate.py` 根据实际运行数据动态计算得出，本 README 不预设任何一类程序优于另一类程序。
+
+## 项目结构
+
+```text
+.
+├── README.md
+├── main.py
+├── requirements.txt
+├── config
+│   └── config
+│       └── config.yaml
+├── evaluation
+│   └── evaluation
+│       └── evaluate.py
+├── models
+│   └── models
+│       ├── __init__.py
+│       ├── gp2_acyclicity_program.py
+│       ├── gp2_bellman_ford_program.py
+│       └── gp2_connectedness_program.py
+├── src
+│   └── src
+│       └── gp2compilerenhancementsandrootedgraphprograms.py
+└── utils
+    └── utils
+        └── metrics.py
+```
+
+## 环境准备
+
+建议使用 Python 3.9 及以上版本。
+
+```bash
+pip install -r requirements.txt
+```
+
+本项目不涉及神经网络训练，因此没有优化器、学习率、批次大小、训练轮数、损失函数或学习率调度器。若 `requirements.txt` 中无第三方依赖，可直接使用 Python 标准库运行。
+
+## 配置说明
+
+运行参数位于：
+
+```text
+config/config/config.yaml
+```
+
+该文件用于指定图类型、图规模、规则程序选择、评估次数、随机种子、输出路径等参数。请根据实验需求修改配置。
+
+## 运行方法
+
+默认入口为 `main.py`：
+
+```bash
+python main.py
+```
+
+如果 `main.py` 支持显式指定配置文件，可使用：
+
+```bash
+python main.py --config config/config/config.yaml
+```
+
+具体命令行参数请以 `main.py` 中的 `argparse` 定义为准。
+
+## 复现步骤
+
+1. 获取本仓库代码。
+2. 安装依赖：
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. 检查并调整 `config/config/config.yaml` 中的实验参数。
+4. 运行主程序：
+
+   ```bash
+   python main.py
+   ```
+
+5. 运行评估：
+
+   ```bash
+   python evaluation/evaluation/evaluate.py
+   ```
+
+   或根据 `main.py` 的流程自动调用评估脚本。
+
+6. 查看评估输出。输出位置由配置文件与评估脚本决定。
+
+## 训练配置
+
+本任务为图程序复杂度评测，不涉及神经网络训练，因此以下配置项均不适用：
+
+| 配置项 | 值 |
+| --- | --- |
+| 优化器 | NOT_FOUND |
+| 学习率 | NOT_FOUND |
+| batch_size | NOT_FOUND |
+| epochs | NOT_FOUND |
+| 损失函数 | NOT_FOUND |
+| 调度器 | NOT_FOUND（step_size=NOT_FOUND，gamma=NOT_FOUND） |
+
+## 模块说明
+
+| 路径 | 说明 |
+| --- | --- |
+| `main.py` | 实验入口，加载配置并执行选定的图程序。 |
+| `config/config/config.yaml` | 实验配置，例如问题类型、图规模、评估参数等。 |
+| `evaluation/evaluation/evaluate.py` | 评估脚本，负责运行评测并汇总正确性、运行时间等结果。 |
+| `models/models/__init__.py` | 模型包初始化文件。 |
+| `models/models/gp2_acyclicity_program.py` | 无环性 GP2 规则图程序实现。 |
+| `models/models/gp2_bellman_ford_program.py` | Bellman-Ford 单源最短路径 GP2 规则图程序实现。 |
+| `models/models/gp2_connectedness_program.py` | 连通性 GP2 规则图程序实现。 |
+| `src/src/gp2compilerenhancementsandrootedgraphprograms.py` | GP2 编译器增强与根图程序支持。 |
+| `utils/utils/metrics.py` | 指标计算工具，例如运行时间统计、正确性判断、复杂度相关指标。 |
+
+## 评估与指标
+
+评估脚本会读取实际运行结果，并使用 `utils/utils/metrics.py` 中的指标工具计算相关统计量。实验结果应以每次实际运行输出为准，不建议在报告或注释中写死任何“一类算法始终更优”的结论。
+
+## 说明
+
+- 本项目框架为 Python 标准库，不依赖 PyTorch。
+- 本 README 中的目录树与项目实际文件结构保持一致。

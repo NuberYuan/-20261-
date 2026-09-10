@@ -1,0 +1,125 @@
+{
+  "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+  "research_problem": "大型预训练语言模型在参数中存储事实知识，但在知识密集型任务上性能落后于任务特定架构，且难以更新知识、提供决策依据，并可能产生幻觉。论文旨在通过结合参数化和非参数化记忆来改进生成模型在知识密集型NLP任务上的表现。",
+  "motivation": "混合模型结合参数化记忆与非参数化（检索）记忆可以解决参数化模型的缺点，因为知识可以直接修订和扩展，且访问的知识可以被检查和解释。先前工作如REALM和ORQA仅探索了抽取式问答，论文希望将混合记忆引入序列到序列模型，实现通用微调方法。",
+  "main_contribution": "提出检索增强生成（RAG）模型，结合预训练的seq2seq模型（BART）作为参数化记忆和密集向量索引的维基百科作为非参数化记忆，通过可微检索器访问。提出两种RAG变体（RAG-Sequence和RAG-Token），在多个知识密集型任务上取得最先进结果，并展示了非参数化记忆可替换以更新知识。",
+
+  "methodology": {
+    "method_name": "RAG (Retrieval-Augmented Generation)",
+    "core_idea": "RAG模型使用输入序列x检索文本段落z，并将其作为额外上下文生成目标序列y。检索器（DPR）提供潜在文档分布，生成器（BART）基于文档和输入生成输出，通过边际化潜在文档进行端到端训练。",
+    "pipeline": "输入查询x。使用检索器pη(z|x)通过最大内积搜索（MIPS）检索top-K文档。对于RAG-Sequence，对每个文档生成整个序列并边际化；对于RAG-Token，对每个token边际化不同文档。生成器pθ(yi|x,z,y1:i−1)基于输入和文档生成输出。训练时联合优化检索器和生成器，最小化负边际对数似然。",
+    "model": "DPR (Dense Passage Retriever), BART-large",
+    "model_architecture": {
+      "input": "输入为文本序列x，检索器使用BERT-base编码查询，生成器BART-large接收输入x与检索文档z的拼接。",
+      "output": "输出为目标序列y的概率分布，对于分类任务输出类别token。",
+      "feature_extraction": "检索器使用BERT-base作为查询编码器和文档编码器，生成器使用BART-large的编码器-解码器结构。",
+      "classification": "对于分类任务，将类别标签映射为单个输出token，使用生成器的输出表示进行分类。",
+      "pretrained_model": "检索器使用DPR预训练的biencoder初始化，生成器使用BART-large预训练模型。",
+      "special_modules": "检索器使用FAISS进行MIPS，文档索引为21M个100词块。",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "BART-large是预训练的seq2seq transformer，具有400M参数。",
+      "lstm": "NOT_FOUND"
+    }
+  },
+
+  "dataset": {
+    "dataset_name": "Natural Questions, TriviaQA, WebQuestions, CuratedTrec, MS-MARCO, Jeopardy Question Generation, FEVER",
+    "dataset_source": "各数据集公开来源，维基百科转储（2018年12月）作为非参数知识源。",
+    "dataset_size": "Natural Questions: 训练79169，开发8758，测试3611；TriviaQA: 训练78786，开发8838，测试11314；WebQuestions: 训练3418，开发362，测试2033；CuratedTrec: 训练635，开发134，测试635；Jeopardy: 训练97392，开发13714，测试26849；MS-MARCO: 训练153726，开发12468，测试101093；FEVER-3way: 训练145450，开发10000，测试10000；FEVER-2way: 训练96966，开发6666，测试6666。",
+    "number_of_classes": "FEVER-3way: 3类；FEVER-2way: 2类；其他为生成任务。",
+    "data_type": "文本数据，包括问答对、问题生成、事实验证声明。",
+    "train_test_split": "使用与先前工作相同的分割（如DPR），对于CT和WQ，使用NQ模型初始化。",
+    "preprocessing": "维基百科文章分割为100词块，共21M文档。对于TriviaQA，过滤答案候选（若不在查询的前1000文档中）。对于CuratedTrec，使用正则表达式预处理答案。"
+  },
+
+  "implementation_details": {
+    "programming_framework": "Fairseq, HuggingFace Transformers",
+    "optimizer": "Adam",
+    "learning_rate": "NOT_FOUND",
+    "batch_size": "NOT_FOUND",
+    "epoch": "NOT_FOUND",
+    "loss_function": "负边际对数似然（negative marginal log-likelihood）",
+    "hardware": "8块32GB NVIDIA V100 GPU，训练和推理可在单GPU上运行。",
+    "training_strategy": "联合训练检索器和生成器，无检索监督。文档编码器固定，仅微调查询编码器和BART生成器。训练时检索top-k文档，k∈{5,10}，测试时根据开发集选择k。使用混合精度浮点运算。"
+  },
+
+  "experiment": {
+    "evaluation_metrics": "Exact Match (EM), BLEU-1, Q-BLEU-1, Rouge-L, Label Accuracy",
+    "baseline_methods": "T5-11B, T5-11B+SSM, REALM, DPR, BART, 以及各任务SotA模型",
+    "comparison_results": "在NQ上RAG-Seq达到44.5 EM，TQA上68.0（Wiki测试集），WQ上45.2，CT上52.2。MS-MARCO上RAG-Seq的BLEU-1为40.8，Rouge-L为44.2。Jeopardy上RAG-Token的Q-BLEU-1为22.2。FEVER-3way上RAG达到72.5%准确率，FEVER-2way上89.5%。",
+    "ablation_study": "冻结检索器（Frozen）和BM25检索器对比，显示可学习检索提升性能。检索文档数量影响：RAG-Sequence随K增加单调提升，RAG-Token在K=10时最佳。",
+    "important_results": "RAG在开放域QA上超越所有基线，包括抽取式方法。RAG生成更具体、多样、事实性的文本。非参数记忆可替换以更新知识（2016 vs 2018索引，正确率70% vs 68%）。"
+  },
+
+  "reproduction_requirements": {
+    "required_modules": ["DPR预训练检索器", "BART-large预训练模型", "FAISS", "维基百科转储（2018年12月）"],
+    "important_parameters": {
+      "k_train": "5或10",
+      "k_test_QA": "15 (RAG-Token), 50 (RAG-Sequence)",
+      "k_test_generation": "10",
+      "beam_size": "4",
+      "document_chunk_size": "100",
+      "num_documents": "21M",
+      "index_dimension": "728",
+      "index_memory": "36GB (压缩后)"
+    },
+    "possible_difficulties": ["文档索引构建和存储需要大量内存", "检索器与生成器的联合训练可能不稳定", "RAG-Sequence解码需要额外前向传播", "不同任务需要调整检索文档数量"]
+  },
+
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "model_architecture",
+      "description": "RAG模型架构图，展示检索器（Query Encoder + Document Index）和生成器（Generator）的交互，以及边际化过程。",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "NOT_FOUND",
+      "conclusion": "NOT_FOUND",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "experiment_result",
+      "description": "RAG-Token在Jeopardy生成中每个token的文档后验概率，显示不同文档在不同token上的贡献。",
+      "x_axis": "生成的token序列",
+      "y_axis": "文档后验概率p(zi|x, yi, y−i)",
+      "trend": "文档1在生成“A Farewell to Arms”时后验高，文档2在生成“The Sun Also Rises”时后验高，之后后验平坦。",
+      "conclusion": "参数化和非参数化记忆协同工作，非参数化组件引导生成，参数化记忆完成标题。",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "experiment_result",
+      "description": "左图：NQ性能随检索文档数量变化；中图：NQ检索召回率；右图：MS-MARCO的BLEU-1和Rouge-L随检索文档数量变化。",
+      "x_axis": "检索文档数量K",
+      "y_axis": "左：NQ Exact Match；中：Answer Recall@K；右：BLEU-1/Rouge-L分数",
+      "trend": "RAG-Sequence的EM随K增加单调提升，RAG-Token在K=10时峰值；检索召回率随K增加；MS-MARCO上RAG-Token的Rouge-L随K增加，BLEU-1下降。",
+      "conclusion": "检索更多文档通常提升性能，但RAG-Token存在最优K。",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "other",
+      "description": "人类评估界面截图，用于评估事实性和特异性。",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "NOT_FOUND",
+      "conclusion": "NOT_FOUND",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    }
+  ]
+}

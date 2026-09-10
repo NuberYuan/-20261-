@@ -1,0 +1,79 @@
+{
+  "title": "SELF-RAG: LEARNING TO RETRIEVE, GENERATE, AND CRITIQUE THROUGH SELF-REFLECTION",
+  "research_problem": "Large language models often produce responses containing factual inaccuracies due to their sole reliance on parametric knowledge. Retrieval-Augmented Generation (RAG) methods augment LMs with retrieved passages but indiscriminately retrieve a fixed number of passages regardless of whether retrieval is necessary or passages are relevant, diminishing versatility or leading to unhelpful responses.",
+  "motivation": "To enhance an LM's quality and factuality through retrieval and self-reflection, enabling adaptive retrieval on demand and self-critique of its own generations, while maintaining versatility and controllability.",
+  "main_contribution": "Introduces Self-Reflective Retrieval-Augmented Generation (SELF-RAG), a framework that trains an arbitrary LM to adaptively retrieve passages on demand and generate and reflect on retrieved passages and its own generations using special reflection tokens. It enables controllable inference via reflection tokens and significantly outperforms state-of-the-art LLMs and retrieval-augmented models on diverse tasks.",
+  "methodology": {
+    "method_name": "SELF-RAG (Self-Reflective Retrieval-Augmented Generation)",
+    "core_idea": "Train an arbitrary LM to generate text interleaved with reflection tokens that indicate the need for retrieval and critique the quality of its own output. At inference, the model adaptively retrieves passages when needed, processes multiple passages in parallel, and uses reflection tokens to select the best output segment via segment-level beam search.",
+    "pipeline": "For each input and preceding generation, the model predicts a retrieval token. If retrieval is needed, it retrieves top-K passages, evaluates their relevance, generates a response segment for each passage, critiques support and utility, and ranks segments. If not needed, it generates the next segment and critiques utility. Training involves training a critic model to predict reflection tokens on data collected from GPT-4, then training the generator on a corpus augmented with retrieved passages and reflection tokens.",
+    "model": "Llama2-7B, Llama2-13B, GPT-4 (for data collection), Contriever-MS MARCO (retriever)",
+    "model_architecture": {
+      "input": "Input prompt x and preceding generation y<t",
+      "output": "Next output segment yt, including text and reflection tokens",
+      "feature_extraction": "NOT_FOUND",
+      "classification": "NOT_FOUND",
+      "pretrained_model": "Llama2 7B and 13B as generator base LM; Llama2 7B as critic base LM",
+      "special_modules": "Reflection tokens (Retrieve, ISREL, ISSUP, ISUSE) added to the vocabulary",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "NOT_FOUND",
+      "lstm": "NOT_FOUND"
+    }
+  },
+  "dataset": {
+    "dataset_name": "Diverse instruction-following datasets including Open-Instruct, knowledge-intensive datasets (PopQA, TriviaQA, PubHealth, ARC-Challenge, Biography, ASQA)",
+    "dataset_source": "Open-Instruct processed data, Petroni et al. 2021, Stelmakh et al. 2022, Mihaylov et al. 2018",
+    "dataset_size": "150k instruction-output pairs for training",
+    "number_of_classes": "NOT_FOUND",
+    "data_type": "Text instruction-output pairs",
+    "train_test_split": "NOT_FOUND",
+    "preprocessing": "NOT_FOUND"
+  },
+  "implementation_details": {
+    "programming_framework": "NOT_FOUND",
+    "optimizer": "NOT_FOUND",
+    "learning_rate": "NOT_FOUND",
+    "batch_size": "NOT_FOUND",
+    "epoch": "NOT_FOUND",
+    "loss_function": "Standard next token objective (cross-entropy)",
+    "hardware": "NOT_FOUND",
+    "training_strategy": "Training involves two stages: (1) train critic model C on data collected from GPT-4 with conditional language modeling objective; (2) train generator model M on curated corpus augmented with reflection tokens using standard next token objective. Retrieved text chunks are masked out during loss calculation. Vocabulary expanded with reflection tokens."
+  },
+  "experiment": {
+    "evaluation_metrics": "Accuracy, FactScore, strem (correctness), rouge (correctness), MAUVE (fluency), citation precision, citation recall",
+    "baseline_methods": "Llama2-7B, Llama2-13B, Alpaca-7B, Alpaca-13B, ChatGPT, Llama2-chat-13B, Ret-Llama2-chat-13B, Ret-ChatGPT, Perplexity.ai, CoVE-65B, Toolformer-6B, SAIL-7B, Llama2-FT-7B",
+    "comparison_results": "SELF-RAG 7B: PopQA 54.9, TQA 66.4, Pub 72.4, ARC 67.3, Bio FS 81.2, ASQA em 30.0, rg 35.7, mau 74.3, prec 66.9, rec 67.8. SELF-RAG 13B: PopQA 55.8, TQA 69.3, Pub 74.5, ARC 73.1, Bio FS 80.2, ASQA em 31.7, rg 37.0, mau 71.6, prec 70.3, rec 71.3. Outperforms ChatGPT and retrieval-augmented Llama2-chat on open-domain QA, reasoning, and fact verification tasks.",
+    "ablation_study": "NOT_FOUND",
+    "important_results": "SELF-RAG (7B and 13B) significantly outperforms state-of-the-art LLMs and retrieval-augmented models on diverse tasks. Specifically, SELF-RAG outperforms ChatGPT and retrieval-augmented Llama2-chat on open-domain QA, reasoning, and fact verification tasks, and shows significant gains in improving factuality and citation accuracy for long-form generations."
+  },
+  "reproduction_requirements": {
+    "required_modules": ["Llama2 7B and 13B", "Contriever-MS MARCO", "GPT-4 (for data collection)", "vllm"],
+    "important_parameters": {
+      "retrieval_threshold": "0.2",
+      "beam_width": "2",
+      "top_k_documents": "5",
+      "weights_ISREL": "1.0",
+      "weights_ISSUP": "1.0",
+      "weights_ISUSE": "0.5"
+    },
+    "possible_difficulties": ["Data collection for critic model requires GPT-4 API access", "Training critic and generator models requires significant computational resources", "Reproducing exact training data may be challenging due to sampling from multiple datasets"]
+  },
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "model_architecture",
+      "description": "Overview of SELF-RAG showing the process of adaptive retrieval, parallel generation with multiple passages, and critique-based selection."
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "data_example",
+      "description": "Training examples showing augmented outputs with reflection tokens and retrieved passages."
+    }
+  ]
+}

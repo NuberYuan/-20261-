@@ -1,0 +1,423 @@
+```python
+import argparse
+import json
+import logging
+import os
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import torch
+import yaml
+
+PROJECT_ROOT = Path(__file__).parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders, create_secondary_validation_split
+from training.train import (
+    initialize_model,
+    train_model,
+    validate,
+    setup_logging,
+    load_config,
+)
+from evaluation.evaluate import evaluate_model, generate_report
+from torch.utils.data import DataLoader
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Temporal Fusion Transformer - Main Entry Point")
+    parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="Index of the experiment run to execute (from experiment.runs). If omitted, run all.",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/config.yaml",
+        help="Path to configuration file (default: config/config.yaml).",
+    )
+    return parser.parse_args()
+
+
+def setup_logging_for_main(log_dir: str = "./logs", log_level: str = "INFO") -> logging.Logger:
+    """Setup logging for the main entry point."""
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "main.log")
+
+    logger = logging.getLogger("tft_main")
+    logger.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+    if not logger.handlers:
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        file_handler.setFormatter(formatter)
+        console_handler.setFormatter(formatter)
+
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+
+    return logger
+
+
+def run_single_experiment(
+    run_config: Dict[str, Any],
+    config: Dict[str, Any],
+    logger: logging.Logger,
+    output_dir: Path,
+) -> Dict[str, Any]:
+    """Run a single experiment from the experiment.runs list.
+
+    Args:
+        run_config: Configuration for this specific run.
+        config: Global configuration dictionary.
+        logger: Logger instance.
+        output_dir: Directory to save reports and checkpoints.
+
+    Returns:
+        Dictionary with run results including metrics and report path.
+    """
+    run_name = run_config.get("name", "unnamed_run")
+    dataset_name = run_config.get("dataset", "electricity")
+    dataset_version = run_config.get("dataset_version", "default")
+    model_name = run_config.get("model", "temporal_fusion_transformer")
+    training_mode = run_config.get("training_mode", "scratch")
+    seed = run_config.get("seed", config.get("system", {}).get("seed", 42))
+
+    logger.info(f"Starting run: {run_name}")
+    logger.info(f"  Dataset: {dataset_name}, Version: {dataset_version}")
+    logger.info(f"  Model: {model_name}, Training mode: {training_mode}")
+
+    # Check dataset version status
+    data_cfg = config.get("data", {})
+    version_cfg = data_cfg.get(dataset_version, {})
+    status = version_cfg.get("status", "resolved")
+
+    if status == "unresolved":
+        logger.warning(f"Dataset version '{dataset_version}' is unresolved. Skipping run '{run_name}'.")
+        return {
+            "run_name": run_name,
+            "dataset": dataset_name,
+            "status": "skipped",
+            "reason": f"Dataset version '{dataset_version}' status is 'unresolved'",
+        }
+
+    # Set random seeds
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # Determine device
+    device_name = config.get("system", {}).get("device", "cuda")
+    device = torch.device(device_name if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
+
+    # Get batch size from config
+    batch_sizes = config.get("training", {}).get("batch_size", {}).get("temporal_fusion_transformer", [64])
+    if isinstance(batch_sizes, list):
+        batch_size = batch_sizes[0]
+    else:
+        batch_size = 64
+
+    # Get epochs from config
+    epochs = int(config.get("training", {}).get("epochs", 30))
+
+    # Get num_workers from config
+    num_workers = config.get("system", {}).get("num_workers", 4)
+
+    # Create dataloaders
+    logger.info(f"Creating dataloaders for dataset: {dataset_name}")
+    dataloaders = get_dataloaders(
+        dataset_name=dataset_name,
+        version=dataset_version,
+        config=config,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        seed=seed,
+    )
+
+    train_loader = dataloaders["train_loader"]
+    val_loader = dataloaders["val_loader"]
+    test_loader = dataloaders["test_loader"]
+
+    # Check reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # For engineering mode, create secondary validation split from training set
+    if reproduction_mode == "engineering":
+        logger.info("Engineering mode: Creating secondary validation split from training set")
+        val_split_ratio = config.get("split_strategy", {}).get("val_split_ratio", 0.2)
+
+        # Create secondary validation split
+        train_dataset = train_loader.dataset
+        train_subset, val_subset = create_secondary_validation_split(
+            train_dataset,
+            val_ratio=val_split_ratio,
+            seed=seed,
+        )
+
+        # Create new dataloaders
+        train_loader = DataLoader(
+            train_subset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
+        val_loader = DataLoader(
+            val_subset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
+        logger.info(f"Train samples: {len(train_subset)}, Val samples: {len(val_subset)}")
+    else:
+        logger.info("Strict mode: No validation split, using train/test only")
+        val_loader = None
+
+    # Initialize model
+    logger.info(f"Initializing model: {model_name}")
+    model = initialize_model(
+        config=config,
+        model_name=model_name,
+        device=device,
+    )
+
+    # Log model info
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"Model initialized with {num_params:,} trainable parameters")
+
+    # Train model
+    logger.info(f"Starting training for {epochs} epochs with batch_size={batch_size}")
+    history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        config=config,
+        device=device,
+        logger=logger,
+        run_name=run_name,
+    )
+
+    # Evaluate on test set
+    logger.info("Evaluating on test set")
+    eval_result = evaluate_model(
+        model=model,
+        test_loader=test_loader,
+        device=device,
+        config=config,
+        quantiles=(0.5, 0.9),
+    )
+
+    metrics = eval_result["metrics"]
+    logger.info(f"Test metrics: {metrics}")
+
+    # Generate report
+    run_output_dir = output_dir / run_name
+    run_output_dir.mkdir(exist_ok=True, parents=True)
+
+    report_path = generate_report(
+        metrics=eval_result,
+        run_name=run_name,
+        output_dir=str(run_output_dir),
+        config=config,
+    )
+    logger.info(f"Report generated at: {report_path}")
+
+    # Save metrics as JSON
+    metrics_path = run_output_dir / f"{run_name}_metrics.json"
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2, default=str)
+
+    return {
+        "run_name": run_name,
+        "dataset": dataset_name,
+        "status": "completed",
+        "metrics": metrics,
+        "report_path": report_path,
+        "num_params": num_params,
+        "history": history,
+    }
+
+
+def generate_summary_report(
+    results: List[Dict[str, Any]],
+    output_dir: Path,
+    config: Dict[str, Any],
+) -> str:
+    """Generate a summary report for all runs.
+
+    Args:
+        results: List of run result dictionaries.
+        output_dir: Directory to save the summary report.
+        config: Configuration dictionary.
+
+    Returns:
+        Path to the summary report file.
+    """
+    summary_path = output_dir / "summary_report.txt"
+
+    lines = []
+    lines.append("=" * 80)
+    lines.append("Temporal Fusion Transformers - Summary Report")
+    lines.append("=" * 80)
+    lines.append("")
+
+    project_cfg = config.get("project", {})
+    lines.append(f"Project: {project_cfg.get('name', 'temporal_fusion_transformers')}")
+    lines.append(f"Paper: {project_cfg.get('paper', '')}")
+    lines.append("")
+
+    lines.append("-" * 80)
+    lines.append("Experiment Results")
+    lines.append("-" * 80)
+
+    completed_runs = [r for r in results if r.get("status") == "completed"]
+    skipped_runs = [r for r in results if r.get("status") == "skipped"]
+
+    if completed_runs:
+        for i, result in enumerate(completed_runs):
+            lines.append(f"\nRun {i + 1}: {result['run_name']}")
+            lines.append(f"  Dataset: {result['dataset']}")
+            lines.append(f"  Status: {result['status']}")
+            lines.append(f"  Parameters: {result.get('num_params', 'N/A'):,}")
+            metrics = result.get("metrics", {})
+            if metrics:
+                lines.append("  Metrics:")
+                for key, value in metrics.items():
+                    if key != "per_horizon":
+                        lines.append(f"    {key}: {value:.6f}")
+                if "per_horizon" in metrics:
+                    lines.append("  Per-Horizon Metrics:")
+                    for h_idx, h_metrics in enumerate(metrics["per_horizon"]):
+                        lines.append(f"    Horizon {h_idx + 1}:")
+                        for key, value in h_metrics.items():
+                            lines.append(f"      {key}: {value:.6f}")
+            lines.append(f"  Report: {result.get('report_path', 'N/A')}")
+    else:
+        lines.append("\nNo runs completed successfully.")
+
+    if skipped_runs:
+        lines.append("\nSkipped Runs:")
+        for result in skipped_runs:
+            lines.append(f"  {result['run_name']}: {result.get('reason', 'Unknown reason')}")
+
+    # Add comparison section if multiple runs completed
+    if len(completed_runs) > 1:
+        lines.append("\n" + "-" * 80)
+        lines.append("Cross-Run Comparison")
+        lines.append("-" * 80)
+
+        # Compare P50 and P90 metrics across runs
+        for metric_name in ["P50", "P90", "q_risk"]:
+            lines.append(f"\n{metric_name} comparison:")
+            for result in completed_runs:
+                metrics = result.get("metrics", {})
+                if metric_name in metrics:
+                    lines.append(f"  {result['run_name']}: {metrics[metric_name]:.6f}")
+
+    lines.append("\n" + "=" * 80)
+    lines.append("End of Summary Report")
+    lines.append("=" * 80)
+
+    with open(summary_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    return str(summary_path)
+
+
+def main() -> None:
+    """Main entry point for the project."""
+    args = parse_args()
+
+    # Load configuration
+    config = load_config(args.config)
+
+    # Setup logging
+    log_dir = config.get("logging", {}).get("log_dir", "./logs")
+    log_level = config.get("logging", {}).get("log_level", "INFO")
+    logger = setup_logging_for_main(log_dir, log_level)
+
+    logger.info("=" * 80)
+    logger.info("Temporal Fusion Transformers - Main Entry Point")
+    logger.info("=" * 80)
+
+    # Initialize output directory before the run loop
+    output_dir = Path("reports")
+    output_dir.mkdir(exist_ok=True, parents=True)
+    logger.info(f"Output directory initialized: {output_dir}")
+
+    # Get experiment runs
+    runs = config.get("experiment", {}).get("runs", [])
+    if not runs:
+        logger.error("No experiment runs found in config.")
+        return
+
+    # Filter runs based on --run argument
+    if args.run is not None:
+        if args.run < 0 or args.run >= len(runs):
+            logger.error(f"Invalid run index {args.run}. Valid range: 0-{len(runs) - 1}")
+            return
+        runs_to_execute = [runs[args.run]]
+        logger.info(f"Executing single run at index {args.run}: {runs[args.run].get('name', 'unnamed')}")
+    else:
+        runs_to_execute = runs
+        logger.info(f"Executing all {len(runs)} runs")
+
+    # Execute runs
+    results = []
+    for run_config in runs_to_execute:
+        try:
+            result = run_single_experiment(
+                run_config=run_config,
+                config=config,
+                logger=logger,
+                output_dir=output_dir,
+            )
+            results.append(result)
+        except Exception as e:
+            run_name = run_config.get("name", "unnamed_run")
+            logger.error(f"Error executing run '{run_name}': {str(e)}", exc_info=True)
+            results.append({
+                "run_name": run_name,
+                "dataset": run_config.get("dataset", "unknown"),
+                "status": "failed",
+                "reason": str(e),
+            })
+
+    # Generate summary report
+    logger.info("Generating summary report")
+    summary_path = generate_summary_report(
+        results=results,
+        output_dir=output_dir,
+        config=config,
+    )
+    logger.info(f"Summary report saved to: {summary_path}")
+
+    # Log final status
+    completed = sum(1 for r in results if r.get("status") == "completed")
+    skipped = sum(1 for r in results if r.get("status") == "skipped")
+    failed = sum(1 for r in results if r.get("status") == "failed")
+
+    logger.info("=" * 80)
+    logger.info(f"Execution complete. Completed: {completed}, Skipped: {skipped}, Failed: {failed}")
+    logger.info("=" * 80)
+
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,173 @@
+# -*- coding: utf-8 -*-
+import sys
+import json
+import numpy as np
+import cv2
+
+# 外部OCR已提供的识别文字，程序不调用OCR
+OCR_TEXT_DEFAULT = """Forecast Time (t,
+Prediction Intervals
+Point Forecasts
+Past Targets
+Static
+Covariates
+Prediction
+Model
+Observed Inputs
+Known Inputs"""
+
+ARCHITECTURE_KEYWORDS = [
+    "CNN", "TRANSFORMER", "ATTENTION", "ENCODER", "DECODER",
+    "BLOCK", "EMBEDDING", "CLASSIFIER", "FEATURE EXTRACTOR",
+    "ALEXNET", "RESNET", "VGG", "GOOGLENET",
+    "PREDICTION MODEL", "MODEL ARCHITECTURE", "NETWORK STRUCTURE"
+]
+
+EXPERIMENT_KEYWORDS = [
+    "ACCURACY", "LOSS", "EPOCH", "PRECISION", "RECALL", "F1",
+    "TRAINING CURVE", "VALIDATION CURVE", "BENCHMARK", "PERFORMANCE",
+    "ABLATION", "COMPARISON", "AUROC", "AUC", "ROC", "BLEU", "MAP"
+]
+
+DATASET_KEYWORDS = [
+    "DATASET", "SAMPLE", "SAMPLES", "INPUT EXAMPLE", "EXAMPLES",
+    "TRAINING SET", "TEST SET", "VALIDATION SET", "CATEGORY", "LABEL"
+]
+
+
+def get_visual_features(img):
+    if img is None:
+        return {}
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    h, w = img.shape[:2]
+    brightness = float(np.mean(gray))
+    std = float(np.std(gray))
+    _, binary = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
+    non_white_ratio = float(np.count_nonzero(binary)) / float(binary.size)
+    return {
+        "height": h,
+        "width": w,
+        "brightness": brightness,
+        "std": std,
+        "non_white_ratio": non_white_ratio
+    }
+
+
+def classify(ocr_text, visual):
+    text = " ".join(ocr_text.split()).upper()
+
+    if any(keyword in text for keyword in EXPERIMENT_KEYWORDS):
+        return "experiment_result"
+
+    if any(keyword in text for keyword in ARCHITECTURE_KEYWORDS):
+        return "architecture"
+
+    if any(keyword in text for keyword in DATASET_KEYWORDS):
+        return "dataset"
+
+    return "other"
+
+
+def extract_components(ocr_text, image_type):
+    normalized = " ".join(ocr_text.split())
+    lower = normalized.lower()
+    components = []
+
+    if image_type == "architecture":
+        candidates = [
+            "Transformer Encoder", "Transformer Decoder", "Attention Module",
+            "Encoder", "Decoder", "Embedding Layer", "Embedding",
+            "Feature Extractor", "Classifier",
+            "CNN", "AlexNet", "ResNet", "VGG", "GoogLeNet",
+            "Prediction Model",
+            "Static Covariates", "Observed Inputs", "Known Inputs",
+            "Past Targets"
+        ]
+        for candidate in candidates:
+            if candidate.lower() in lower:
+                components.append(candidate)
+
+    elif image_type == "experiment_result":
+        candidates = [
+            "AlexNet", "ResNet", "VGG", "GoogLeNet", "Transformer", "CNN",
+            "Accuracy", "Loss", "Precision", "Recall", "F1-score", "F1",
+            "Epoch", "AUC", "ROC", "BLEU", "mAP"
+        ]
+        for candidate in candidates:
+            if candidate.lower() in lower:
+                components.append(candidate)
+
+    unique = []
+    for component in components:
+        if component not in unique:
+            unique.append(component)
+    return unique
+
+
+def describe(image_type):
+    if image_type == "architecture":
+        return "展示模型网络结构和数据流关系"
+    if image_type == "experiment_result":
+        return "展示实验性能曲线或指标比较结果"
+    if image_type == "dataset":
+        return "展示数据样本或类别示例"
+    return "无法确定图片类型"
+
+
+def get_code_info(image_type, components):
+    if image_type == "architecture":
+        return "需要实现预测模型，接收过去目标、观测输入、已知输入和静态协变量，输出点预测和预测区间。"
+    if image_type == "experiment_result":
+        return "需要实现模型训练与评估流程，输出准确率、损失、F1等实验指标。"
+    if image_type == "dataset":
+        return "需要构建数据加载和预处理流程，生成类似的输入样本。"
+    return ""
+
+
+def main():
+    fallback = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+
+    try:
+        if len(sys.argv) < 2:
+            print(json.dumps(fallback, ensure_ascii=False))
+            return
+
+        image_path = sys.argv[1]
+        ocr_text = sys.argv[2] if len(sys.argv) > 2 else OCR_TEXT_DEFAULT
+
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+        visual = get_visual_features(img)
+        image_type = classify(ocr_text, visual)
+        components = extract_components(ocr_text, image_type)
+
+        result = {
+            "type": image_type,
+            "description": describe(image_type),
+            "important_components": components,
+            "code_relevant_information": get_code_info(image_type, components)
+        }
+
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
+        print(json.dumps(result, ensure_ascii=False))
+
+    except Exception:
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+        print(json.dumps(fallback, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

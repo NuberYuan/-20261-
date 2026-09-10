@@ -1,0 +1,11 @@
+Based on the table analyses, the key experimental findings are as follows:
+
+1. **SELF-RAG (50k) outperforms all ablations and test-time variations** on the primary evaluation metrics, achieving the highest PQA accuracy (45.5) and AS exact match (32.1), demonstrating the effectiveness of the full framework over its components.
+
+2. **The retrieval component is critical for performance**, as ablations removing the retriever (No Retriever) or disabling retrieval at test time (No retrieval) result in lower scores, while retrieving the top-1 document yields competitive Med accuracy (73.1) close to the full model (73.5).
+
+3. **Llama2-7B is the superior base model for the generator**, outperforming FLAN-3B on most training data metrics (Retrieve: 93.8 vs. lower, ISSUP: 93.5, ISUSE: 73.5), though FLAN-3B edges out Llama2-7B on ISREL (82.0 vs. 80.2).
+
+4. **The training data mixture is heavily dominated by instruction-following datasets** (GPT-4 Alpaca, Stanford Alpaca, FLAN-V2, ShareGPT, Open Assistant 1), with knowledge-intensive datasets (KILT, HF Dataset, ASQA) contributing far fewer examples, and Arc-Easy being the smallest contributor.
+
+5. **The evaluation rubric for retrieval-on-demand generation** is defined by four key criteria—Retrieve, Relevant, Supported, and Useful—which serve as the framework for assessing response quality, though several tables were too fragmented to extract quantitative results.

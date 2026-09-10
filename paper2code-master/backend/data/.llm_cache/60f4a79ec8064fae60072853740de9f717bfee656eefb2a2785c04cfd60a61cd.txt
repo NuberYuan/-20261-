@@ -1,0 +1,19 @@
+{
+  "table_id": "table_4",
+  "table_type": "other",
+  "caption_summary": "Lists graph edge access operations by mark with their descriptions and constant-time complexity.",
+  "extracted_data": {
+    "metrics": ["time_complexity"],
+    "methods": ["firstInEdge(m)", "nextInEdge(m)", "firstOutEdge(m)", "nextOutEdge(m)", "firstLoop(m)", "nextLoop(m)"],
+    "best_result": null,
+    "key_values": [
+      {"label": "firstInEdge(m): Given a node, fetch the first inedge of mark m.", "value": "O(1)"},
+      {"label": "nextInEdge(m): Given a node and an edge of mark m, fetch the next inedge of mark m.", "value": "O(1)"},
+      {"label": "firstOutEdge(m): Given a node, fetch the first outedge of mark m.", "value": "O(1)"},
+      {"label": "nextOutEdge(m): Given a node and an edge of mark m, fetch the next outedge of mark m.", "value": "O(1)"},
+      {"label": "firstLoop(m): Given a node, fetch the first loop edge of mark m.", "value": "O(1)"},
+      {"label": "nextLoop(m): Given a node and an edge of mark m, fetch the next loop edge of mark m.", "value": "O(1)"}
+    ]
+  },
+  "table_summary": "The table defines six primitive operations for accessing marked edges in a graph: first and next in-edges, out-edges, and loop edges. Each operation is described as fetching the relevant edge of mark m from a given node or edge. All listed operations have constant time complexity O(1)."
+}

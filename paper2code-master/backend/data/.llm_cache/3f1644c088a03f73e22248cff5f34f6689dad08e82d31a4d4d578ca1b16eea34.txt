@@ -1,0 +1,4 @@
+{
+  "accuracy_targets.primary.target": "72.5%（FEVER-3way）",
+  "accuracy_targets.secondary.accuracy": "89.5%（FEVER-2way）"
+}

@@ -1,0 +1,114 @@
+project:
+  name: temporal_fusion_transformers
+  paper: "Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting"
+  framework: PyTorch
+
+data_source: external_dataset
+acquisition: local_path
+
+data:
+  root: null
+  versions:
+    - default
+  feature_dim: null
+  normalization: null
+  default:
+    status: unresolved
+    reason: "Local dataset path not specified; set data.default.path before training."
+
+split_strategy:
+  method: random_split
+  ratios: |
+    Electricity: 500k samples from 2014-01-01 to 2014-09-01, first 90 percent training, last 10 percent validation, testing over 7 days immediately following training set.
+    Traffic: 500k training samples before 2008-06-15, split same as Electricity, testing over 7 days immediately following training set.
+    Retail: training set 450k samples from 2015-01-01 to 2015-12-01, validation set 50k samples from 30 days after training set, test set all entities over 30-day horizon following validation set.
+    Volatility: data from 2000-01-03 to 2019-06-28, training before 2016, validation 2016-2017, test from 2018 onwards.
+  leaf_mapping_constraint: NOT_FOUND
+  train_test_splits: [20.14, 20.14, 20.08, 20.15, 20.15]
+  seed: 42
+  default_train_ratio: 0.9
+  val_split_ratio: 0.2
+
+reproduction_mode: engineering
+
+model:
+  architectures:
+    - Temporal Fusion Transformer
+  num_classes: null
+  dropout_ratio:
+    Electricity: 0.1
+    Traffic: 0.3
+    Retail: 0.1
+    Volatility: 0.3
+  weight_init: kaiming_normal
+
+training_modes:
+  scratch:
+    description: "从头训练：所有层随机初始化"
+    pretrained: false
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+
+training:
+  batch_size:
+    Electricity: 64
+    Traffic: 128
+    Retail: 128
+    Volatility: 64
+  batch_size_note: "论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。"
+  epochs: 30
+  image_size: null
+  optimizer:
+    name: null
+    lr: 0.01
+    momentum: null
+    weight_decay: null
+  scheduler:
+    name: null
+    step_size: null
+    gamma: null
+    note: "论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略。"
+  loss_function: |
+    Quantile loss: QL(y, yhat, q) = q(y-yhat)_+ + (1-q)(yhat-y)_+, summed across all quantile outputs q in {0.1, 0.5, 0.9} and horizons tau=1,...,tau_max, divided by M*tau_max.
+    Test q-Risk = 2 * sum_{yt in Omega_tilde} sum_{tau=1}^{tau_max} QL(yt, yhat(q,t-tau,tau),q) / sum_{tau=1}^{tau_max}|yt|.
+  dropout_ratio:
+    Electricity: 0.1
+    Traffic: 0.3
+    Retail: 0.1
+    Volatility: 0.3
+  early_stopping: null
+
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: null
+  save_optimizer_state: true
+  resume_from: null
+  note: "论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。"
+
+inference:
+  device: cuda
+  batch_size: null
+
+experiment:
+  runs:
+    - name: tft_default
+      dataset_version: default
+      data_source: external_dataset
+      acquisition: local_path
+      training_mode: scratch
+      reproduction_mode: engineering
+
+logging:
+  level: INFO
+  save_logs: true
+  log_dir: null
+  tensorboard: false
+
+system:
+  device: cuda
+  num_workers: 4
+  seed: 42

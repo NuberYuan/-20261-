@@ -1,0 +1,6 @@
+﻿"firstInEdge(m)","Given a node, fetch the first inedge of mark m.","O(1)"
+"nextInEdge(m)","Given a node and an edge of mark m, fetch the next inedge of mark m.","O(1)"
+"firstOutEdge(m)","Given a node, fetch the first outedge of mark m.","O(1)"
+"nextOutEdge(m)","Given a node and an edge of mark m, fetch the next outedge of mark m.","O(1)"
+"firstLoop(m)","Given a node, fetch the first loop edge of mark m.","O(1)"
+"nextLoop(m)","Given a node and an edge of mark m, fetch the next loop edge of mark m.","O(1)"

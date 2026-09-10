@@ -1,0 +1,16 @@
+{
+  "table_id": "table_1",
+  "table_type": "other",
+  "caption_summary": "Diagram-like table showing the input, output, and memory interfaces of a controller, with labels for Controller Output, State Controller, Future, and Controller Input.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Input Interface", "value": "Controller Input"},
+      {"label": "Output Interface", "value": "Controller Output"},
+      {"label": "Memory Interface", "value": "State Controller Future"}
+    ]
+  },
+  "table_summary": "This table appears to be a structural diagram or schematic representation rather than a numerical results table. It shows the interfaces of a controller system, including Input Interface, Output Interface, and Memory Interface, with associated labels such as Controller Input, Controller Output, State Controller, and Future. No quantitative data or experimental metrics are present."
+}

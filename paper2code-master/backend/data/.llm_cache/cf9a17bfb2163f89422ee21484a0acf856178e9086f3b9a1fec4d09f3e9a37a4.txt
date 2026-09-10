@@ -1,0 +1,203 @@
+```python
+"""Evaluation metrics computation utilities.
+
+This module provides functions to compute standard classification metrics
+for the software defect prediction task, including accuracy, precision,
+recall, F1-score, AUC-ROC, and log loss.
+"""
+
+from __future__ import annotations
+
+from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from sklearn.metrics import (
+    accuracy_score,
+    auc,
+    f1_score,
+    log_loss,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+
+
+def compute_metrics(
+    y_true: Union[List[int], np.ndarray, torch.Tensor],
+    y_pred_proba: Union[List[float], np.ndarray, torch.Tensor],
+    threshold: float = 0.5,
+    config: Optional[dict] = None,
+) -> Dict[str, float]:
+    """Compute evaluation metrics for binary classification.
+
+    Args:
+        y_true: Ground truth binary labels (0 or 1).
+        y_pred_proba: Predicted probabilities for the positive class.
+        threshold: Classification threshold for converting probabilities to labels.
+        config: Optional configuration dictionary (unused but kept for API consistency).
+
+    Returns:
+        Dictionary containing accuracy, precision, recall, f1, auc_roc, and log_loss.
+    """
+    # Convert inputs to numpy arrays for sklearn compatibility
+    if isinstance(y_true, torch.Tensor):
+        y_true_np = y_true.detach().cpu().numpy()
+    else:
+        y_true_np = np.asarray(y_true)
+
+    if isinstance(y_pred_proba, torch.Tensor):
+        y_pred_proba_np = y_pred_proba.detach().cpu().numpy()
+    else:
+        y_pred_proba_np = np.asarray(y_pred_proba)
+
+    # Ensure 1D arrays
+    y_true_np = np.ravel(y_true_np)
+    y_pred_proba_np = np.ravel(y_pred_proba_np)
+
+    # Convert probabilities to binary predictions using threshold
+    y_pred_np = (y_pred_proba_np >= threshold).astype(int)
+
+    # Compute metrics
+    acc = accuracy_score(y_true_np, y_pred_np)
+    prec = precision_score(y_true_np, y_pred_np, zero_division=0)
+    rec = recall_score(y_true_np, y_pred_np, zero_division=0)
+    f1 = f1_score(y_true_np, y_pred_np, zero_division=0)
+
+    # AUC-ROC: handle edge cases where only one class is present
+    if len(np.unique(y_true_np)) < 2:
+        auc_roc = 0.5
+    else:
+        try:
+            auc_roc = roc_auc_score(y_true_np, y_pred_proba_np)
+        except ValueError:
+            auc_roc = 0.5
+
+    # Log loss: clip probabilities to avoid log(0)
+    eps = 1e-15
+    y_pred_clipped = np.clip(y_pred_proba_np, eps, 1.0 - eps)
+    ll = log_loss(y_true_np, y_pred_clipped)
+
+    metrics = {
+        "accuracy": float(acc),
+        "precision": float(prec),
+        "recall": float(rec),
+        "f1": float(f1),
+        "auc_roc": float(auc_roc),
+        "log_loss": float(ll),
+    }
+
+    return metrics
+
+
+def compute_metrics_from_logits(
+    y_true: Union[List[int], np.ndarray, torch.Tensor],
+    logits: Union[List[float], np.ndarray, torch.Tensor],
+    threshold: float = 0.5,
+    config: Optional[dict] = None,
+) -> Dict[str, float]:
+    """Compute metrics from raw logits by applying sigmoid activation.
+
+    Args:
+        y_true: Ground truth binary labels.
+        logits: Raw model outputs (before sigmoid).
+        threshold: Classification threshold.
+        config: Optional configuration dictionary.
+
+    Returns:
+        Dictionary of computed metrics.
+    """
+    if isinstance(logits, torch.Tensor):
+        proba = torch.sigmoid(logits)
+    else:
+        logits_np = np.asarray(logits)
+        proba = 1.0 / (1.0 + np.exp(-logits_np))
+
+    return compute_metrics(y_true, proba, threshold=threshold, config=config)
+
+
+def compute_metrics_batch(
+    y_true_batches: List[Union[List[int], np.ndarray, torch.Tensor]],
+    y_pred_proba_batches: List[Union[List[float], np.ndarray, torch.Tensor]],
+    threshold: float = 0.5,
+    config: Optional[dict] = None,
+) -> Dict[str, float]:
+    """Compute metrics from batched predictions.
+
+    Args:
+        y_true_batches: List of ground truth label batches.
+        y_pred_proba_batches: List of predicted probability batches.
+        threshold: Classification threshold.
+        config: Optional configuration dictionary.
+
+    Returns:
+        Dictionary of computed metrics aggregated over all batches.
+    """
+    all_y_true: List[int] = []
+    all_y_pred_proba: List[float] = []
+
+    for y_true_batch, y_pred_proba_batch in zip(y_true_batches, y_pred_proba_batches):
+        if isinstance(y_true_batch, torch.Tensor):
+            y_true_np = y_true_batch.detach().cpu().numpy()
+        else:
+            y_true_np = np.asarray(y_true_batch)
+
+        if isinstance(y_pred_proba_batch, torch.Tensor):
+            y_pred_proba_np = y_pred_proba_batch.detach().cpu().numpy()
+        else:
+            y_pred_proba_np = np.asarray(y_pred_proba_batch)
+
+        all_y_true.extend(np.ravel(y_true_np).tolist())
+        all_y_pred_proba.extend(np.ravel(y_pred_proba_np).tolist())
+
+    return compute_metrics(
+        y_true=all_y_true,
+        y_pred_proba=all_y_pred_proba,
+        threshold=threshold,
+        config=config,
+    )
+
+
+def compute_metrics_from_logits_batch(
+    y_true_batches: List[Union[List[int], np.ndarray, torch.Tensor]],
+    logits_batches: List[Union[List[float], np.ndarray, torch.Tensor]],
+    threshold: float = 0.5,
+    config: Optional[dict] = None,
+) -> Dict[str, float]:
+    """Compute metrics from batched logits.
+
+    Args:
+        y_true_batches: List of ground truth label batches.
+        logits_batches: List of raw logit batches.
+        threshold: Classification threshold.
+        config: Optional configuration dictionary.
+
+    Returns:
+        Dictionary of computed metrics.
+    """
+    all_y_true: List[int] = []
+    all_proba: List[float] = []
+
+    for y_true_batch, logits_batch in zip(y_true_batches, logits_batches):
+        if isinstance(y_true_batch, torch.Tensor):
+            y_true_np = y_true_batch.detach().cpu().numpy()
+        else:
+            y_true_np = np.asarray(y_true_batch)
+
+        if isinstance(logits_batch, torch.Tensor):
+            proba_np = torch.sigmoid(logits_batch).detach().cpu().numpy()
+        else:
+            logits_np = np.asarray(logits_batch)
+            proba_np = 1.0 / (1.0 + np.exp(-logits_np))
+
+        all_y_true.extend(np.ravel(y_true_np).tolist())
+        all_proba.extend(np.ravel(proba_np).tolist())
+
+    return compute_metrics(
+        y_true=all_y_true,
+        y_pred_proba=all_proba,
+        threshold=threshold,
+        config=config,
+    )
+```

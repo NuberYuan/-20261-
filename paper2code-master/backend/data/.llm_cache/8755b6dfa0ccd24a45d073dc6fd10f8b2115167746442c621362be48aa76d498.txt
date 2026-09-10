@@ -1,0 +1,186 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+from PIL import Image
+import os
+
+def analyze_image(image_path, ocr_text):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法读取图片",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # Convert OCR text to lowercase for matching
+        ocr_lower = ocr_text.lower()
+        
+        # Define keywords for each type
+        architecture_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        experiment_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "curve", "performance", "comparison", "training", "validation"
+        ]
+        
+        dataset_keywords = [
+            "dataset", "sample", "example", "input", "class", "category",
+            "image", "data"
+        ]
+        
+        # Check for experiment_result first (highest priority)
+        is_experiment = False
+        experiment_components = []
+        
+        if "epoch" in ocr_lower or "accuracy" in ocr_lower or "loss" in ocr_lower:
+            is_experiment = True
+            if "epoch" in ocr_lower:
+                experiment_components.append("Epoch")
+            if "accuracy" in ocr_lower:
+                experiment_components.append("Accuracy")
+            if "loss" in ocr_lower:
+                experiment_components.append("Loss")
+            if "precision" in ocr_lower:
+                experiment_components.append("Precision")
+            if "recall" in ocr_lower:
+                experiment_components.append("Recall")
+            if "f1" in ocr_lower:
+                experiment_components.append("F1-score")
+        
+        # Check for architecture
+        is_architecture = False
+        architecture_components = []
+        
+        for kw in architecture_keywords:
+            if kw in ocr_lower:
+                is_architecture = True
+                # Map to proper component names
+                if kw == "cnn":
+                    architecture_components.append("CNN")
+                elif kw == "transformer":
+                    architecture_components.append("Transformer")
+                elif kw == "attention":
+                    architecture_components.append("Attention Module")
+                elif kw == "encoder":
+                    architecture_components.append("Encoder")
+                elif kw == "decoder":
+                    architecture_components.append("Decoder")
+                elif kw == "block":
+                    architecture_components.append("Block")
+                elif kw == "embedding":
+                    architecture_components.append("Embedding")
+                elif kw == "classifier":
+                    architecture_components.append("Classifier")
+                elif kw == "feature extractor":
+                    architecture_components.append("Feature Extractor")
+                elif kw == "alexnet":
+                    architecture_components.append("AlexNet")
+                elif kw == "resnet":
+                    architecture_components.append("ResNet")
+                elif kw == "vgg":
+                    architecture_components.append("VGG")
+                elif kw == "googlenet":
+                    architecture_components.append("GoogLeNet")
+        
+        # Check for dataset
+        is_dataset = False
+        dataset_components = []
+        
+        for kw in dataset_keywords:
+            if kw in ocr_lower:
+                is_dataset = True
+                if kw == "dataset":
+                    dataset_components.append("Dataset")
+                elif kw == "sample":
+                    dataset_components.append("Sample")
+                elif kw == "class":
+                    dataset_components.append("Class")
+                elif kw == "category":
+                    dataset_components.append("Category")
+        
+        # Apply priority: experiment_result > architecture > dataset > other
+        if is_experiment:
+            result = {
+                "type": "experiment_result",
+                "description": "展示模型训练过程中的性能指标变化和实验结果对比",
+                "important_components": experiment_components,
+                "code_relevant_information": "需要实现模型训练和评估流程，记录并可视化性能指标"
+            }
+        elif is_architecture:
+            result = {
+                "type": "architecture",
+                "description": "展示模型网络结构和数据流关系",
+                "important_components": architecture_components,
+                "code_relevant_information": "需要实现模型网络结构，包括特征提取和分类模块"
+            }
+        elif is_dataset:
+            result = {
+                "type": "dataset",
+                "description": "展示数据集样本和类别分布",
+                "important_components": dataset_components,
+                "code_relevant_information": "需要实现数据加载和预处理流程"
+            }
+        else:
+            result = {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "图片分析失败",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+def main():
+    try:
+        # Get image path from command line
+        image_path = sys.argv[1]
+        
+        # OCR text provided externally
+        ocr_text = """1.0
+Dataset Type
+0.5
+Color
+GrayScale
+Segmented
+0.4
+Epochs"""
+        
+        # Analyze image
+        result = analyze_image(image_path, ocr_text)
+        
+        # Output JSON
+        print(json.dumps(result, ensure_ascii=False))
+        
+    except Exception as e:
+        # Fallback output
+        fallback = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        print(json.dumps(fallback, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```

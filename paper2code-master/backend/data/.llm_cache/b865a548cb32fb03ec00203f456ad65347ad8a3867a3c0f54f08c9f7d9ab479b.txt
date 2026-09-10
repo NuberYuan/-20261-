@@ -1,0 +1,467 @@
+```python
+"""Evaluation module for Temporal Fusion Transformer.
+
+Implements model evaluation and report generation (Phase 5).
+Provides:
+    - evaluate_model: Compute evaluation metrics on test set
+    - generate_report: Generate text report and optional charts
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+import yaml
+
+# Optional matplotlib import - must not crash if unavailable
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).parent.parent
+import sys
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from utils.metrics import compute_metrics
+
+
+def _load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """Load configuration from YAML file.
+
+    Args:
+        config_path: Path to config file. If None, use default path.
+
+    Returns:
+        Configuration dictionary.
+    """
+    if config_path is None:
+        config_path = os.path.join(PROJECT_ROOT, "config", "config.yaml")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+
+def _get_device(config: Optional[Dict[str, Any]] = None) -> torch.device:
+    """Determine device from config.
+
+    Args:
+        config: Configuration dictionary.
+
+    Returns:
+        torch.device instance.
+    """
+    if config is None:
+        config = _load_config()
+
+    device_name = config.get("system", {}).get("device", "cuda")
+    if device_name == "cuda" and torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
+def _prepare_batch(
+    batch: Dict[str, torch.Tensor],
+    device: torch.device,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Prepare batch tensors for model forward pass.
+
+    Args:
+        batch: Dictionary containing features, targets, entity_ids, time_indices.
+        device: Device to move tensors to.
+
+    Returns:
+        Tuple of (features, targets, entity_ids, time_indices).
+    """
+    features = batch["features"].to(device)
+    targets = batch["targets"].to(device)
+    entity_ids = batch["entity_ids"].to(device)
+    time_indices = batch["time_indices"].to(device)
+    return features, targets, entity_ids, time_indices
+
+
+def _model_forward(
+    model: nn.Module,
+    features: torch.Tensor,
+    entity_ids: torch.Tensor,
+    device: torch.device,
+) -> torch.Tensor:
+    """Perform model forward pass with proper input formatting.
+
+    Args:
+        model: The model to evaluate.
+        features: Input features tensor.
+        entity_ids: Entity ID tensor.
+        device: Device used for computation.
+
+    Returns:
+        Model predictions tensor.
+    """
+    # Prepare inputs for model (simplified version matching training/train.py)
+    past_targets = features.unsqueeze(-1)  # (batch, seq_len, 1)
+    static_covariates = entity_ids.float().unsqueeze(-1).unsqueeze(-1)  # (batch, 1, 1)
+    known_future_inputs = features[:, -1:, :].unsqueeze(-1)  # (batch, 1, 1)
+
+    # Forward pass
+    predictions = model(
+        past_targets=past_targets,
+        static_covariates=static_covariates,
+        known_future_inputs=known_future_inputs,
+    )
+
+    return predictions
+
+
+def evaluate_model(
+    model: nn.Module,
+    test_loader: DataLoader,
+    config: Optional[Dict[str, Any]] = None,
+    device: Optional[torch.device] = None,
+    quantiles: Tuple[float, ...] = (0.1, 0.5, 0.9),
+) -> Dict[str, Any]:
+    """Evaluate model on test set and compute metrics.
+
+    Implements FR-08: Compute Normalized quantile losses (P50 and P90 risk)
+    and q-Risk on the test set.
+
+    Args:
+        model: Trained model to evaluate.
+        test_loader: DataLoader for test data.
+        config: Configuration dictionary. If None, load from config.yaml.
+        device: Device to use. If None, determined from config.
+        quantiles: Quantile levels used by the model.
+
+    Returns:
+        Dictionary containing:
+            - 'metrics': Dictionary of evaluation metrics (P50, P90, q_risk)
+            - 'predictions': List of prediction tensors
+            - 'targets': List of target tensors
+            - 'num_samples': Number of evaluated samples
+    """
+    if config is None:
+        config = _load_config()
+
+    if device is None:
+        device = _get_device(config)
+
+    # Set model to evaluation mode
+    model.eval()
+
+    all_predictions: List[torch.Tensor] = []
+    all_targets: List[torch.Tensor] = []
+
+    with torch.no_grad():
+        for batch in test_loader:
+            features, targets, entity_ids, time_indices = _prepare_batch(batch, device)
+
+            # Forward pass
+            predictions = _model_forward(model, features, entity_ids, device)
+
+            # Collect predictions and targets
+            all_predictions.append(predictions.cpu())
+            all_targets.append(targets.cpu())
+
+    # Concatenate all predictions and targets
+    if len(all_predictions) == 0:
+        raise ValueError("No batches found in test_loader")
+
+    predictions_tensor = torch.cat(all_predictions, dim=0)
+    targets_tensor = torch.cat(all_targets, dim=0)
+
+    # Ensure targets have correct shape for metric computation
+    # targets: (batch, horizon) -> expand to match predictions if needed
+    if targets_tensor.dim() == 2:
+        targets_tensor = targets_tensor.unsqueeze(-1)  # (batch, horizon, 1)
+
+    # Compute metrics
+    metrics = compute_metrics(
+        y_true=targets_tensor,
+        y_pred=predictions_tensor,
+        quantiles=quantiles,
+        config=config,
+    )
+
+    result = {
+        "metrics": metrics,
+        "predictions": predictions_tensor,
+        "targets": targets_tensor,
+        "num_samples": targets_tensor.size(0),
+    }
+
+    return result
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any],
+    output_path: str,
+) -> Optional[str]:
+    """Generate bar chart for evaluation metrics.
+
+    Args:
+        metrics: Dictionary of metrics (must contain P50, P90, q_risk).
+        output_path: Path to save the chart.
+
+    Returns:
+        Path to saved chart, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        return None
+
+    # Extract metric values for plotting
+    metric_names = ["P50", "P90", "q_risk"]
+    metric_values = []
+
+    for name in metric_names:
+        if name in metrics:
+            value = metrics[name]
+            if isinstance(value, (int, float)):
+                metric_values.append(float(value))
+            else:
+                metric_values.append(0.0)
+        else:
+            metric_values.append(0.0)
+
+    # Create bar chart
+    fig, ax = plt.subplots(figsize=(8, 6))
+    bars = ax.bar(metric_names, metric_values, color=["#1f77b4", "#ff7f0e", "#2ca02c"])
+
+    # Add value labels on top of bars
+    for bar, value in zip(bars, metric_values):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height,
+            f"{value:.4f}",
+            ha="center",
+            va="bottom",
+        )
+
+    ax.set_xlabel("Metric")
+    ax.set_ylabel("Value")
+    ax.set_title("TFT Evaluation Metrics")
+    ax.grid(axis="y", alpha=0.3)
+
+    # Save figure
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: np.ndarray,
+    output_path: str,
+) -> Optional[str]:
+    """Generate confusion matrix plot.
+
+    Args:
+        confusion_matrix: 2D numpy array of confusion matrix.
+        output_path: Path to save the plot.
+
+    Returns:
+        Path to saved plot, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        return None
+
+    if confusion_matrix is None:
+        return None
+
+    # Ensure confusion matrix is 2D numpy array
+    if isinstance(confusion_matrix, list):
+        confusion_matrix = np.array(confusion_matrix)
+
+    if confusion_matrix.ndim != 2:
+        return None
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    im = ax.imshow(confusion_matrix, interpolation="nearest", cmap=plt.cm.Blues)
+    ax.figure.colorbar(im, ax=ax)
+
+    # Add labels
+    num_classes = confusion_matrix.shape[0]
+    classes = [str(i) for i in range(num_classes)]
+
+    ax.set(
+        xticks=np.arange(num_classes),
+        yticks=np.arange(num_classes),
+        xticklabels=classes,
+        yticklabels=classes,
+        ylabel="True label",
+        xlabel="Predicted label",
+    )
+
+    # Add text annotations
+    thresh = confusion_matrix.max() / 2.0 if confusion_matrix.max() > 0 else 0.5
+    for i in range(num_classes):
+        for j in range(num_classes):
+            ax.text(
+                j,
+                i,
+                format(confusion_matrix[i, j], "d"),
+                ha="center",
+                va="center",
+                color="white" if confusion_matrix[i, j] > thresh else "black",
+            )
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def generate_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generate evaluation report.
+
+    Implements FR-09: Generate report with Normalized quantile losses
+    (P50 and P90 risk) and q-Risk values.
+
+    Args:
+        metrics: Dictionary of evaluation metrics.
+        run_name: Name of the run (e.g., 'tft_electricity').
+        output_dir: Directory to save the report.
+        config: Configuration dictionary. If None, load from config.yaml.
+
+    Returns:
+        Path to the generated report file.
+    """
+    if config is None:
+        config = _load_config()
+
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Extract metric values
+    p50 = metrics.get("P50", 0.0)
+    p90 = metrics.get("P90", 0.0)
+    q_risk = metrics.get("q_risk", 0.0)
+
+    # Build report content
+    report_lines = []
+    report_lines.append("=" * 70)
+    report_lines.append(f"TFT Evaluation Report - Run: {run_name}")
+    report_lines.append("=" * 70)
+    report_lines.append("")
+
+    # Project info
+    project_name = config.get("project", {}).get("name", "temporal_fusion_transformers")
+    paper_title = config.get("project", {}).get("paper", "")
+    report_lines.append(f"Project: {project_name}")
+    report_lines.append(f"Paper: {paper_title}")
+    report_lines.append("")
+
+    # Dataset info
+    data_root = config.get("data", {}).get("root", "./data")
+    report_lines.append(f"Data root: {data_root}")
+    report_lines.append("")
+
+    # Evaluation metrics section
+    report_lines.append("-" * 70)
+    report_lines.append("Evaluation Metrics")
+    report_lines.append("-" * 70)
+    report_lines.append("")
+    report_lines.append(f"Normalized Quantile Loss (P50): {p50:.6f}")
+    report_lines.append(f"Normalized Quantile Loss (P90): {p90:.6f}")
+    report_lines.append(f"q-Risk: {q_risk:.6f}")
+    report_lines.append("")
+
+    # Additional metrics if present
+    additional_metrics = {k: v for k, v in metrics.items() if k not in ["P50", "P90", "q_risk"]}
+    if additional_metrics:
+        report_lines.append("Additional Metrics:")
+        for key, value in additional_metrics.items():
+            if isinstance(value, (int, float)):
+                report_lines.append(f"  {key}: {value:.6f}")
+            else:
+                report_lines.append(f"  {key}: {value}")
+        report_lines.append("")
+
+    # Reference values from paper (for comparison)
+    report_lines.append("-" * 70)
+    report_lines.append("Reference Values (from TFT paper)")
+    report_lines.append("-" * 70)
+    report_lines.append("")
+    report_lines.append("Note: Reference values vary by dataset. The paper reports")
+    report_lines.append("normalized quantile losses for P50 and P90 across multiple")
+    report_lines.append("datasets (Electricity, Traffic, Retail, Volatility).")
+    report_lines.append("")
+
+    # Engineering notes
+    report_lines.append("-" * 70)
+    report_lines.append("Engineering Notes")
+    report_lines.append("-" * 70)
+    report_lines.append("")
+    report_lines.append("- The paper uses train/test split without a separate validation set.")
+    report_lines.append("- For engineering purposes, a validation split may be created from")
+    report_lines.append("  the training set (engineering deviation from paper).")
+    report_lines.append("- Metrics are computed on the test set only.")
+    report_lines.append("")
+
+    # Write report to file
+    report_path = os.path.join(output_dir, f"{run_name}_report.txt")
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(report_lines))
+
+    # Generate charts if matplotlib is available
+    chart_paths = []
+
+    # Metrics bar chart
+    metrics_chart_path = os.path.join(output_dir, f"{run_name}_metrics.png")
+    chart_result = _generate_metrics_bar_chart(metrics, metrics_chart_path)
+    if chart_result is not None:
+        chart_paths.append(chart_result)
+
+    # Confusion matrix plot (if available in metrics)
+    if "confusion_matrix" in metrics:
+        cm_path = os.path.join(output_dir, f"{run_name}_confusion_matrix.png")
+        cm_result = _generate_confusion_matrix_plot(metrics["confusion_matrix"], cm_path)
+        if cm_result is not None:
+            chart_paths.append(cm_result)
+
+    # Save metrics as JSON for programmatic access
+    json_path = os.path.join(output_dir, f"{run_name}_metrics.json")
+    serializable_metrics = {}
+    for key, value in metrics.items():
+        if isinstance(value, (int, float, str, bool)):
+            serializable_metrics[key] = value
+        elif isinstance(value, np.ndarray):
+            serializable_metrics[key] = value.tolist()
+        elif isinstance(value, torch.Tensor):
+            serializable_metrics[key] = value.item() if value.numel() == 1 else value.tolist()
+        else:
+            serializable_metrics[key] = str(value)
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(serializable_metrics, f, indent=2)
+
+    # Log summary
+    logger = logging.getLogger("tft_evaluation")
+    logger.info(f"Report saved to {report_path}")
+    if chart_paths:
+        logger.info(f"Charts saved: {chart_paths}")
+
+    return report_path
+```

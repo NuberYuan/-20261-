@@ -1,0 +1,6 @@
+{
+  "architecture_details.note": "NOT_FOUND",
+  "training.optimizer.type": "NOT_FOUND",
+  "pretrained_weights.source": "NOT_FOUND",
+  "special_modules": "NOT_FOUND"
+}

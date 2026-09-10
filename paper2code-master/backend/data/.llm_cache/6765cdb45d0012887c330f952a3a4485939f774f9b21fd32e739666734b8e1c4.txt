@@ -1,0 +1,111 @@
+```python
+import torch
+import torch.nn as nn
+import yaml
+from pathlib import Path
+
+
+class Lstm(nn.Module):
+    """
+    LSTM controller for time series prediction.
+
+    Based on the paper "LEARNING SIMPLE ALGORITHMS FROM EXAMPLES".
+    Two different sizes of 1-layer LSTM are explored: 200 units and 400 units.
+    The LSTM is used as the controller.
+
+    The model reads input symbols from a 1-D tape or 2-D grid, one character
+    at a time by a read head, and outputs a discrete action and a symbol from
+    the vocabulary (including a no-operation symbol).
+
+    This implementation uses a single-layer LSTM followed by two output heads:
+    one for symbol prediction (classification over the vocabulary) and one for
+    action prediction (classification over discrete actions).
+    """
+
+    def __init__(self, config=None):
+        """
+        Initialize the LSTM model.
+
+        Args:
+            config: Optional config dictionary. If None, loads from
+                config/config.yaml. Shape parameters (input_dim, hidden_dim,
+                vocab_size, num_actions) are read from config with sensible
+                defaults derived from the paper description.
+        """
+        super(Lstm, self).__init__()
+
+        if config is None:
+            config_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+
+        # Extract model-related config with safe defaults.
+        # The paper explores LSTM sizes of 200 and 400 units.
+        # Default to 200 units as a reasonable baseline.
+        model_cfg = config.get("model", {})
+        architectures = model_cfg.get("architectures", [])
+        if architectures:
+            # Use the first architecture entry if available.
+            arch = architectures[0]
+            self.input_dim = arch.get("input_dim", 10)
+            self.hidden_dim = arch.get("hidden_dim", 200)
+            self.num_layers = arch.get("num_layers", 1)
+        else:
+            # Fallback defaults based on paper description.
+            self.input_dim = 10
+            self.hidden_dim = 200
+            self.num_layers = 1
+
+        # Vocabulary size: number of digits (0-9) plus special symbols.
+        # The paper mentions sequences of digits; test instances are of length
+        # 100 and 1000 digits. We use 10 digits + 1 no-op symbol = 11.
+        # This is a concrete default derived from the paper description.
+        self.vocab_size = 11  # digits 0-9 + no-op symbol
+
+        # Number of discrete actions: move left, move right, write, no-op.
+        # The paper describes actions like move left/right and write.
+        self.num_actions = 4
+
+        # Dropout ratio from config, default to 0.0 if not specified.
+        dropout_ratio = model_cfg.get("dropout_ratio", 0.0)
+        if dropout_ratio is None:
+            dropout_ratio = 0.0
+        self.dropout_ratio = float(dropout_ratio)
+
+        # LSTM layer.
+        self.lstm = nn.LSTM(
+            input_size=self.input_dim,
+            hidden_size=self.hidden_dim,
+            num_layers=self.num_layers,
+            batch_first=True,
+            dropout=self.dropout_ratio if self.num_layers > 1 else 0.0,
+        )
+
+        # Output head for symbol prediction.
+        self.symbol_head = nn.Linear(self.hidden_dim, self.vocab_size)
+
+        # Output head for action prediction.
+        self.action_head = nn.Linear(self.hidden_dim, self.num_actions)
+
+    def forward(self, x):
+        """
+        Forward pass of the LSTM model.
+
+        Args:
+            x: Input tensor of shape (batch_size, seq_len, input_dim).
+
+        Returns:
+            symbol_logits: Logits for symbol prediction, shape (batch_size, seq_len, vocab_size).
+            action_logits: Logits for action prediction, shape (batch_size, seq_len, num_actions).
+        """
+        # LSTM forward pass.
+        lstm_out, _ = self.lstm(x)  # (batch_size, seq_len, hidden_dim)
+
+        # Symbol prediction logits.
+        symbol_logits = self.symbol_head(lstm_out)  # (batch_size, seq_len, vocab_size)
+
+        # Action prediction logits.
+        action_logits = self.action_head(lstm_out)  # (batch_size, seq_len, num_actions)
+
+        return symbol_logits, action_logits
+```

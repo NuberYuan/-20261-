@@ -1,0 +1,69 @@
+{
+  "code_requirements": {
+    "data/dataset.py": {
+      "description": "Loads and preprocesses diverse instruction-following and knowledge-intensive datasets (Open-Instruct, PopQA, TriviaQA, PubHealth, ARC-Challenge, Biography, ASQA) for training and evaluation. Supports local data paths and formats them into instruction-output pairs. Also handles retrieval-augmented data with reflection token annotations.",
+      "class": "SelfRAGDataset",
+      "parent_class": "torch.utils.data.Dataset",
+      "methods": ["__init__", "__len__", "__getitem__"],
+      "functions": ["load_data", "preprocess", "tokenize"],
+      "pseudocode": "class SelfRAGDataset(Dataset):\n    def __init__(self, data_path, tokenizer, max_length, mode='train'):\n        self.data = load_data(data_path)\n        self.tokenizer = tokenizer\n        self.max_length = max_length\n        self.mode = mode\n    def __len__(self):\n        return len(self.data)\n    def __getitem__(self, idx):\n        item = self.data[idx]\n        input_text = item['instruction']\n        output_text = item['output']\n        # Tokenize input and output, add reflection tokens if present\n        return {'input_ids': ..., 'attention_mask': ..., 'labels': ...}\n\ndef load_data(path):\n    # Load JSON/JSONL files, return list of dicts with 'instruction' and 'output'\n\ndef preprocess(item):\n    # Format instruction-output pair, add special tokens if needed"
+    },
+    "models/llama27_b.py": {
+      "description": "Defines the Llama2-7B generator model with expanded vocabulary for reflection tokens (Retrieve, ISREL, ISSUP, ISUSE). Supports conditional generation with reflection token prediction and segment-level generation.",
+      "class": "Llama27B",
+      "parent_class": "torch.nn.Module",
+      "methods": ["__init__", "forward", "generate", "predict_reflection_tokens"],
+      "functions": ["add_reflection_tokens", "mask_retrieved_text"],
+      "pseudocode": "class Llama27B(nn.Module):\n    def __init__(self, model_name='meta-llama/Llama-2-7b-hf', reflection_tokens=['<Retrieve>', '<ISREL>', '<ISSUP>', '<ISUSE>']):\n        self.model = AutoModelForCausalLM.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n        add_reflection_tokens(self.tokenizer, self.model, reflection_tokens)\n    def forward(self, input_ids, attention_mask, labels=None):\n        # Standard forward pass, optionally mask retrieved text in loss\n    def generate(self, input_ids, retrieval_decision, passages=None):\n        # Generate next segment with reflection tokens, handle retrieval-augmented generation\n    def predict_reflection_tokens(self, hidden_states):\n        # Predict retrieval and critique tokens from hidden states"
+    },
+    "models/llama213_b.py": {
+      "description": "Defines the Llama2-13B generator model, similar to Llama27B but with larger backbone. Used for higher-capacity generation and reflection.",
+      "class": "Llama213B",
+      "parent_class": "torch.nn.Module",
+      "methods": ["__init__", "forward", "generate", "predict_reflection_tokens"],
+      "functions": ["add_reflection_tokens", "mask_retrieved_text"],
+      "pseudocode": "class Llama213B(nn.Module):\n    def __init__(self, model_name='meta-llama/Llama-2-13b-hf', reflection_tokens=['<Retrieve>', '<ISREL>', '<ISSUP>', '<ISUSE>']):\n        self.model = AutoModelForCausalLM.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n        add_reflection_tokens(self.tokenizer, self.model, reflection_tokens)\n    def forward(self, input_ids, attention_mask, labels=None):\n        # Standard forward pass\n    def generate(self, input_ids, retrieval_decision, passages=None):\n        # Generate with reflection tokens and retrieval"
+    },
+    "models/gpt4_data_collection.py": {
+      "description": "Implements data collection using GPT-4 API to generate reflection token annotations for training the critic model. Collects outputs with retrieval decisions and critique labels.",
+      "class": "GPT4DataCollection",
+      "parent_class": "object",
+      "methods": ["__init__", "collect_data", "annotate_reflection_tokens"],
+      "functions": ["query_gpt4", "parse_response"],
+      "pseudocode": "class GPT4DataCollection:\n    def __init__(self, api_key, model='gpt-4'):\n        self.api_key = api_key\n        self.model = model\n    def collect_data(self, instructions, passages=None):\n        # For each instruction, query GPT-4 to generate output with reflection tokens\n        # Return list of (instruction, output_with_reflection_tokens)\n    def annotate_reflection_tokens(self, instruction, output):\n        # Use GPT-4 to critique output and assign ISREL, ISSUP, ISUSE tokens"
+    },
+    "models/contriever_msmarco_retriever.py": {
+      "description": "Implements the Contriever-MS MARCO retriever for retrieving top-K passages given a query. Used during inference and training to fetch relevant documents.",
+      "class": "ContrieverMSMARCORetriever",
+      "parent_class": "object",
+      "methods": ["__init__", "retrieve", "encode_query", "encode_passages"],
+      "functions": ["load_passages", "compute_scores"],
+      "pseudocode": "class ContrieverMSMARCORetriever:\n    def __init__(self, model_name='facebook/contriever-msmarco', passage_path='passages.jsonl', top_k=5):\n        self.model = AutoModel.from_pretrained(model_name)\n        self.tokenizer = AutoTokenizer.from_pretrained(model_name)\n        self.passages = load_passages(passage_path)\n        self.top_k = top_k\n    def retrieve(self, query):\n        # Encode query and passages, compute dot product scores, return top_k passages"
+    },
+    "training/train.py": {
+      "description": "Training script for two-stage training: (1) train critic model on GPT-4 collected data, (2) train generator model on augmented corpus with reflection tokens. Uses standard next-token cross-entropy loss, with masking of retrieved text chunks.",
+      "functions": ["train_epoch", "validate", "main"],
+      "uses": ["models.llama27_b", "models.llama213_b", "models.gpt4_data_collection", "models.contriever_msmarco_retriever", "data.dataset", "utils.metrics"],
+      "pseudocode": "def train_epoch(model, dataloader, optimizer, scheduler, device):\n    model.train()\n    for batch in dataloader:\n        optimizer.zero_grad()\n        outputs = model(**batch)\n        loss = outputs.loss\n        loss.backward()\n        optimizer.step()\n        scheduler.step()\n    return avg_loss\n\ndef validate(model, dataloader, device):\n    model.eval()\n    # Compute validation loss and metrics\n\ndef main():\n    # Load config\n    # Stage 1: Train critic model using GPT-4 collected data\n    # Stage 2: Train generator model with retrieval-augmented data\n    # Save checkpoints"
+    },
+    "evaluation/evaluate.py": {
+      "description": "Evaluates trained SELF-RAG models on downstream tasks (PopQA, TriviaQA, PubHealth, ARC-Challenge, Biography, ASQA) using metrics like accuracy, FactScore, correctness, MAUVE, citation precision/recall. Supports comparison with baselines.",
+      "functions": ["evaluate_model", "compute_metrics", "main"],
+      "uses": ["models.llama27_b", "models.llama213_b", "models.contriever_msmarco_retriever", "data.dataset", "utils.metrics"],
+      "pseudocode": "def evaluate_model(model, retriever, eval_dataset, metrics):\n    # Generate responses with adaptive retrieval and reflection\n    # Compute metrics for each task\n\ndef compute_metrics(predictions, references, task):\n    # Compute accuracy, FactScore, MAUVE, citation precision/recall\n\ndef main():\n    # Load config, model, retriever, and evaluation datasets\n    # Run evaluation and print results"
+    },
+    "utils/metrics.py": {
+      "description": "Implements evaluation metrics used in the paper: accuracy, FactScore, correctness (strem, rouge), MAUVE, citation precision, citation recall.",
+      "functions": ["accuracy", "factscore", "strem_correctness", "rouge_correctness", "mauve_score", "citation_precision", "citation_recall"],
+      "pseudocode": "def accuracy(predictions, references):\n    # Compute exact match accuracy\n\ndef factscore(predictions, references):\n    # Compute factuality score using external knowledge base\n\ndef strem_correctness(predictions, references):\n    # Compute semantic similarity-based correctness\n\ndef rouge_correctness(predictions, references):\n    # Compute ROUGE score\n\ndef mauve_score(predictions, references):\n    # Compute MAUVE divergence\n\ndef citation_precision(predictions, references):\n    # Compute citation precision\n\ndef citation_recall(predictions, references):\n    # Compute citation recall"
+    },
+    "config/config.yaml": {
+      "description": "Configuration file containing model paths, data paths, training hyperparameters, and inference parameters. Must include the exact scheduler step_size and gamma values.",
+      "class": null,
+      "parent_class": null,
+      "methods": [],
+      "functions": [],
+      "pseudocode": "model:\n  generator: llama2-7b\n  critic: llama2-7b\n  retriever: contriever-msmarco\n\ndata:\n  train_path: /path/to/train.jsonl\n  eval_paths:\n    popqa: /path/to/popqa.jsonl\n    triviaqa: /path/to/triviaqa.jsonl\n    pubhealth: /path/to/pubhealth.jsonl\n    arc: /path/to/arc.jsonl\n    biography: /path/to/biography.jsonl\n    asqa: /path/to/asqa.jsonl\n\ntraining:\n  batch_size: TO_BE_DETERMINED\n  epochs: 30\n  optimizer: TO_BE_DETERMINED\n  learning_rate: TO_BE_DETERMINED\n  momentum: TO_BE_DETERMINED\n  weight_decay: TO_BE_DETERMINED\n  scheduler:\n    name: TO_BE_DETERMINED\n    step_size: 3524938\n    gamma: 0.00018001800180018\n\ninference:\n  retrieval_threshold: 0.2\n  beam_width: 2\n  top_k_documents: 5\n  weights:\n    ISREL: 1.0\n    ISSUP: 1.0\n    ISUSE: 0.5"
+    }
+  }
+}

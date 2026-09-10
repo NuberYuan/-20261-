@@ -1,0 +1,4980 @@
+{
+  "paragraphs": [
+    {
+      "id": 1,
+      "block_id": 0,
+      "page": 1,
+      "bbox": [
+        135.3280029296875,
+        123.55300903320312,
+        475.9353942871094,
+        155.83120727539062
+      ],
+      "type": "title",
+      "text": "Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting",
+      "confidence": 0.95
+    },
+    {
+      "id": 2,
+      "block_id": 1,
+      "page": 1,
+      "bbox": [
+        166.5550079345703,
+        173.28392028808594,
+        444.19549560546875,
+        185.7645263671875
+      ],
+      "type": "paragraph",
+      "text": "Bryan Lima,1,∗, Sercan ¨O. Arıkb, Nicolas Loeffb, Tomas Pfisterb",
+      "confidence": 0.5
+    },
+    {
+      "id": 3,
+      "block_id": 2,
+      "page": 1,
+      "bbox": [
+        256.0040283203125,
+        195.5303497314453,
+        355.2709655761719,
+        204.7562255859375
+      ],
+      "type": "paragraph",
+      "text": "aUniversity of Oxford, UK",
+      "confidence": 0.5
+    },
+    {
+      "id": 4,
+      "block_id": 3,
+      "page": 1,
+      "bbox": [
+        261.1800231933594,
+        204.9953155517578,
+        350.093505859375,
+        214.22119140625
+      ],
+      "type": "author",
+      "text": "bGoogle Cloud AI, USA",
+      "confidence": 0.9
+    },
+    {
+      "id": 5,
+      "block_id": 4,
+      "page": 1,
+      "bbox": [
+        133.76800537109375,
+        261.38092041015625,
+        177.60345458984375,
+        271.343505859375
+      ],
+      "type": "paragraph",
+      "text": "Abstract",
+      "confidence": 0.5
+    },
+    {
+      "id": 6,
+      "block_id": 5,
+      "page": 1,
+      "bbox": [
+        133.76800537109375,
+        279.3139343261719,
+        477.5474548339844,
+        468.60333251953125
+      ],
+      "type": "abstract",
+      "text": "Multihorizon forecasting often contains a complex mix of inputs – including static (i.e. timeinvariant) covariates, known future inputs, and other exogenous time series that are only observed in the past – without any prior information on how they interact with the target. Several deep learning methods have been proposed, but they are typically ‘blackbox’ models which do not shed light on how they use the full range of inputs present in practical scenarios. In this paper, we introduce the Temporal Fusion Transformer (TFT) – a novel attentionbased architecture which combines highperformance multihorizon forecasting with interpretable insights into temporal dynamics. To learn temporal relationships at different scales, TFT uses recurrent layers for local processing and interpretable selfattention layers for longterm dependencies. TFT utilizes specialized components to select relevant features and a series of gating layers to suppress unnecessary components, enabling high performance in a wide range of scenarios. On a variety of realworld datasets, we demonstrate significant performance improvements over existing benchmarks, and showcase three practical interpretability use cases of TFT.",
+      "confidence": 0.85
+    },
+    {
+      "id": 7,
+      "block_id": 6,
+      "page": 1,
+      "bbox": [
+        133.76800537109375,
+        477.4597473144531,
+        441.15283203125,
+        499.3773193359375
+      ],
+      "type": "keywords",
+      "text": "Keywords: Deep learning, Interpretability, Time series, Multihorizon forecasting, Attention mechanisms, Explainable AI.",
+      "confidence": 0.9
+    },
+    {
+      "id": 8,
+      "block_id": 7,
+      "page": 1,
+      "bbox": [
+        133.76800537109375,
+        526.5639038085938,
+        211.56597900390625,
+        536.5264892578125
+      ],
+      "type": "heading",
+      "text": "1. Introduction",
+      "confidence": 0.75
+    },
+    {
+      "id": 9,
+      "block_id": 8,
+      "page": 1,
+      "bbox": [
+        133.76800537109375,
+        547.4859008789062,
+        477.52752685546875,
+        605.26953125
+      ],
+      "type": "paragraph",
+      "text": "Multihorizon forecasting, i.e. the prediction of variablesofinterest at multiple future time steps, is a crucial problem within time series machine learning. In contrast to onestepahead predictions, multihorizon forecasts provide users with access to estimates across the entire path, allowing them to optimize their actions at multiple steps in future (e.g. retailers optimizing the inventory for",
+      "confidence": 0.5
+    },
+    {
+      "id": 10,
+      "block_id": 9,
+      "page": 1,
+      "bbox": [
+        144.69400024414062,
+        628.556884765625,
+        233.533935546875,
+        637.8602294921875
+      ],
+      "type": "paragraph",
+      "text": "∗Corresponding authors",
+      "confidence": 0.5
+    },
+    {
+      "id": 11,
+      "block_id": 10,
+      "page": 1,
+      "bbox": [
+        133.76800537109375,
+        638.0740966796875,
+        469.2664794921875,
+        657.9060668945312
+      ],
+      "type": "paragraph",
+      "text": "Email addresses: blim@robots.ox.ac.uk (Bryan Lim), soarik@google.com (Sercan ¨O. Arık), nloeff@google.com (Nicolas Loeff), tpfister@google.com (Tomas Pfister)",
+      "confidence": 0.5
+    },
+    {
+      "id": 12,
+      "block_id": 11,
+      "page": 1,
+      "bbox": [
+        144.86000061035156,
+        657.8023071289062,
+        390.1304016113281,
+        667.0281982421875
+      ],
+      "type": "paragraph",
+      "text": "1Completed as part of internship with Google Cloud AI Research.",
+      "confidence": 0.5
+    },
+    {
+      "id": 14,
+      "block_id": 13,
+      "page": 1,
+      "bbox": [
+        10.940000534057617,
+        207.79998779296875,
+        37.619998931884766,
+        570.0
+      ],
+      "type": "paragraph",
+      "text": "arXiv:1912.09363v3 [stat.ML] 27 Sep 2020",
+      "confidence": 0.5
+    },
+    {
+      "id": 15,
+      "block_id": 0,
+      "page": 2,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        477.5374755859375,
+        172.80657958984375
+      ],
+      "type": "paragraph",
+      "text": "the entire upcoming season, or clinicians optimizing a treatment plan for a patient). Multihorizon forecasting has many impactful realworld applications in retail [1, 2], healthcare [3, 4] and economics [5]) – performance improvements to existing methods in such applications are highly valuable.",
+      "confidence": 0.5
+    },
+    {
+      "id": 16,
+      "block_id": 1,
+      "page": 2,
+      "bbox": [
+        133.76800537109375,
+        356.63812255859375,
+        477.3590393066406,
+        374.07220458984375
+      ],
+      "type": "paragraph",
+      "text": "Figure 1: Illustration of multihorizon forecasting with static covariates, pastobserved and aprioriknown future timedependent inputs.",
+      "confidence": 0.5
+    },
+    {
+      "id": 17,
+      "block_id": 2,
+      "page": 2,
+      "bbox": [
+        133.76800537109375,
+        389.35791015625,
+        477.54742431640625,
+        471.0514221191406
+      ],
+      "type": "paragraph",
+      "text": "Practical multihorizon forecasting applications commonly have access to a variety of data sources, as shown in Fig. 1, including known information about the future (e.g. upcoming holiday dates), other exogenous time series (e.g. historical customer foot traffic), and static metadata (e.g. location of the store) – without any prior knowledge on how they interact. This heterogeneity of data sources together with little information about their interactions makes multihorizon time series forecasting particularly challenging.",
+      "confidence": 0.5
+    },
+    {
+      "id": 18,
+      "block_id": 3,
+      "page": 2,
+      "bbox": [
+        133.76800537109375,
+        473.0438232421875,
+        477.5176086425781,
+        650.3783569335938
+      ],
+      "type": "paragraph",
+      "text": "Deep neural networks (DNNs) have increasingly been used in multihorizon forecasting, demonstrating strong performance improvements over traditional time series models [6, 7, 8]. While many architectures have focused on variants of recurrent neural network (RNN) architectures [9, 6, 10], recent improvements have also used attentionbased methods to enhance the selection of relevant time steps in the past [11] – including Transformerbased models [12]. However, these often fail to consider the different types of inputs commonly present in multihorizon forecasting, and either assume that all exogenous inputs are known into the future [9, 6, 12] – a common problem with autoregressive models – or neglect important static covariates [10] – which are simply concatenated with other timedependent features at each step. Many recent improvements in time series models have resulted from the alignment of architectures with unique data characteristics [13, 14]. We argue and demonstrate that similar performance gains can also be reaped by designing networks with suitable inductive biases for multihorizon forecasting.",
+      "confidence": 0.5
+    },
+    {
+      "id": 19,
+      "block_id": 4,
+      "page": 2,
+      "bbox": [
+        133.76800537109375,
+        652.3717651367188,
+        477.5276184082031,
+        674.2893676757812
+      ],
+      "type": "paragraph",
+      "text": "In addition to not considering the heterogeneity of common multihorizon forecasting inputs, most current architectures are ‘blackbox’ models where forecasts are controlled by complex nonlinear interactions between many parame- ters. This makes it diﬃcult to explain how models arrive at their predictions, and in turn makes it challenging for users to trust a model’s outputs and model builders to debug it. Unfortunately, commonly-used explainability methods for DNNs are not well-suited for applying to time series. In their conventional form, post-hoc methods (e.g. LIME [15] and SHAP [16]) do not consider the time ordering of input features. For example, for LIME, surrogate models are independently constructed for each data-point, and for SHAP, features are con- sidered independently for neighboring time steps. Such post-hoc approaches would lead to poor explanation quality as dependencies between time steps are typically signiﬁcant in time series. On the other hand, some attention-based architectures are proposed with inherent interpretability for sequential data, primarily language or speech – such as the Transformer architecture [17]. The fundamental caveat to apply them is that multi-horizon forecasting includes many diﬀerent types of input features, as opposed to language or speech. In their conventional form, these architectures can provide insights into relevant time steps for multi-horizon forecasting, but they cannot distinguish the impor- tance of diﬀerent features at a given timestep. Overall, in addition to the need for new methods to tackle the heterogeneity of data in multi-horizon forecasting for high performance, new methods are also needed to render these forecasts interpretable, given the needs of the use cases.",
+      "confidence": 0.5
+    },
+    {
+      "id": 22,
+      "block_id": 1,
+      "page": 3,
+      "bbox": [
+        133.76800537109375,
+        378.0369873046875,
+        477.54742431640625,
+        579.2824096679688
+      ],
+      "type": "paragraph",
+      "text": "In this paper we propose the Temporal Fusion Transformer (TFT) – an attentionbased DNN architecture for multihorizon forecasting that achieves high performance while enabling new forms of interpretability. To obtain significant performance improvements over stateoftheart benchmarks, we introduce multiple novel ideas to align the architecture with the full range of potential inputs and temporal relationships common to multihorizon forecasting – specifically incorporating (1) static covariate encoders which encode context vectors for use in other parts of the network, (2) gating mechanisms throughout and sampledependent variable selection to minimize the contributions of irrelevant inputs, (3) a sequencetosequence layer to locally process known and observed inputs, and (4) a temporal selfattention decoder to learn any longterm dependencies present within the dataset. The use of these specialized components also facilitates interpretability; in particular, we show that TFT enables three valuable interpretability use cases: helping users identify (i) globallyimportant variables for the prediction problem, (ii) persistent temporal patterns, and (iii) significant events. On a variety of realworld datasets, we demonstrate how TFT can be practically applied, as well as the insights and benefits it provides.",
+      "confidence": 0.5
+    },
+    {
+      "id": 23,
+      "block_id": 2,
+      "page": 3,
+      "bbox": [
+        133.76800537109375,
+        599.2078247070312,
+        218.28076171875,
+        609.17041015625
+      ],
+      "type": "heading",
+      "text": "2. Related Work",
+      "confidence": 0.75
+    },
+    {
+      "id": 24,
+      "block_id": 3,
+      "page": 3,
+      "bbox": [
+        133.76800537109375,
+        620.1298217773438,
+        477.52001953125,
+        665.9573974609375
+      ],
+      "type": "paragraph",
+      "text": "DNNs for Multihorizon Forecasting: Similarly to traditional multihorizon forecasting methods [18, 19], recent deep learning methods can be categorized into iterated approaches using autoregressive models [9, 6, 12] or direct methods based on sequencetosequence models [10, 11].",
+      "confidence": 0.5
+    },
+    {
+      "id": 26,
+      "block_id": 0,
+      "page": 4,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        477.5474853515625,
+        352.1346130371094
+      ],
+      "type": "paragraph",
+      "text": "Iterated approaches utilize onestepahead prediction models, with multistep predictions obtained by recursively feeding predictions into future inputs. Approaches with Long Shortterm Memory (LSTM) [20] networks have been considered, such as Deep AR [9] which uses stacked LSTM layers to generate parameters of onestepahead Gaussian predictive distributions. Deep State-Space Models (DSSM) [6] adopt a similar approach, utilizing LSTMs to generate parameters of a predefined linear statespace model with predictive distributions produced via Kalman filtering – with extensions for multivariate time series data in [21]. More recently, Transformerbased architectures have been explored in [12], which proposes the use of convolutional layers for local processing and a sparse attention mechanism to increase the size of the receptive field during forecasting. Despite their simplicity, iterative methods rely on the assumption that the values of all variables excluding the target are known at forecast time – such that only the target needs to be recursively fed into future inputs. However, in many practical scenarios, numerous useful timevarying inputs exist, with many unknown in advance. Their straightforward use is hence limited for iterative approaches. TFT, on the other hand, explicitly accounts for the diversity of inputs – naturally handling static covariates and (pastobserved and futureknown) timevarying inputs.",
+      "confidence": 0.5
+    },
+    {
+      "id": 27,
+      "block_id": 1,
+      "page": 4,
+      "bbox": [
+        133.76800537109375,
+        354.12701416015625,
+        477.54742431640625,
+        507.55145263671875
+      ],
+      "type": "paragraph",
+      "text": "In contrast, direct methods are trained to explicitly generate forecasts for multiple predefined horizons at each time step. Their architectures typically rely on sequencetosequence models, e.g. LSTM encoders to summarize past inputs, and a variety of methods to generate future predictions. The Multihorizon Quantile Recurrent Forecaster (MQRNN) [10] uses LSTM or convolutional encoders to generate context vectors which are fed into multilayer perceptrons (MLPs) for each horizon. In [11] a multimodal attention mechanism is used with LSTM encoders to construct context vectors for a bidirectional LSTM decoder. Despite performing better than LSTMbased iterative methods, interpretability remains challenging for such standard direct methods. In contrast, we show that by interpreting attention patterns, TFT can provide insightful explanations about temporal dynamics, and do so while maintaining stateoftheart performance on a variety of datasets.",
+      "confidence": 0.5
+    },
+    {
+      "id": 28,
+      "block_id": 2,
+      "page": 4,
+      "bbox": [
+        133.7680206298828,
+        509.54388427734375,
+        477.5475769042969,
+        627.1033935546875
+      ],
+      "type": "paragraph",
+      "text": "Time Series Interpretability with Attention: Attention mechanisms are used in translation [17], image classification [22] or tabular learning [23] to identify salient portions of input for each instance using the magnitude of attention weights. Recently, they have been adapted for time series with interpretability motivations [7, 12, 24], using LSTMbased [25] and transformerbased [12] architectures. However, this was done without considering the importance of static covariates (as the above methods blend variables at each input). TFT alleviates this by using separate encoderdecoder attention for static features at each time step on top of the selfattention to determine the contribution timevarying inputs.",
+      "confidence": 0.5
+    },
+    {
+      "id": 29,
+      "block_id": 3,
+      "page": 4,
+      "bbox": [
+        133.76803588867188,
+        629.0958251953125,
+        486.55145263671875,
+        674.9234619140625
+      ],
+      "type": "paragraph",
+      "text": "Instancewise Variable Importance with DNNs: Instance (i.e. sample)wise variable importance can be obtained with posthoc explanation methods [15, 16, 26] and inherently intepretable models [27, 24]. Posthoc explanation methods, e.g. LIME [15], SHAP [16] and RL-LIM [26], are applied on pretrained black-box models and often based on distilling into a surrogate inter- pretable model, or decomposing into feature attributions. They are not de- signed to take into account the time ordering of inputs, limiting their use for complex time series data. Inherently-interpretable modeling approaches build components for feature selection directly into the architecture. For time series forecasting speciﬁcally, they are based on explicitly quantifying time-dependent variable contributions. For example, Interpretable Multi-Variable LSTMs [27] partitions the hidden state such that each variable contributes uniquely to its own memory segment, and weights memory segments to determine variable contributions. Methods combining temporal importance and variable selection have also been considered in [24], which computes a single contribution coeﬃ- cient based on attention weights from each. However, in addition to the short- coming of modelling only one-step-ahead forecasts, existing methods also focus on instance-speciﬁc (i.e. sample-speciﬁc) interpretations of attention weights – without providing insights into global temporal dynamics. In contrast, the use cases in Sec. 7 demonstrate that TFT is able to analyze global temporal relationships and allows users to interpret global behaviors of the model on the whole dataset – speciﬁcally in the identiﬁcation of any persistent patterns (e.g. seasonality or lag eﬀects) and regimes present.",
+      "confidence": 0.5
+    },
+    {
+      "id": 32,
+      "block_id": 1,
+      "page": 5,
+      "bbox": [
+        133.76800537109375,
+        372.0600280761719,
+        278.1460266113281,
+        382.0226135253906
+      ],
+      "type": "heading",
+      "text": "3. Multihorizon Forecasting",
+      "confidence": 0.75
+    },
+    {
+      "id": 33,
+      "block_id": 2,
+      "page": 5,
+      "bbox": [
+        133.76800537109375,
+        392.98101806640625,
+        477.4920654296875,
+        454.92156982421875
+      ],
+      "type": "paragraph",
+      "text": "Let there be Iunique entities in a given time series dataset – such as different stores in retail or patients in healthcare. Each entity i is associated with a set of static covariates si ∈Rms, as well as inputs χi,t ∈Rmχ and scalar targets yi,t ∈Rat each timestep t ∈[0, Ti]. Timedependent input features are subdivided into two categories χi,t =",
+      "confidence": 0.5
+    },
+    {
+      "id": 35,
+      "block_id": 4,
+      "page": 5,
+      "bbox": [
+        300.4969787597656,
+        442.184814453125,
+        311.154296875,
+        453.42657470703125
+      ],
+      "type": "paragraph",
+      "text": "zT",
+      "confidence": 0.5
+    },
+    {
+      "id": 36,
+      "block_id": 5,
+      "page": 5,
+      "bbox": [
+        306.0269775390625,
+        442.1848449707031,
+        330.4202880859375,
+        455.36663818359375
+      ],
+      "type": "author",
+      "text": "i,t, xT",
+      "confidence": 0.9
+    },
+    {
+      "id": 37,
+      "block_id": 6,
+      "page": 5,
+      "bbox": [
+        325.7129821777344,
+        448.3928527832031,
+        333.9071960449219,
+        455.3666687011719
+      ],
+      "type": "author",
+      "text": "i,t",
+      "confidence": 0.9
+    },
+    {
+      "id": 38,
+      "block_id": 7,
+      "page": 5,
+      "bbox": [
+        334.4059753417969,
+        437.45904541015625,
+        476.9783020019531,
+        454.7925109863281
+      ],
+      "type": "author",
+      "text": "\u0003T – observed inputs zi,t ∈R(mz)",
+      "confidence": 0.9
+    },
+    {
+      "id": 39,
+      "block_id": 8,
+      "page": 5,
+      "bbox": [
+        133.76797485351562,
+        455.4190673828125,
+        477.52752685546875,
+        489.2926330566406
+      ],
+      "type": "paragraph",
+      "text": "which can only be measured at each step and are unknown beforehand, and known inputs xi,t ∈Rmx which can be predetermined (e.g. the dayofweek at time t).",
+      "confidence": 0.5
+    },
+    {
+      "id": 40,
+      "block_id": 9,
+      "page": 5,
+      "bbox": [
+        133.76800537109375,
+        491.2850341796875,
+        477.5374450683594,
+        561.0235595703125
+      ],
+      "type": "paragraph",
+      "text": "In many scenarios, the provision for prediction intervals can be useful for optimizing decisions and risk management by yielding an indication of likely best and worstcase values that the target can take. As such, we adopt quantile regression to our multihorizon forecasting setting (e.g. outputting the 10th, 50th and 90th percentiles at each time step). Each quantile forecast takes the form:",
+      "confidence": 0.5
+    },
+    {
+      "id": 41,
+      "block_id": 10,
+      "page": 5,
+      "bbox": [
+        201.78399658203125,
+        563.0159912109375,
+        477.481201171875,
+        574.4725952148438
+      ],
+      "type": "author",
+      "text": "ˆyi(q, t, τ) = fq (τ, yi,t−k:t, zi,t−k:t, xi,t−k:t+τ, si) , (1)",
+      "confidence": 0.9
+    },
+    {
+      "id": 42,
+      "block_id": 11,
+      "page": 5,
+      "bbox": [
+        133.76800537109375,
+        577.3330078125,
+        477.55743408203125,
+        652.1815795898438
+      ],
+      "type": "paragraph",
+      "text": "where ˆyi,t+τ(q, t, τ) is the predicted qth sample quantile of the τstepahead forecast at time t, and fq(.) is a prediction model. In line with other direct methods, we simultaneously output forecasts for τmax time steps – i.e. τ ∈ {1, . . . , τmax}. We incorporate all past information within a finite lookback window k, using target and known inputs only up till and including the forecast start time t (i.e. yi,t−k:t = {yi,t−k, . . . , yi,t}) and known inputs across the entire",
+      "confidence": 0.5
+    },
+    {
+      "id": 44,
+      "block_id": 0,
+      "page": 6,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        234.21690368652344,
+        138.435546875
+      ],
+      "type": "author",
+      "text": "range (i.e. xi,t−k:t+τ =",
+      "confidence": 0.9
+    },
+    {
+      "id": 46,
+      "block_id": 2,
+      "page": 6,
+      "bbox": [
+        242.7930145263672,
+        126.97892761230469,
+        354.43023681640625,
+        137.7825927734375
+      ],
+      "type": "author",
+      "text": "xi,t−k, . . . , xi,t, . . . , xi,t+τ",
+      "confidence": 0.9
+    },
+    {
+      "id": 47,
+      "block_id": 4,
+      "page": 6,
+      "bbox": [
+        361.5440368652344,
+        125.69874572753906,
+        376.589111328125,
+        136.9415283203125
+      ],
+      "type": "paragraph",
+      "text": "). 2",
+      "confidence": 0.5
+    },
+    {
+      "id": 48,
+      "block_id": 5,
+      "page": 6,
+      "bbox": [
+        133.76805114746094,
+        156.86692810058594,
+        247.23214721679688,
+        166.82952880859375
+      ],
+      "type": "heading",
+      "text": "4. Model Architecture",
+      "confidence": 0.75
+    },
+    {
+      "id": 49,
+      "block_id": 6,
+      "page": 6,
+      "bbox": [
+        133.76800537109375,
+        382.4071044921875,
+        477.3748779296875,
+        437.69915771484375
+      ],
+      "type": "paragraph",
+      "text": "Figure 2: TFT architecture. TFT inputs static metadata, timevarying past inputs and timevarying a priori known future inputs. Variable Selection is used for judicious selection of the most salient features based on the input. Gated Residual Network blocks enable efficient information flow with skip connections and gating layers. Timedependent processing is based on LSTMs for local processing, and multihead attention for integrating information from any time step.",
+      "confidence": 0.5
+    },
+    {
+      "id": 50,
+      "block_id": 7,
+      "page": 6,
+      "bbox": [
+        133.76800537109375,
+        454.921875,
+        477.54742431640625,
+        632.2564086914062
+      ],
+      "type": "paragraph",
+      "text": "We design TFT to use canonical components to efficiently build feature representations for each input type (i.e. static, known, observed inputs) for high forecasting performance on a wide range of problems. The major constituents of TFT are: 1. Gating mechanisms to skip over any unused components of the architecture, providing adaptive depth and network complexity to accommodate a wide range of datasets and scenarios. 2. Variable selection networks to select relevant input variables at each time step. 3. Static covariate encoders to integrate static features into the network, through encoding of context vectors to condition temporal dynamics. 4. Temporal processing to learn both longand shortterm temporal relationships from both observed and known timevarying inputs. Asequencetosequence layer is employed for local processing, whereas longterm dependencies are captured using a novel interpretable multihead attention block.",
+      "confidence": 0.5
+    },
+    {
+      "id": 51,
+      "block_id": 8,
+      "page": 6,
+      "bbox": [
+        144.86000061035156,
+        655.1083374023438,
+        421.58978271484375,
+        664.334228515625
+      ],
+      "type": "paragraph",
+      "text": "2For notation simplicity, we omit the subscript i unless explicitly required.",
+      "confidence": 0.5
+    },
+    {
+      "id": 53,
+      "block_id": 0,
+      "page": 7,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        477.49835205078125,
+        148.89654541015625
+      ],
+      "type": "paragraph",
+      "text": "5. Prediction intervals via quantile forecasts to determine the range of likely target values at each prediction horizon.",
+      "confidence": 0.5
+    },
+    {
+      "id": 54,
+      "block_id": 1,
+      "page": 7,
+      "bbox": [
+        133.76800537109375,
+        150.8889617919922,
+        477.5177001953125,
+        184.7615966796875
+      ],
+      "type": "paragraph",
+      "text": "Fig. 2 shows the high level architecture of Temporal Fusion Transformer (TFT), with individual components described in detail in the subsequent sections.",
+      "confidence": 0.5
+    },
+    {
+      "id": 55,
+      "block_id": 2,
+      "page": 7,
+      "bbox": [
+        133.76800537109375,
+        198.7100067138672,
+        240.80618286132812,
+        208.672607421875
+      ],
+      "type": "paragraph",
+      "text": "4.1. Gating Mechanisms",
+      "confidence": 0.5
+    },
+    {
+      "id": 56,
+      "block_id": 3,
+      "page": 7,
+      "bbox": [
+        133.76800537109375,
+        213.6539764404297,
+        477.5276184082031,
+        307.3026123046875
+      ],
+      "type": "paragraph",
+      "text": "The precise relationship between exogenous inputs and targets is often unknown in advance, making it difficult to anticipate which variables are relevant. Moreover, it is difficult to determine the extent of required nonlinear processing, and there may be instances where simpler models can be beneficial – e.g. when datasets are small or noisy. With the motivation of giving the model the flexibility to apply nonlinear processing only where needed, we propose Gated Residual Network (GRN) as shown in in Fig. 2 as a building block of TFT. The GRN takes in a primary input a and an optional context vector c and yields:",
+      "confidence": 0.5
+    },
+    {
+      "id": 57,
+      "block_id": 4,
+      "page": 7,
+      "bbox": [
+        179.416015625,
+        319.2580261230469,
+        477.481201171875,
+        330.714599609375
+      ],
+      "type": "paragraph",
+      "text": "GRNω (a, c) = LayerNorm (a + GLUω(η1)) , (2)",
+      "confidence": 0.5
+    },
+    {
+      "id": 58,
+      "block_id": 5,
+      "page": 7,
+      "bbox": [
+        222.6169891357422,
+        334.2020263671875,
+        477.4811706542969,
+        345.6585998535156
+      ],
+      "type": "author",
+      "text": "η1 = W1,ω η2 + b1,ω, (3)",
+      "confidence": 0.9
+    },
+    {
+      "id": 59,
+      "block_id": 6,
+      "page": 7,
+      "bbox": [
+        222.61695861816406,
+        349.1460266113281,
+        477.48126220703125,
+        360.60260009765625
+      ],
+      "type": "author",
+      "text": "η2 = ELU (W2,ω a + W3,ω c + b2,ω) , (4)",
+      "confidence": 0.9
+    },
+    {
+      "id": 60,
+      "block_id": 7,
+      "page": 7,
+      "bbox": [
+        133.76803588867188,
+        369.9725036621094,
+        497.73712158203125,
+        477.7535705566406
+      ],
+      "type": "paragraph",
+      "text": "where ELU is the Exponential Linear Unit activation function [28], η1 ∈Rdmodel, η2 ∈ Rdmodel are intermediate layers, LayerNorm is standard layer normalization of [29], and ω is an index to denote weight sharing. When W2,ω a + W3,ω c + b2,ω >> 0, the ELU activation would act as an identity function and when W2,ω a + W3,ω c + b2,ω << 0, the ELU activation would generate a constant output, resulting in linear layer behavior. We use component gating layers based on Gated Linear Units (GLUs) [30] to provide the flexibility to suppress any parts of the architecture that are not required for a given dataset. Letting γ ∈Rdmodel be the input, the GLU then takes the form:",
+      "confidence": 0.5
+    },
+    {
+      "id": 61,
+      "block_id": 8,
+      "page": 7,
+      "bbox": [
+        197.66305541992188,
+        489.5798645019531,
+        477.4813537597656,
+        501.1655578613281
+      ],
+      "type": "author",
+      "text": "GLUω(γ) = σ(W4,ω γ + b4,ω) ⊙(W5,ω γ + b5,ω), (5)",
+      "confidence": 0.9
+    },
+    {
+      "id": 62,
+      "block_id": 9,
+      "page": 7,
+      "bbox": [
+        133.76815795898438,
+        510.53546142578125,
+        477.5705871582031,
+        620.8526611328125
+      ],
+      "type": "paragraph",
+      "text": "where σ(.) is the sigmoid activation function, W(.) ∈Rdmodel×dmodel, b(.) ∈ Rdmodel are the weights and biases, ⊙is the elementwise Hadamard product, and dmodel is the hidden state size (common across TFT). GLU allows TFT to control the extent to which the GRN contributes to the original input a – potentially skipping over the layer entirely if necessary as the GLU outputs could be all close to 0 in order to surpress the nonlinear contribution. For instances without a context vector, the GRN simply treats the contex input as zero – i.e. c = 0 in Eq. (4). During training, dropout is applied before the gating layer and layer normalization – i.e. to η1 in Eq. (3).",
+      "confidence": 0.5
+    },
+    {
+      "id": 63,
+      "block_id": 10,
+      "page": 7,
+      "bbox": [
+        133.7681884765625,
+        633.3060302734375,
+        276.3927917480469,
+        643.2686157226562
+      ],
+      "type": "paragraph",
+      "text": "4.2. Variable Selection Networks",
+      "confidence": 0.5
+    },
+    {
+      "id": 64,
+      "block_id": 11,
+      "page": 7,
+      "bbox": [
+        133.7681884765625,
+        648.2500610351562,
+        477.5575256347656,
+        670.1676025390625
+      ],
+      "type": "paragraph",
+      "text": "While multiple variables may be available, their relevance and specific contribution to the output are typically unknown. TFT is designed to provide",
+      "confidence": 0.5
+    },
+    {
+      "id": 66,
+      "block_id": 0,
+      "page": 8,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        477.5374450683594,
+        220.62762451171875
+      ],
+      "type": "paragraph",
+      "text": "instancewise variable selection through the use of variable selection networks applied to both static covariates and timedependent covariates. Beyond providing insights into which variables are most significant for the prediction problem, variable selection also allows TFT to remove any unnecessary noisy inputs which could negatively impact performance. Most realworld time series datasets contain features with less predictive content, thus variable selection can greatly help model performance via utilization of learning capacity only on the most salient ones.",
+      "confidence": 0.5
+    },
+    {
+      "id": 67,
+      "block_id": 1,
+      "page": 8,
+      "bbox": [
+        133.76800537109375,
+        222.6200408935547,
+        477.54736328125,
+        304.31365966796875
+      ],
+      "type": "paragraph",
+      "text": "We use entity embeddings [31] for categorical variables as feature representations, and linear transformations for continuous variables – transforming each input variable into a (dmodel)dimensional vector which matches the dimensions in subsequent layers for skip connections. All static, past and future inputs make use of separate variable selection networks (as denoted by different colors in Fig. 2). Without loss of generality, we present the variable selection network for past inputs – noting that those for other inputs take the same form.",
+      "confidence": 0.5
+    },
+    {
+      "id": 68,
+      "block_id": 2,
+      "page": 8,
+      "bbox": [
+        148.71200561523438,
+        304.85089111328125,
+        181.71432495117188,
+        317.65264892578125
+      ],
+      "type": "paragraph",
+      "text": "Let ξ(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 69,
+      "block_id": 3,
+      "page": 8,
+      "bbox": [
+        171.49000549316406,
+        305.1321105957031,
+        477.4844665527344,
+        319.45172119140625
+      ],
+      "type": "paragraph",
+      "text": "t ∈Rdmodel denote the transformed input of the jth variable at time",
+      "confidence": 0.5
+    },
+    {
+      "id": 70,
+      "block_id": 4,
+      "page": 8,
+      "bbox": [
+        133.76800537109375,
+        325.24713134765625,
+        189.3349151611328,
+        336.7047119140625
+      ],
+      "type": "paragraph",
+      "text": "t, with Ξt =",
+      "confidence": 0.5
+    },
+    {
+      "id": 71,
+      "block_id": 5,
+      "page": 8,
+      "bbox": [
+        192.74900817871094,
+        321.3525390625,
+        197.45135498046875,
+        331.31512451171875
+      ],
+      "type": "paragraph",
+      "text": "hξ(1)T",
+      "confidence": 0.5
+    },
+    {
+      "id": 73,
+      "block_id": 7,
+      "page": 8,
+      "bbox": [
+        202.5170135498047,
+        320.7371826171875,
+        268.7734680175781,
+        337.0087585449219
+      ],
+      "type": "author",
+      "text": "t , . . . , ξ(mχ)T",
+      "confidence": 0.9
+    },
+    {
+      "id": 74,
+      "block_id": 8,
+      "page": 8,
+      "bbox": [
+        246.22702026367188,
+        330.03497314453125,
+        249.2397003173828,
+        337.0087890625
+      ],
+      "type": "paragraph",
+      "text": "tiT",
+      "confidence": 0.5
+    },
+    {
+      "id": 76,
+      "block_id": 10,
+      "page": 8,
+      "bbox": [
+        133.7679901123047,
+        325.24713134765625,
+        477.50567626953125,
+        363.0506896972656
+      ],
+      "type": "paragraph",
+      "text": "being the flattened vector of all past inputs at time t. Variable selection weights are generated by feeding both Ξt and an external context vector cs through a GRN, followed by a Softmax layer:",
+      "confidence": 0.5
+    },
+    {
+      "id": 77,
+      "block_id": 11,
+      "page": 8,
+      "bbox": [
+        233.86602783203125,
+        373.5111083984375,
+        297.5664367675781,
+        385.9646911621094
+      ],
+      "type": "paragraph",
+      "text": "vχt = Softmax",
+      "confidence": 0.5
+    },
+    {
+      "id": 79,
+      "block_id": 13,
+      "page": 8,
+      "bbox": [
+        303.780029296875,
+        373.5111083984375,
+        368.3884582519531,
+        384.8764343261719
+      ],
+      "type": "author",
+      "text": "GRNvχ(Ξt, cs)",
+      "confidence": 0.9
+    },
+    {
+      "id": 81,
+      "block_id": 15,
+      "page": 8,
+      "bbox": [
+        374.6139831542969,
+        373.5111083984375,
+        477.481201171875,
+        383.47369384765625
+      ],
+      "type": "author",
+      "text": ", (6)",
+      "confidence": 0.9
+    },
+    {
+      "id": 82,
+      "block_id": 16,
+      "page": 8,
+      "bbox": [
+        133.76800537109375,
+        392.81011962890625,
+        477.49066162109375,
+        441.25665283203125
+      ],
+      "type": "paragraph",
+      "text": "where vχt ∈Rmχ is a vector of variable selection weights, and cs is obtained from a static covariate encoder (see Sec. 4.3). For static variables, we note that the context vector cs is omitted – given that it already has access to static information.",
+      "confidence": 0.5
+    },
+    {
+      "id": 83,
+      "block_id": 17,
+      "page": 8,
+      "bbox": [
+        133.76800537109375,
+        443.2490539550781,
+        477.5076599121094,
+        466.5506286621094
+      ],
+      "type": "paragraph",
+      "text": "At each time step, an additional layer of nonlinear processing is employed by feeding each ξ(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 84,
+      "block_id": 18,
+      "page": 8,
+      "bbox": [
+        209.125,
+        456.58807373046875,
+        320.89410400390625,
+        468.3497009277344
+      ],
+      "type": "paragraph",
+      "text": "t through its own GRN:",
+      "confidence": 0.5
+    },
+    {
+      "id": 85,
+      "block_id": 19,
+      "page": 8,
+      "bbox": [
+        255.74301147460938,
+        478.6169128417969,
+        271.0313415527344,
+        491.4186706542969
+      ],
+      "type": "paragraph",
+      "text": "˜ξ(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 86,
+      "block_id": 20,
+      "page": 8,
+      "bbox": [
+        260.8070068359375,
+        481.45611572265625,
+        321.22637939453125,
+        493.8657531738281
+      ],
+      "type": "paragraph",
+      "text": "t = GRN˜ξ(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 88,
+      "block_id": 22,
+      "page": 8,
+      "bbox": [
+        329.3370666503906,
+        478.6169738769531,
+        344.62640380859375,
+        491.4187316894531
+      ],
+      "type": "paragraph",
+      "text": "ξ(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 91,
+      "block_id": 25,
+      "page": 8,
+      "bbox": [
+        352.737060546875,
+        481.4561767578125,
+        477.48126220703125,
+        491.41876220703125
+      ],
+      "type": "author",
+      "text": ", (7)",
+      "confidence": 0.9
+    },
+    {
+      "id": 92,
+      "block_id": 26,
+      "page": 8,
+      "bbox": [
+        133.76806640625,
+        506.4570007324219,
+        177.34140014648438,
+        519.2587890625
+      ],
+      "type": "paragraph",
+      "text": "where ˜ξ(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 93,
+      "block_id": 27,
+      "page": 8,
+      "bbox": [
+        133.76806640625,
+        509.29620361328125,
+        477.4840087890625,
+        543.1697998046875
+      ],
+      "type": "paragraph",
+      "text": "t is the processed feature vector for variable j. We note that each variable has its own GRNξ(j), with weights shared across all time steps t. Processed features are then weighted by their variable selection weights and combined:",
+      "confidence": 0.5
+    },
+    {
+      "id": 94,
+      "block_id": 28,
+      "page": 8,
+      "bbox": [
+        262.4440612792969,
+        554.4741821289062,
+        281.5339660644531,
+        568.5597534179688
+      ],
+      "type": "paragraph",
+      "text": "˜ξt =",
+      "confidence": 0.5
+    },
+    {
+      "id": 95,
+      "block_id": 29,
+      "page": 8,
+      "bbox": [
+        284.2990417480469,
+        551.4409790039062,
+        310.0688781738281,
+        564.7651977539062
+      ],
+      "type": "paragraph",
+      "text": "Xmχ",
+      "confidence": 0.5
+    },
+    {
+      "id": 96,
+      "block_id": 30,
+      "page": 8,
+      "bbox": [
+        298.6900329589844,
+        555.3259887695312,
+        329.7453918457031,
+        573.0437622070312
+      ],
+      "type": "paragraph",
+      "text": "j=1 v(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 97,
+      "block_id": 31,
+      "page": 8,
+      "bbox": [
+        319.4650573730469,
+        554.2639770507812,
+        345.535400390625,
+        570.5247802734375
+      ],
+      "type": "paragraph",
+      "text": "χt ˜ξ(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 98,
+      "block_id": 32,
+      "page": 8,
+      "bbox": [
+        335.3110656738281,
+        557.1032104492188,
+        477.4812927246094,
+        569.5177612304688
+      ],
+      "type": "author",
+      "text": "t , (8)",
+      "confidence": 0.9
+    },
+    {
+      "id": 99,
+      "block_id": 33,
+      "page": 8,
+      "bbox": [
+        133.76809692382812,
+        582.9619750976562,
+        177.6874237060547,
+        595.7637939453125
+      ],
+      "type": "paragraph",
+      "text": "where v(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 100,
+      "block_id": 34,
+      "page": 8,
+      "bbox": [
+        167.40609741210938,
+        585.8012084960938,
+        323.045654296875,
+        597.9247436523438
+      ],
+      "type": "paragraph",
+      "text": "χt is the jth element of vector vχt.",
+      "confidence": 0.5
+    },
+    {
+      "id": 101,
+      "block_id": 35,
+      "page": 8,
+      "bbox": [
+        133.76806640625,
+        609.711181640625,
+        268.33294677734375,
+        619.6737670898438
+      ],
+      "type": "paragraph",
+      "text": "4.3. Static Covariate Encoders",
+      "confidence": 0.5
+    },
+    {
+      "id": 102,
+      "block_id": 36,
+      "page": 8,
+      "bbox": [
+        133.76806640625,
+        624.6552124023438,
+        477.51763916015625,
+        670.4837646484375
+      ],
+      "type": "paragraph",
+      "text": "In contrast with other time series forecasting architectures, the TFT is carefully designed to integrate information from static metadata, using separate GRN encoders to produce four different context vectors, cs, ce, cc, and ch. These contect vectors are wired into various locations in the temporal fusion",
+      "confidence": 0.5
+    },
+    {
+      "id": 104,
+      "block_id": 0,
+      "page": 9,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        477.5075988769531,
+        198.21160888671875
+      ],
+      "type": "paragraph",
+      "text": "decoder (Sec. 4.5) where static variables play an important role in processing. Specifically, this includes contexts for (1) temporal variable selection (cs), (2) local processing of temporal features (cc, ch), and (3) enriching of temporal features with static information (ce). As an example, taking ζ to be the output of the static variable selection network, contexts for temporal variable selection would be encoded according to cs = GRNcs(ζ).",
+      "confidence": 0.5
+    },
+    {
+      "id": 105,
+      "block_id": 1,
+      "page": 9,
+      "bbox": [
+        133.7680206298828,
+        209.9979705810547,
+        477.5174865722656,
+        282.05859375
+      ],
+      "type": "paragraph",
+      "text": "4.4. Interpretable Multi-Head Attention The TFT employs a selfattention mechanism to learn longterm relationships across different time steps, which we modify from multihead attention in transformerbased architectures [17, 12] to enhance explainability. In general, attention mechanisms scale values V ∈RN×dV based on relationships between keys K ∈RN×dattn and queries Q ∈RN×dattn as below:",
+      "confidence": 0.5
+    },
+    {
+      "id": 106,
+      "block_id": 2,
+      "page": 9,
+      "bbox": [
+        230.25502014160156,
+        292.9020080566406,
+        477.4812316894531,
+        302.8645935058594
+      ],
+      "type": "author",
+      "text": "Attention(Q, K, V ) = A(Q, K)V , (9)",
+      "confidence": 0.9
+    },
+    {
+      "id": 107,
+      "block_id": 3,
+      "page": 9,
+      "bbox": [
+        133.76803588867188,
+        313.7090148925781,
+        477.5001220703125,
+        335.6265869140625
+      ],
+      "type": "paragraph",
+      "text": "where A() is a normalization function. Acommon choice is scaled dotproduct attention [17]:",
+      "confidence": 0.5
+    },
+    {
+      "id": 108,
+      "block_id": 4,
+      "page": 9,
+      "bbox": [
+        225.80303955078125,
+        343.9109802246094,
+        347.8913269042969,
+        357.9875793457031
+      ],
+      "type": "author",
+      "text": "A(Q, K) = Softmax(QKT /",
+      "confidence": 0.9
+    },
+    {
+      "id": 109,
+      "block_id": 5,
+      "page": 9,
+      "bbox": [
+        347.89202880859375,
+        345.96240234375,
+        357.8546142578125,
+        355.92498779296875
+      ],
+      "type": "paragraph",
+      "text": "pdattn). (10)",
+      "confidence": 0.5
+    },
+    {
+      "id": 111,
+      "block_id": 7,
+      "page": 9,
+      "bbox": [
+        133.76800537109375,
+        368.8309326171875,
+        477.5274353027344,
+        402.7044982910156
+      ],
+      "type": "paragraph",
+      "text": "To improve the learning capacity of the standard attention mechanism, multihead attention is proposed in [17], employing different heads for different representation subspaces:",
+      "confidence": 0.5
+    },
+    {
+      "id": 112,
+      "block_id": 8,
+      "page": 9,
+      "bbox": [
+        210.34701538085938,
+        413.54791259765625,
+        477.4815673828125,
+        424.9182434082031
+      ],
+      "type": "author",
+      "text": "MultiHead(Q, K, V ) = [H1, . . . , HmH] WH, (11)",
+      "confidence": 0.9
+    },
+    {
+      "id": 113,
+      "block_id": 9,
+      "page": 9,
+      "bbox": [
+        205.98007202148438,
+        428.68572998046875,
+        315.2183837890625,
+        442.9814758300781
+      ],
+      "type": "paragraph",
+      "text": "Hh = Attention(Q W (h)",
+      "confidence": 0.5
+    },
+    {
+      "id": 114,
+      "block_id": 10,
+      "page": 9,
+      "bbox": [
+        302.73907470703125,
+        428.68572998046875,
+        357.2074279785156,
+        444.4154968261719
+      ],
+      "type": "author",
+      "text": "Q , K W (h)",
+      "confidence": 0.9
+    },
+    {
+      "id": 115,
+      "block_id": 11,
+      "page": 9,
+      "bbox": [
+        344.7281188964844,
+        428.68572998046875,
+        398.1244812011719,
+        444.4154968261719
+      ],
+      "type": "author",
+      "text": "K , V W (h)",
+      "confidence": 0.9
+    },
+    {
+      "id": 116,
+      "block_id": 12,
+      "page": 9,
+      "bbox": [
+        385.6451721191406,
+        431.52490234375,
+        477.4816589355469,
+        443.7625427246094
+      ],
+      "type": "author",
+      "text": "V ), (12)",
+      "confidence": 0.9
+    },
+    {
+      "id": 117,
+      "block_id": 13,
+      "page": 9,
+      "bbox": [
+        133.76815795898438,
+        453.22271728515625,
+        187.1794891357422,
+        466.02447509765625
+      ],
+      "type": "paragraph",
+      "text": "where W (h)",
+      "confidence": 0.5
+    },
+    {
+      "id": 118,
+      "block_id": 14,
+      "page": 9,
+      "bbox": [
+        174.70016479492188,
+        453.22271728515625,
+        291.1085205078125,
+        468.2995300292969
+      ],
+      "type": "paragraph",
+      "text": "K ∈Rdmodel×dattn, W (h)",
+      "confidence": 0.5
+    },
+    {
+      "id": 119,
+      "block_id": 15,
+      "page": 9,
+      "bbox": [
+        278.62921142578125,
+        453.22271728515625,
+        395.0375671386719,
+        468.2995300292969
+      ],
+      "type": "paragraph",
+      "text": "Q ∈Rdmodel×dattn, W (h)",
+      "confidence": 0.5
+    },
+    {
+      "id": 120,
+      "block_id": 16,
+      "page": 9,
+      "bbox": [
+        133.76828002929688,
+        453.4479064941406,
+        477.4783020019531,
+        492.9465637207031
+      ],
+      "type": "paragraph",
+      "text": "V ∈Rdmodel×dV are headspecific weights for keys, queries and values, and WH ∈R(mH·dV )×dmodel linearly combines outputs concatenated from all heads Hh.",
+      "confidence": 0.5
+    },
+    {
+      "id": 121,
+      "block_id": 17,
+      "page": 9,
+      "bbox": [
+        133.7683563232422,
+        494.0979309082031,
+        477.5278625488281,
+        539.9254760742188
+      ],
+      "type": "paragraph",
+      "text": "Given that different values are used in each head, attention weights alone would not be indicative of a particular feature’s importance. As such, we modify multihead attention to share values in each head, and employ additive aggregation of all heads:",
+      "confidence": 0.5
+    },
+    {
+      "id": 122,
+      "block_id": 18,
+      "page": 9,
+      "bbox": [
+        182.88735961914062,
+        548.223876953125,
+        477.48187255859375,
+        561.5735473632812
+      ],
+      "type": "paragraph",
+      "text": "InterpretableMultiHead(Q, K, V ) = ˜ H WH, (13)",
+      "confidence": 0.5
+    },
+    {
+      "id": 123,
+      "block_id": 19,
+      "page": 9,
+      "bbox": [
+        162.1363525390625,
+        579.7089233398438,
+        477.48187255859375,
+        593.7114868164062
+      ],
+      "type": "author",
+      "text": "˜ H = ˜A(Q, K) V WV , (14)",
+      "confidence": 0.9
+    },
+    {
+      "id": 126,
+      "block_id": 22,
+      "page": 9,
+      "bbox": [
+        193.49737548828125,
+        598.6107177734375,
+        241.2006072998047,
+        614.2354736328125
+      ],
+      "type": "paragraph",
+      "text": "1/H XmH",
+      "confidence": 0.5
+    },
+    {
+      "id": 127,
+      "block_id": 23,
+      "page": 9,
+      "bbox": [
+        228.6023712158203,
+        604.2728881835938,
+        252.9843292236328,
+        620.2125244140625
+      ],
+      "type": "paragraph",
+      "text": "h=1 A",
+      "confidence": 0.5
+    },
+    {
+      "id": 129,
+      "block_id": 25,
+      "page": 9,
+      "bbox": [
+        260.5943908691406,
+        601.4337158203125,
+        295.9377136230469,
+        614.2354736328125
+      ],
+      "type": "paragraph",
+      "text": "Q W (h)",
+      "confidence": 0.5
+    },
+    {
+      "id": 131,
+      "block_id": 27,
+      "page": 9,
+      "bbox": [
+        325.44842529296875,
+        609.5357055664062,
+        332.1432800292969,
+        616.509521484375
+      ],
+      "type": "heading",
+      "text": "K\u0011 \u001b",
+      "confidence": 0.75
+    },
+    {
+      "id": 133,
+      "block_id": 29,
+      "page": 9,
+      "bbox": [
+        353.51043701171875,
+        604.2728881835938,
+        477.48193359375,
+        615.7294921875
+      ],
+      "type": "author",
+      "text": "V WV , (15)",
+      "confidence": 0.9
+    },
+    {
+      "id": 134,
+      "block_id": 30,
+      "page": 9,
+      "bbox": [
+        175.50942993164062,
+        628.722900390625,
+        204.26763916015625,
+        638.6854858398438
+      ],
+      "type": "heading",
+      "text": "= 1/H",
+      "confidence": 0.75
+    },
+    {
+      "id": 135,
+      "block_id": 31,
+      "page": 9,
+      "bbox": [
+        206.7394256591797,
+        623.0607299804688,
+        233.72866821289062,
+        636.3839111328125
+      ],
+      "type": "paragraph",
+      "text": "XmH",
+      "confidence": 0.5
+    },
+    {
+      "id": 136,
+      "block_id": 32,
+      "page": 9,
+      "bbox": [
+        221.13043212890625,
+        625.8837280273438,
+        319.0457458496094,
+        644.6624755859375
+      ],
+      "type": "paragraph",
+      "text": "h=1 Attention(Q W (h)",
+      "confidence": 0.5
+    },
+    {
+      "id": 138,
+      "block_id": 34,
+      "page": 9,
+      "bbox": [
+        348.55548095703125,
+        628.722900390625,
+        477.4819641113281,
+        641.6134643554688
+      ],
+      "type": "author",
+      "text": "K , V WV ), (16)",
+      "confidence": 0.9
+    },
+    {
+      "id": 139,
+      "block_id": 35,
+      "page": 9,
+      "bbox": [
+        133.76846313476562,
+        650.3928833007812,
+        477.514404296875,
+        674.9234619140625
+      ],
+      "type": "paragraph",
+      "text": "where WV ∈Rdmodel×dV are value weights shared across all heads, and WH ∈ Rdattn×dmodel is used for final linear mapping. From Eq. (15), we see that each",
+      "confidence": 0.5
+    },
+    {
+      "id": 141,
+      "block_id": 0,
+      "page": 10,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        477.50762939453125,
+        184.7615966796875
+      ],
+      "type": "paragraph",
+      "text": "head can learn different temporal patterns, while attending to a common set of input features – which can be interpreted as a simple ensemble over attention weights into combined matrix ˜A(Q, K) in Eq. (14). Compared to A(Q, K) in Eq. (10), ˜A(Q, K) yields an increased representation capacity in an efficient way.",
+      "confidence": 0.5
+    },
+    {
+      "id": 142,
+      "block_id": 1,
+      "page": 10,
+      "bbox": [
+        133.76803588867188,
+        196.9039764404297,
+        477.4777526855469,
+        231.9595947265625
+      ],
+      "type": "paragraph",
+      "text": "4.5. Temporal Fusion Decoder The temporal fusion decoder uses the series of layers described below to learn temporal relationships present in the dataset:",
+      "confidence": 0.5
+    },
+    {
+      "id": 143,
+      "block_id": 2,
+      "page": 10,
+      "bbox": [
+        133.76803588867188,
+        244.1019744873047,
+        477.5674133300781,
+        506.1193542480469
+      ],
+      "type": "paragraph",
+      "text": "4.5.1. Locality Enhancement with Sequenceto-Sequence Layer In time series data, points of significance are often identified in relation to their surrounding values – such as anomalies, changepoints or cyclical patterns. Leveraging local context, through the construction of features that utilize pattern information on top of pointwise values, can thus lead to performance improvements in attentionbased architectures. For instance, [12] adopts a single convolutional layer for locality enhancement – extracting local patterns using the same filter across all time. However, this might not be suitable for cases when observed inputs exist, due to the differing number of past and future inputs. As such, we propose the application of a sequencetosequence model to naturally handle these differences – feeding ˜ξt−k:t into the encoder and ˜ξt+1:t+τmax into the decoder. This then generates a set of uniform temporal features which serve as inputs into the temporal fusion decoder itself – denoted by φ(t, n) ∈{φ(t, −k), . . . , φ(t, τmax)} with n being a position index. For comparability with commonlyused sequencetosequence baselines, we consider the use of an LSTM encoderdecoder – although other models can potentially be adopted as well. This also serves as a replacement for standard positional encoding, providing an appropriate inductive bias for the time ordering of the inputs. Moreover, to allow static metadata to influence local processing, we use the cc, ch context vectors from the static covariate encoders to initialize the cell state and hidden state respectively for the first LSTM in the layer. We also employ a gated skip connection over this layer:",
+      "confidence": 0.5
+    },
+    {
+      "id": 144,
+      "block_id": 3,
+      "page": 10,
+      "bbox": [
+        203.51406860351562,
+        514.8707885742188,
+        294.5540771484375,
+        527.4623413085938
+      ],
+      "type": "paragraph",
+      "text": "˜φ(t, n) = LayerNorm",
+      "confidence": 0.5
+    },
+    {
+      "id": 146,
+      "block_id": 5,
+      "page": 10,
+      "bbox": [
+        302.16009521484375,
+        514.8707275390625,
+        397.3580017089844,
+        529.9093627929688
+      ],
+      "type": "author",
+      "text": "˜ξt+n + GLU ˜φ(φ(t, n))",
+      "confidence": 0.9
+    },
+    {
+      "id": 148,
+      "block_id": 7,
+      "page": 10,
+      "bbox": [
+        404.966064453125,
+        517.4996948242188,
+        477.4815673828125,
+        527.4622802734375
+      ],
+      "type": "author",
+      "text": ", (17)",
+      "confidence": 0.9
+    },
+    {
+      "id": 149,
+      "block_id": 8,
+      "page": 10,
+      "bbox": [
+        133.76806640625,
+        539.267578125,
+        310.6271057128906,
+        550.2013549804688
+      ],
+      "type": "author",
+      "text": "where n ∈[−k, τmax] is a position index.",
+      "confidence": 0.9
+    },
+    {
+      "id": 150,
+      "block_id": 9,
+      "page": 10,
+      "bbox": [
+        133.76806640625,
+        561.501708984375,
+        477.5076599121094,
+        620.2813110351562
+      ],
+      "type": "paragraph",
+      "text": "4.5.2. Static Enrichment Layer As static covariates often have a significant influence on the temporal dynamics (e.g. genetic information on disease risk), we introduce a static enrichment layer that enhances temporal features with static metadata. For a given position index n, static enrichment takes the form:",
+      "confidence": 0.5
+    },
+    {
+      "id": 151,
+      "block_id": 10,
+      "page": 10,
+      "bbox": [
+        241.2510528564453,
+        631.6627197265625,
+        308.6208190917969,
+        642.4663696289062
+      ],
+      "type": "author",
+      "text": "θ(t, n) = GRNθ",
+      "confidence": 0.9
+    },
+    {
+      "id": 153,
+      "block_id": 12,
+      "page": 10,
+      "bbox": [
+        316.945068359375,
+        629.0337524414062,
+        359.1198425292969,
+        642.4663696289062
+      ],
+      "type": "author",
+      "text": "˜φ(t, n), ce",
+      "confidence": 0.9
+    },
+    {
+      "id": 155,
+      "block_id": 14,
+      "page": 10,
+      "bbox": [
+        367.2290344238281,
+        631.6627197265625,
+        477.4815368652344,
+        641.6253051757812
+      ],
+      "type": "author",
+      "text": ", (18)",
+      "confidence": 0.9
+    },
+    {
+      "id": 156,
+      "block_id": 15,
+      "page": 10,
+      "bbox": [
+        133.76800537109375,
+        653.0057373046875,
+        477.4820861816406,
+        674.92333984375
+      ],
+      "type": "paragraph",
+      "text": "where the weights of GRNφ are shared across the entire layer, and ce is a context vector from a static covariate encoder.",
+      "confidence": 0.5
+    },
+    {
+      "id": 158,
+      "block_id": 0,
+      "page": 11,
+      "bbox": [
+        133.7679443359375,
+        126.97892761230469,
+        483.6699523925781,
+        187.2525634765625
+      ],
+      "type": "paragraph",
+      "text": "4.5.3. Temporal Self-Attention Layer Following static enrichment, we next apply selfattention. All staticenriched temporal features are first grouped into a single matrix – i.e. Θ(t) = [θ(t, −k), . . . , θ(t, τ)]T – and interpretable multihead attention (see Sec. 4.4) is applied at each forecast time (with N = τmax + k + 1):",
+      "confidence": 0.5
+    },
+    {
+      "id": 159,
+      "block_id": 1,
+      "page": 11,
+      "bbox": [
+        197.178955078125,
+        197.7129364013672,
+        477.4814453125,
+        207.675537109375
+      ],
+      "type": "paragraph",
+      "text": "B(t) = InterpretableMultiHead(Θ(t), Θ(t), Θ(t)), (19)",
+      "confidence": 0.5
+    },
+    {
+      "id": 160,
+      "block_id": 2,
+      "page": 11,
+      "bbox": [
+        133.7678985595703,
+        219.5017852783203,
+        477.537353515625,
+        313.2795104980469
+      ],
+      "type": "paragraph",
+      "text": "to yield B(t) = [β(t, −k), . . . , β(t, τmax)]. dV = dattn = dmodel/mH are chosen, where mH is the number of heads. Decoder masking [17, 12] is applied to the multihead attention layer to ensure that each temporal dimension can only attend to features preceding it. Besides preserving causal information flow via masking, the selfattention layer allows TFT to pick up longrange dependencies that may be challenging for RNNbased architectures to learn. Following the selfattention layer, an additional gating layer is also applied to facilitate training:",
+      "confidence": 0.5
+    },
+    {
+      "id": 161,
+      "block_id": 3,
+      "page": 11,
+      "bbox": [
+        204.53089904785156,
+        325.23492431640625,
+        477.48138427734375,
+        336.03955078125
+      ],
+      "type": "paragraph",
+      "text": "δ(t, n) = LayerNorm(θ(t, n) + GLUδ(β(t, n))). (20)",
+      "confidence": 0.5
+    },
+    {
+      "id": 162,
+      "block_id": 4,
+      "page": 11,
+      "bbox": [
+        133.76788330078125,
+        349.14593505859375,
+        477.5374450683594,
+        384.0144958496094
+      ],
+      "type": "paragraph",
+      "text": "4.5.4. Positionwise Feedforward Layer We apply an additional nonlinear processing to the outputs of the selfattention layer. Similar to the static enrichment layer, this makes use of GRNs:",
+      "confidence": 0.5
+    },
+    {
+      "id": 163,
+      "block_id": 5,
+      "page": 11,
+      "bbox": [
+        249.23388671875,
+        395.96990966796875,
+        477.4814147949219,
+        407.4264831542969
+      ],
+      "type": "author",
+      "text": "ψ(t, n) = GRNψ (δ(t, n)) , (21)",
+      "confidence": 0.9
+    },
+    {
+      "id": 164,
+      "block_id": 6,
+      "page": 11,
+      "bbox": [
+        133.76791381835938,
+        417.8879089355469,
+        477.5174560546875,
+        463.7154541015625
+      ],
+      "type": "paragraph",
+      "text": "where the weights of GRNψ are shared across the entire layer. As per Fig. 2, we also apply a gated residual connection which skips over the entire transformer block, providing a direct path to the sequencetosequence layer – yielding a simpler model if additional complexity is not required, as shown below:",
+      "confidence": 0.5
+    },
+    {
+      "id": 165,
+      "block_id": 7,
+      "page": 11,
+      "bbox": [
+        197.70291137695312,
+        475.47686767578125,
+        289.5679016113281,
+        488.0694580078125
+      ],
+      "type": "paragraph",
+      "text": "˜ψ(t, n) = LayerNorm",
+      "confidence": 0.5
+    },
+    {
+      "id": 167,
+      "block_id": 9,
+      "page": 11,
+      "bbox": [
+        297.1749267578125,
+        475.47686767578125,
+        403.1688537597656,
+        490.5155029296875
+      ],
+      "type": "author",
+      "text": "˜φ(t, n) + GLU ˜ ψ(ψ(t, n))",
+      "confidence": 0.9
+    },
+    {
+      "id": 169,
+      "block_id": 11,
+      "page": 11,
+      "bbox": [
+        410.77691650390625,
+        478.10687255859375,
+        477.4814147949219,
+        488.0694580078125
+      ],
+      "type": "author",
+      "text": ", (22)",
+      "confidence": 0.9
+    },
+    {
+      "id": 170,
+      "block_id": 12,
+      "page": 11,
+      "bbox": [
+        133.76791381835938,
+        504.45184326171875,
+        230.02658081054688,
+        514.4144287109375
+      ],
+      "type": "paragraph",
+      "text": "4.6. Quantile Outputs",
+      "confidence": 0.5
+    },
+    {
+      "id": 171,
+      "block_id": 13,
+      "page": 11,
+      "bbox": [
+        133.7678985595703,
+        519.3958740234375,
+        477.54736328125,
+        577.179443359375
+      ],
+      "type": "paragraph",
+      "text": "In line with previous work [10], TFT also generates prediction intervals on top of point forecasts. This is achieved by the simultaneous prediction of various percentiles (e.g. 10th, 50th and 90th) at each time step. Quantile forecasts are generated using linear transformation of the output from the temporal fusion decoder:",
+      "confidence": 0.5
+    },
+    {
+      "id": 172,
+      "block_id": 14,
+      "page": 11,
+      "bbox": [
+        245.41090393066406,
+        576.5429077148438,
+        477.4814147949219,
+        590.6284790039062
+      ],
+      "type": "author",
+      "text": "ˆy(q, t, τ) = Wq ˜ψ(t, τ) + bq, (23)",
+      "confidence": 0.9
+    },
+    {
+      "id": 173,
+      "block_id": 15,
+      "page": 11,
+      "bbox": [
+        133.76791381835938,
+        594.9283447265625,
+        477.4819641113281,
+        631.8195190429688
+      ],
+      "type": "paragraph",
+      "text": "where Wq ∈R1×d, bq ∈Rare linear coefficients for the specified quantile q. We note that forecasts are only generated for horizons in the future – i.e. τ ∈ {1, . . . , τmax}.",
+      "confidence": 0.5
+    },
+    {
+      "id": 175,
+      "block_id": 0,
+      "page": 12,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        222.22596740722656,
+        136.9415283203125
+      ],
+      "type": "heading",
+      "text": "5. Loss Functions",
+      "confidence": 0.75
+    },
+    {
+      "id": 176,
+      "block_id": 1,
+      "page": 12,
+      "bbox": [
+        133.76800537109375,
+        147.8999481201172,
+        477.5075988769531,
+        169.81756591796875
+      ],
+      "type": "paragraph",
+      "text": "TFT is trained by jointly minimizing the quantile loss [10], summed across all quantile outputs:",
+      "confidence": 0.5
+    },
+    {
+      "id": 177,
+      "block_id": 2,
+      "page": 12,
+      "bbox": [
+        174.65701293945312,
+        186.8338165283203,
+        223.90296936035156,
+        196.925537109375
+      ],
+      "type": "author",
+      "text": "L(Ω, W ) =",
+      "confidence": 0.9
+    },
+    {
+      "id": 178,
+      "block_id": 3,
+      "page": 12,
+      "bbox": [
+        226.66500854492188,
+        184.66236877441406,
+        241.0609588623047,
+        194.62496948242188
+      ],
+      "type": "paragraph",
+      "text": "Xyt∈Ω",
+      "confidence": 0.5
+    },
+    {
+      "id": 181,
+      "block_id": 6,
+      "page": 12,
+      "bbox": [
+        276.0060119628906,
+        195.18643188476562,
+        291.8052978515625,
+        202.2506103515625
+      ],
+      "type": "paragraph",
+      "text": "q∈Q",
+      "confidence": 0.5
+    },
+    {
+      "id": 182,
+      "block_id": 7,
+      "page": 12,
+      "bbox": [
+        293.9620056152344,
+        181.30079650878906,
+        325.94476318359375,
+        194.62496948242188
+      ],
+      "type": "paragraph",
+      "text": "Xτmax",
+      "confidence": 0.5
+    },
+    {
+      "id": 183,
+      "block_id": 8,
+      "page": 12,
+      "bbox": [
+        308.3529968261719,
+        195.2768096923828,
+        322.9241027832031,
+        202.2506103515625
+      ],
+      "type": "paragraph",
+      "text": "τ=1",
+      "confidence": 0.5
+    },
+    {
+      "id": 184,
+      "block_id": 9,
+      "page": 12,
+      "bbox": [
+        329.7980041503906,
+        180.0938262939453,
+        435.396484375,
+        191.027587890625
+      ],
+      "type": "author",
+      "text": "QL (yt, ˆy(q, t −τ, τ), q)",
+      "confidence": 0.9
+    },
+    {
+      "id": 185,
+      "block_id": 10,
+      "page": 12,
+      "bbox": [
+        366.8399963378906,
+        193.7969207763672,
+        397.8601989746094,
+        204.6005859375
+      ],
+      "type": "paragraph",
+      "text": "Mτmax",
+      "confidence": 0.5
+    },
+    {
+      "id": 186,
+      "block_id": 11,
+      "page": 12,
+      "bbox": [
+        459.7679748535156,
+        186.9629364013672,
+        477.4814758300781,
+        196.925537109375
+      ],
+      "type": "paragraph",
+      "text": "(24)",
+      "confidence": 0.5
+    },
+    {
+      "id": 187,
+      "block_id": 12,
+      "page": 12,
+      "bbox": [
+        210.6329803466797,
+        220.70680236816406,
+        477.4814758300781,
+        232.29351806640625
+      ],
+      "type": "author",
+      "text": "QL(y, ˆy, q) = q(y −ˆy)+ + (1 −q)(ˆy −y)+, (25)",
+      "confidence": 0.9
+    },
+    {
+      "id": 188,
+      "block_id": 13,
+      "page": 12,
+      "bbox": [
+        133.76791381835938,
+        238.76890563964844,
+        477.4876403808594,
+        296.5525207519531
+      ],
+      "type": "paragraph",
+      "text": "where Ωis the domain of training data containing Msamples, Wrepresents the weights of TFT, Qis the set of output quantiles (we use Q = {0.1, 0.5, 0.9} in our experiments, and (.)+ = max(0, .). For outofsample testing, we evaluate the normalized quantile losses across the entire forecasting horizon – focusing on P50 and P90 risk for consistency with previous work [9, 6, 12]:",
+      "confidence": 0.5
+    },
+    {
+      "id": 189,
+      "block_id": 14,
+      "page": 12,
+      "bbox": [
+        195.65493774414062,
+        316.3139343261719,
+        233.58558654785156,
+        326.2765197753906
+      ],
+      "type": "paragraph",
+      "text": "q-Risk =",
+      "confidence": 0.5
+    },
+    {
+      "id": 190,
+      "block_id": 15,
+      "page": 12,
+      "bbox": [
+        237.54893493652344,
+        307.7423400878906,
+        254.71044921875,
+        325.17694091796875
+      ],
+      "type": "heading",
+      "text": "2 P",
+      "confidence": 0.75
+    },
+    {
+      "id": 191,
+      "block_id": 16,
+      "page": 12,
+      "bbox": [
+        254.70693969726562,
+        311.6457214355469,
+        273.112548828125,
+        320.9432373046875
+      ],
+      "type": "paragraph",
+      "text": "yt∈˜Ω",
+      "confidence": 0.5
+    },
+    {
+      "id": 192,
+      "block_id": 17,
+      "page": 12,
+      "bbox": [
+        275.2669372558594,
+        305.37774658203125,
+        303.37469482421875,
+        317.7049255371094
+      ],
+      "type": "paragraph",
+      "text": "Pτmax",
+      "confidence": 0.5
+    },
+    {
+      "id": 193,
+      "block_id": 18,
+      "page": 12,
+      "bbox": [
+        285.7829284667969,
+        307.92181396484375,
+        411.63140869140625,
+        332.8839416503906
+      ],
+      "type": "author",
+      "text": "τ=1 QL (yt, ˆy(q, t −τ, τ), q) P",
+      "confidence": 0.9
+    },
+    {
+      "id": 196,
+      "block_id": 21,
+      "page": 12,
+      "bbox": [
+        328.2979736328125,
+        316.31396484375,
+        477.4814758300781,
+        336.05242919921875
+      ],
+      "type": "author",
+      "text": "τ=1 |yt| , (26)",
+      "confidence": 0.9
+    },
+    {
+      "id": 197,
+      "block_id": 22,
+      "page": 12,
+      "bbox": [
+        133.76797485351562,
+        345.220947265625,
+        477.4999084472656,
+        369.6565246582031
+      ],
+      "type": "paragraph",
+      "text": "where ˜Ωis the domain of test samples. Full details on hyperparameter optimization and training can be found in Appendix A.",
+      "confidence": 0.5
+    },
+    {
+      "id": 198,
+      "block_id": 23,
+      "page": 12,
+      "bbox": [
+        133.76797485351562,
+        389.5819396972656,
+        268.8309326171875,
+        399.5445251464844
+      ],
+      "type": "heading",
+      "text": "6. Performance Evaluation",
+      "confidence": 0.75
+    },
+    {
+      "id": 199,
+      "block_id": 24,
+      "page": 12,
+      "bbox": [
+        133.76797485351562,
+        410.5039367675781,
+        192.20858764648438,
+        420.4665222167969
+      ],
+      "type": "paragraph",
+      "text": "6.1. Datasets",
+      "confidence": 0.5
+    },
+    {
+      "id": 200,
+      "block_id": 25,
+      "page": 12,
+      "bbox": [
+        133.76797485351562,
+        425.44793701171875,
+        477.5473327636719,
+        650.6033935546875
+      ],
+      "type": "paragraph",
+      "text": "We choose datasets to reflect commonly observed characteristics across a wide range of challenging multihorizon forecasting problems. To establish a baseline and position with respect to prior academic work, we first evaluate performance on the Electricity and Traffic datasets used in [9, 6, 12] – which focus on simpler univariate time series containing known inputs only alongside the target. Next, the Retail dataset helps us benchmark the model using the full range of complex inputs observed in multihorizon prediction applications (see Sec. 3) – including rich static metadata and observed timevarying inputs. Finally, to evaluate robustness to overfitting on smaller noisy datasets, we consider the financial application of volatility forecasting – using a dataset much smaller than others. Broad descriptions of each dataset can be found below: • Electricity: The UCI Electricity Load Diagrams Dataset, containing the electricity consumption of 370 customers – aggregated on an hourly level as in [32]. In accordance with [9], we use the past week (i.e. 168 hours) to forecast over the next 24 hours. • Traffic: The UCI PEM-SF Traffic Dataset describes the occupancy rate (with yt ∈[0, 1]) of 440 SF Bay Area freeways – as in [32]. It is also aggregated on an hourly level as per the electricity dataset, with the same look back window and forecast horizon.",
+      "confidence": 0.5
+    },
+    {
+      "id": 202,
+      "block_id": 0,
+      "page": 13,
+      "bbox": [
+        133.76800537109375,
+        126.84981536865234,
+        477.5279846191406,
+        232.5826416015625
+      ],
+      "type": "paragraph",
+      "text": "• Retail: Favorita Grocery Sales Dataset from the Kaggle competition [33], that combines metadata for different products and the stores, along with other exogenous timevarying inputs sampled at the daily level. We forecast log product sales 30 days into the future, using 90 days of past information. • Volatility (or Vol.): The OMI realized library [34] contains daily realized volatility values of 31 stock indices computed from intraday data, along with their daily returns. For our experiments, we consider forecasts over the next week (i.e. 5 business days) using information over the past year (i.e. 252 business days).",
+      "confidence": 0.5
+    },
+    {
+      "id": 203,
+      "block_id": 1,
+      "page": 13,
+      "bbox": [
+        133.7680206298828,
+        246.53001403808594,
+        237.6680450439453,
+        256.49261474609375
+      ],
+      "type": "paragraph",
+      "text": "6.2. Training Procedure",
+      "confidence": 0.5
+    },
+    {
+      "id": 204,
+      "block_id": 2,
+      "page": 13,
+      "bbox": [
+        133.7680206298828,
+        261.47406005859375,
+        477.5574645996094,
+        331.21258544921875
+      ],
+      "type": "paragraph",
+      "text": "For each dataset, we partition all time series into 3 parts – a training set for learning, a validation set for hyperparameter tuning, and a holdout test set for performance evaluation. Hyperparameter optimization is conducted via random search, using 240 iterations for Volatility, and 60 iterations for others. Full search ranges for all hyperparameters are below, with datasets and optimal model parameters listed in Table 1.",
+      "confidence": 0.5
+    },
+    {
+      "id": 205,
+      "block_id": 3,
+      "page": 13,
+      "bbox": [
+        148.71202087402344,
+        343.03887939453125,
+        362.2419128417969,
+        412.9065246582031
+      ],
+      "type": "paragraph",
+      "text": "• State size – 10, 20, 40, 80, 160, 240, 320 • Dropout rate – 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9 • Minibatch size – 64, 128, 256 • Learning rate – 0.0001, 0.001, 0.01 • Max. gradient norm – 0.01, 1.0, 100.0 • Num. heads – 1, 4",
+      "confidence": 0.5
+    },
+    {
+      "id": 206,
+      "block_id": 4,
+      "page": 13,
+      "bbox": [
+        133.76800537109375,
+        424.8619384765625,
+        477.5276794433594,
+        506.5554504394531
+      ],
+      "type": "paragraph",
+      "text": "To preserve explainability, we adopt only a single interpretable multihead attention layer. For ConvTrans [12], we use the same fixed stack size (3 layers) and number of heads (8 heads) as in [12]. We keep the same attention model, and treat kernel sizes for the convolutional processing layer as a hyperparameter (∈{1, 3, 6, 9}) – as optimal kernel sizes are observed to be dataset dependent [12]. An opensource implementation of the TFT on these datasets can be found on GitHub3 for full reproducibility.",
+      "confidence": 0.5
+    },
+    {
+      "id": 207,
+      "block_id": 5,
+      "page": 13,
+      "bbox": [
+        133.76800537109375,
+        520.5028686523438,
+        242.2408447265625,
+        530.4654541015625
+      ],
+      "type": "paragraph",
+      "text": "6.3. Computational Cost",
+      "confidence": 0.5
+    },
+    {
+      "id": 208,
+      "block_id": 6,
+      "page": 13,
+      "bbox": [
+        133.76800537109375,
+        535.4468383789062,
+        477.527587890625,
+        617.1404418945312
+      ],
+      "type": "paragraph",
+      "text": "Across all datasets, each TFT model was also trained on a single GPU, and can be deployed without the need for extensive computing resources. For instance, using a NVIDIA Tesla V100 GPU, our optimal TFT model (for Electricity dataset) takes just slightly over 6 hours to train (each epoch being roughly 52 mins). The batched inference on the entire validation dataset (consisting 50,000 samples) takes 8 minutes. TFT training and inference times can be further reduced with hardwarespecific optimizations.",
+      "confidence": 0.5
+    },
+    {
+      "id": 210,
+      "block_id": 0,
+      "page": 14,
+      "bbox": [
+        185.33700561523438,
+        125.1981201171875,
+        425.8108215332031,
+        133.168212890625
+      ],
+      "type": "paragraph",
+      "text": "Table 1: Information on dataset and optimal TFT configuration.",
+      "confidence": 0.5
+    },
+    {
+      "id": 211,
+      "block_id": 1,
+      "page": 14,
+      "bbox": [
+        274.65899658203125,
+        148.3968963623047,
+        444.5013122558594,
+        158.3594970703125
+      ],
+      "type": "paragraph",
+      "text": "Electricity Traffic Retail Vol.",
+      "confidence": 0.5
+    },
+    {
+      "id": 212,
+      "block_id": 2,
+      "page": 14,
+      "bbox": [
+        158.56900024414062,
+        165.3539276123047,
+        452.6811218261719,
+        211.1824951171875
+      ],
+      "type": "paragraph",
+      "text": "Dataset Details Target Type R [0, 1] R R Number of Entities 370 440 130k 41 Number of Samples 500k 500k 500k ∼100k",
+      "confidence": 0.5
+    },
+    {
+      "id": 213,
+      "block_id": 3,
+      "page": 14,
+      "bbox": [
+        158.56900024414062,
+        218.1769256591797,
+        439.6694641113281,
+        287.91552734375
+      ],
+      "type": "paragraph",
+      "text": "Network Parameters k 168 168 90 252 τmax 24 24 30 5 Dropout Rate 0.1 0.3 0.1 0.3 State Size 160 320 240 160 Number of Heads 4 4 4 1",
+      "confidence": 0.5
+    },
+    {
+      "id": 214,
+      "block_id": 4,
+      "page": 14,
+      "bbox": [
+        158.56900024414062,
+        294.9099426269531,
+        442.4489440917969,
+        340.7375183105469
+      ],
+      "type": "paragraph",
+      "text": "Training Parameters Minibatch Size 64 128 128 64 Learning Rate 0.001 0.001 0.001 0.01 Max Gradient Norm 0.01 100 100 0.01",
+      "confidence": 0.5
+    },
+    {
+      "id": 215,
+      "block_id": 5,
+      "page": 14,
+      "bbox": [
+        133.76800537109375,
+        366.26593017578125,
+        477.49774169921875,
+        438.6194763183594
+      ],
+      "type": "paragraph",
+      "text": "6.4. Benchmarks We extensively compare TFT to a wide range of models for multihorizon forecasting, based on the categories described in Sec. 2. Hyperparameter optimization is conducted using random search over a predefined search space, using the same number of iterations across all benchmarks for a give dataset. Additional details are included in Appendix A.",
+      "confidence": 0.5
+    },
+    {
+      "id": 216,
+      "block_id": 6,
+      "page": 14,
+      "bbox": [
+        133.76800537109375,
+        440.6128845214844,
+        477.5376281738281,
+        498.3954162597656
+      ],
+      "type": "paragraph",
+      "text": "Direct methods: As TFT falls within this class of multihorizon models, we primarily focus comparisons on deep learning models which directly generate prediction at future horizons, including: 1) simple sequencetosequence models with global contexts (Seq2Seq), and 2) the Multihorizon Quantile Recurrent Forecaster (MQRNN) [10].",
+      "confidence": 0.5
+    },
+    {
+      "id": 217,
+      "block_id": 7,
+      "page": 14,
+      "bbox": [
+        133.76800537109375,
+        500.3878173828125,
+        477.53753662109375,
+        617.9473876953125
+      ],
+      "type": "paragraph",
+      "text": "Iterative methods: To position with respect to the rich body of work on iterative models, we evaluate TFT using the same setup as [9] for the Electricity and Traffic datasets. This extends the results from [12] for 1) DeepAR [9], 2) DSSM [6], and 3) the Transformerbased architecture of [12] with local convolutional processing – which refer to as ConvTrans. For more complex datasets, we focus on the ConvTrans model given its strong outperformance over other iterative models in prior work, and DeepAR due to its popularity among practitioners. As models in this category require knowledge of all inputs in the future to generate predictions, we accommodate this for complex datasets by imputing unknown inputs with their last available value.",
+      "confidence": 0.5
+    },
+    {
+      "id": 218,
+      "block_id": 8,
+      "page": 14,
+      "bbox": [
+        133.76800537109375,
+        619.9398193359375,
+        477.527587890625,
+        641.857421875
+      ],
+      "type": "paragraph",
+      "text": "For simpler univariate datasets, we note that the results for ARIMA, ETS, TRMF, DeepAR, DSSM and ConvTrans have been reproduced from [12] in",
+      "confidence": 0.5
+    },
+    {
+      "id": 219,
+      "block_id": 9,
+      "page": 14,
+      "bbox": [
+        144.86000061035156,
+        665.2623291015625,
+        452.3400573730469,
+        674.87109375
+      ],
+      "type": "paragraph",
+      "text": "3URL: https://github.com/googleresearch/googleresearch/tree/master/tft",
+      "confidence": 0.5
+    },
+    {
+      "id": 221,
+      "block_id": 0,
+      "page": 15,
+      "bbox": [
+        133.76800537109375,
+        197.60211181640625,
+        477.4372253417969,
+        233.9652099609375
+      ],
+      "type": "paragraph",
+      "text": "Table 2: P50 and P90 quantile losses on a range of realworld datasets. Percentages in brackets reflect the increase in quantile loss versus TFT (lower q-Risk better), with TFT outperforming competing methods across all experiments, improving on the next best alternative method (underlined) between 3% and 26%.",
+      "confidence": 0.5
+    },
+    {
+      "id": 222,
+      "block_id": 1,
+      "page": 15,
+      "bbox": [
+        155.88699340820312,
+        249.1938934326172,
+        490.6701965332031,
+        259.156494140625
+      ],
+      "type": "paragraph",
+      "text": "ARIMA ETS TRMF DeepAR DSSM",
+      "confidence": 0.5
+    },
+    {
+      "id": 223,
+      "block_id": 2,
+      "page": 15,
+      "bbox": [
+        91.90499877929688,
+        266.15093994140625,
+        519.3444213867188,
+        288.06951904296875
+      ],
+      "type": "paragraph",
+      "text": "Electricity 0.154 (+180%) 0.102 (+85%) 0.084 (+53%) 0.075 (+36%) 0.083 (+51%) Traffic 0.223 (+135%) 0.236 (+148%) 0.186 (+96%) 0.161 (+69%) 0.167 (+76%)",
+      "confidence": 0.5
+    },
+    {
+      "id": 224,
+      "block_id": 3,
+      "page": 15,
+      "bbox": [
+        155.88699340820312,
+        295.0639343261719,
+        408.3891296386719,
+        305.0265197753906
+      ],
+      "type": "paragraph",
+      "text": "ConvTrans Seq2Seq MQRNN TFT",
+      "confidence": 0.5
+    },
+    {
+      "id": 225,
+      "block_id": 4,
+      "page": 15,
+      "bbox": [
+        91.90499877929688,
+        312.02093505859375,
+        417.0274963378906,
+        333.9385070800781
+      ],
+      "type": "paragraph",
+      "text": "Electricity 0.059 (+7%) 0.067 (+22%) 0.077 (+40%) 0.055* Traffic 0.122 (+28%) 0.105 (+11%) 0.117 (+23%) 0.095*",
+      "confidence": 0.5
+    },
+    {
+      "id": 226,
+      "block_id": 5,
+      "page": 15,
+      "bbox": [
+        214.3769989013672,
+        339.5214538574219,
+        396.8880310058594,
+        348.48785400390625
+      ],
+      "type": "paragraph",
+      "text": "(a) P50 losses on simpler univariate datasets.",
+      "confidence": 0.5
+    },
+    {
+      "id": 228,
+      "block_id": 7,
+      "page": 15,
+      "bbox": [
+        89.35900115966797,
+        377.9149169921875,
+        521.8904418945312,
+        399.83349609375
+      ],
+      "type": "paragraph",
+      "text": "Electricity 0.102 (+278%) 0.077 (+185%) - 0.040 (+48%) 0.056 (+107%) Traffic 0.137 (+94%) 0.148 (+110%) - 0.099 (+40%) 0.113 (+60%)",
+      "confidence": 0.5
+    },
+    {
+      "id": 230,
+      "block_id": 9,
+      "page": 15,
+      "bbox": [
+        89.35900115966797,
+        423.7849426269531,
+        414.48150634765625,
+        445.7025146484375
+      ],
+      "type": "paragraph",
+      "text": "Electricity 0.034 (+26%) 0.036 (+33%) 0.036 (+33%) 0.027* Traffic 0.081 (+15%) 0.075 (+6%) 0.082 (+16%) 0.070*",
+      "confidence": 0.5
+    },
+    {
+      "id": 231,
+      "block_id": 10,
+      "page": 15,
+      "bbox": [
+        214.12100219726562,
+        451.28546142578125,
+        397.14312744140625,
+        460.2518615722656
+      ],
+      "type": "paragraph",
+      "text": "(b) P90 losses on simpler univariate datasets.",
+      "confidence": 0.5
+    },
+    {
+      "id": 232,
+      "block_id": 11,
+      "page": 15,
+      "bbox": [
+        167.26100158691406,
+        472.721923828125,
+        477.5262451171875,
+        482.68450927734375
+      ],
+      "type": "paragraph",
+      "text": "DeepAR CovTrans Seq2Seq MQRNN TFT",
+      "confidence": 0.5
+    },
+    {
+      "id": 233,
+      "block_id": 12,
+      "page": 15,
+      "bbox": [
+        125.07199096679688,
+        489.6789245605469,
+        486.1714782714844,
+        511.5975036621094
+      ],
+      "type": "paragraph",
+      "text": "Vol. 0.050 (+28%) 0.047 (+20%) 0.042 (+7%) 0.042 (+7%) 0.039* Retail 0.574 (+62%) 0.429 (+21%) 0.411 (+16%) 0.379 (+7%) 0.354*",
+      "confidence": 0.5
+    },
+    {
+      "id": 234,
+      "block_id": 13,
+      "page": 15,
+      "bbox": [
+        181.5500030517578,
+        517.1795043945312,
+        429.71295166015625,
+        526.1458740234375
+      ],
+      "type": "paragraph",
+      "text": "(c) P50 losses on datasets with rich static or observed inputs.",
+      "confidence": 0.5
+    },
+    {
+      "id": 236,
+      "block_id": 15,
+      "page": 15,
+      "bbox": [
+        127.61798095703125,
+        555.5739135742188,
+        483.62548828125,
+        577.4915161132812
+      ],
+      "type": "paragraph",
+      "text": "Vol. 0.024 (+21%) 0.024 (+22%) 0.021 (+8%) 0.021 (+9%) 0.020* Retail 0.230 (+56%) 0.192 (+30%) 0.157 (+7%) 0.152 (+3%) 0.147*",
+      "confidence": 0.5
+    },
+    {
+      "id": 237,
+      "block_id": 16,
+      "page": 15,
+      "bbox": [
+        181.03799438476562,
+        583.0745239257812,
+        430.2231140136719,
+        592.0408935546875
+      ],
+      "type": "paragraph",
+      "text": "(d) P90 losses on datasets with rich static or observed inputs.",
+      "confidence": 0.5
+    },
+    {
+      "id": 239,
+      "block_id": 0,
+      "page": 16,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        235.7451934814453,
+        136.9415283203125
+      ],
+      "type": "paragraph",
+      "text": "Table 2 for consistency.",
+      "confidence": 0.5
+    },
+    {
+      "id": 240,
+      "block_id": 1,
+      "page": 16,
+      "bbox": [
+        133.76800537109375,
+        150.88890075683594,
+        255.2420196533203,
+        160.85150146484375
+      ],
+      "type": "paragraph",
+      "text": "6.5. Results and Discussion",
+      "confidence": 0.5
+    },
+    {
+      "id": 241,
+      "block_id": 2,
+      "page": 16,
+      "bbox": [
+        133.76800537109375,
+        165.8329315185547,
+        477.52752685546875,
+        223.6165771484375
+      ],
+      "type": "paragraph",
+      "text": "Table 2 shows that TFT significantly outperforms all benchmarks over the variety of datasets described in Sec. 6.1. For median forecasts, TFT yields 7% lower P50 and 9% lower P90 losses on average compared to the next best model – demonstrating the benefits of explicitly aligning the architecture with the general multihorizon forecasting problem.",
+      "confidence": 0.5
+    },
+    {
+      "id": 242,
+      "block_id": 3,
+      "page": 16,
+      "bbox": [
+        133.76800537109375,
+        225.60899353027344,
+        477.53741455078125,
+        331.21258544921875
+      ],
+      "type": "paragraph",
+      "text": "Comparing direct and iterative models, we observe the importance of accounting for the observed inputs – noting the poorer results of ConvTrans on complex datasets where observed input imputation is required (i.e. Volatility and Retail). Furthermore, the benefits of quantile regression are also observed when targets are not captured well by Gaussian distributions with direct models outperforming in those scenarios. This can be seen, for example, from the Traffic dataset where target distribution is significantly skewed – with more than 90% of occupancy rates falling between 0 and 0.1, and the remainder distributed evenly until 1.0.",
+      "confidence": 0.5
+    },
+    {
+      "id": 243,
+      "block_id": 4,
+      "page": 16,
+      "bbox": [
+        133.76800537109375,
+        345.1610107421875,
+        231.5908203125,
+        355.12359619140625
+      ],
+      "type": "paragraph",
+      "text": "6.6. Ablation Analysis",
+      "confidence": 0.5
+    },
+    {
+      "id": 244,
+      "block_id": 5,
+      "page": 16,
+      "bbox": [
+        133.7679901123047,
+        360.1050109863281,
+        477.54779052734375,
+        621.1254272460938
+      ],
+      "type": "paragraph",
+      "text": "To quantify the benefits of each of our proposed architectural contribution, we perform an extensive ablation analysis – removing each component from the network as below, and quantifying the percentage increase in loss versus the original architecture: • Gating layers: We ablate by replacing each GLU layer (Eq. (5)) with a simple linear layer followed by ELU. • Static covariate encoders: We ablate by setting all context vectors to zero – i.e. cs=ce=cc=ch=0 – and concatenating all transformed static inputs to all timedependent past and future inputs. • Instancewise variable selection networks: We ablate by replacing the softmax outputs of Eq. 6 with trainable coefficients, and removing the networks generating the variable selection weights. We retain, however, the variablewise GRNs (see Eq. (7)), maintaining a similar amount of nonlinear processing. • Selfattention layers: We ablate by replacing the attention matrix of the interpretable multihead attention layer (Eq. 14) with a matrix of trainable parameters WA – i.e. ˜A(Q, K) = WA, where WA ∈RN×N. This prevents TFT from attending to different input features at different times, helping evaluation of the importance of instancewise attention weights. • Sequencetosequence layers for local processing: We ablate by replacing the sequencetosequence layer of Sec. 4.5.1 with standard positional encoding used in [17].",
+      "confidence": 0.5
+    },
+    {
+      "id": 245,
+      "block_id": 6,
+      "page": 16,
+      "bbox": [
+        133.76805114746094,
+        623.1178588867188,
+        477.50775146484375,
+        668.9464111328125
+      ],
+      "type": "paragraph",
+      "text": "Ablated networks are trained across for each dataset using the hyperparameters of Table 1. Fig. 3 shows that the effects on both P50 and P90 losses are similar across all datasets, with all components contributing to performance improvements on the whole.",
+      "confidence": 0.5
+    },
+    {
+      "id": 247,
+      "block_id": 0,
+      "page": 17,
+      "bbox": [
+        133.7679901123047,
+        126.97892761230469,
+        477.5276184082031,
+        340.17962646484375
+      ],
+      "type": "paragraph",
+      "text": "In general, the components responsible for capturing temporal relationships, local processing and selfattention layers, have the largest impact on performance, with P90 loss increases of > 6% on average and > 20% on select datasets when ablated. The diversity across time series datasets can also be seen from the differences in the ablation impact of the respective temporal components. Concretely, while local processing is critical in Traffic, Retail and Volatility, lower postablation P50 losses indicate that it can be detrimental in Electricity – with the selfattention layer playing a more vital role. Apossible explanation is that persistent daily seasonality appears to dominate other temporal relationships in the Electricity dataset. For this dataset, Table B.4 of Appendix Balso shows that the hourofday has the largest variable importance score across all temporal inputs, exceeding even the target (i.e. Power Usage) itself. In contrast to other dataset where past target observations are more significant (e.g. Traffic), direct attention to previous days seem to help learning daily seasonal patterns in Electricity – with local processing between adjacent time steps being less necessary. We can account for this by treating the sequencetosequence architecture in the temporal fusion decoder as a hyperparameter to tune, including an option for simple positional encoding without any local processing.",
+      "confidence": 0.5
+    },
+    {
+      "id": 248,
+      "block_id": 1,
+      "page": 17,
+      "bbox": [
+        133.7679901123047,
+        342.1720275878906,
+        477.4833984375,
+        387.99957275390625
+      ],
+      "type": "paragraph",
+      "text": "Static covariate encoders and instancewise variable selection have the next largest impact – increasing P90 losses by more than 2.6% and 4.1% on average. The biggest benefits of these are observed for electricity dataset, where some of the input features get very low importance.",
+      "confidence": 0.5
+    },
+    {
+      "id": 249,
+      "block_id": 2,
+      "page": 17,
+      "bbox": [
+        133.76800537109375,
+        389.9919738769531,
+        477.527587890625,
+        435.8205261230469
+      ],
+      "type": "paragraph",
+      "text": "Finally, gating layer ablation also shows increases in P90 losses, with a 1.9% increase on average. This is the most significant on the volatility (with a 4.1% P90 loss increase), underlying the benefit of component gating for smaller and noisier datasets.",
+      "confidence": 0.5
+    },
+    {
+      "id": 250,
+      "block_id": 3,
+      "page": 17,
+      "bbox": [
+        133.76800537109375,
+        455.7459411621094,
+        280.0389099121094,
+        465.7085266113281
+      ],
+      "type": "heading",
+      "text": "7. Interpretability Use Cases",
+      "confidence": 0.75
+    },
+    {
+      "id": 251,
+      "block_id": 4,
+      "page": 17,
+      "bbox": [
+        133.76800537109375,
+        476.66693115234375,
+        477.547607421875,
+        594.2264404296875
+      ],
+      "type": "paragraph",
+      "text": "Having established the performance benefits of our model, we next demonstrate how our model design allows for analysis of its individual components to interpret the general relationships it has learned. We demonstrate three interpretability use cases: (1) examining the importance of each input variable in prediction, (2) visualizing persistent temporal patterns, and (3) identifying any regimes or events that lead to significant changes in temporal dynamics. In contrast to other examples of attentionbased interpretability [25, 12, 7] which zoom in on interesting but instancespecific examples, our methods focus on ways to aggregate the patterns across the entire dataset – extracting generalizable insights about temporal dynamics.",
+      "confidence": 0.5
+    },
+    {
+      "id": 252,
+      "block_id": 5,
+      "page": 17,
+      "bbox": [
+        133.76800537109375,
+        608.1738891601562,
+        289.1546936035156,
+        618.136474609375
+      ],
+      "type": "paragraph",
+      "text": "7.1. Analyzing Variable Importance",
+      "confidence": 0.5
+    },
+    {
+      "id": 253,
+      "block_id": 6,
+      "page": 17,
+      "bbox": [
+        133.76800537109375,
+        623.1178588867188,
+        477.527587890625,
+        658.928466796875
+      ],
+      "type": "paragraph",
+      "text": "We first quantify variable importance by analyzing the variable selection weights described in Sec. 4.2. Concretely, we aggregate selection weights (i.e. v(j)",
+      "confidence": 0.5
+    },
+    {
+      "id": 254,
+      "block_id": 7,
+      "page": 17,
+      "bbox": [
+        133.76800537109375,
+        647.6857299804688,
+        477.5038146972656,
+        670.8834838867188
+      ],
+      "type": "paragraph",
+      "text": "χt in Eq. (8)) for each variable across our entire test set, recording the 10th, 50th and 90th percentiles of each sampling distribution. As the Retail dataset",
+      "confidence": 0.5
+    },
+    {
+      "id": 256,
+      "block_id": 0,
+      "page": 18,
+      "bbox": [
+        133.76800537109375,
+        203.360107421875,
+        477.4652099609375,
+        270.93023681640625
+      ],
+      "type": "paragraph",
+      "text": "Table 3: Variable importance for the Retail dataset. The 10th, 50th and 90th percentiles of the variable selection weights are shown, with values larger than 0.1 highlighted in purple. For static covariates, the largest weights are attributed to variables which uniquely identify different entities (i.e. item number and store number). For past inputs, past values of the target (i.e. log sales) are critical as expected, as forecasts are extrapolations of past observations. For future inputs, promotion periods and national holidays have the greatest influence on sales forecasts, in line with periods of increased customer spending.",
+      "confidence": 0.5
+    },
+    {
+      "id": 257,
+      "block_id": 1,
+      "page": 18,
+      "bbox": [
+        192.30099487304688,
+        286.158935546875,
+        289.396484375,
+        296.12152099609375
+      ],
+      "type": "paragraph",
+      "text": "10% 50% 90%",
+      "confidence": 0.5
+    },
+    {
+      "id": 258,
+      "block_id": 2,
+      "page": 18,
+      "bbox": [
+        125.12999725341797,
+        303.1159362792969,
+        294.49420166015625,
+        408.71942138671875
+      ],
+      "type": "paragraph",
+      "text": "Item Num 0.198 0.230 0.251 Store Num 0.152 0.161 0.170 City 0.094 0.100 0.124 State 0.049 0.060 0.083 Type 0.005 0.006 0.008 Cluster 0.108 0.122 0.133 Family 0.063 0.075 0.079 Class 0.148 0.156 0.163 Perishable 0.084 0.085 0.088",
+      "confidence": 0.5
+    },
+    {
+      "id": 259,
+      "block_id": 3,
+      "page": 18,
+      "bbox": [
+        172.66099548339844,
+        438.21246337890625,
+        256.2009582519531,
+        447.1788635253906
+      ],
+      "type": "paragraph",
+      "text": "(a) Static Covariates",
+      "confidence": 0.5
+    },
+    {
+      "id": 261,
+      "block_id": 5,
+      "page": 18,
+      "bbox": [
+        310.85101318359375,
+        303.1159362792969,
+        495.60723876953125,
+        432.6304016113281
+      ],
+      "type": "paragraph",
+      "text": "Transactions 0.029 0.033 0.037 Oil 0.062 0.081 0.105 Onpromotion 0.072 0.075 0.078 Day of Week 0.007 0.007 0.008 Day of Month 0.083 0.089 0.096 Month 0.109 0.122 0.136 National Hol 0.131 0.138 0.145 Regional Hol 0.011 0.014 0.018 Local Hol 0.056 0.068 0.072 Open 0.027 0.044 0.067 Log Sales 0.304 0.324 0.353",
+      "confidence": 0.5
+    },
+    {
+      "id": 262,
+      "block_id": 6,
+      "page": 18,
+      "bbox": [
+        369.0570068359375,
+        438.21246337890625,
+        431.22991943359375,
+        447.1788635253906
+      ],
+      "type": "paragraph",
+      "text": "(b) Past Inputs",
+      "confidence": 0.5
+    },
+    {
+      "id": 264,
+      "block_id": 8,
+      "page": 18,
+      "bbox": [
+        228.28900146484375,
+        476.60693359375,
+        413.0452880859375,
+        570.2554931640625
+      ],
+      "type": "paragraph",
+      "text": "Onpromotion 0.155 0.170 0.182 Day of Week 0.029 0.065 0.089 Day of Month 0.056 0.116 0.138 Month 0.111 0.155 0.240 National Hol 0.145 0.220 0.242 Regional Hol 0.012 0.014 0.060 Local Hol 0.116 0.151 0.239 Open 0.088 0.095 0.097",
+      "confidence": 0.5
+    },
+    {
+      "id": 265,
+      "block_id": 9,
+      "page": 18,
+      "bbox": [
+        270.5820007324219,
+        575.8385009765625,
+        340.6722717285156,
+        584.8048706054688
+      ],
+      "type": "paragraph",
+      "text": "(c) Future Inputs",
+      "confidence": 0.5
+    },
+    {
+      "id": 267,
+      "block_id": 0,
+      "page": 19,
+      "bbox": [
+        211.64999389648438,
+        213.5654754638672,
+        399.60357666015625,
+        222.53187561035156
+      ],
+      "type": "paragraph",
+      "text": "(a) Changes in P50 losses across ablation tests",
+      "confidence": 0.5
+    },
+    {
+      "id": 268,
+      "block_id": 1,
+      "page": 19,
+      "bbox": [
+        211.3939971923828,
+        313.6204528808594,
+        399.858642578125,
+        322.58685302734375
+      ],
+      "type": "paragraph",
+      "text": "(b) Changes in P90 losses across ablation tests",
+      "confidence": 0.5
+    },
+    {
+      "id": 269,
+      "block_id": 2,
+      "page": 19,
+      "bbox": [
+        133.76797485351562,
+        334.27410888671875,
+        477.4736328125,
+        389.5671691894531
+      ],
+      "type": "paragraph",
+      "text": "Figure 3: Results of ablation analysis. Both a) and b) show the impact of ablation on the P50 and P90 losses respectively. Results per dataset shown on the left, and the range across datasets shown on the right. While the precise importance of each is datasetspecific, all components contribute significantly on the whole – with the maximum percentage increase over all datasets ranging from 3.6% to 23.4% for P50 losses, and similarly from 4.1% to 28.4% for P90 losses.",
+      "confidence": 0.5
+    },
+    {
+      "id": 270,
+      "block_id": 3,
+      "page": 19,
+      "bbox": [
+        133.76797485351562,
+        412.7668762207031,
+        477.53753662109375,
+        673.788330078125
+      ],
+      "type": "paragraph",
+      "text": "contains the full set of available input types (i.e. static metadata, known inputs, observed inputs and the target), we present the results for its variable importance analysis in Table 3. We also note similar findings in other datasets, which are documented in Appendix B.1 for completeness. On the whole, the results show that the TFT extracts only a subset of key inputs that intuitively play a significant role in predictions. The analysis of persistent temporal patterns is often key to understanding the timedependent relationships present in a given dataset. For instance, lag models are frequently adopted to study length of time required for an intervention to take effect [35] – such as the impact of a government’s increase in public expenditure on the resultant growth in Gross National Product [36]. Seasonality models are also commonly used in econometrics to identify periodic patterns in a targetofinterest [37] and measure the length of each cycle. From a practical standpoint, model builders can use these insights to further improve the forecasting model – for instance by increasing the receptive field to incorporate more history if attention peaks are observed at the start of the lookback window, or by engineering features to directly incorporate seasonal effects. As such, using the attention weights present in the selfattention layer of the temporal fusion decoder, we present a method to identify similar persistent patterns – by measuring the contributions of features at fixed lags in the past on forecasts at various horizons. Combining Eq. (14) and (19), we see that the selfattention layer contains a matrix of attention weights at each forecast time t – i.e. ˜A(φ(t), φ(t)). Multihead attention outputs at each forecast horizon τ",
+      "confidence": 0.5
+    },
+    {
+      "id": 272,
+      "block_id": 0,
+      "page": 20,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        477.4947509765625,
+        148.89654541015625
+      ],
+      "type": "paragraph",
+      "text": "(i.e. β(t, τ)) can then be described as an attentionweighted sum of lower level features at each position n:",
+      "confidence": 0.5
+    },
+    {
+      "id": 273,
+      "block_id": 1,
+      "page": 20,
+      "bbox": [
+        229.87200927734375,
+        162.82994079589844,
+        268.56195068359375,
+        172.79254150390625
+      ],
+      "type": "author",
+      "text": "β(t, τ) =",
+      "confidence": 0.9
+    },
+    {
+      "id": 275,
+      "block_id": 3,
+      "page": 20,
+      "bbox": [
+        285.7140197753906,
+        160.2008514404297,
+        477.48150634765625,
+        178.7705078125
+      ],
+      "type": "author",
+      "text": "n=−k α(t, n, τ) ˜θ(t, n), (27)",
+      "confidence": 0.9
+    },
+    {
+      "id": 276,
+      "block_id": 4,
+      "page": 20,
+      "bbox": [
+        133.76791381835938,
+        187.25083923339844,
+        477.5057678222656,
+        247.66351318359375
+      ],
+      "type": "paragraph",
+      "text": "where α(t, n, τ) is the (τ, n)th element of ˜A(φ(t), φ(t)), and ˜θ(t, n) is a row of ˜Θ(t) = Θ(t)WV . Due to decoder masking, we also note that α(t, i, j) = 0, ∀i > j. For each forecast horizon τ, the importance of a previous time point n < τ can hence be determined by analyzing distributions of α(t, n, τ) across all time steps and entities.",
+      "confidence": 0.5
+    },
+    {
+      "id": 277,
+      "block_id": 5,
+      "page": 20,
+      "bbox": [
+        133.76791381835938,
+        261.61090087890625,
+        334.3249816894531,
+        271.573486328125
+      ],
+      "type": "paragraph",
+      "text": "7.2. Visualizing Persistent Temporal Patterns",
+      "confidence": 0.5
+    },
+    {
+      "id": 278,
+      "block_id": 6,
+      "page": 20,
+      "bbox": [
+        133.76791381835938,
+        276.5549011230469,
+        477.5177001953125,
+        334.33843994140625
+      ],
+      "type": "paragraph",
+      "text": "Attention weight patterns can be used to shed light on the most important past time steps that the TFT model bases its decisions on. In contrast to other traditional and machine learning time series methods, which rely on modelbased specifications for seasonality and lag analysis, the TFT can learn such patterns from raw training data.",
+      "confidence": 0.5
+    },
+    {
+      "id": 279,
+      "block_id": 7,
+      "page": 20,
+      "bbox": [
+        133.76791381835938,
+        336.3308410644531,
+        477.4876708984375,
+        358.2484130859375
+      ],
+      "type": "paragraph",
+      "text": "Fig. 4 shows the attention weight patterns across all our test datasets – with the upper graph plotting the mean along with the 10th, 50th and 90th",
+      "confidence": 0.5
+    },
+    {
+      "id": 280,
+      "block_id": 8,
+      "page": 20,
+      "bbox": [
+        133.76785278320312,
+        360.2408447265625,
+        477.51739501953125,
+        441.9343566894531
+      ],
+      "type": "paragraph",
+      "text": "percentiles of the attention weights for onestepahead forecasts (i.e. α(t, 1, τ)) over the test set, and the bottom graph plotting the average attention weights for various horizons (i.e. τ ∈{5, 10, 15, 20}). We observe that the three datasets exhibit a seasonal pattern, with clear attention spikes at daily intervals observed for Electricity and Traffic, and a slightly weaker weekly patterns for Retail. For Retail, we also observe the decaying trend pattern, with the last few days dominating the importance.",
+      "confidence": 0.5
+    },
+    {
+      "id": 281,
+      "block_id": 9,
+      "page": 20,
+      "bbox": [
+        133.7678985595703,
+        443.9267578125,
+        477.5174865722656,
+        501.7102966308594
+      ],
+      "type": "paragraph",
+      "text": "No strong persistent patterns were observed for the Volatility – attention weights equally distributed across all positions on average. This resembles a moving average filter at the feature level, and – given the high degree of randomness associated with the volatility process – could be useful in extracting the trend over the entire period by smoothing out highfrequency noise.",
+      "confidence": 0.5
+    },
+    {
+      "id": 282,
+      "block_id": 10,
+      "page": 20,
+      "bbox": [
+        133.7678985595703,
+        503.70269775390625,
+        477.5474548339844,
+        561.4862670898438
+      ],
+      "type": "paragraph",
+      "text": "TFT learns these persistent temporal patterns from the raw training data without any human hardcoding. Such capability is expected to be very useful in building trust with human experts via sanitychecking. Model developers can also use these towards model improvements, e.g. via specific feature engineering or data collection.",
+      "confidence": 0.5
+    },
+    {
+      "id": 283,
+      "block_id": 11,
+      "page": 20,
+      "bbox": [
+        133.7678985595703,
+        575.4336547851562,
+        333.4283752441406,
+        585.396240234375
+      ],
+      "type": "paragraph",
+      "text": "7.3. Identifying Regimes & Significant Events",
+      "confidence": 0.5
+    },
+    {
+      "id": 284,
+      "block_id": 12,
+      "page": 20,
+      "bbox": [
+        133.7678985595703,
+        590.377685546875,
+        477.5374755859375,
+        672.0712890625
+      ],
+      "type": "paragraph",
+      "text": "Identifying sudden changes in temporal patterns can also be very useful, as temporary shifts can occur due to the presence of significant regimes or events. For instance, regimeswitching behavior has been widely documented in financial markets [38], with returns characteristics – such as volatility – being observed to change abruptly between regimes. As such, identifying such regime changes provides strong insights into the underlying problem which is useful for identification of the significant events.",
+      "confidence": 0.5
+    },
+    {
+      "id": 286,
+      "block_id": 0,
+      "page": 21,
+      "bbox": [
+        191.5189971923828,
+        364.0704650878906,
+        412.1234130859375,
+        373.036865234375
+      ],
+      "type": "paragraph",
+      "text": "(a) Electricity (b) Traffic",
+      "confidence": 0.5
+    },
+    {
+      "id": 287,
+      "block_id": 1,
+      "page": 21,
+      "bbox": [
+        200.48899841308594,
+        533.7974853515625,
+        417.8872375488281,
+        542.7638549804688
+      ],
+      "type": "paragraph",
+      "text": "(c) Retail (d) Volatility",
+      "confidence": 0.5
+    },
+    {
+      "id": 288,
+      "block_id": 2,
+      "page": 21,
+      "bbox": [
+        133.76800537109375,
+        554.4521484375,
+        477.36712646484375,
+        590.815185546875
+      ],
+      "type": "paragraph",
+      "text": "Figure 4: Persistent temporal patterns across datasets. Clear seasonality observed for the Electricity, Traffic and Retail datasets, but no strong persistent patterns seen in Volatility dataset. Upper plot – percentiles of attention weights for onestepahead forecast. Lower plot – average attention weights for forecast at various horizons.",
+      "confidence": 0.5
+    },
+    {
+      "id": 290,
+      "block_id": 0,
+      "page": 22,
+      "bbox": [
+        133.76800537109375,
+        304.24310302734375,
+        477.4266662597656,
+        359.5361633300781
+      ],
+      "type": "paragraph",
+      "text": "Figure 5: Regime identification for S&P 500 realized volatility. Significant deviations in attention patterns can be observed around periods of high volatility – corresponding to the peaks observed in dist(t). We use a threshold of dist(t) > 0.3 to denote significant regimes, as highlighted in purple. Focusing on periods around the 2008 financial crisis, the top right plot visualizes α(t, n, 1) midway through the significant regime, compared to the normal regime on the top left.",
+      "confidence": 0.5
+    },
+    {
+      "id": 291,
+      "block_id": 1,
+      "page": 22,
+      "bbox": [
+        133.76800537109375,
+        382.7358703613281,
+        477.5177917480469,
+        404.6534423828125
+      ],
+      "type": "paragraph",
+      "text": "Firstly, for a given entity, we define the average attention pattern per forecast horizon as:",
+      "confidence": 0.5
+    },
+    {
+      "id": 292,
+      "block_id": 2,
+      "page": 22,
+      "bbox": [
+        243.82701110839844,
+        408.45086669921875,
+        284.3979797363281,
+        418.4134521484375
+      ],
+      "type": "author",
+      "text": "¯α(n, τ) =",
+      "confidence": 0.9
+    },
+    {
+      "id": 293,
+      "block_id": 3,
+      "page": 22,
+      "bbox": [
+        287.1600036621094,
+        402.7886962890625,
+        306.25732421875,
+        416.11187744140625
+      ],
+      "type": "heading",
+      "text": "XT",
+      "confidence": 0.75
+    },
+    {
+      "id": 294,
+      "block_id": 4,
+      "page": 22,
+      "bbox": [
+        301.5500183105469,
+        408.4508972167969,
+        477.48150634765625,
+        424.3904724121094
+      ],
+      "type": "author",
+      "text": "t=1 α(t, j, τ)/T, (28)",
+      "confidence": 0.9
+    },
+    {
+      "id": 295,
+      "block_id": 5,
+      "page": 22,
+      "bbox": [
+        133.7679901123047,
+        426.16790771484375,
+        477.47711181640625,
+        451.7004699707031
+      ],
+      "type": "paragraph",
+      "text": "and then construct ¯α(τ) = [¯α(−k, τ), . . . , ¯α(τmax, τ)]T . To compare similarities between attention weight vectors, we use the distance metric proposed by [39]:",
+      "confidence": 0.5
+    },
+    {
+      "id": 296,
+      "block_id": 6,
+      "page": 22,
+      "bbox": [
+        255.62899780273438,
+        464.9888916015625,
+        295.8239440917969,
+        474.95147705078125
+      ],
+      "type": "author",
+      "text": "κ(p, q) =",
+      "confidence": 0.9
+    },
+    {
+      "id": 298,
+      "block_id": 8,
+      "page": 22,
+      "bbox": [
+        308.54901123046875,
+        464.85980224609375,
+        477.48150634765625,
+        474.9515075683594
+      ],
+      "type": "paragraph",
+      "text": "1 −ρ(p, q), (29)",
+      "confidence": 0.5
+    },
+    {
+      "id": 299,
+      "block_id": 9,
+      "page": 22,
+      "bbox": [
+        133.76800537109375,
+        486.5983581542969,
+        219.4875030517578,
+        504.0329284667969
+      ],
+      "type": "author",
+      "text": "where ρ(p, q) = P",
+      "confidence": 0.9
+    },
+    {
+      "id": 300,
+      "block_id": 10,
+      "page": 22,
+      "bbox": [
+        219.48300170898438,
+        492.23175048828125,
+        222.7816162109375,
+        499.20556640625
+      ],
+      "type": "paragraph",
+      "text": "j√pjqj is the Bhattacharya coeﬃcient [40] measuring the overlap between discrete distributions – with pj, qj being elements of probability vectors p, q respectively. For each entity, signiﬁcant shifts in temporal dynamics are then measured using the distance between attention vectors at each point with the average pattern, aggregated for all horizons as below:",
+      "confidence": 0.5
+    },
+    {
+      "id": 302,
+      "block_id": 12,
+      "page": 22,
+      "bbox": [
+        219.20799255371094,
+        558.6239013671875,
+        257.1819763183594,
+        568.5864868164062
+      ],
+      "type": "paragraph",
+      "text": "dist(t) =",
+      "confidence": 0.5
+    },
+    {
+      "id": 304,
+      "block_id": 14,
+      "page": 22,
+      "bbox": [
+        274.3349914550781,
+        558.6239013671875,
+        300.3224792480469,
+        574.564453125
+      ],
+      "type": "paragraph",
+      "text": "τ=1 κ",
+      "confidence": 0.5
+    },
+    {
+      "id": 305,
+      "block_id": 15,
+      "page": 22,
+      "bbox": [
+        300.3240051269531,
+        550.5548706054688,
+        358.9634704589844,
+        568.5864868164062
+      ],
+      "type": "author",
+      "text": "\u0000 ¯α(τ), α(t, τ)",
+      "confidence": 0.9
+    },
+    {
+      "id": 307,
+      "block_id": 17,
+      "page": 22,
+      "bbox": [
+        363.5290222167969,
+        558.6239013671875,
+        477.4815368652344,
+        569.4285278320312
+      ],
+      "type": "author",
+      "text": "/τmax, (30)",
+      "confidence": 0.9
+    },
+    {
+      "id": 308,
+      "block_id": 18,
+      "page": 22,
+      "bbox": [
+        133.76803588867188,
+        580.3258666992188,
+        339.61566162109375,
+        594.7455444335938
+      ],
+      "type": "author",
+      "text": "where α(t, τ) = [α(t, −k, τ), . . . , α(t, τmax, τ)]T .",
+      "confidence": 0.9
+    },
+    {
+      "id": 309,
+      "block_id": 19,
+      "page": 22,
+      "bbox": [
+        133.76805114746094,
+        595.8969116210938,
+        477.55743408203125,
+        665.635498046875
+      ],
+      "type": "paragraph",
+      "text": "Using the volatility dataset, we attempt to analyse regimes by applying our distance metric to the attention patterns for the S&P 500 index over our training period (2001 to 2015). Plotting dist(t) against the target (i.e. log realized volatility) in the bottom chart of Fig. 5, significant deviations in attention patterns can be observed around periods of high volatility (e.g. the 2008 financial crisis) – corresponding to the peaks observed in dist(t). From the plots, we can",
+      "confidence": 0.5
+    },
+    {
+      "id": 311,
+      "block_id": 0,
+      "page": 23,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        477.5274658203125,
+        172.80657958984375
+      ],
+      "type": "paragraph",
+      "text": "see that TFT appears to alter its behaviour between regimes – placing equal attention across past inputs when volatility is low, while attending more to sharp trend changes during high volatility periods – suggesting differences in temporal dynamics learned in each of these cases.",
+      "confidence": 0.5
+    },
+    {
+      "id": 312,
+      "block_id": 1,
+      "page": 23,
+      "bbox": [
+        133.76800537109375,
+        192.7319793701172,
+        207.7303924560547,
+        202.694580078125
+      ],
+      "type": "heading",
+      "text": "8. Conclusions",
+      "confidence": 0.75
+    },
+    {
+      "id": 313,
+      "block_id": 2,
+      "page": 23,
+      "bbox": [
+        133.76800537109375,
+        213.6539764404297,
+        477.5276794433594,
+        426.8544921875
+      ],
+      "type": "paragraph",
+      "text": "We introduce TFT, a novel attentionbased deep learning model for interpretable highperformance multihorizon forecasting. To handle static covariates, a priori known inputs, and observed inputs effectively across wide range of multihorizon forecasting datasets, TFT uses specialized components. Specifically, these include: (1) sequencetosequence and attention based temporal processing components that capture timevarying relationships at different timescales, (2) static covariate encoders that allow the network to condition temporal forecasts on static metadata, (3) gating components that enable skipping over unnecessary parts of the network, (4) variable selection to pick relevant input features at each time step, and (5) quantile predictions to obtain output intervals across all prediction horizons. On a wide range of realworld tasks – on both simple datasets that contain only known inputs and complex datasets which encompass the full range of possible inputs – we show that TFT achieves stateoftheart forecasting performance. Lastly, we investigate the general relationships learned by TFT through a series of interpretability use cases – proposing novel methods to use TFT to (i) analyze important variables for a given prediction problem, (ii) visualize persistent temporal relationships learned (e.g. seasonality), and (iii) identify significant regimes changes.",
+      "confidence": 0.5
+    },
+    {
+      "id": 314,
+      "block_id": 3,
+      "page": 23,
+      "bbox": [
+        133.76800537109375,
+        446.7799072265625,
+        243.5260009765625,
+        456.74249267578125
+      ],
+      "type": "heading",
+      "text": "9. Acknowledgements",
+      "confidence": 0.75
+    },
+    {
+      "id": 315,
+      "block_id": 4,
+      "page": 23,
+      "bbox": [
+        133.76800537109375,
+        467.7008972167969,
+        477.547607421875,
+        501.5734558105469
+      ],
+      "type": "paragraph",
+      "text": "The authors gratefully acknowledge discussions with Yaguang Li, Maggie Wang, Jeffrey Gu, Minho Jin and Andrew Moore that contributed to the development of this paper.",
+      "confidence": 0.5
+    },
+    {
+      "id": 317,
+      "block_id": 0,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        187.5660400390625,
+        136.9415283203125
+      ],
+      "type": "heading",
+      "text": "References",
+      "confidence": 0.75
+    },
+    {
+      "id": 318,
+      "block_id": 1,
+      "page": 24,
+      "bbox": [
+        138.0030059814453,
+        146.9671630859375,
+        477.3857421875,
+        154.937255859375
+      ],
+      "type": "paragraph",
+      "text": "[1] J.-H. B¨ose, et al., Probabilistic demand forecasting at scale, Proc. VLDB Endow. 10 (12)",
+      "confidence": 0.5
+    },
+    {
+      "id": 319,
+      "block_id": 2,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        156.43115234375,
+        218.69642639160156,
+        164.4012451171875
+      ],
+      "type": "paragraph",
+      "text": "(2017) 1694–1705.",
+      "confidence": 0.5
+    },
+    {
+      "id": 320,
+      "block_id": 3,
+      "page": 24,
+      "bbox": [
+        138.0030059814453,
+        173.86614990234375,
+        477.3698425292969,
+        181.83624267578125
+      ],
+      "type": "paragraph",
+      "text": "[2] P. Courty, H. Li, Timing of seasonal sales, The Journal of Business 72 (4) (1999) 545–572.",
+      "confidence": 0.5
+    },
+    {
+      "id": 321,
+      "block_id": 4,
+      "page": 24,
+      "bbox": [
+        138.0030059814453,
+        191.3001708984375,
+        477.37799072265625,
+        199.270263671875
+      ],
+      "type": "paragraph",
+      "text": "[3] B. Lim, A. Alaa, M. van der Schaar, Forecasting treatment responses over time using",
+      "confidence": 0.5
+    },
+    {
+      "id": 322,
+      "block_id": 5,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        200.76519775390625,
+        369.9211730957031,
+        208.73529052734375
+      ],
+      "type": "paragraph",
+      "text": "recurrent marginal structural networks, in: NeurIPS, 2018.",
+      "confidence": 0.5
+    },
+    {
+      "id": 323,
+      "block_id": 6,
+      "page": 24,
+      "bbox": [
+        138.0030059814453,
+        218.19921875,
+        477.36981201171875,
+        226.1693115234375
+      ],
+      "type": "paragraph",
+      "text": "[4] J. Zhang, K. Nawata, Multistep prediction for influenza outbreak by an adjusted long",
+      "confidence": 0.5
+    },
+    {
+      "id": 324,
+      "block_id": 7,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        227.66424560546875,
+        387.2480773925781,
+        235.63433837890625
+      ],
+      "type": "paragraph",
+      "text": "shortterm memory, Epidemiology and infection 146 (7) (2018).",
+      "confidence": 0.5
+    },
+    {
+      "id": 325,
+      "block_id": 8,
+      "page": 24,
+      "bbox": [
+        138.0030059814453,
+        245.0992431640625,
+        477.353759765625,
+        253.0693359375
+      ],
+      "type": "paragraph",
+      "text": "[5] C. Capistran, C. Constandse, M. Ramos-Francia, Multihorizon inflation forecasts using",
+      "confidence": 0.5
+    },
+    {
+      "id": 326,
+      "block_id": 9,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        254.563232421875,
+        393.7994384765625,
+        262.5333251953125
+      ],
+      "type": "paragraph",
+      "text": "disaggregated data, Economic Modelling 27 (3) (2010) 666 – 677.",
+      "confidence": 0.5
+    },
+    {
+      "id": 327,
+      "block_id": 10,
+      "page": 24,
+      "bbox": [
+        138.0030059814453,
+        271.99822998046875,
+        477.3778991699219,
+        279.96832275390625
+      ],
+      "type": "paragraph",
+      "text": "[6] S. S. Rangapuram, et al., Deep state space models for time series forecasting, in: NIPS,",
+      "confidence": 0.5
+    },
+    {
+      "id": 328,
+      "block_id": 11,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        281.46221923828125,
+        171.20265197753906,
+        289.43231201171875
+      ],
+      "type": "paragraph",
+      "text": "2018.",
+      "confidence": 0.5
+    },
+    {
+      "id": 329,
+      "block_id": 12,
+      "page": 24,
+      "bbox": [
+        138.0030059814453,
+        298.897216796875,
+        477.37786865234375,
+        306.8673095703125
+      ],
+      "type": "paragraph",
+      "text": "[7] A. Alaa, M. van der Schaar, Attentive statespace modeling of disease progression, in:",
+      "confidence": 0.5
+    },
+    {
+      "id": 330,
+      "block_id": 13,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        308.3612060546875,
+        196.23675537109375,
+        316.331298828125
+      ],
+      "type": "heading",
+      "text": "NIPS, 2019.",
+      "confidence": 0.75
+    },
+    {
+      "id": 331,
+      "block_id": 14,
+      "page": 24,
+      "bbox": [
+        138.0030059814453,
+        325.79620361328125,
+        477.3697814941406,
+        333.76629638671875
+      ],
+      "type": "paragraph",
+      "text": "[8] S. Makridakis, E. Spiliotis, V. Assimakopoulos, The m4 competition: 100,000 time series",
+      "confidence": 0.5
+    },
+    {
+      "id": 332,
+      "block_id": 15,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        335.26019287109375,
+        475.16619873046875,
+        343.23028564453125
+      ],
+      "type": "paragraph",
+      "text": "and 61 forecasting methods, International Journal of Forecasting 36 (1) (2020) 54 – 74.",
+      "confidence": 0.5
+    },
+    {
+      "id": 333,
+      "block_id": 16,
+      "page": 24,
+      "bbox": [
+        138.0030059814453,
+        352.6951904296875,
+        477.3937683105469,
+        360.665283203125
+      ],
+      "type": "paragraph",
+      "text": "[9] D. Salinas, V. Flunkert, J. Gasthaus, T. Januschowski, DeepAR: Probabilistic forecasting",
+      "confidence": 0.5
+    },
+    {
+      "id": 334,
+      "block_id": 17,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        362.1601867675781,
+        462.08734130859375,
+        370.1302795410156
+      ],
+      "type": "paragraph",
+      "text": "with autoregressive recurrent networks, International Journal of Forecasting (2019).",
+      "confidence": 0.5
+    },
+    {
+      "id": 335,
+      "block_id": 18,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        379.59417724609375,
+        477.3829650878906,
+        387.56427001953125
+      ],
+      "type": "paragraph",
+      "text": "[10] R. Wen, et al., Amultihorizon quantile recurrent forecaster, in: NIPS 2017 Time Series",
+      "confidence": 0.5
+    },
+    {
+      "id": 336,
+      "block_id": 19,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        389.0591735839844,
+        213.34056091308594,
+        397.0292663574219
+      ],
+      "type": "paragraph",
+      "text": "Workshop, 2017.",
+      "confidence": 0.5
+    },
+    {
+      "id": 337,
+      "block_id": 20,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        406.4931640625,
+        477.3509521484375,
+        414.4632568359375
+      ],
+      "type": "paragraph",
+      "text": "[11] C. Fan, et al., Multihorizon time series forecasting with temporal attention learning, in:",
+      "confidence": 0.5
+    },
+    {
+      "id": 338,
+      "block_id": 21,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        415.9581604003906,
+        195.87806701660156,
+        423.9282531738281
+      ],
+      "type": "heading",
+      "text": "KDD, 2019.",
+      "confidence": 0.75
+    },
+    {
+      "id": 339,
+      "block_id": 22,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        433.39215087890625,
+        477.3748779296875,
+        441.36224365234375
+      ],
+      "type": "paragraph",
+      "text": "[12] S. Li, et al., Enhancing the locality and breaking the memory bottleneck of transformer",
+      "confidence": 0.5
+    },
+    {
+      "id": 340,
+      "block_id": 23,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        442.8571472167969,
+        319.85302734375,
+        450.8272399902344
+      ],
+      "type": "paragraph",
+      "text": "on time series forecasting, in: NeurIPS, 2019.",
+      "confidence": 0.5
+    },
+    {
+      "id": 341,
+      "block_id": 24,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        460.2921447753906,
+        462.90911865234375,
+        468.2622375488281
+      ],
+      "type": "paragraph",
+      "text": "[13] J. Koutn´ık, K. Greff, F. Gomez, J. Schmidhuber, Aclockwork rnn, in: ICML, 2014.",
+      "confidence": 0.5
+    },
+    {
+      "id": 342,
+      "block_id": 25,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        477.72613525390625,
+        477.3749084472656,
+        485.69622802734375
+      ],
+      "type": "paragraph",
+      "text": "[14] D. Neil, et al., Phased lstm: Accelerating recurrent network training for long or eventbased sequences, in: NIPS, 2016.",
+      "confidence": 0.5
+    },
+    {
+      "id": 344,
+      "block_id": 27,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        504.6251220703125,
+        477.37481689453125,
+        512.59521484375
+      ],
+      "type": "paragraph",
+      "text": "[15] M. Ribeiro, et al., ”why should i trust you?” explaining the predictions of any classifier,",
+      "confidence": 0.5
+    },
+    {
+      "id": 345,
+      "block_id": 28,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        514.090087890625,
+        209.044677734375,
+        522.0601806640625
+      ],
+      "type": "paragraph",
+      "text": "in: KDD, 2016.",
+      "confidence": 0.5
+    },
+    {
+      "id": 346,
+      "block_id": 29,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        531.5241088867188,
+        477.375,
+        539.4942016601562
+      ],
+      "type": "paragraph",
+      "text": "[16] S. Lundberg, S.-I. Lee, Aunified approach to interpreting model predictions, in: NIPS,",
+      "confidence": 0.5
+    },
+    {
+      "id": 347,
+      "block_id": 30,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        540.9891357421875,
+        171.20265197753906,
+        548.959228515625
+      ],
+      "type": "paragraph",
+      "text": "2017.",
+      "confidence": 0.5
+    },
+    {
+      "id": 348,
+      "block_id": 31,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        558.4241333007812,
+        477.422607421875,
+        566.3942260742188
+      ],
+      "type": "paragraph",
+      "text": "[17] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. u. Kaiser,",
+      "confidence": 0.5
+    },
+    {
+      "id": 349,
+      "block_id": 32,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        567.8881225585938,
+        360.1098937988281,
+        575.8582153320312
+      ],
+      "type": "paragraph",
+      "text": "I. Polosukhin, Attention is all you need, in: NIPS, 2017.",
+      "confidence": 0.5
+    },
+    {
+      "id": 350,
+      "block_id": 33,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        585.3231201171875,
+        477.3589172363281,
+        593.293212890625
+      ],
+      "type": "paragraph",
+      "text": "[18] S. B. Taieb, A. Sorjamaa, G. Bontempi, Multipleoutput modeling for multistepahead",
+      "confidence": 0.5
+    },
+    {
+      "id": 351,
+      "block_id": 34,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        594.787109375,
+        404.8460693359375,
+        602.7572021484375
+      ],
+      "type": "paragraph",
+      "text": "time series forecasting, Neurocomputing 73 (10) (2010) 1950 – 1957.",
+      "confidence": 0.5
+    },
+    {
+      "id": 352,
+      "block_id": 35,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        612.2221069335938,
+        477.3829650878906,
+        620.1921997070312
+      ],
+      "type": "paragraph",
+      "text": "[19] M. Marcellino, J. Stock, M. Watson, Acomparison of direct and iterated multistep ar",
+      "confidence": 0.5
+    },
+    {
+      "id": 353,
+      "block_id": 36,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        621.6861572265625,
+        477.3661193847656,
+        639.1212158203125
+      ],
+      "type": "paragraph",
+      "text": "methods for forecasting macroeconomic time series, Journal of Econometrics 135 (2006) 499–526.",
+      "confidence": 0.5
+    },
+    {
+      "id": 354,
+      "block_id": 37,
+      "page": 24,
+      "bbox": [
+        133.76800537109375,
+        648.5861206054688,
+        477.366943359375,
+        656.5562133789062
+      ],
+      "type": "paragraph",
+      "text": "[20] S. Hochreiter, J. Schmidhuber, Long shortterm memory, Neural Computation 9 (8)",
+      "confidence": 0.5
+    },
+    {
+      "id": 355,
+      "block_id": 38,
+      "page": 24,
+      "bbox": [
+        151.92300415039062,
+        658.0501098632812,
+        218.69642639160156,
+        666.0202026367188
+      ],
+      "type": "paragraph",
+      "text": "(1997) 1735–1780.",
+      "confidence": 0.5
+    },
+    {
+      "id": 357,
+      "block_id": 0,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        128.5361328125,
+        380.57794189453125,
+        136.5062255859375
+      ],
+      "type": "paragraph",
+      "text": "[21] Y. Wang, et al., Deep factors for forecasting, in: ICML, 2019.",
+      "confidence": 0.5
+    },
+    {
+      "id": 358,
+      "block_id": 1,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        145.87115478515625,
+        477.3907470703125,
+        153.84124755859375
+      ],
+      "type": "paragraph",
+      "text": "[22] F. Wang, M. Jiang, C. Qian, S. Yang, C. Li, H. Zhang, X. Wang, X. Tang, Residual",
+      "confidence": 0.5
+    },
+    {
+      "id": 359,
+      "block_id": 2,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        155.33514404296875,
+        371.8817443847656,
+        163.30523681640625
+      ],
+      "type": "paragraph",
+      "text": "attention network for image classification, in: CVPR, 2017.",
+      "confidence": 0.5
+    },
+    {
+      "id": 360,
+      "block_id": 3,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        172.670166015625,
+        477.4667053222656,
+        181.02313232421875
+      ],
+      "type": "paragraph",
+      "text": "[23] S. O. Arik, T. Pfister, Tabnet: Attentive interpretable tabular learning (2019). arXiv:",
+      "confidence": 0.5
+    },
+    {
+      "id": 361,
+      "block_id": 4,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        182.13519287109375,
+        196.61618041992188,
+        190.4881591796875
+      ],
+      "type": "paragraph",
+      "text": "1908.07442.",
+      "confidence": 0.5
+    },
+    {
+      "id": 362,
+      "block_id": 5,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        199.47021484375,
+        477.3750915527344,
+        207.4403076171875
+      ],
+      "type": "paragraph",
+      "text": "[24] E. Choi, et al., Retain: An interpretable predictive model for healthcare using reverse",
+      "confidence": 0.5
+    },
+    {
+      "id": 363,
+      "block_id": 6,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        208.9342041015625,
+        311.03009033203125,
+        216.904296875
+      ],
+      "type": "paragraph",
+      "text": "time attention mechanism, in: NIPS, 2016.",
+      "confidence": 0.5
+    },
+    {
+      "id": 364,
+      "block_id": 7,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        226.26922607421875,
+        477.35089111328125,
+        234.23931884765625
+      ],
+      "type": "paragraph",
+      "text": "[25] H. Song, et al., Attend and diagnose: Clinical time series analysis using attention models,",
+      "confidence": 0.5
+    },
+    {
+      "id": 366,
+      "block_id": 9,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        253.06927490234375,
+        477.3827819824219,
+        261.03936767578125
+      ],
+      "type": "paragraph",
+      "text": "[26] J. Yoon, S. O. Arik, T. Pfister, Rllim: Reinforcement learningbased locally interpretable",
+      "confidence": 0.5
+    },
+    {
+      "id": 367,
+      "block_id": 10,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        262.53326416015625,
+        288.1121826171875,
+        270.88623046875
+      ],
+      "type": "heading",
+      "text": "modeling (2019). arXiv:1909.12367.",
+      "confidence": 0.75
+    },
+    {
+      "id": 368,
+      "block_id": 11,
+      "page": 25,
+      "bbox": [
+        133.7680206298828,
+        279.8682556152344,
+        477.39093017578125,
+        287.8383483886719
+      ],
+      "type": "paragraph",
+      "text": "[27] T. Guo, T. Lin, N. Antulov-Fantulin, Exploring interpretable LSTM neural networks",
+      "confidence": 0.5
+    },
+    {
+      "id": 369,
+      "block_id": 12,
+      "page": 25,
+      "bbox": [
+        151.9230194091797,
+        289.333251953125,
+        305.5944519042969,
+        297.3033447265625
+      ],
+      "type": "paragraph",
+      "text": "over multivariable data, in: ICML, 2019.",
+      "confidence": 0.5
+    },
+    {
+      "id": 370,
+      "block_id": 13,
+      "page": 25,
+      "bbox": [
+        133.7680206298828,
+        306.6682434082031,
+        477.3670349121094,
+        314.6383361816406
+      ],
+      "type": "paragraph",
+      "text": "[28] D.-A. Clevert, T. Unterthiner, S. Hochreiter, Fast and accurate deep network learning",
+      "confidence": 0.5
+    },
+    {
+      "id": 371,
+      "block_id": 14,
+      "page": 25,
+      "bbox": [
+        151.9230194091797,
+        316.1322326660156,
+        344.60809326171875,
+        324.1023254394531
+      ],
+      "type": "paragraph",
+      "text": "by exponential linear units (ELUs), in: ICLR, 2016.",
+      "confidence": 0.5
+    },
+    {
+      "id": 372,
+      "block_id": 15,
+      "page": 25,
+      "bbox": [
+        133.7680206298828,
+        333.46722412109375,
+        477.4066467285156,
+        341.43731689453125
+      ],
+      "type": "paragraph",
+      "text": "[29] J. Lei Ba, J. R. Kiros, G. E. Hinton, Layer Normalization, arXiv:1607.06450 (Jul 2016).",
+      "confidence": 0.5
+    },
+    {
+      "id": 373,
+      "block_id": 16,
+      "page": 25,
+      "bbox": [
+        151.9230194091797,
+        342.9322204589844,
+        222.0211944580078,
+        351.2851867675781
+      ],
+      "type": "paragraph",
+      "text": "arXiv:1607.06450.",
+      "confidence": 0.5
+    },
+    {
+      "id": 374,
+      "block_id": 17,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        360.2672119140625,
+        477.37481689453125,
+        368.2373046875
+      ],
+      "type": "paragraph",
+      "text": "[30] Y. Dauphin, A. Fan, M. Auli, D. Grangier, Language modeling with gated convolutional",
+      "confidence": 0.5
+    },
+    {
+      "id": 375,
+      "block_id": 18,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        369.731201171875,
+        249.66830444335938,
+        377.7012939453125
+      ],
+      "type": "paragraph",
+      "text": "networks, in: ICML, 2017.",
+      "confidence": 0.5
+    },
+    {
+      "id": 376,
+      "block_id": 19,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        387.0661926269531,
+        477.3750305175781,
+        395.0362854003906
+      ],
+      "type": "paragraph",
+      "text": "[31] Y. Gal, Z. Ghahramani, Atheoretically grounded application of dropout in recurrent",
+      "confidence": 0.5
+    },
+    {
+      "id": 377,
+      "block_id": 20,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        396.53118896484375,
+        273.1960144042969,
+        404.50128173828125
+      ],
+      "type": "paragraph",
+      "text": "neural networks, in: NIPS, 2016.",
+      "confidence": 0.5
+    },
+    {
+      "id": 378,
+      "block_id": 21,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        413.8661804199219,
+        477.38275146484375,
+        421.8362731933594
+      ],
+      "type": "paragraph",
+      "text": "[32] H.-F. Yu, N. Rao, I. S. Dhillon, Temporal regularized matrix factorization for highdimensional time series prediction, in: NIPS, 2016.",
+      "confidence": 0.5
+    },
+    {
+      "id": 380,
+      "block_id": 23,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        440.6651611328125,
+        443.3345642089844,
+        448.63525390625
+      ],
+      "type": "paragraph",
+      "text": "[33] C. Favorita, Corporacion favorita grocery sales forecasting competition (2018).",
+      "confidence": 0.5
+    },
+    {
+      "id": 381,
+      "block_id": 24,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        450.1301574707031,
+        428.00848388671875,
+        458.4831237792969
+      ],
+      "type": "paragraph",
+      "text": "URL https://www.kaggle.com/c/favoritagrocerysalesforecasting/",
+      "confidence": 0.5
+    },
+    {
+      "id": 382,
+      "block_id": 25,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        467.46514892578125,
+        477.3829040527344,
+        475.43524169921875
+      ],
+      "type": "paragraph",
+      "text": "[34] G. Heber, A. Lunde, N. Shephard, K. K. Sheppard, Oxfordman institute’s realized",
+      "confidence": 0.5
+    },
+    {
+      "id": 383,
+      "block_id": 26,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        476.92913818359375,
+        329.6815185546875,
+        494.7471008300781
+      ],
+      "type": "paragraph",
+      "text": "library (2009). URL https://realized.oxfordman.ox.ac.uk/",
+      "confidence": 0.5
+    },
+    {
+      "id": 384,
+      "block_id": 27,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        503.7291259765625,
+        477.38287353515625,
+        511.69921875
+      ],
+      "type": "paragraph",
+      "text": "[35] S. Du, G. Song, L. Han, H. Hong, Temporal causal inference with time lag, Neural",
+      "confidence": 0.5
+    },
+    {
+      "id": 385,
+      "block_id": 28,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        513.193115234375,
+        286.880615234375,
+        521.1632080078125
+      ],
+      "type": "paragraph",
+      "text": "Computation 30 (1) (2018) 271–291.",
+      "confidence": 0.5
+    },
+    {
+      "id": 386,
+      "block_id": 29,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        530.528076171875,
+        412.4662780761719,
+        538.4981689453125
+      ],
+      "type": "paragraph",
+      "text": "[36] B. Baltagi, Distributed Lags and Dynamic Models, 2008, pp. 129–145.",
+      "confidence": 0.5
+    },
+    {
+      "id": 387,
+      "block_id": 30,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        547.8630981445312,
+        423.4890441894531,
+        555.8331909179688
+      ],
+      "type": "paragraph",
+      "text": "[37] S. Hylleberg (Ed.), Modelling Seasonality, Oxford University Press, 1992.",
+      "confidence": 0.5
+    },
+    {
+      "id": 388,
+      "block_id": 31,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        565.1981201171875,
+        477.3828430175781,
+        573.168212890625
+      ],
+      "type": "paragraph",
+      "text": "[38] A. Ang, A. Timmermann, Regime changes and financial markets, Annual Review of",
+      "confidence": 0.5
+    },
+    {
+      "id": 389,
+      "block_id": 32,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        574.6630859375,
+        309.97003173828125,
+        582.6331787109375
+      ],
+      "type": "paragraph",
+      "text": "Financial Economics 4 (1) (2012) 313–337.",
+      "confidence": 0.5
+    },
+    {
+      "id": 390,
+      "block_id": 33,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        591.998046875,
+        477.3909606933594,
+        599.9681396484375
+      ],
+      "type": "paragraph",
+      "text": "[39] D. Comaniciu, V. Ramesh, P. Meer, Kernelbased object tracking, IEEE Transactions on",
+      "confidence": 0.5
+    },
+    {
+      "id": 391,
+      "block_id": 34,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        601.4620971679688,
+        395.01898193359375,
+        609.4321899414062
+      ],
+      "type": "paragraph",
+      "text": "Pattern Analysis and Machine Intelligence 25 (5) (2003) 564–577.",
+      "confidence": 0.5
+    },
+    {
+      "id": 392,
+      "block_id": 35,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        618.797119140625,
+        477.35101318359375,
+        626.7672119140625
+      ],
+      "type": "paragraph",
+      "text": "[40] T. Kailath, The divergence and bhattacharyya distance measures in signal selection,",
+      "confidence": 0.5
+    },
+    {
+      "id": 393,
+      "block_id": 36,
+      "page": 25,
+      "bbox": [
+        151.92300415039062,
+        628.2620849609375,
+        417.1280212402344,
+        636.232177734375
+      ],
+      "type": "paragraph",
+      "text": "IEEE Transactions on Communication Technology 15 (1) (1967) 52–60.",
+      "confidence": 0.5
+    },
+    {
+      "id": 394,
+      "block_id": 37,
+      "page": 25,
+      "bbox": [
+        133.76800537109375,
+        645.5970458984375,
+        477.3750305175781,
+        653.567138671875
+      ],
+      "type": "paragraph",
+      "text": "[41] E. Giovanis, The turnofthemontheffect: Evidence from periodic generalized autoregressive conditional heteroskedasticity (pgarch) model, International Journal of Economic Sciences and Applied Research 7 (2014) 43–61.",
+      "confidence": 0.5
+    },
+    {
+      "id": 397,
+      "block_id": 0,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        126.97892761230469,
+        196.3729705810547,
+        136.9415283203125
+      ],
+      "type": "heading",
+      "text": "APPENDIX",
+      "confidence": 0.75
+    },
+    {
+      "id": 398,
+      "block_id": 1,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        147.8999481201172,
+        353.31378173828125,
+        157.862548828125
+      ],
+      "type": "heading",
+      "text": "Appendix A. Dataset and Training Details",
+      "confidence": 0.75
+    },
+    {
+      "id": 399,
+      "block_id": 2,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        167.88818359375,
+        477.3591003417969,
+        185.32330322265625
+      ],
+      "type": "paragraph",
+      "text": "We provide all the sufficient information on feature preprocessing and train/test splits to ensure reproducibility of our results.",
+      "confidence": 0.5
+    },
+    {
+      "id": 400,
+      "block_id": 3,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        186.81719970703125,
+        477.3750305175781,
+        251.5743408203125
+      ],
+      "type": "paragraph",
+      "text": "Electricity: Per [9], we use 500k samples taken between 2014-01-01 to 2014-09-01 – using the first 90% for training, and the last 10% as a validation set. Testing is done over the 7 days immediately following the training set – as described in [9, 32]. Given the large differences in magnitude between trajectories, we also apply zscore normalization separately to each entity for realvalued inputs. In line with previous work, we consider the electricity usage, dayofweek, hourofday and and a time index – i.e. the number of time steps from the first observation – as realvalued inputs, and treat the entity identifier as a categorical variable.",
+      "confidence": 0.5
+    },
+    {
+      "id": 401,
+      "block_id": 4,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        253.06927490234375,
+        477.3717041015625,
+        308.3613586425781
+      ],
+      "type": "paragraph",
+      "text": "Traffic: Tests on the Traffic dataset are also kept consistent with previous work, using 500k training samples taken before 2008-06-15 as per [9], and split in the same way as the Electricity dataset. For testing, we use the 7 days immediately following the training set, and zscore normalization was applied across all entities. For inputs, we also take traffic occupancy, dayofweek, hourofday and and a time index as realvalued inputs, and the entity identifier as a categorical variable.",
+      "confidence": 0.5
+    },
+    {
+      "id": 402,
+      "block_id": 5,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        309.85626220703125,
+        477.372802734375,
+        403.00628662109375
+      ],
+      "type": "paragraph",
+      "text": "Retail: We treat each product numberstore number pair as a separate entity, with over 135k entities in total. The training set is made up of 450k samples taken between 2015-01-01 to 2015-12-01, validation set of 50k samples from the 30 days after the training set, and test set of all entities over the 30day horizon following the validation set. We use all inputs from the Kaggle competition. Data is resampled at regular daily intervals, imputing any missing days using the last available observation. We include an additional ’open’ flag to denote whether data is present on a given day. We group national, regional, and local holidays into separate variables. We apply a logtransform on the sales data, and adopt zscore normalization across all entities. We consider log sales, transactions, oil to be realvalued and the rest to be categorical.",
+      "confidence": 0.5
+    },
+    {
+      "id": 403,
+      "block_id": 6,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        404.5011901855469,
+        477.47796630859375,
+        497.6511535644531
+      ],
+      "type": "paragraph",
+      "text": "Volatility: We use the data from 2000-01-03 to 2019-06-28 – with the training set consisting of data before 2016, the validation set from 2016-2017, and the test set data from 2018 onwards. For the target, we focus on 5min subsampled realized volatility (i.e. the rv5 ss column ), and add daily opentoclose returns as an extra exogenous input. Additional variables are included for the dayofweek, dayofmonth, weekofyear, and month – along with a ’region’ variable for each index (i.e. Americas, Europe or Asia). Finally, a time index is added to denote the number of days from the first day in the training set. We treat all daterelated variables (i.e. dayofweek, dayofmonth, weekofyear, and month) and the region as categorical inputs. Alog transformation is applied to the target, and all inputs are zscore normalized across all entities.",
+      "confidence": 0.5
+    },
+    {
+      "id": 404,
+      "block_id": 7,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        518.0119018554688,
+        325.3487548828125,
+        527.9744873046875
+      ],
+      "type": "heading",
+      "text": "Appendix B. Interpretability Results",
+      "confidence": 0.75
+    },
+    {
+      "id": 405,
+      "block_id": 8,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        538.0000610351562,
+        477.3510437011719,
+        555.4351806640625
+      ],
+      "type": "paragraph",
+      "text": "Apart from Sec. 7, which highlights our most prominent findings, we present the remaining results here for completeness.",
+      "confidence": 0.5
+    },
+    {
+      "id": 406,
+      "block_id": 9,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        569.81787109375,
+        292.1235046386719,
+        579.7804565429688
+      ],
+      "type": "heading",
+      "text": "Appendix B.1. Variable Importance",
+      "confidence": 0.75
+    },
+    {
+      "id": 407,
+      "block_id": 10,
+      "page": 26,
+      "bbox": [
+        133.76800537109375,
+        583.8280639648438,
+        477.3748779296875,
+        658.0501708984375
+      ],
+      "type": "paragraph",
+      "text": "Table B.4 shows the variable importance scores for the remaining Electricity, Traffic and Volatility datasets. As these datasets only have one static input, the network allocates full weight to the entity identifier for Electricity and Traffic, along with the region input for Volatility. We also observe two types of important timedependent inputs – those related to past values of the target as before, and those related to calendar effects. For instance, the hourofday plays a significant roles for Electricity and Traffic datasets, echoing the daily seasonality observed in the next section. In the Volatility dataset, the dayofmonth is observed to play a significant role in future inputs – potentially reflecting turnofmonth effects [41].",
+      "confidence": 0.5
+    },
+    {
+      "id": 409,
+      "block_id": 0,
+      "page": 27,
+      "bbox": [
+        133.76800537109375,
+        139.9261474609375,
+        477.36700439453125,
+        185.7542724609375
+      ],
+      "type": "paragraph",
+      "text": "Table B.4: Variable importance scores for the Electricity, Traffic and Volatility datasets. The most significant variable of each input category is highlighted in purple. As before, past values of the target play a significant role – being the top 1 or 2 most significant past input across datasets. The role of seasonality can also be seen in Electricity and Traffic, where the past and future values of the hourofday is important for forecasts.",
+      "confidence": 0.5
+    },
+    {
+      "id": 411,
+      "block_id": 2,
+      "page": 27,
+      "bbox": [
+        125.12999725341797,
+        217.93992614746094,
+        295.03436279296875,
+        239.8575439453125
+      ],
+      "type": "paragraph",
+      "text": "Static ID 1.000 1.000 1.000",
+      "confidence": 0.5
+    },
+    {
+      "id": 412,
+      "block_id": 3,
+      "page": 27,
+      "bbox": [
+        125.12998962402344,
+        246.85289001464844,
+        295.03436279296875,
+        304.635498046875
+      ],
+      "type": "paragraph",
+      "text": "Past Hour of Day 0.437 0.462 0.473 Day of Week 0.078 0.099 0.151 Time Index 0.066 0.077 0.092 Power Usage 0.342 0.359 0.366",
+      "confidence": 0.5
+    },
+    {
+      "id": 413,
+      "block_id": 4,
+      "page": 27,
+      "bbox": [
+        125.12998962402344,
+        311.63092041015625,
+        295.03436279296875,
+        357.4584655761719
+      ],
+      "type": "paragraph",
+      "text": "Future Hour of Day 0.718 0.738 0.739 Day of Week 0.109 0.124 0.166 Time Index 0.114 0.137 0.155",
+      "confidence": 0.5
+    },
+    {
+      "id": 414,
+      "block_id": 5,
+      "page": 27,
+      "bbox": [
+        181.03399658203125,
+        363.0414733886719,
+        237.52232360839844,
+        372.00787353515625
+      ],
+      "type": "paragraph",
+      "text": "(a) Electricity",
+      "confidence": 0.5
+    },
+    {
+      "id": 417,
+      "block_id": 8,
+      "page": 27,
+      "bbox": [
+        321.1619873046875,
+        246.85289001464844,
+        491.0662536621094,
+        304.635498046875
+      ],
+      "type": "paragraph",
+      "text": "Past Hour of Day 0.285 0.296 0.300 Day of Week 0.117 0.122 0.124 Time Index 0.107 0.109 0.111 Occupancy 0.471 0.473 0.483",
+      "confidence": 0.5
+    },
+    {
+      "id": 418,
+      "block_id": 9,
+      "page": 27,
+      "bbox": [
+        321.1619873046875,
+        311.63092041015625,
+        491.0662536621094,
+        357.4584655761719
+      ],
+      "type": "paragraph",
+      "text": "Future Hour of Day 0.781 0.781 0.781 Day of Week 0.099 0.100 0.102 Time Index 0.117 0.119 0.121",
+      "confidence": 0.5
+    },
+    {
+      "id": 419,
+      "block_id": 10,
+      "page": 27,
+      "bbox": [
+        384.6830139160156,
+        363.0414733886719,
+        425.9284362792969,
+        372.00787353515625
+      ],
+      "type": "paragraph",
+      "text": "(b) Traffic",
+      "confidence": 0.5
+    },
+    {
+      "id": 421,
+      "block_id": 12,
+      "page": 27,
+      "bbox": [
+        219.6959991455078,
+        437.8659362792969,
+        431.250244140625,
+        459.78350830078125
+      ],
+      "type": "paragraph",
+      "text": "Static Region 1.000 1.000 1.000",
+      "confidence": 0.5
+    },
+    {
+      "id": 422,
+      "block_id": 13,
+      "page": 27,
+      "bbox": [
+        219.6959991455078,
+        466.7779235839844,
+        431.250244140625,
+        560.4264526367188
+      ],
+      "type": "paragraph",
+      "text": "Past Time Index 0.093 0.098 0.142 Day of Week 0.003 0.004 0.004 Day of Month 0.017 0.027 0.028 Week of Year 0.022 0.057 0.068 Month 0.008 0.009 0.011 Opentoclose Returns 0.078 0.158 0.178 Realised Vol 0.620 0.647 0.714",
+      "confidence": 0.5
+    },
+    {
+      "id": 423,
+      "block_id": 14,
+      "page": 27,
+      "bbox": [
+        219.6959991455078,
+        567.4209594726562,
+        431.250244140625,
+        637.1595458984375
+      ],
+      "type": "paragraph",
+      "text": "Future Time Index 0.011 0.014 0.024 Day of Week 0.019 0.072 0.299 Day of Month 0.069 0.635 0.913 Week of Year 0.026 0.060 0.227 Month 0.008 0.055 0.713",
+      "confidence": 0.5
+    },
+    {
+      "id": 424,
+      "block_id": 15,
+      "page": 27,
+      "bbox": [
+        279.7699890136719,
+        647.7235107421875,
+        331.5060729980469,
+        656.6898803710938
+      ],
+      "type": "paragraph",
+      "text": "(c) Volatility",
+      "confidence": 0.5
+    }
+  ],
+  "images": [
+    {
+      "id": "image_1",
+      "page": 2,
+      "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文5\\step1\\images\\image_1.png"
+    },
+    {
+      "id": "image_2",
+      "page": 6,
+      "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文5\\step1\\images\\image_2.png"
+    },
+    {
+      "id": "image_3",
+      "page": 19,
+      "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文5\\step1\\images\\image_3.png"
+    },
+    {
+      "id": "image_4",
+      "page": 19,
+      "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文5\\step1\\images\\image_4.png"
+    },
+    {
+      "id": "image_5",
+      "page": 21,
+      "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文5\\step1\\images\\image_5.png"
+    },
+    {
+      "id": "image_6",
+      "page": 21,
+      "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文5\\step1\\images\\image_6.png"
+    },
+    {
+      "id": "image_7",
+      "page": 21,
+      "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文5\\step1\\images\\image_7.png"
+    },
+    {
+      "id": "image_8",
+      "page": 21,
+      "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文5\\step1\\images\\image_8.png"
+    },
+    {
+      "id": "image_9",
+      "page": 22,
+      "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文5\\step1\\images\\image_9.png"
+    }
+  ],
+  "tables": []
+}

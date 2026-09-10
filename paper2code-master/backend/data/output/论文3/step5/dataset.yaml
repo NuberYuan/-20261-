@@ -1,0 +1,103 @@
+paper_name: 论文3
+data_source: external_dataset
+acquisition: local_path
+data_source_note: LLM 判定失败，回退默认 external_dataset/local_path
+datasets:
+- name: cell nuclei, colon polyp, liver, lung nodule
+  source: Data Science Bowl 2018; ASU-Mayo; MICCAI 2018 LiTS Challenge; LIDC-IDRI
+  size: 'cell nuclei: 670; colon polyp: 7,379; liver: 331; lung nodule: 1,012'
+  num_classes: NOT_FOUND
+  data_type: 'Medical imaging: microscopy images, RGB video, CT scans'
+dataset_versions:
+- NOT_FOUND
+preprocessing:
+  versions:
+    color:
+      resize: NOT_FOUND
+      to_tensor: transforms.ToTensor()
+      dtype: torch.float32
+      description: 彩色版本：保持原始RGB三通道
+      channels: 3
+      normalization:
+        mean:
+        - 0.5
+        - 0.5
+        - 0.5
+        std:
+        - 0.5
+        - 0.5
+        - 0.5
+        note: 无预训练时的简单归一化
+      augmentation:
+      - name: RandomHorizontalFlip
+        p: 0.5
+    grayscale:
+      resize: NOT_FOUND
+      to_tensor: transforms.ToTensor()
+      dtype: torch.float32
+      description: 灰度版本：转换为单通道后重复为3通道
+      channels: 1
+      channel_handling:
+        paper_stated: NOT_FOUND — 论文未明确说明灰度图是保持1通道还是复制为3通道
+        inferred_approach: repeat to 3 channels
+        inference_basis: 预训练权重基于 ImageNet 3 通道输入；常见框架的图像加载层默认期望 3 通道；论文未提及修改第一层 conv1
+          的 in_channels。因此推断灰度图被复制为 3 通道以适配预训练模型。
+        alternatives:
+        - '方案A (推荐): repeat 3通道，适配预训练权重，与论文结果可比'
+        - '方案B: 保持1通道，修改 conv1 的 in_channels=1，但无法使用预训练权重'
+        choice: 方案A — repeat to 3 channels
+      pipeline:
+      - transforms.Grayscale(num_output_channels=1)
+      - transforms.ToTensor()
+      - 'lambda x: x.repeat(3, 1, 1)'
+      normalization:
+        mean:
+        - 0.5
+        - 0.5
+        - 0.5
+        std:
+        - 0.5
+        - 0.5
+        - 0.5
+      augmentation:
+      - name: RandomHorizontalFlip
+        p: 0.5
+      note: 灰度版本为常见消融变体，用于验证颜色信息对任务的贡献
+    segmented:
+      resize: NOT_FOUND
+      to_tensor: transforms.ToTensor()
+      dtype: torch.float32
+      description: 分割版本：论文提及的分割预处理（去除背景、保留目标区域）；具体算法与参数需从论文确认，未公开时需自行实现或替代。
+      channels: 3
+      segmentation_algorithm:
+        method: NOT_FOUND — 论文未公开具体分割算法
+        color_spaces: []
+        components: []
+        fixed_color_casts: false
+        implementation_status: 'NOT_FOUND: 论文提及分割思路但未提供完整算法/参数'
+        fallback: 如无法复现分割脚本，可使用 GrabCut 或 U-Net 替代，但结果可能与论文不完全一致。
+      normalization:
+        mean:
+        - 0.5
+        - 0.5
+        - 0.5
+        std:
+        - 0.5
+        - 0.5
+        - 0.5
+      augmentation:
+      - name: RandomHorizontalFlip
+        p: 0.5
+      note: 分割预处理最复杂，复现难度最高（具体性能数字见 experiment.comparison_results）
+  version_selector:
+    config_key: dataset_version
+    values:
+    - color
+    - grayscale
+    - segmented
+    default: color
+    note: 通过 config.yaml 的 dataset_version 字段切换预处理版本
+split_strategy:
+  method: random_split
+  ratios: NOT_FOUND
+  leaf_mapping_constraint: NOT_FOUND

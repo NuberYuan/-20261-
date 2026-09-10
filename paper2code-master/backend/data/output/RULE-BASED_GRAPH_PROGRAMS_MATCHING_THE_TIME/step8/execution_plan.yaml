@@ -1,0 +1,87 @@
+environment:
+  python_version: 3.13.1
+  cpu_count: 22
+  ram_total_gb: 31.61
+  ram_available_gb: 16.88
+  disk_free_gb: 237.02
+  torch_available: true
+  torch_version: 2.13.0+cpu
+  gpu_available: false
+  gpu_memory_gb: null
+  dependencies:
+    torch: true
+    numpy: true
+    pandas: false
+    sklearn: false
+    scipy: true
+    matplotlib: true
+    PIL: true
+    yaml: true
+    tqdm: false
+    cv2: true
+    huggingface_hub: false
+    transformers: false
+summary:
+  total: 1
+  run: 1
+  skip: 0
+  warnings: 0
+experiments:
+- experiment_id: None_None_default
+  run_index: 0
+  model: null
+  mode: null
+  dataset_version: default
+  data_source: synthetic
+  acquisition: n/a
+  train_ratio: 0.8
+  decision: RUN
+  status: PLANNED
+  skip_reasons: []
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: true
+      reason: not_required
+      detail: 数据集不适用（data_source=synthetic）
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: true
+      reason: null
+      detail: 不强制要求 GPU（可 CPU 运行）
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 4 个依赖均可用
+  execution:
+    entrypoint:
+      type: python
+      script: main.py
+    command:
+    - C:\Users\yuan2\AppData\Local\Programs\Python\Python313\python.exe
+    - main.py
+    - --config
+    - D:\applications\paper2code-master\paper2code-master\backend\data\output\RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME\step7\generated_project\config\config.yaml

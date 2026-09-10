@@ -1,0 +1,256 @@
+paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+generated_at: '2026-09-01T13:23:30.132811'
+reproduction_goal:
+  paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+  title: Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms
+  research_problem: The paper addresses the challenge that rule-based graph programs
+    generally do not achieve the asymptotic runtime efficiency of imperative graph
+    algorithms because graph matching is expensive; previous GP 2 implementations
+    required bounded node degree and, for some algorithms, connected input graphs.
+  motivation: 'The primary obstacle is the cost of graph matching: matching a rule
+    left-hand graph L in a host graph G generally requires time |G|^|L|, so standard
+    linear-time imperative graph algorithms may become nonlinear when recast as rule-based
+    programs. The authors aim to lift previous constraints on bounded node degree
+    and connectivity so rule-based programs can match imperative time complexity.'
+  main_contribution: 'The paper enhances the GP 2 compiler graph data structure by
+    storing nodes in separate linked lists based on marks and giving each node a two-dimensional
+    array of linked lists for incident edges by mark and orientation. It presents
+    three case studies with correctness and time-complexity proofs plus runtime experiments:
+    connectedness checking in linear time on arbitrary input graphs with arbitrary
+    node degrees, acyclicity checking in linear time on arbitrary input graphs, and
+    Bellman-Ford single-source shortest paths in O(nm) on arbitrary input graphs,
+    matching imperative Bellman-Ford.'
+  paper_type: algorithm
+  task: other
+  input: Host graphs over labels with directed labelled nodes and edges; input graphs
+    may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have
+    integer edge weights.
+  output: Output host graph, or failure if the program fails or the input violates
+    the checked property.
+  num_classes: NOT_FOUND
+  reproduction_targets:
+  - 实现论文提出的算法/方法
+  - 构造输入并验证算法正确性
+  - 验证与论文结果的一致性
+  is_trainable: false
+technology:
+  paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+  framework:
+    recommended: Python 标准库
+    candidates:
+    - PyTorch
+    source: 纯算法/方法复现（无训练、无 ML 模型），使用 Python 标准库 + numpy/pyyaml，不引入 PyTorch
+  programming_framework_mentioned: GP 2-to-C compiler, GCC, C runtime system
+  model_backbone:
+    names:
+    - GP 2 connectedness program
+    - GP 2 acyclicity program
+    - GP 2 Bellman-Ford program
+    source: 论文提到
+  architecture_details:
+    note: NOT_FOUND
+  training:
+    optimizer:
+      type: NOT_FOUND
+    loss:
+      type: NOT_FOUND
+    scheduler:
+      type: NOT_FOUND
+  pretrained_weights:
+    used: false
+    source: NOT_FOUND
+  special_modules: Nodes are stored in separate linked lists based on marks (red,
+    green, blue, grey, unmarked). Each node has a two-dimensional array of linked
+    lists storing all incident edges based on marks (red, green, blue, dashed, unmarked)
+    and orientation (incoming, outgoing, loop), totalling 15 cells.
+  hardware:
+    mentioned: NOT_FOUND
+dataset:
+  paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+  data_source: synthetic
+  acquisition: n/a
+  data_source_note: 论文未命名真实公开数据集，实验所用的各类主图和根循环图属于程序化生成的合成图类，仅由运行时从磁盘读取解析。
+  datasets:
+  - name: NOT_FOUND
+    source: NOT_FOUND
+    size: NOT_FOUND
+    num_classes: NOT_FOUND
+    data_type: Host graphs for connectedness, acyclicity, and Bellman-Ford runtime
+      experiments on various graph classes; Figure 36 uses rooted cycle graphs of
+      negative total weight.
+  dataset_versions:
+  - default
+  preprocessing:
+    versions:
+      default:
+        description: 非图像数据：通用预处理（按数据语义做标准化/归一化）
+        preprocessing: The input host graph is read and parsed from disk by the runtime
+          system; no training/test split is reported.
+        normalization:
+          note: 非图像数据无 RGB 通道概念，按数据语义做标准化（如 z-score/归一化）
+        augmentation: []
+        note: 数据集无颜色/灰度/分割版本；仅单一 default 版本
+    version_selector:
+      config_key: dataset_version
+      values:
+      - default
+      default: default
+      note: 非图像数据仅一个 default 版本
+  split_strategy:
+    method: random_split
+    ratios: NOT_FOUND
+    leaf_mapping_constraint: NOT_FOUND
+model_design:
+  paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+  models:
+  - name: GP 2 connectedness program
+    type: other
+    code_class_name: GP2ConnectednessProgram
+    input: Host graphs over labels with directed labelled nodes and edges; input graphs
+      may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have
+      integer edge weights.
+    output: Output host graph, or failure if the program fails or the input violates
+      the checked property.
+    num_classes: NOT_FOUND
+    pretrained: NOT_FOUND
+    architecture_summary: NOT_FOUND
+    architecture:
+      total_layers: NOT_FOUND
+      param_count: NOT_FOUND
+      special_components: []
+      final_classifier: NOT_FOUND
+      implementation_notes: []
+  - name: GP 2 acyclicity program
+    type: other
+    code_class_name: GP2AcyclicityProgram
+    input: Host graphs over labels with directed labelled nodes and edges; input graphs
+      may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have
+      integer edge weights.
+    output: Output host graph, or failure if the program fails or the input violates
+      the checked property.
+    num_classes: NOT_FOUND
+    pretrained: NOT_FOUND
+    architecture_summary: NOT_FOUND
+    architecture:
+      total_layers: NOT_FOUND
+      param_count: NOT_FOUND
+      special_components: []
+      final_classifier: NOT_FOUND
+      implementation_notes: []
+  - name: GP 2 Bellman-Ford program
+    type: VLM
+    code_class_name: GP2BellmanFordProgram
+    input: Host graphs over labels with directed labelled nodes and edges; input graphs
+      may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have
+      integer edge weights.
+    output: Output host graph, or failure if the program fails or the input violates
+      the checked property.
+    num_classes: NOT_FOUND
+    pretrained: NOT_FOUND
+    architecture_summary: NOT_FOUND
+    architecture:
+      total_layers: NOT_FOUND
+      param_count: NOT_FOUND
+      special_components: []
+      final_classifier: NOT_FOUND
+      implementation_notes: []
+experiment:
+  paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+  pipeline:
+  - 'GP 2 programs are compiled to C code by the new GP 2-to-C compiler. GCC transforms
+    the C code into platform-dependent binaries executed by the runtime system. The
+    runtime reads and parses the input host graph. Matching uses constant-time operations
+    for nodes, roots, marks, degrees, sources, targets, and mark/orientation-specific
+    edge lists. The paper then presents three case studies: connectedness in linear
+    time, acyclicity in linear time, and Bellman-Ford in O(nm).'
+  experiments:
+  - name: main_experiment
+    description: The connectedness program runs in linear time on possibly disconnected
+      input graphs with arbitrary node degrees, removing the previous bounded-degree
+      constraint. The acyclicity program runs in linear time on possibly disconnected
+      input graphs with arbitrary node degrees. The Bellman-Ford program runs in O(nm)
+      on arbitrary input graphs, matching the time complexity of imperative Bellman-Ford
+      implementations. Runtime experiments on various graph classes support the complexity
+      claims.
+  evaluation:
+    primary_metric: Time complexity
+    secondary_metrics:
+    - Time complexity
+    - correctness proofs
+    - runtime measurements
+  comparison:
+    baselines:
+    - 2020 GP 2 compiler
+    - previous bounded-degree GP 2 programs
+    - imperative Bellman-Ford algorithm
+    ablation_factors: []
+  experiment_matrix:
+    dimensions:
+      architectures:
+      - GP 2 connectedness program
+      - GP 2 acyclicity program
+      - GP 2 Bellman-Ford program
+      training_modes: []
+      data_types:
+      - default
+      train_test_splits:
+      - NOT_FOUND
+    total_configurations: 0
+    known_best: NOT_FOUND
+    known_worst: NOT_FOUND
+    run_all: false
+    recommended_subset: []
+    note: 无实验组合（论文无模型或无训练实验，纯理论/无数据论文）
+  important_results: First two programs run in linear time on possibly disconnected
+    input graphs with arbitrary node degrees. The Bellman-Ford program runs in O(nm)
+    on arbitrary input graphs, where n is the number of nodes and m is the number
+    of edges. To the best of the authors' knowledge, this is the first rule-based
+    shortest-path implementation matching the complexity of an imperative Bellman-Ford
+    algorithm.
+project_structure:
+  paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+  project_name: RuleBased_Graph_Programs_Matching_the_Time_Complex
+  root_structure:
+    directories:
+    - models
+    - evaluation
+    - utils
+    - src
+    - config
+    files:
+      models:
+      - gp2_connectedness_program.py
+      - gp2_acyclicity_program.py
+      - gp2_bellman_ford_program.py
+      - __init__.py
+      evaluation:
+      - evaluate.py
+      utils:
+      - metrics.py
+      src:
+      - gp2compilerenhancementsandrootedgraphprograms.py
+      config:
+      - config.yaml
+      .:
+      - main.py
+      - requirements.txt
+      - README.md
+  module_mapping:
+    models: '模型定义: gp2_connectedness_program, gp2_acyclicity_program, gp2_bellman_ford_program'
+    evaluation: 评估与对比
+    utils: 工具函数
+    src: 算法/方法实现
+    config: YAML 配置
+    entry_point: main.py
+training_config:
+  paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+  training:
+    applies: false
+    note: 论文无训练流程（无 optimizer/learning_rate/epoch/loss 信号）
+  training_modes: {}
+  reproducibility_notes:
+  - Achieving constant-time graph matching without bounded node degree
+  - Writing programs that exploit mark-separated node and edge lists
+  - Avoiding compiler backtracking in program execution to maintain fast runtimes
+  - Finding matches with correct marks and orientations without scanning incompatible
+    edges

@@ -1,0 +1,149 @@
+```python
+import os
+import sys
+import json
+import numpy as np
+import cv2
+
+def analyze_image(image_path):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法读取图片文件",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # OCR text provided externally
+        ocr_text = """10%
+50%
+90%
+Mean
+Previous Hour
+0.20
+(n=-1)
+0.15
+Daily Interval
+(24 hours)
+0.10
+0.05
+0.00
+-150
+-100
+-50
+Position Index (n)
+T=5
+T=10
+T=15
+T-20
+0.04
+0.03
+0.02
+0.01
+WUwulul
+UM"""
+        
+        ocr_lower = ocr_text.lower()
+        
+        # Check for experiment_result indicators
+        experiment_indicators = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "mean", "interval", "position index", "hour", "daily"
+        ]
+        
+        # Check for architecture indicators
+        architecture_indicators = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        # Check for dataset indicators
+        dataset_indicators = [
+            "sample", "example", "dataset", "class", "category"
+        ]
+        
+        # Count matches
+        experiment_matches = sum(1 for ind in experiment_indicators if ind in ocr_lower)
+        architecture_matches = sum(1 for ind in architecture_indicators if ind in ocr_lower)
+        dataset_matches = sum(1 for ind in dataset_indicators if ind in ocr_lower)
+        
+        # Determine type based on priority
+        if experiment_matches > 0:
+            # Check if it's really an experiment result
+            if any(word in ocr_lower for word in ["mean", "interval", "position", "hour", "daily"]):
+                result_type = "experiment_result"
+                description = "展示实验结果数据，包含时间序列或性能指标变化"
+                components = ["Mean", "Daily Interval", "Position Index"]
+                code_info = "需要实现数据可视化模块，展示实验结果随时间或位置的变化趋势"
+            else:
+                result_type = "experiment_result"
+                description = "展示实验结果数据"
+                components = []
+                code_info = "需要实现实验结果展示模块"
+        elif architecture_matches > 0:
+            result_type = "architecture"
+            description = "展示模型网络结构和数据流关系"
+            components = []
+            code_info = "需要实现模型网络结构"
+        elif dataset_matches > 0:
+            result_type = "dataset"
+            description = "展示数据集样本或类别信息"
+            components = []
+            code_info = "需要实现数据加载和预处理模块"
+        else:
+            # Use visual information as fallback
+            height, width = img.shape[:2]
+            
+            # Check if image looks like a chart/plot (experiment result)
+            # Simple heuristic: check aspect ratio and color distribution
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            std_dev = np.std(gray)
+            
+            if std_dev > 50:  # High variance suggests complex content like charts
+                result_type = "experiment_result"
+                description = "展示实验结果数据图表"
+                components = []
+                code_info = "需要实现数据可视化模块"
+            else:
+                result_type = "other"
+                description = "无法确定图片类型"
+                components = []
+                code_info = ""
+        
+        # Build output
+        output = {
+            "type": result_type,
+            "description": description,
+            "important_components": components,
+            "code_relevant_information": code_info
+        }
+        
+        return output
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+        result = analyze_image(image_path)
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        print(json.dumps({
+            "type": "other",
+            "description": "未提供图片路径",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+```

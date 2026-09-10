@@ -1,0 +1,267 @@
+{
+  "table_id": "table_1",
+  "table_type": "experiment_results",
+  "caption_summary": "Mean F1 score, mean precision, mean recall, and overall accuracy for AlexNet and GoogLeNet under transfer learning and training from scratch across different train/test splits and image preprocessing types after 30 epochs.",
+  "extracted_data": {
+    "metrics": [
+      "Mean F1 score",
+      "Mean precision",
+      "Mean recall",
+      "Overall accuracy"
+    ],
+    "methods": [
+      "AlexNet Transfer learning",
+      "AlexNet Training from scratch",
+      "GoogLeNet Transfer learning",
+      "GoogLeNet Training from scratch"
+    ],
+    "best_result": {
+      "method": "GoogLeNet Transfer learning (Train: 80%, Test: 20%, Color)",
+      "metric": "Mean F1 score",
+      "value": 0.9934
+    },
+    "key_values": [
+      {
+        "label": "Train: 20%, Test: 80% | Color | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9736, Mean precision=0.9742, Mean recall=0.9737, Overall accuracy=0.9738"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Color | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9118, Mean precision=0.9137, Mean recall=0.9132, Overall accuracy=0.9130"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Color | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9820, Mean precision=0.9824, Mean recall=0.9821, Overall accuracy=0.9821"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Color | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9430, Mean precision=0.9440, Mean recall=0.9431, Overall accuracy=0.9429"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Grayscale | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9361, Mean precision=0.9368, Mean recall=0.9369, Overall accuracy=0.9371"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Grayscale | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.8524, Mean precision=0.8539, Mean recall=0.8555, Overall accuracy=0.8553"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Grayscale | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9563, Mean precision=0.9570, Mean recall=0.9564, Overall accuracy=0.9564"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Grayscale | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.8828, Mean precision=0.8842, Mean recall=0.8835, Overall accuracy=0.8841"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Segmented | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9724, Mean precision=0.9727, Mean recall=0.9727, Overall accuracy=0.9726"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Segmented | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.8945, Mean precision=0.8956, Mean recall=0.8963, Overall accuracy=0.8969"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Segmented | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9808, Mean precision=0.9810, Mean recall=0.9808, Overall accuracy=0.9808"
+      },
+      {
+        "label": "Train: 20%, Test: 80% | Segmented | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9377, Mean precision=0.9388, Mean recall=0.9380, Overall accuracy=0.9380"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Color | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9860, Mean precision=0.9861, Mean recall=0.9861, Overall accuracy=0.9860"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Color | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9555, Mean precision=0.9557, Mean recall=0.9558, Overall accuracy=0.9558"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Color | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9914, Mean precision=0.9914, Mean recall=0.9914, Overall accuracy=0.9914"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Color | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9729, Mean precision=0.9731, Mean recall=0.9729, Overall accuracy=0.9729"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Grayscale | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9584, Mean precision=0.9588, Mean recall=0.9589, Overall accuracy=0.9588"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Grayscale | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9088, Mean precision=0.9090, Mean recall=0.9101, Overall accuracy=0.9100"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Grayscale | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9714, Mean precision=0.9717, Mean recall=0.9716, Overall accuracy=0.9716"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Grayscale | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9361, Mean precision=0.9364, Mean recall=0.9363, Overall accuracy=0.9364"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Segmented | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9812, Mean precision=0.9814, Mean recall=0.9813, Overall accuracy=0.9813"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Segmented | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9404, Mean precision=0.9409, Mean recall=0.9408, Overall accuracy=0.9408"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Segmented | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9896, Mean precision=0.9896, Mean recall=0.9896, Overall accuracy=0.9898"
+      },
+      {
+        "label": "Train: 40%, Test: 60% | Segmented | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9643, Mean precision=0.9647, Mean recall=0.9642, Overall accuracy=0.9642"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Color | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9896, Mean precision=0.9897, Mean recall=0.9896, Overall accuracy=0.9897"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Color | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9644, Mean precision=0.9647, Mean recall=0.9647, Overall accuracy=0.9647"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Color | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9916, Mean precision=0.9916, Mean recall=0.9916, Overall accuracy=0.9916"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Color | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9772, Mean precision=0.9774, Mean recall=0.9773, Overall accuracy=0.9773"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Grayscale | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9661, Mean precision=0.9663, Mean recall=0.9663, Overall accuracy=0.9663"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Grayscale | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9312, Mean precision=0.9315, Mean recall=0.9318, Overall accuracy=0.9319"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Grayscale | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9788, Mean precision=0.9789, Mean recall=0.9788, Overall accuracy=0.9788"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Grayscale | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9507, Mean precision=0.9510, Mean recall=0.9507, Overall accuracy=0.9509"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Segmented | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9867, Mean precision=0.9868, Mean recall=0.9868, Overall accuracy=0.9869"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Segmented | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9551, Mean precision=0.9552, Mean recall=0.9555, Overall accuracy=0.9556"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Segmented | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9909, Mean precision=0.9910, Mean recall=0.9910, Overall accuracy=0.9910"
+      },
+      {
+        "label": "Train: 50%, Test: 50% | Segmented | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9720, Mean precision=0.9721, Mean recall=0.9721, Overall accuracy=0.9722"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Color | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9907, Mean precision=0.9908, Mean recall=0.9908, Overall accuracy=0.9907"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Color | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9724, Mean precision=0.9725, Mean recall=0.9725, Overall accuracy=0.9725"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Color | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9924, Mean precision=0.9924, Mean recall=0.9924, Overall accuracy=0.9924"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Color | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9824, Mean precision=0.9825, Mean recall=0.9824, Overall accuracy=0.9824"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Grayscale | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9686, Mean precision=0.9689, Mean recall=0.9688, Overall accuracy=0.9688"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Grayscale | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9388, Mean precision=0.9396, Mean recall=0.9395, Overall accuracy=0.9391"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Grayscale | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9785, Mean precision=0.9789, Mean recall=0.9786, Overall accuracy=0.9787"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Grayscale | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9547, Mean precision=0.9554, Mean recall=0.9548, Overall accuracy=0.9551"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Segmented | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9855, Mean precision=0.9856, Mean recall=0.9856, Overall accuracy=0.9856"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Segmented | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9595, Mean precision=0.9597, Mean recall=0.9597, Overall accuracy=0.9596"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Segmented | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9905, Mean precision=0.9906, Mean recall=0.9906, Overall accuracy=0.9906"
+      },
+      {
+        "label": "Train: 60%, Test: 40% | Segmented | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9740, Mean precision=0.9743, Mean recall=0.9740, Overall accuracy=0.9745"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Color | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9927, Mean precision=0.9928, Mean recall=0.9927, Overall accuracy=0.9928"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Color | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9782, Mean precision=0.9786, Mean recall=0.9782, Overall accuracy=0.9782"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Color | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9934, Mean precision=0.9935, Mean recall=0.9935, Overall accuracy=0.9935"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Color | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9836, Mean precision=0.9839, Mean recall=0.9837, Overall accuracy=0.9837"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Grayscale | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9726, Mean precision=0.9728, Mean recall=0.9727, Overall accuracy=0.9725"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Grayscale | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9449, Mean precision=0.9451, Mean recall=0.9454, Overall accuracy=0.9452"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Grayscale | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9800, Mean precision=0.9804, Mean recall=0.9801, Overall accuracy=0.9798"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Grayscale | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9621, Mean precision=0.9624, Mean recall=0.9621, Overall accuracy=0.9621"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Segmented | AlexNet Transfer learning",
+        "value": "Mean F1 score=0.9891, Mean precision=0.9893, Mean recall=0.9891, Overall accuracy=0.9892"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Segmented | AlexNet Training from scratch",
+        "value": "Mean F1 score=0.9722, Mean precision=0.9725, Mean recall=0.9724, Overall accuracy=0.9723"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Segmented | GoogLeNet Transfer learning",
+        "value": "Mean F1 score=0.9925, Mean precision=0.9925, Mean recall=0.9925, Overall accuracy=0.9924"
+      },
+      {
+        "label": "Train: 80%, Test: 20% | Segmented | GoogLeNet Training from scratch",
+        "value": "Mean F1 score=0.9824, Mean precision=0.9827, Mean recall=0.9824, Overall accuracy=0.9822"
+      }
+    ]
+  },
+  "table_summary": "The table reports mean F1, mean precision, mean recall, and overall accuracy for AlexNet and GoogLeNet trained via transfer learning or from scratch, across color, grayscale, and segmented image types and five train/test split ratios. Performance generally improves as the training fraction increases, with the highest mean F1 score of 0.9934 achieved by GoogLeNet transfer learning on color images with an 80/20 train/test split. Transfer learning consistently outperforms training from scratch, and color or segmented inputs tend to yield better results than grayscale inputs."
+}

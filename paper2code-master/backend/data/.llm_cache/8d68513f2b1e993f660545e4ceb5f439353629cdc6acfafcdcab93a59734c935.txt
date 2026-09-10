@@ -1,0 +1,117 @@
+import numpy as np
+
+try:
+    import torch
+except ImportError:
+    torch = None
+
+
+def compute_metrics(outputs=None, targets=None, config=None, threshold=0.5, batch_size=32):
+    """
+    Compute evaluation metrics for image classification.
+
+    Args:
+        outputs: Model predictions. Can be:
+            - torch.Tensor / numpy.ndarray of shape (N, C) containing logits or probabilities.
+            - For binary classification, shape (N,) probabilities are also supported.
+        targets: Ground-truth labels. Can be:
+            - torch.Tensor / numpy.ndarray of shape (N,) integer class indices.
+            - For binary, shape (N,) with 0/1 values.
+        config: Optional config dictionary (unused in current metric computation, kept for API consistency).
+        threshold: Threshold for binary classification when outputs are 1D.
+        batch_size: Placeholder for API compatibility; not used internally.
+
+    Returns:
+        dict with keys:
+            'mean_f1_score': macro-averaged F1 score.
+            'mean_precision': macro-averaged precision.
+            'mean_recall': macro-averaged recall.
+            'overall_accuracy': overall classification accuracy.
+    """
+    # Default fallback when no data is provided (allows no-arg basic testing)
+    if outputs is None or targets is None:
+        return {
+            'mean_f1_score': 0.0,
+            'mean_precision': 0.0,
+            'mean_recall': 0.0,
+            'overall_accuracy': 0.0,
+        }
+
+    # Convert torch tensors to numpy
+    if torch is not None:
+        if isinstance(outputs, torch.Tensor):
+            outputs = outputs.detach().cpu().numpy()
+        if isinstance(targets, torch.Tensor):
+            targets = targets.detach().cpu().numpy()
+
+    outputs = np.asarray(outputs)
+    targets = np.asarray(targets)
+
+    # Handle empty arrays
+    if outputs.size == 0 or targets.size == 0:
+        return {
+            'mean_f1_score': 0.0,
+            'mean_precision': 0.0,
+            'mean_recall': 0.0,
+            'overall_accuracy': 0.0,
+        }
+
+    # Determine predictions
+    if outputs.ndim == 1:
+        # Binary classification: probability per sample
+        preds = (outputs >= threshold).astype(np.int64)
+    elif outputs.ndim >= 2:
+        preds = np.argmax(outputs, axis=1)
+    else:
+        raise ValueError(f"Unsupported outputs shape: {outputs.shape}")
+
+    # Normalize targets shape: flatten to 1D
+    targets = targets.reshape(-1)
+    preds = preds.reshape(-1)
+
+    if targets.ndim > 1:
+        if targets.shape[1] > 1:
+            # Assume one-hot encoded targets
+            targets = np.argmax(targets, axis=1)
+        else:
+            targets = targets.flatten()
+
+    if preds.shape[0] != targets.shape[0]:
+        raise ValueError(
+            f"Number of predictions ({preds.shape[0]}) does not match number of targets ({targets.shape[0]})"
+        )
+
+    # Overall accuracy
+    overall_accuracy = np.mean(preds == targets)
+
+    # Macro-averaged precision, recall, F1
+    # Compute per-class confusion matrix based metrics
+    classes = np.unique(np.concatenate([targets, preds]))
+
+    precisions = []
+    recalls = []
+    f1s = []
+
+    for cls in classes:
+        tp = np.sum((preds == cls) & (targets == cls))
+        fp = np.sum((preds == cls) & (targets != cls))
+        fn = np.sum((preds != cls) & (targets == cls))
+
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+
+        precisions.append(precision)
+        recalls.append(recall)
+        f1s.append(f1)
+
+    mean_precision = float(np.mean(precisions)) if precisions else 0.0
+    mean_recall = float(np.mean(recalls)) if recalls else 0.0
+    mean_f1 = float(np.mean(f1s)) if f1s else 0.0
+
+    return {
+        'mean_f1_score': mean_f1,
+        'mean_precision': mean_precision,
+        'mean_recall': mean_recall,
+        'overall_accuracy': float(overall_accuracy),
+    }

@@ -1,0 +1,84 @@
+"""GoogLeNet model wrapper for image-based plant disease detection.
+
+This module wraps torchvision.models.GoogLeNet so that the architecture is
+identical to the torchvision reference implementation.  It only randomly
+initializes the structure; pretrained loading/transfer logic belongs to
+training/train.py.
+"""
+
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+import yaml
+from torchvision.models import GoogLeNet
+
+
+class Googlenet(GoogLeNet):
+    """GoogLeNet with num_classes/dropout_ratio read from config.yaml.
+
+    Args:
+        config: Optional path to config/config.yaml, or an already-loaded
+            config dictionary. If None, the default project config path is
+            used. If the file cannot be read, paper-derived fallback values
+            are used so the class can still be instantiated for basic tests.
+    """
+
+    def __init__(self, config: Optional[Union[str, Path, Dict[str, Any]]] = None):
+        cfg = self._load_config(config)
+        if not isinstance(cfg, dict):
+            cfg = {}
+
+        model_cfg = cfg.get("model", {})
+        if not isinstance(model_cfg, dict):
+            model_cfg = {}
+
+        # Paper reports 38 crop-disease classes. Fallback only when config
+        # value is missing or null; otherwise always use config value.
+        raw_num_classes = model_cfg.get("num_classes", 38)
+        num_classes = 38 if raw_num_classes is None else int(raw_num_classes)
+
+        # GoogLeNet final classifier dropout. Config key is `dropout_ratio`;
+        # torchvision GoogLeNet names the constructor argument `dropout`.
+        raw_dropout = model_cfg.get("dropout_ratio", 0.5)
+        dropout_ratio = 0.5 if raw_dropout is None else float(raw_dropout)
+
+        # Auxiliary classifiers are standard in GoogLeNet and are referenced
+        # by transfer-learning config (aux1/aux2). Keep them enabled unless
+        # explicitly disabled in config.
+        raw_aux_logits = model_cfg.get("aux_logits", True)
+        aux_logits = True if raw_aux_logits is None else bool(raw_aux_logits)
+
+        # init_weights=False leaves default PyTorch random initialization.
+        # Weight initialization and pretrained loading are handled in
+        # training/train.py, not in this structural model class.
+        super().__init__(
+            num_classes=num_classes,
+            aux_logits=aux_logits,
+            dropout=dropout_ratio,
+            init_weights=False,
+        )
+
+    def forward(self, x):
+        """Run standard GoogLeNet forward pass."""
+        return super().forward(x)
+
+    @staticmethod
+    def _load_config(config: Optional[Union[str, Path, Dict[str, Any]]]) -> Dict[str, Any]:
+        """Load config from a dict, explicit path, or default project path."""
+        if isinstance(config, dict):
+            return config
+
+        if isinstance(config, (str, Path)):
+            config_path = Path(config)
+        else:
+            # Default location relative to this file:
+            # <project_root>/config/config.yaml
+            config_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+
+        try:
+            with config_path.open("r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f)
+        except (FileNotFoundError, OSError):
+            return {}
+
+        return cfg if isinstance(cfg, dict) else {}

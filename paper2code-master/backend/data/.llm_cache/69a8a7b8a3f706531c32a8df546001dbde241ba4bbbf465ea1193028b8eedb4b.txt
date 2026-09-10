@@ -1,0 +1,120 @@
+{
+  "code_requirements": {
+    "data/dataset.py": {
+      "description": "PyTorch Dataset for PlantVillage leaf images. Supports color, grayscale, and segmented versions. Resizes images to 256x256. Uses leaf_id grouping to prevent images from the same leaf splitting across train and test sets when leaf mappings are available.",
+      "class": "PlantVillageDataset",
+      "parent_class": "torch.utils.data.Dataset",
+      "methods": [
+        "__init__",
+        "__len__",
+        "__getitem__"
+      ],
+      "functions": [
+        "load_data",
+        "preprocess",
+        "segment_leaf",
+        "split_by_leaf"
+      ],
+      "pseudocode": "class PlantVillageDataset(Dataset): __init__ scans root/class folders and stores image paths, labels, and leaf_ids; split_by_leaf groups samples by leaf_id so all images of one leaf stay in one split, with random fallback if leaf_id unknown; __getitem__ loads image, applies preprocess; preprocess resizes to 256x256, converts to grayscale and replicates 3 channels if version is grayscale, applies segment_leaf if version is segmented, then ToTensor and normalization; segment_leaf uses Lab/HSB color-space masks to isolate leaf and fix color casts, thresholds TO_BE_DETERMINED; normalization uses ImageNet mean/std for transfer learning, otherwise TO_BE_DETERMINED."
+    },
+    "models/alexnet.py": {
+      "description": "AlexNet adapted for 38-class PlantVillage classification. Uses 5 convolutional layers followed by 3 fully connected layers, ReLU activations, dropout ratio 0.5 on fc6/fc7, and final fc8 layer with 38 outputs. Supports ImageNet pretrained weights with fc8 reset for transfer learning.",
+      "class": "AlexNet",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward"
+      ],
+      "functions": [
+        "alexnet"
+      ],
+      "pseudocode": "class AlexNet(nn.Module): __init__(num_classes=38, pretrained=True) builds torchvision.models.alexnet(pretrained=pretrained); replaces classifier[6] with nn.Linear(4096, num_classes); forward(x) returns self.model(x); function alexnet(num_classes=38, pretrained=True) returns AlexNet instance."
+    },
+    "models/googlenet.py": {
+      "description": "GoogLeNet (Inception v1) adapted for 38-class PlantVillage classification. 22-layer architecture with 9 inception modules. Resets final classifier and auxiliary classifiers to 38 outputs for transfer learning.",
+      "class": "GoogLeNet",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward"
+      ],
+      "functions": [
+        "googlenet"
+      ],
+      "pseudocode": "class GoogLeNet(nn.Module): __init__(num_classes=38, pretrained=True, aux_logits=True) builds torchvision.models.googlenet(pretrained=pretrained, aux_logits=aux_logits); replaces fc with nn.Linear(1024, num_classes), aux1.fc2 with nn.Linear(1024, num_classes), aux2.fc2 with nn.Linear(1024, num_classes); forward(x) returns self.model(x); function googlenet(num_classes=38, pretrained=True) returns GoogLeNet instance; auxiliary loss weighting TO_BE_DETERMINED, optionally follow standard GoogLeNet weight 0.3."
+    },
+    "training/train.py": {
+      "description": "Training loop for AlexNet or GoogLeNet on PlantVillage. Must use exact hyperparameters: SGD lr=0.005, momentum=0.9, weight_decay=0.0005, StepLR step_size=10, gamma=0.1, epochs=30. Batch size is model-specific: AlexNet 100, GoogLeNet 24.",
+      "functions": [
+        "train_epoch",
+        "validate",
+        "main"
+      ],
+      "uses": [
+        "models.alexnet",
+        "models.googlenet",
+        "data.dataset",
+        "utils.metrics",
+        "torch.optim",
+        "torch.optim.lr_scheduler",
+        "torch.nn",
+        "config.config"
+      ],
+      "config_parameters": {
+        "batch_size": "100 for AlexNet, 24 for GoogLeNet",
+        "epochs": 30,
+        "optimizer": "Stochastic Gradient Descent",
+        "learning_rate": 0.005,
+        "momentum": 0.9,
+        "weight_decay": 0.0005,
+        "scheduler": {
+          "name": "StepLR",
+          "step_size": 10,
+          "gamma": 0.1
+        }
+      },
+      "pseudocode": "main(config): build train and validation PlantVillageDataset loaders with batch_size=100 if model is AlexNet else 24; instantiate AlexNet or GoogLeNet with num_classes=38 and pretrained flag; criterion=nn.CrossEntropyLoss(); optimizer=optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005); scheduler=torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1); for epoch in range(30): train_epoch; validate; scheduler.step(); save best checkpoint by validation mean F1 or accuracy; train_epoch sets model.train(), uses outputs.logits if available otherwise outputs, computes loss and optional auxiliary loss weight TO_BE_DETERMINED, backpropagates; validate sets model.eval(), collects predictions and targets, computes accuracy, mean precision, mean recall, mean F1 via utils.metrics."
+    },
+    "evaluation/evaluate.py": {
+      "description": "Evaluate a trained AlexNet or GoogLeNet on the PlantVillage held-out test set. Computes overall accuracy, mean precision, mean recall, mean F1, and top-5 accuracy.",
+      "functions": [
+        "evaluate",
+        "main"
+      ],
+      "uses": [
+        "models.alexnet",
+        "models.googlenet",
+        "data.dataset",
+        "utils.metrics",
+        "torch",
+        "config.config"
+      ],
+      "pseudocode": "main(config): build test PlantVillageDataset and DataLoader with selected version and model-specific batch size; load trained model checkpoint; model.eval(); for each batch: outputs = model(images); if outputs has logits use outputs.logits; preds = argmax; store predictions and targets; after loop compute accuracy, macro precision, recall, F1, and top-5 accuracy via utils.metrics; print and optionally save evaluation report."
+    },
+    "utils/metrics.py": {
+      "description": "Metrics for multi-class classification evaluation: accuracy, macro/mean precision, recall, F1, and top-k accuracy.",
+      "functions": [
+        "accuracy",
+        "precision_recall_f1",
+        "topk_accuracy"
+      ],
+      "pseudocode": "accuracy(y_true, y_pred): return correct/total; precision_recall_f1(y_true, y_pred, average='macro'): use sklearn.metrics.precision_recall_fscore_support or manual per-class calculation to return precision, recall, F1; topk_accuracy(outputs, targets, k=5): return fraction where target is in top-k predicted indices."
+    },
+    "main.py": {
+      "description": "Entry point that loads YAML config, selects model architecture and dataset version, and dispatches to training or evaluation.",
+      "functions": [
+        "parse_args",
+        "main"
+      ],
+      "uses": [
+        "config.config",
+        "data.dataset",
+        "models.alexnet",
+        "models.googlenet",
+        "training.train",
+        "evaluation.evaluate"
+      ],
+      "pseudocode": "parse_args(): argparse with --config default config/config.yaml, --mode train or evaluate, --model AlexNet or GoogLeNet, --data-root, --version color/grayscale/segmented; main(args): load YAML config from args.config; override with CLI arguments; if mode is train call training.train.main(cfg); if mode is evaluate call evaluation.evaluate.main(cfg)."
+    }
+  }
+}

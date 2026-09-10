@@ -1,0 +1,36 @@
+project:
+  name: NOT_FOUND
+  paper: NOT_FOUND
+  framework: Python 标准库
+
+experiment:
+  runs:
+    - name: default
+      data_source: synthetic
+      acquisition: n/a
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+system:
+  device: cpu
+  num_workers: 0
+  seed: 42
+
+data_source: synthetic
+acquisition: n/a
+
+dataset_version: default
+dataset_versions:
+  - default
+
+version_selector:
+  config_key: dataset_version
+  values:
+    - default
+  default: default
+
+training:
+  applies: false
+  note: 论文无训练流程（无 optimizer/learning_rate/epoch/loss 信号）

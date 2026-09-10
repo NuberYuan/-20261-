@@ -1,0 +1,11 @@
+paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+training:
+  applies: false
+  note: 论文无训练流程（无 optimizer/learning_rate/epoch/loss 信号）
+training_modes: {}
+reproducibility_notes:
+- Achieving constant-time graph matching without bounded node degree
+- Writing programs that exploit mark-separated node and edge lists
+- Avoiding compiler backtracking in program execution to maintain fast runtimes
+- Finding matches with correct marks and orientations without scanning incompatible
+  edges

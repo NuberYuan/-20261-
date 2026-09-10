@@ -1,0 +1,353 @@
+```python
+import math
+import os
+from typing import Optional
+
+import torch
+import torch.nn as nn
+import yaml
+
+
+class Transformer(nn.Module):
+    """
+    Transformer encoder for software defect prediction.
+
+    The model follows the architecture described in the paper:
+    "An explainable AI framework for enhanced software defect prediction
+    using transformer-assisted boosting".
+
+    The Transformer encoder uses scaled dot-product attention:
+        Attention(Q, K, V) = Softmax(QK^T / sqrt(d_K)) V
+    where Q, K, V are derived from the input features and d_K is the
+    dimension of the key vectors.
+
+    The input is a software metric feature vector of dimension d
+    (number of features), e.g., static code metrics from NASA MDP and
+    Code4Code datasets. The output is a binary defect prediction (0 or 1)
+    along with the predicted probability.
+
+    This class defines only the model structure with random initialization.
+    No pretrained weights are loaded and no transfer learning branches are
+    included. Weight initialization is handled externally in
+    training/train.py.
+    """
+
+    def __init__(
+        self,
+        config: Optional[dict] = None,
+        feature_dim: int = 21,
+        num_classes: int = 1,
+        d_model: int = 64,
+        nhead: int = 4,
+        num_layers: int = 2,
+        dim_feedforward: int = 128,
+        dropout_ratio: float = 0.5,
+        max_seq_len: int = 512,
+    ):
+        """
+        Initialize the Transformer model.
+
+        Args:
+            config: Optional configuration dictionary loaded from
+                config/config.yaml. If provided, hyperparameters are read
+                from the config file. Defaults to None.
+            feature_dim: Number of input features (software metrics).
+                Defaults to 21 (a reasonable default for NASA MDP datasets).
+            num_classes: Number of output classes. For binary defect
+                prediction this is 1 (sigmoid output). Defaults to 1.
+            d_model: Dimension of the transformer model. Defaults to 64.
+            nhead: Number of attention heads. Defaults to 4.
+            num_layers: Number of transformer encoder layers. Defaults to 2.
+            dim_feedforward: Dimension of the feedforward network.
+                Defaults to 128.
+            dropout_ratio: Dropout probability. Defaults to 0.5.
+            max_seq_len: Maximum sequence length for positional encoding.
+                Defaults to 512.
+        """
+        super(Transformer, self).__init__()
+
+        # Load configuration if provided
+        if config is not None:
+            # Safely access model config with defaults
+            model_config = config.get("model", {})
+
+            # num_classes: default to 1 for binary classification
+            # The paper uses binary defect prediction (0 or 1)
+            cfg_num_classes = model_config.get("num_classes")
+            if cfg_num_classes is not None:
+                num_classes = int(cfg_num_classes)
+
+            # dropout_ratio: default to 0.5
+            cfg_dropout = model_config.get("dropout_ratio")
+            if cfg_dropout is not None:
+                dropout_ratio = float(cfg_dropout)
+
+            # feature_dim from data config if available
+            data_config = config.get("data", {})
+            cfg_feature_dim = data_config.get("feature_dim")
+            if cfg_feature_dim is not None:
+                feature_dim = int(cfg_feature_dim)
+
+        # Store configuration
+        self.feature_dim = feature_dim
+        self.num_classes = num_classes
+        self.d_model = d_model
+        self.nhead = nhead
+        self.num_layers = num_layers
+        self.dim_feedforward = dim_feedforward
+        self.dropout_ratio = dropout_ratio
+        self.max_seq_len = max_seq_len
+
+        # Input projection: map features to d_model dimensions
+        # The input is a feature vector of dimension feature_dim
+        # We treat it as a sequence of length 1 with feature_dim channels
+        # and project it to d_model dimensions
+        self.input_projection = nn.Linear(feature_dim, d_model)
+
+        # Positional encoding for the sequence
+        # Since we treat the input as a sequence of length 1, we still
+        # add positional encoding for consistency with the transformer
+        # architecture
+        self.positional_encoding = PositionalEncoding(
+            d_model=d_model, dropout=dropout_ratio, max_len=max_seq_len
+        )
+
+        # Transformer encoder layer
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout_ratio,
+            activation="relu",
+            batch_first=True,
+        )
+
+        # Stack of encoder layers
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer, num_layers=num_layers
+        )
+
+        # Layer normalization before classification
+        self.layer_norm = nn.LayerNorm(d_model)
+
+        # Classification head
+        # For binary classification with sigmoid output, num_classes=1
+        self.classifier = nn.Sequential(
+            nn.Linear(d_model, d_model // 2),
+            nn.ReLU(),
+            nn.Dropout(dropout_ratio),
+            nn.Linear(d_model // 2, num_classes),
+        )
+
+        # Initialize weights
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize model weights using Xavier uniform initialization."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0.0)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.constant_(module.bias, 0.0)
+                nn.init.constant_(module.weight, 1.0)
+
+    def forward(
+        self, x: torch.Tensor, return_attention: bool = False
+    ) -> torch.Tensor:
+        """
+        Forward pass of the Transformer model.
+
+        Args:
+            x: Input tensor of shape (batch_size, feature_dim) containing
+                software metric features.
+            return_attention: If True, also return attention weights.
+                Defaults to False.
+
+        Returns:
+            If return_attention is False:
+                Output tensor of shape (batch_size, num_classes) containing
+                raw logits for binary classification.
+            If return_attention is True:
+                Tuple of (output, attention_weights) where attention_weights
+                is a list of attention weight tensors from each encoder layer.
+        """
+        # Input shape: (batch_size, feature_dim)
+        batch_size = x.size(0)
+
+        # Project input features to d_model dimensions
+        # Shape: (batch_size, d_model)
+        x = self.input_projection(x)
+
+        # Add sequence dimension: (batch_size, 1, d_model)
+        x = x.unsqueeze(1)
+
+        # Add positional encoding
+        x = self.positional_encoding(x)
+
+        # Pass through transformer encoder
+        # Shape: (batch_size, 1, d_model)
+        x = self.transformer_encoder(x)
+
+        # Apply layer normalization
+        x = self.layer_norm(x)
+
+        # Remove sequence dimension: (batch_size, d_model)
+        x = x.squeeze(1)
+
+        # Classification head
+        # Shape: (batch_size, num_classes)
+        logits = self.classifier(x)
+
+        return logits
+
+
+class PositionalEncoding(nn.Module):
+    """
+    Positional encoding module for the Transformer.
+
+    Adds sinusoidal positional encodings to the input embeddings.
+    """
+
+    def __init__(
+        self, d_model: int, dropout: float = 0.1, max_len: int = 512
+    ):
+        """
+        Initialize the positional encoding module.
+
+        Args:
+            d_model: Dimension of the model.
+            dropout: Dropout probability.
+            max_len: Maximum sequence length.
+        """
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        # Create positional encoding matrix
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float()
+            * (-math.log(10000.0) / d_model)
+        )
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)  # Shape: (1, max_len, d_model)
+
+        # Register as buffer (not a parameter)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Add positional encoding to input.
+
+        Args:
+            x: Input tensor of shape (batch_size, seq_len, d_model).
+
+        Returns:
+            Tensor with positional encoding added.
+        """
+        x = x + self.pe[:, : x.size(1), :]
+        return self.dropout(x)
+
+
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the configuration file.
+            Defaults to "config/config.yaml".
+
+    Returns:
+        Dictionary containing the configuration.
+    """
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        config_path,
+    )
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def create_transformer_model(
+    config: Optional[dict] = None,
+    feature_dim: int = 21,
+) -> Transformer:
+    """
+    Factory function to create a Transformer model.
+
+    Args:
+        config: Optional configuration dictionary. If None, loads from
+            config/config.yaml. Defaults to None.
+        feature_dim: Number of input features. Defaults to 21.
+
+    Returns:
+        An initialized Transformer model.
+    """
+    if config is None:
+        config = load_config()
+
+    # Extract model hyperparameters from config with safe defaults
+    model_config = config.get("model", {})
+
+    # num_classes: default to 1 for binary classification
+    # The paper uses binary defect prediction (0 or 1)
+    num_classes = model_config.get("num_classes", 1)
+    if num_classes is None:
+        num_classes = 1
+
+    # dropout_ratio: default to 0.5
+    dropout_ratio = model_config.get("dropout_ratio", 0.5)
+    if dropout_ratio is None:
+        dropout_ratio = 0.5
+
+    # feature_dim from data config if available
+    data_config = config.get("data", {})
+    cfg_feature_dim = data_config.get("feature_dim")
+    if cfg_feature_dim is not None:
+        feature_dim = int(cfg_feature_dim)
+
+    # Create model
+    model = Transformer(
+        config=config,
+        feature_dim=feature_dim,
+        num_classes=num_classes,
+        dropout_ratio=dropout_ratio,
+    )
+
+    return model
+
+
+if __name__ == "__main__":
+    # Quick test to verify the model can be instantiated and forward pass works
+    config = load_config()
+
+    # Determine feature dimension from config or use default
+    data_config = config.get("data", {})
+    test_feature_dim = data_config.get("feature_dim")
+    if test_feature_dim is None:
+        test_feature_dim = 21  # Default for NASA MDP datasets
+
+    # Create model
+    model = create_transformer_model(config, feature_dim=test_feature_dim)
+
+    # Print model summary
+    print(f"Model: {model.__class__.__name__}")
+    print(f"Feature dimension: {test_feature_dim}")
+    print(f"Number of parameters: {sum(p.numel() for p in model.parameters())}")
+
+    # Test forward pass
+    batch_size = 4
+    x = torch.randn(batch_size, test_feature_dim)
+    output = model(x)
+    print(f"Input shape: {x.shape}")
+    print(f"Output shape: {output.shape}")
+    print(f"Output values: {output}")
+
+    # Test with return_attention
+    output = model(x, return_attention=False)
+    print(f"Forward pass successful. Output shape: {output.shape}")
+```

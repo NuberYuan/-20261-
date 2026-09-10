@@ -1,0 +1,4 @@
+{
+  "experiment_matrix.known_best": "Enhanced Q-learning with all three modifications achieves 100% success on all tasks at test length 100 (with appropriate controller and curriculum).",
+  "experiment_matrix.known_worst": "Classical Q-learning fails on most tasks (e.g., reverse 0%, walk 0%, 3-row addition 0%, single digit multiplication 0% for standard settings)."
+}

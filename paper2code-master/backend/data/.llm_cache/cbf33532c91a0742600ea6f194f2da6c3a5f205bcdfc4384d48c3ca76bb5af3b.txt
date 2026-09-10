@@ -1,0 +1,119 @@
+```python
+import sys
+import json
+import os
+import numpy as np
+import cv2
+from PIL import Image
+
+def analyze_image(image_path):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # OCR text provided externally
+        ocr_text = """output
+Tape
+Input
+282@
+Gr id"""
+        
+        ocr_lower = ocr_text.lower()
+        
+        # Define keywords for each category
+        architecture_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder", 
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        experiment_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "curve", "performance", "comparison", "training", "validation"
+        ]
+        
+        dataset_keywords = [
+            "dataset", "sample", "example", "input", "class", "label",
+            "image", "data"
+        ]
+        
+        # Check for experiment_result first (highest priority)
+        experiment_components = []
+        for kw in experiment_keywords:
+            if kw in ocr_lower:
+                experiment_components.append(kw)
+        
+        if experiment_components:
+            return {
+                "type": "experiment_result",
+                "description": "展示实验结果或性能指标对比",
+                "important_components": experiment_components[:3],
+                "code_relevant_information": "需要实现实验评估模块，包含指标计算和结果可视化"
+            }
+        
+        # Check for architecture
+        architecture_components = []
+        for kw in architecture_keywords:
+            if kw in ocr_lower:
+                architecture_components.append(kw)
+        
+        if architecture_components:
+            return {
+                "type": "architecture",
+                "description": "展示模型网络结构和数据流关系",
+                "important_components": architecture_components[:3],
+                "code_relevant_information": "需要实现模型架构，包含特征提取和分类模块"
+            }
+        
+        # Check for dataset
+        dataset_components = []
+        for kw in dataset_keywords:
+            if kw in ocr_lower:
+                dataset_components.append(kw)
+        
+        if dataset_components:
+            return {
+                "type": "dataset",
+                "description": "展示数据集样本或输入示例",
+                "important_components": dataset_components[:3],
+                "code_relevant_information": "需要实现数据加载和预处理模块"
+            }
+        
+        # Default to other
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+        result = analyze_image(image_path)
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+```

@@ -1,0 +1,962 @@
+```python
+import os
+import sys
+import json
+import logging
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import torch
+import yaml
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.metrics import compute_metrics
+
+# Optional matplotlib import - must not crash if unavailable
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+logger = logging.getLogger(__name__)
+
+
+def _load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the configuration file. If None, uses default path.
+
+    Returns:
+        Configuration dictionary.
+    """
+    if config_path is None:
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'config',
+            'config.yaml'
+        )
+
+    if not os.path.exists(config_path):
+        logger.warning(f"Config file not found at {config_path}, using empty config")
+        return {}
+
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return config if config is not None else {}
+    except Exception as e:
+        logger.warning(f"Failed to load config from {config_path}: {e}")
+        return {}
+
+
+def _get_device(config: Optional[Dict[str, Any]] = None) -> torch.device:
+    """
+    Determine the device to use for evaluation.
+
+    Args:
+        config: Configuration dictionary.
+
+    Returns:
+        torch.device: Device to use.
+    """
+    if config is None:
+        config = {}
+
+    system_config = config.get('system', {})
+    device_name = system_config.get('device', 'cuda')
+
+    if device_name == 'cuda' and torch.cuda.is_available():
+        return torch.device('cuda')
+    elif device_name == 'cpu':
+        return torch.device('cpu')
+    else:
+        return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+def _load_model(
+    model_path: str,
+    config: Optional[Dict[str, Any]] = None,
+    device: Optional[torch.device] = None,
+) -> Optional[torch.nn.Module]:
+    """
+    Load a trained model from checkpoint.
+
+    Args:
+        model_path: Path to the model checkpoint.
+        config: Configuration dictionary.
+        device: Device to load the model onto.
+
+    Returns:
+        Loaded model or None if loading fails.
+    """
+    if config is None:
+        config = {}
+
+    if device is None:
+        device = _get_device(config)
+
+    if not os.path.exists(model_path):
+        logger.error(f"Model checkpoint not found at {model_path}")
+        return None
+
+    try:
+        checkpoint = torch.load(model_path, map_location=device)
+
+        # Import model classes
+        from models.deep_seek_coder13_b67_b_instruct import DeepSeekCoder13B67BInstruct
+        from models.stable_code_instruct3_b import StableCodeInstruct3B
+        from models.qwen25_coder15_b7_b_instruct import Qwen25Coder15B7BInstruct
+        from models.qwen306_b import Qwen306B
+        from models.qwen317_b import Qwen317B
+        from models.qwen34_b import Qwen34B
+        from models.qwen38_b import Qwen38B
+
+        # Determine model architecture from checkpoint or config
+        model_name = None
+        if 'model_name' in checkpoint:
+            model_name = checkpoint['model_name']
+        elif 'config' in checkpoint and checkpoint['config']:
+            model_config = checkpoint['config'].get('model', {})
+            architectures = model_config.get('architectures', [])
+            if architectures:
+                model_name = architectures[0]
+
+        if model_name is None:
+            # Try to infer from config
+            model_config = config.get('model', {})
+            architectures = model_config.get('architectures', [])
+            if architectures:
+                model_name = architectures[0]
+
+        if model_name is None:
+            logger.error("Could not determine model architecture from checkpoint or config")
+            return None
+
+        # Initialize model
+        if model_name == 'deep_seek_coder13_b67_b_instruct':
+            model = DeepSeekCoder13B67BInstruct(config=config)
+        elif model_name == 'stable_code_instruct3_b':
+            model = StableCodeInstruct3B(config=config)
+        elif model_name == 'qwen25_coder15_b7_b_instruct':
+            model = Qwen25Coder15B7BInstruct(config=config)
+        elif model_name == 'qwen306_b':
+            model = Qwen306B(config=config)
+        elif model_name == 'qwen317_b':
+            model = Qwen317B(config=config)
+        elif model_name == 'qwen34_b':
+            model = Qwen34B(config=config)
+        elif model_name == 'qwen38_b':
+            model = Qwen38B(config=config)
+        else:
+            logger.error(f"Unknown model architecture: {model_name}")
+            return None
+
+        # Load state dict
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        elif 'state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['state_dict'])
+        else:
+            logger.warning("No model state dict found in checkpoint, using random weights")
+
+        model.to(device)
+        model.eval()
+        logger.info(f"Loaded model from {model_path} (architecture: {model_name})")
+        return model
+
+    except Exception as e:
+        logger.error(f"Failed to load model from {model_path}: {e}")
+        return None
+
+
+def _prepare_inputs(
+    batch: Dict[str, Any],
+    device: torch.device,
+) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
+    """
+    Prepare input tensors for model forward pass.
+
+    Args:
+        batch: Batch dictionary from dataloader.
+        device: Device to move tensors to.
+
+    Returns:
+        Tuple of (input_ids, attention_mask, labels).
+    """
+    input_ids = batch['input_ids'].to(device)
+
+    attention_mask = None
+    if 'attention_mask' in batch and batch['attention_mask'] is not None:
+        attention_mask = batch['attention_mask'].to(device)
+
+    labels = None
+    if 'label' in batch and batch['label'] is not None:
+        labels = batch['label'].to(device)
+    elif 'labels' in batch and batch['labels'] is not None:
+        labels = batch['labels'].to(device)
+
+    return input_ids, attention_mask, labels
+
+
+def _extract_logits(
+    model_output: Union[torch.Tensor, Dict[str, torch.Tensor]],
+) -> torch.Tensor:
+    """
+    Extract logits from model output.
+
+    Args:
+        model_output: Model output (tensor or dict).
+
+    Returns:
+        Logits tensor.
+    """
+    if isinstance(model_output, dict):
+        if 'logits' in model_output:
+            return model_output['logits']
+        elif 'loss' in model_output and isinstance(model_output['loss'], torch.Tensor):
+            # If only loss is available, return it as a scalar tensor
+            return model_output['loss']
+        else:
+            raise ValueError("Model output dict must contain 'logits' or 'loss'")
+    elif isinstance(model_output, torch.Tensor):
+        return model_output
+    else:
+        raise ValueError(f"Unexpected model output type: {type(model_output)}")
+
+
+def _compute_predictions(
+    logits: torch.Tensor,
+    threshold: float = 0.5,
+) -> np.ndarray:
+    """
+    Convert logits to binary predictions.
+
+    Args:
+        logits: Logits tensor.
+        threshold: Threshold for binary classification.
+
+    Returns:
+        Numpy array of binary predictions.
+    """
+    # Handle different logits shapes
+    if logits.dim() == 3:
+        # Sequence output: take mean over sequence dimension
+        logits = logits.mean(dim=1)
+    elif logits.dim() == 1:
+        logits = logits.unsqueeze(0)
+
+    # Convert to probabilities
+    if logits.shape[-1] == 1:
+        probs = torch.sigmoid(logits).squeeze(-1)
+    elif logits.shape[-1] == 2:
+        probs = torch.softmax(logits, dim=-1)[:, 1]
+    else:
+        probs = torch.sigmoid(logits)
+
+    # Convert to binary predictions
+    preds = (probs > threshold).float().cpu().numpy()
+
+    return preds
+
+
+def _compute_binary_metrics(
+    predictions: np.ndarray,
+    labels: np.ndarray,
+) -> Dict[str, float]:
+    """
+    Compute binary classification metrics.
+
+    Args:
+        predictions: Binary predictions array.
+        labels: Ground truth labels array.
+
+    Returns:
+        Dictionary of metrics.
+    """
+    # Flatten arrays
+    preds = predictions.flatten()
+    labels_flat = labels.flatten()
+
+    # Ensure same length
+    min_len = min(len(preds), len(labels_flat))
+    preds = preds[:min_len]
+    labels_flat = labels_flat[:min_len]
+
+    if min_len == 0:
+        return {
+            'accuracy': 0.0,
+            'precision': 0.0,
+            'recall': 0.0,
+            'f1': 0.0,
+            'mean_f1': 0.0,
+        }
+
+    # Compute confusion matrix elements
+    tp = np.sum((preds == 1) & (labels_flat == 1))
+    tn = np.sum((preds == 0) & (labels_flat == 0))
+    fp = np.sum((preds == 1) & (labels_flat == 0))
+    fn = np.sum((preds == 0) & (labels_flat == 1))
+
+    # Compute metrics
+    accuracy = (tp + tn) / min_len if min_len > 0 else 0.0
+
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+
+    if precision + recall > 0:
+        f1 = 2 * precision * recall / (precision + recall)
+    else:
+        f1 = 0.0
+
+    # For binary classification, mean_f1 equals f1
+    mean_f1 = f1
+
+    return {
+        'accuracy': float(accuracy),
+        'precision': float(precision),
+        'recall': float(recall),
+        'f1': float(f1),
+        'mean_f1': float(mean_f1),
+    }
+
+
+def _compute_confusion_matrix(
+    predictions: np.ndarray,
+    labels: np.ndarray,
+    num_classes: int = 2,
+) -> np.ndarray:
+    """
+    Compute confusion matrix.
+
+    Args:
+        predictions: Binary predictions array.
+        labels: Ground truth labels array.
+        num_classes: Number of classes.
+
+    Returns:
+        Confusion matrix as numpy array.
+    """
+    # Flatten arrays
+    preds = predictions.flatten().astype(int)
+    labels_flat = labels.flatten().astype(int)
+
+    # Ensure same length
+    min_len = min(len(preds), len(labels_flat))
+    preds = preds[:min_len]
+    labels_flat = labels_flat[:min_len]
+
+    # Clamp values to valid range
+    preds = np.clip(preds, 0, num_classes - 1)
+    labels_flat = np.clip(labels_flat, 0, num_classes - 1)
+
+    # Initialize confusion matrix
+    confusion_matrix = np.zeros((num_classes, num_classes), dtype=int)
+
+    for i in range(min_len):
+        confusion_matrix[labels_flat[i], preds[i]] += 1
+
+    return confusion_matrix
+
+
+def evaluate_model(
+    model: Optional[torch.nn.Module] = None,
+    dataloader: Optional[Any] = None,
+    config: Optional[Dict[str, Any]] = None,
+    model_path: Optional[str] = None,
+    threshold: float = 0.5,
+    batch_size: int = 32,
+    device: Optional[torch.device] = None,
+) -> Dict[str, Any]:
+    """
+    Evaluate a model on a dataset.
+
+    Args:
+        model: The model to evaluate. If None, model will be loaded from model_path.
+        dataloader: DataLoader for evaluation data. If None, uses config to create one.
+        config: Configuration dictionary.
+        model_path: Path to model checkpoint to load if model is None.
+        threshold: Threshold for binary classification.
+        batch_size: Batch size for evaluation.
+        device: Device to run evaluation on.
+
+    Returns:
+        Dictionary containing evaluation metrics.
+    """
+    if config is None:
+        config = {}
+
+    if device is None:
+        device = _get_device(config)
+
+    # Load model if not provided
+    if model is None:
+        if model_path is None:
+            # Try to find model from config
+            checkpoint_config = config.get('checkpoint', {})
+            resume_from = checkpoint_config.get('resume_from', None)
+            if resume_from:
+                model_path = resume_from
+            else:
+                # Try default checkpoint locations
+                checkpoint_dir = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                    'checkpoints'
+                )
+                candidates = [
+                    os.path.join(checkpoint_dir, 'best_model.pt'),
+                    os.path.join(checkpoint_dir, 'final_model.pt'),
+                ]
+                for candidate in candidates:
+                    if os.path.exists(candidate):
+                        model_path = candidate
+                        break
+
+        if model_path is None:
+            logger.error("No model provided and no model path found")
+            return {
+                'pass@1': 0.0,
+                'accuracy': 0.0,
+                'precision': 0.0,
+                'recall': 0.0,
+                'f1': 0.0,
+                'mean_f1': 0.0,
+                'confusion_matrix': np.zeros((2, 2), dtype=int),
+                'num_samples': 0,
+            }
+
+        model = _load_model(model_path, config, device)
+
+    if model is None:
+        logger.error("Failed to load model")
+        return {
+            'pass@1': 0.0,
+            'accuracy': 0.0,
+            'precision': 0.0,
+            'recall': 0.0,
+            'f1': 0.0,
+            'mean_f1': 0.0,
+            'confusion_matrix': np.zeros((2, 2), dtype=int),
+            'num_samples': 0,
+        }
+
+    # Get dataloader if not provided
+    if dataloader is None:
+        try:
+            from data.dataset import get_dataloaders
+
+            # Get data configuration
+            data_config = config.get('data', {})
+            version = data_config.get('versions', ['default'])[0] if data_config.get('versions') else 'default'
+
+            # Get batch size from config
+            training_config = config.get('training', {})
+            batch_size_config = training_config.get('batch_size', {})
+            if isinstance(batch_size_config, dict):
+                eval_batch_size = int(batch_size_config.get('default', batch_size))
+            else:
+                eval_batch_size = int(batch_size_config) if batch_size_config else batch_size
+
+            # Get system config
+            system_config = config.get('system', {})
+            num_workers = int(system_config.get('num_workers', 4))
+            seed = int(system_config.get('seed', 42))
+
+            dataloaders = get_dataloaders(
+                config=config,
+                version=version,
+                batch_size=eval_batch_size,
+                num_workers=num_workers,
+                shuffle=False,
+                seed=seed,
+            )
+
+            # Use test loader if available, otherwise use val loader
+            if 'test_loader' in dataloaders:
+                dataloader = dataloaders['test_loader']
+            elif 'val_loader' in dataloaders:
+                dataloader = dataloaders['val_loader']
+            else:
+                dataloader = dataloaders['train_loader']
+
+        except ImportError:
+            logger.error("Could not import get_dataloaders from data.dataset")
+            return {
+                'pass@1': 0.0,
+                'accuracy': 0.0,
+                'precision': 0.0,
+                'recall': 0.0,
+                'f1': 0.0,
+                'mean_f1': 0.0,
+                'confusion_matrix': np.zeros((2, 2), dtype=int),
+                'num_samples': 0,
+            }
+
+    # Evaluate model
+    model.eval()
+    all_predictions = []
+    all_labels = []
+    all_scores = []
+
+    with torch.no_grad():
+        for batch in dataloader:
+            input_ids, attention_mask, labels = _prepare_inputs(batch, device)
+
+            if input_ids is None:
+                continue
+
+            # Forward pass
+            try:
+                if attention_mask is not None:
+                    output = model(input_ids, attention_mask=attention_mask)
+                else:
+                    output = model(input_ids)
+            except Exception as e:
+                logger.warning(f"Forward pass failed: {e}")
+                continue
+
+            # Extract logits
+            try:
+                logits = _extract_logits(output)
+            except ValueError as e:
+                logger.warning(f"Failed to extract logits: {e}")
+                continue
+
+            # Compute predictions
+            preds = _compute_predictions(logits, threshold)
+
+            # Store predictions and labels
+            all_predictions.extend(preds.flatten().tolist())
+
+            if labels is not None:
+                all_labels.extend(labels.cpu().numpy().flatten().tolist())
+
+            # Store scores for pass@1 computation
+            if logits.dim() == 3:
+                logits = logits.mean(dim=1)
+            if logits.shape[-1] == 1:
+                scores = torch.sigmoid(logits).squeeze(-1)
+            elif logits.shape[-1] == 2:
+                scores = torch.softmax(logits, dim=-1)[:, 1]
+            else:
+                scores = torch.sigmoid(logits)
+            all_scores.extend(scores.cpu().numpy().flatten().tolist())
+
+    # Convert to numpy arrays
+    predictions = np.array(all_predictions) if all_predictions else np.array([])
+    labels = np.array(all_labels) if all_labels else np.array([])
+    scores = np.array(all_scores) if all_scores else np.array([])
+
+    # Compute metrics
+    metrics: Dict[str, Any] = {}
+
+    # Compute pass@1 using compute_metrics from utils.metrics
+    if len(scores) > 0:
+        pass_metrics = compute_metrics(
+            predictions=scores.tolist(),
+            references=labels.tolist() if len(labels) > 0 else None,
+            config=config,
+            threshold=threshold,
+            batch_size=batch_size,
+        )
+        metrics['pass@1'] = pass_metrics.get('pass@1', 0.0)
+    else:
+        metrics['pass@1'] = 0.0
+
+    # Compute binary classification metrics
+    if len(predictions) > 0 and len(labels) > 0:
+        binary_metrics = _compute_binary_metrics(predictions, labels)
+        metrics.update(binary_metrics)
+
+        # Compute confusion matrix
+        metrics['confusion_matrix'] = _compute_confusion_matrix(predictions, labels)
+    else:
+        metrics['accuracy'] = 0.0
+        metrics['precision'] = 0.0
+        metrics['recall'] = 0.0
+        metrics['f1'] = 0.0
+        metrics['mean_f1'] = 0.0
+        metrics['confusion_matrix'] = np.zeros((2, 2), dtype=int)
+
+    metrics['num_samples'] = len(predictions)
+
+    logger.info(
+        f"Evaluation complete: pass@1={metrics['pass@1']:.4f}, "
+        f"accuracy={metrics['accuracy']:.4f}, "
+        f"mean_f1={metrics['mean_f1']:.4f}, "
+        f"samples={metrics['num_samples']}"
+    )
+
+    return metrics
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any],
+    output_path: str,
+) -> Optional[str]:
+    """
+    Generate a bar chart of key metrics.
+
+    Args:
+        metrics: Dictionary containing evaluation metrics.
+        output_path: Path to save the chart.
+
+    Returns:
+        Path to the saved chart, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        logger.warning("matplotlib not available, skipping bar chart generation")
+        return None
+
+    # Extract metrics for bar chart
+    metric_names = ['mean_f1', 'precision', 'recall', 'accuracy']
+    metric_values = []
+
+    for name in metric_names:
+        value = metrics.get(name, 0.0)
+        if isinstance(value, (int, float)):
+            metric_values.append(float(value))
+        else:
+            metric_values.append(0.0)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Create bar chart
+    bars = ax.bar(metric_names, metric_values, color=['#2E86AB', '#A23B72', '#F18F01', '#73AB84'])
+
+    # Add value labels on top of bars
+    for bar, value in zip(bars, metric_values):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.,
+            height + 0.01,
+            f'{value:.4f}',
+            ha='center',
+            va='bottom',
+            fontsize=10,
+        )
+
+    # Set labels and title
+    ax.set_xlabel('Metric', fontsize=12)
+    ax.set_ylabel('Score', fontsize=12)
+    ax.set_title('Evaluation Metrics', fontsize=14, fontweight='bold')
+    ax.set_ylim(0, 1.1)
+    ax.grid(axis='y', alpha=0.3)
+
+    # Add pass@1 as text annotation
+    pass_at_1 = metrics.get('pass@1', 0.0)
+    if isinstance(pass_at_1, (int, float)):
+        ax.text(
+            0.98,
+            0.95,
+            f'Pass@1: {float(pass_at_1):.4f}',
+            transform=ax.transAxes,
+            ha='right',
+            va='top',
+            fontsize=12,
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5),
+        )
+
+    plt.tight_layout()
+
+    # Save figure
+    try:
+        fig.savefig(output_path, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        logger.info(f"Metrics bar chart saved to {output_path}")
+        return output_path
+    except Exception as e:
+        logger.warning(f"Failed to save bar chart: {e}")
+        plt.close(fig)
+        return None
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: np.ndarray,
+    output_path: str,
+) -> Optional[str]:
+    """
+    Generate a confusion matrix plot.
+
+    Args:
+        confusion_matrix: 2D numpy array representing the confusion matrix.
+        output_path: Path to save the plot.
+
+    Returns:
+        Path to the saved plot, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        logger.warning("matplotlib not available, skipping confusion matrix plot")
+        return None
+
+    if confusion_matrix is None or not isinstance(confusion_matrix, np.ndarray):
+        logger.warning("Invalid confusion matrix, skipping plot")
+        return None
+
+    if confusion_matrix.ndim != 2:
+        logger.warning(f"Confusion matrix must be 2D, got {confusion_matrix.ndim}D")
+        return None
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Create confusion matrix plot
+    im = ax.imshow(confusion_matrix, interpolation='nearest', cmap='Blues')
+
+    # Add colorbar
+    plt.colorbar(im, ax=ax)
+
+    # Set labels
+    num_classes = confusion_matrix.shape[0]
+    class_names = [f'Class {i}' for i in range(num_classes)]
+
+    ax.set_xticks(np.arange(num_classes))
+    ax.set_yticks(np.arange(num_classes))
+    ax.set_xticklabels(class_names)
+    ax.set_yticklabels(class_names)
+
+    # Rotate x-axis labels
+    plt.setp(ax.get_xticklabels(), rotation=45, ha='right', rotation_mode='anchor')
+
+    # Add text annotations
+    thresh = confusion_matrix.max() / 2. if confusion_matrix.max() > 0 else 0.5
+    for i in range(num_classes):
+        for j in range(num_classes):
+            ax.text(
+                j,
+                i,
+                str(confusion_matrix[i, j]),
+                ha='center',
+                va='center',
+                color='white' if confusion_matrix[i, j] > thresh else 'black',
+                fontsize=12,
+            )
+
+    ax.set_xlabel('Predicted Label', fontsize=12)
+    ax.set_ylabel('True Label', fontsize=12)
+    ax.set_title('Confusion Matrix', fontsize=14, fontweight='bold')
+
+    plt.tight_layout()
+
+    # Save figure
+    try:
+        fig.savefig(output_path, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        logger.info(f"Confusion matrix plot saved to {output_path}")
+        return output_path
+    except Exception as e:
+        logger.warning(f"Failed to save confusion matrix plot: {e}")
+        plt.close(fig)
+        return None
+
+
+def _generate_text_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Generate a text report of evaluation metrics.
+
+    Args:
+        metrics: Dictionary containing evaluation metrics.
+        run_name: Name of the evaluation run.
+        config: Configuration dictionary.
+
+    Returns:
+        Text report as a string.
+    """
+    if config is None:
+        config = {}
+
+    lines = []
+    lines.append("=" * 70)
+    lines.append(f"Evaluation Report - Run: {run_name}")
+    lines.append("=" * 70)
+
+    # Project info
+    project_config = config.get('project', {})
+    if project_config:
+        lines.append(f"Project: {project_config.get('name', 'AdaDec')}")
+        if project_config.get('paper'):
+            lines.append(f"Paper: {project_config['paper']}")
+
+    lines.append("")
+    lines.append("-" * 70)
+    lines.append("Metrics Summary")
+    lines.append("-" * 70)
+
+    # Key metrics
+    key_metrics = [
+        ('pass@1', 'Pass@1'),
+        ('accuracy', 'Accuracy'),
+        ('precision', 'Precision'),
+        ('recall', 'Recall'),
+        ('f1', 'F1 Score'),
+        ('mean_f1', 'Mean F1'),
+    ]
+
+    for key, display_name in key_metrics:
+        value = metrics.get(key, 0.0)
+        if isinstance(value, (int, float)):
+            lines.append(f"  {display_name:15s}: {float(value):.4f}")
+        else:
+            lines.append(f"  {display_name:15s}: N/A")
+
+    # Sample count
+    num_samples = metrics.get('num_samples', 0)
+    lines.append(f"  {'Num Samples':15s}: {num_samples}")
+
+    # Confusion matrix
+    confusion_matrix = metrics.get('confusion_matrix', None)
+    if confusion_matrix is not None and isinstance(confusion_matrix, np.ndarray):
+        lines.append("")
+        lines.append("-" * 70)
+        lines.append("Confusion Matrix")
+        lines.append("-" * 70)
+
+        num_classes = confusion_matrix.shape[0]
+        # Header
+        header = "        " + "".join([f"Pred {i:3d} " for i in range(num_classes)])
+        lines.append(header)
+        lines.append("        " + "-" * (8 * num_classes))
+
+        for i in range(num_classes):
+            row = f"True {i:3d} |"
+            for j in range(num_classes):
+                row += f" {confusion_matrix[i, j]:5d} |"
+            lines.append(row)
+
+    # Configuration info
+    lines.append("")
+    lines.append("-" * 70)
+    lines.append("Configuration")
+    lines.append("-" * 70)
+
+    training_config = config.get('training', {})
+    if training_config:
+        epochs = training_config.get('epochs', 'N/A')
+        loss_function = training_config.get('loss_function', 'N/A')
+        lines.append(f"  Epochs: {epochs}")
+        lines.append(f"  Loss Function: {loss_function}")
+
+        optimizer_config = training_config.get('optimizer', {})
+        if optimizer_config:
+            optimizer_name = optimizer_config.get('name', 'N/A')
+            lr = optimizer_config.get('lr', 'N/A')
+            lines.append(f"  Optimizer: {optimizer_name}")
+            lines.append(f"  Learning Rate: {lr}")
+
+        scheduler_config = training_config.get('scheduler', {})
+        if scheduler_config:
+            scheduler_name = scheduler_config.get('name', 'N/A')
+            lines.append(f"  Scheduler: {scheduler_name}")
+
+    # Reproduction mode
+    reproduction_mode = config.get('reproduction_mode', 'engineering')
+    lines.append(f"  Reproduction Mode: {reproduction_mode}")
+
+    lines.append("")
+    lines.append("=" * 70)
+    lines.append("End of Report")
+    lines.append("=" * 70)
+
+    return "\n".join(lines)
+
+
+def generate_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Generate evaluation report for a single run.
+
+    Args:
+        metrics: Dictionary containing evaluation metrics.
+        run_name: Name of the evaluation run.
+        output_dir: Directory to save the report.
+        config: Configuration dictionary.
+
+    Returns:
+        Path to the generated report file.
+    """
+    if config is None:
+        config = {}
+
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Generate text report
+    text_report = _generate_text_report(metrics, run_name, config)
+
+    # Save text report
+    report_path = os.path.join(output_dir, f'{run_name}_report.txt')
+    try:
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(text_report)
+        logger.info(f"Text report saved to {report_path}")
+    except Exception as e:
+        logger.error(f"Failed to save text report: {e}")
+        report_path = os.path.join(output_dir, f'{run_name}_report.txt')
+        # Fallback: try to save without encoding parameter
+        try:
+            with open(report_path, 'w') as f:
+                f.write(text_report)
+        except Exception as e2:
+            logger.error(f"Failed to save text report (fallback): {e2}")
+            return ""
+
+    # Save metrics as JSON
+    json_path = os.path.join(output_dir, f'{run_name}_metrics.json')
+    try:
+        # Convert numpy arrays to lists for JSON serialization
+        serializable_metrics = {}
+        for key, value in metrics.items():
+            if isinstance(value, np.ndarray):
+                serializable_metrics[key] = value.tolist()
+            elif isinstance(value, (np.integer, np.floating)):
+                serializable_metrics[key] = float(value)
+            else:
+                serializable_metrics[key] = value
+
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(serializable_metrics, f, indent=2, default=str)
+        logger.info(f"Metrics JSON saved to {json_path}")
+    except Exception as e:
+        logger.warning(f"Failed to save metrics JSON: {e}")
+
+    # Generate bar chart if matplotlib is available
+    chart_path = None
+    if plt is not None:
+        chart_path = _generate_metrics_bar_chart(
+            metrics,
+            os.path.join(output_dir, f'{run_name}_metrics_bar_chart.png'),
+        )
+
+    # Generate confusion matrix plot if matplotlib is available
+    cm_path = None
+    if plt is not None:
+        confusion_matrix = metrics.get('confusion_matrix', None)
+        if confusion_matrix is not None and isinstance(confusion_matrix, np.ndarray):
+            cm_path = _generate_confusion_matrix_plot(
+                confusion_matrix,
+                os.path.join(output_dir, f'{run_name}_confusion_matrix.png'),
+            )
+
+    # Log summary
+    logger.info(f"Report generated for run '{run_name}' at {report_path}")
+    if chart_path:
+        logger.info(f"Bar chart saved to {chart_path}")
+    if cm_path:
+        logger.info(f"Confusion matrix plot saved to {cm_path}")
+
+    return report_path
+```

@@ -1,0 +1,130 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+import os
+
+def analyze_image(image_path):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法读取图片文件",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # OCR text is empty in this case
+        ocr_text = ""
+        
+        # Since OCR is empty, use visual features and filename context
+        # Get image basic properties
+        height, width = img.shape[:2]
+        
+        # Check if image is mostly grayscale (common in architecture diagrams)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        color_std = np.std(img)
+        
+        # Check color distribution - architecture diagrams often have limited colors
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        saturation_mean = np.mean(hsv[:,:,1])
+        
+        # Analyze image content based on visual characteristics
+        # Architecture diagrams typically have:
+        # - High contrast between elements
+        # - Multiple distinct regions
+        # - Often grayscale or limited color palette
+        
+        # Check if image has characteristics of architecture diagram
+        # (block-like structures with clear boundaries)
+        edges = cv2.Canny(gray, 50, 150)
+        edge_density = np.sum(edges > 0) / (height * width)
+        
+        # Check for text-like regions (high contrast areas)
+        _, binary = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+        white_ratio = np.sum(binary > 0) / (height * width)
+        
+        # Determine image type based on visual characteristics
+        # Since OCR is empty, we rely on visual cues
+        
+        # Check if it looks like a flow diagram (architecture)
+        # Architecture diagrams often have:
+        # - Clear structure with boxes and arrows
+        # - Moderate edge density
+        # - Limited color palette
+        
+        if edge_density > 0.05 and edge_density < 0.3:
+            # Could be architecture diagram
+            if saturation_mean < 100:  # Limited color palette
+                return {
+                    "type": "architecture",
+                    "description": "展示模型网络结构和数据流关系",
+                    "important_components": [],
+                    "code_relevant_information": "需要实现模型网络结构，包含特征提取和分类模块"
+                }
+        
+        # Check if it looks like experimental results (plots/charts)
+        # Experimental plots typically have:
+        # - Continuous lines or bars
+        # - Specific color patterns
+        # - Axis labels (but OCR is empty)
+        
+        # Check for plot-like characteristics
+        # Plots often have white background with colored lines
+        if white_ratio > 0.5 and saturation_mean > 50:
+            # Could be experimental results
+            return {
+                "type": "experiment_result",
+                "description": "展示实验结果对比或性能指标变化",
+                "important_components": [],
+                "code_relevant_information": "需要实现实验评估模块，包含指标计算和结果可视化"
+            }
+        
+        # Check if it looks like dataset samples
+        # Dataset images typically have:
+        # - Multiple similar images arranged in grid
+        # - Natural colors
+        # - High color variance
+        
+        if color_std > 50 and saturation_mean > 80:
+            return {
+                "type": "dataset",
+                "description": "展示数据集样本或输入示例",
+                "important_components": [],
+                "code_relevant_information": "需要实现数据加载和预处理模块"
+            }
+        
+        # Default to other if cannot determine
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "图片分析过程中出现错误",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+        result = analyze_image(image_path)
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        print(json.dumps({
+            "type": "other",
+            "description": "未提供图片路径",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+```

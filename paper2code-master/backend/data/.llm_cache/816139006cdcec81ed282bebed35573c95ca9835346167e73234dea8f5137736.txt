@@ -1,0 +1,16 @@
+```python
+# models/__init__.py
+"""
+模型模块初始化文件。
+
+统一导出所有模型类，便于外部通过 `from models import Lstm, Gru` 导入。
+"""
+
+from .lstm import Lstm
+from .gru import Gru
+
+__all__ = [
+    "Lstm",
+    "Gru",
+]
+```

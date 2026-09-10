@@ -1,0 +1,506 @@
+```python
+import os
+import sys
+import json
+import logging
+from typing import Dict, Any, Optional, List, Tuple
+
+import numpy as np
+import torch
+import yaml
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.metrics import compute_metrics
+
+# Optional matplotlib import - must not crash if unavailable
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the configuration file.
+
+    Returns:
+        dict: Configuration dictionary.
+    """
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def evaluate_model(
+    model: torch.nn.Module,
+    test_loader: torch.utils.data.DataLoader,
+    config: Optional[dict] = None,
+    device: Optional[torch.device] = None,
+    quantiles: tuple = (0.5, 0.9),
+) -> Dict[str, Any]:
+    """
+    Evaluate a trained model on the test set and compute metrics.
+
+    Computes Normalized quantile losses (P50 and P90 risk) as described in
+    the Temporal Fusion Transformers paper.
+
+    Args:
+        model: Trained PyTorch model.
+        test_loader: DataLoader for test data.
+        config: Configuration dictionary loaded from config.yaml.
+        device: Device to run evaluation on.
+        quantiles: Quantile levels used in predictions. Default (0.5, 0.9).
+
+    Returns:
+        dict: Dictionary containing evaluation metrics:
+            - 'P50_loss': Normalized quantile loss at 0.5 quantile
+            - 'P90_loss': Normalized quantile loss at 0.9 quantile
+            - 'P50_risk': Alias for P50_loss
+            - 'P90_risk': Alias for P90_loss
+            - 'MAE': Mean Absolute Error (if 0.5 quantile available)
+            - 'num_samples': Number of test samples
+            - 'quantiles': Quantile levels used
+    """
+    if config is None:
+        config = load_config()
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Set model to evaluation mode
+    model.eval()
+    model = model.to(device)
+
+    # Collect predictions and targets
+    all_predictions = []
+    all_targets = []
+
+    with torch.no_grad():
+        for batch_idx, (features, targets) in enumerate(test_loader):
+            features = features.to(device)
+            targets = targets.to(device)
+
+            # Forward pass - try transformer-style first, fallback to LSTM-style
+            try:
+                seq_len = features.size(1)
+                past_len = seq_len // 2
+                past_inputs = features[:, :past_len, :]
+                future_inputs = features[:, past_len:, :]
+
+                predictions = model(past_inputs, future_inputs)
+            except (TypeError, ValueError, RuntimeError):
+                predictions = model(features)
+
+            # Handle different output shapes
+            if predictions.dim() == 3 and predictions.size(-1) >= 2:
+                # Quantile outputs - take the quantiles we need
+                # Model outputs (batch, horizon, num_quantiles)
+                # We need to extract the quantiles specified
+                pred_np = predictions.detach().cpu().numpy()
+                target_np = targets.detach().cpu().numpy()
+
+                # Store all predictions and targets
+                all_predictions.append(pred_np)
+                all_targets.append(target_np)
+            else:
+                # Single output - reshape to have quantile dimension
+                pred_np = predictions.detach().cpu().numpy()
+                target_np = targets.detach().cpu().numpy()
+
+                # If predictions are (batch, horizon), add quantile dim
+                if pred_np.ndim == 2:
+                    pred_np = pred_np[:, :, np.newaxis]
+                if target_np.ndim == 2:
+                    target_np = target_np[:, :, np.newaxis]
+
+                all_predictions.append(pred_np)
+                all_targets.append(target_np)
+
+    # Concatenate all batches
+    if not all_predictions:
+        return {
+            'P50_loss': float('nan'),
+            'P90_loss': float('nan'),
+            'P50_risk': float('nan'),
+            'P90_risk': float('nan'),
+            'MAE': float('nan'),
+            'num_samples': 0,
+            'quantiles': list(quantiles),
+        }
+
+    y_pred = np.concatenate(all_predictions, axis=0)
+    y_true = np.concatenate(all_targets, axis=0)
+
+    # Ensure shapes are compatible
+    # y_true: (num_samples, horizon) or (num_samples, horizon, 1)
+    # y_pred: (num_samples, horizon, num_quantiles)
+    if y_true.ndim == 3 and y_true.shape[-1] == 1:
+        y_true = y_true.squeeze(-1)
+
+    # Compute metrics using the metrics utility
+    metrics = compute_metrics(
+        y_true=y_true,
+        y_pred=y_pred,
+        quantiles=quantiles,
+        config=config,
+    )
+
+    # Add additional info
+    metrics['num_samples'] = int(y_true.shape[0])
+    metrics['horizon'] = int(y_true.shape[1]) if y_true.ndim > 1 else 1
+
+    return metrics
+
+
+def generate_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+    config: Optional[dict] = None,
+) -> str:
+    """
+    Generate a text report and optional charts for evaluation results.
+
+    Args:
+        metrics: Dictionary of evaluation metrics from evaluate_model.
+        run_name: Name of the experiment run.
+        output_dir: Directory to save the report and charts.
+        config: Configuration dictionary loaded from config.yaml.
+
+    Returns:
+        str: Path to the generated report file.
+    """
+    if config is None:
+        config = load_config()
+
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Generate text report
+    report_path = os.path.join(output_dir, f"{run_name}_report.txt")
+    _write_text_report(metrics, run_name, report_path, config)
+
+    # Generate charts if matplotlib is available
+    if plt is not None:
+        try:
+            # Generate metrics bar chart
+            chart_path = _generate_metrics_bar_chart(metrics, run_name, output_dir)
+            if chart_path:
+                # Append chart path to report
+                with open(report_path, 'a', encoding='utf-8') as f:
+                    f.write(f"\nChart saved to: {chart_path}\n")
+        except Exception as e:
+            # Log warning but don't fail report generation
+            logging.warning(f"Failed to generate bar chart: {e}")
+
+        try:
+            # Generate confusion matrix plot if available
+            if 'confusion_matrix' in metrics and metrics['confusion_matrix'] is not None:
+                cm_path = _generate_confusion_matrix_plot(
+                    metrics['confusion_matrix'], run_name, output_dir
+                )
+                if cm_path:
+                    with open(report_path, 'a', encoding='utf-8') as f:
+                        f.write(f"Confusion matrix saved to: {cm_path}\n")
+        except Exception as e:
+            logging.warning(f"Failed to generate confusion matrix: {e}")
+
+    # Save metrics as JSON for programmatic access
+    json_path = os.path.join(output_dir, f"{run_name}_metrics.json")
+    # Convert numpy types to Python native types for JSON serialization
+    serializable_metrics = {}
+    for key, value in metrics.items():
+        if isinstance(value, (np.integer,)):
+            serializable_metrics[key] = int(value)
+        elif isinstance(value, (np.floating,)):
+            serializable_metrics[key] = float(value)
+        elif isinstance(value, np.ndarray):
+            serializable_metrics[key] = value.tolist()
+        else:
+            serializable_metrics[key] = value
+
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(serializable_metrics, f, indent=2, default=str)
+
+    return report_path
+
+
+def _write_text_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    report_path: str,
+    config: Optional[dict] = None,
+) -> None:
+    """
+    Write a text report of evaluation metrics.
+
+    Args:
+        metrics: Dictionary of evaluation metrics.
+        run_name: Name of the experiment run.
+        report_path: Path to save the report.
+        config: Configuration dictionary.
+    """
+    if config is None:
+        config = load_config()
+
+    # Get project info
+    project_config = config.get('project', {})
+    project_name = project_config.get('name', 'temporal_fusion_transformers')
+    paper_title = project_config.get('paper', '')
+
+    # Get dataset info
+    data_config = config.get('data', {})
+    data_root = data_config.get('root', './data')
+
+    # Get reproduction mode
+    reproduction_mode = config.get('reproduction_mode', 'engineering')
+
+    lines = []
+    lines.append("=" * 80)
+    lines.append(f"EVALUATION REPORT")
+    lines.append(f"Project: {project_name}")
+    lines.append(f"Paper: {paper_title}")
+    lines.append(f"Run: {run_name}")
+    lines.append(f"Reproduction Mode: {reproduction_mode}")
+    lines.append("=" * 80)
+    lines.append("")
+
+    # Dataset information
+    lines.append("Dataset Information:")
+    lines.append(f"  Data root: {data_root}")
+    lines.append("")
+
+    # Evaluation metrics
+    lines.append("Evaluation Metrics:")
+    lines.append("-" * 40)
+
+    # Normalized quantile losses (P50 and P90 risk)
+    p50_loss = metrics.get('P50_loss', metrics.get('P50_risk', None))
+    p90_loss = metrics.get('P90_loss', metrics.get('P90_risk', None))
+
+    if p50_loss is not None:
+        lines.append(f"  Normalized Quantile Loss (P50): {p50_loss:.6f}")
+    if p90_loss is not None:
+        lines.append(f"  Normalized Quantile Loss (P90): {p90_loss:.6f}")
+
+    # Risk aliases
+    p50_risk = metrics.get('P50_risk', None)
+    p90_risk = metrics.get('P90_risk', None)
+
+    if p50_risk is not None:
+        lines.append(f"  P50 Risk: {p50_risk:.6f}")
+    if p90_risk is not None:
+        lines.append(f"  P90 Risk: {p90_risk:.6f}")
+
+    # MAE if available
+    mae = metrics.get('MAE', None)
+    if mae is not None:
+        lines.append(f"  Mean Absolute Error (MAE): {mae:.6f}")
+
+    # Additional metrics
+    for key, value in metrics.items():
+        if key in ('P50_loss', 'P90_loss', 'P50_risk', 'P90_risk', 'MAE', 'quantiles', 'num_samples', 'horizon', 'confusion_matrix'):
+            continue
+        if isinstance(value, (int, float, np.integer, np.floating)):
+            lines.append(f"  {key}: {value:.6f}" if isinstance(value, (float, np.floating)) else f"  {key}: {value}")
+
+    # Sample information
+    num_samples = metrics.get('num_samples', None)
+    if num_samples is not None:
+        lines.append(f"  Number of test samples: {num_samples}")
+
+    horizon = metrics.get('horizon', None)
+    if horizon is not None:
+        lines.append(f"  Forecast horizon: {horizon}")
+
+    # Quantiles used
+    quantiles = metrics.get('quantiles', None)
+    if quantiles:
+        lines.append(f"  Quantiles evaluated: {quantiles}")
+
+    lines.append("")
+    lines.append("=" * 80)
+    lines.append("Note: Normalized quantile losses follow the normalization scheme")
+    lines.append("described in the Temporal Fusion Transformers paper (Lim et al., 2021).")
+    lines.append("=" * 80)
+
+    # Write to file
+    with open(report_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+
+    logging.info(f"Report saved to {report_path}")
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+) -> Optional[str]:
+    """
+    Generate a bar chart of evaluation metrics.
+
+    Args:
+        metrics: Complete metrics dictionary.
+        run_name: Name of the experiment run.
+        output_dir: Directory to save the chart.
+
+    Returns:
+        Optional[str]: Path to the saved chart, or None if matplotlib unavailable.
+    """
+    if plt is None:
+        return None
+
+    # Extract metrics for plotting
+    metric_names = []
+    metric_values = []
+
+    # P50 and P90 losses
+    p50 = metrics.get('P50_loss', metrics.get('P50_risk', None))
+    p90 = metrics.get('P90_loss', metrics.get('P90_risk', None))
+
+    if p50 is not None:
+        metric_names.append('P50 Loss')
+        metric_values.append(float(p50))
+
+    if p90 is not None:
+        metric_names.append('P90 Loss')
+        metric_values.append(float(p90))
+
+    # MAE if available
+    mae = metrics.get('MAE', None)
+    if mae is not None:
+        metric_names.append('MAE')
+        metric_values.append(float(mae))
+
+    # Add any other numeric metrics
+    for key, value in metrics.items():
+        if key in ('P50_loss', 'P90_loss', 'P50_risk', 'P90_risk', 'MAE', 'quantiles', 'num_samples', 'horizon', 'confusion_matrix'):
+            continue
+        if isinstance(value, (int, float, np.integer, np.floating)):
+            metric_names.append(str(key))
+            metric_values.append(float(value))
+
+    if not metric_names:
+        return None
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Bar chart
+    bars = ax.bar(metric_names, metric_values, color='steelblue', edgecolor='black')
+
+    # Add value labels on top of bars
+    for bar, value in zip(bars, metric_values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.01 * max(metric_values),
+            f'{value:.4f}',
+            ha='center',
+            va='bottom',
+            fontsize=9,
+            rotation=0
+        )
+
+    # Labels and title
+    ax.set_xlabel('Metric')
+    ax.set_ylabel('Value')
+    ax.set_title(f'Evaluation Metrics - {run_name}')
+    ax.grid(axis='y', alpha=0.3)
+
+    # Rotate x-axis labels for readability
+    plt.xticks(rotation=45, ha='right')
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save chart
+    chart_path = os.path.join(output_dir, f"{run_name}_metrics.png")
+    plt.savefig(chart_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+    return chart_path
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: np.ndarray,
+    run_name: str,
+    output_dir: str,
+) -> Optional[str]:
+    """
+    Generate a confusion matrix plot.
+
+    Args:
+        confusion_matrix: 2D numpy array of confusion matrix values.
+        run_name: Name of the experiment run.
+        output_dir: Directory to save the plot.
+
+    Returns:
+        Optional[str]: Path to the saved plot, or None if matplotlib unavailable.
+    """
+    if plt is None:
+        return None
+
+    if confusion_matrix is None:
+        return None
+
+    # Convert to numpy array if needed
+    if isinstance(confusion_matrix, torch.Tensor):
+        confusion_matrix = confusion_matrix.detach().cpu().numpy()
+
+    confusion_matrix = np.asarray(confusion_matrix)
+
+    if confusion_matrix.ndim != 2:
+        logging.warning(f"Confusion matrix must be 2D, got shape {confusion_matrix.shape}")
+        return None
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Display confusion matrix
+    im = ax.imshow(confusion_matrix, interpolation='nearest', cmap='Blues')
+
+    # Add colorbar
+    plt.colorbar(im, ax=ax)
+
+    # Set labels
+    num_classes = confusion_matrix.shape[0]
+    class_labels = [str(i) for i in range(num_classes)]
+
+    ax.set_xticks(np.arange(num_classes))
+    ax.set_yticks(np.arange(num_classes))
+    ax.set_xticklabels(class_labels)
+    ax.set_yticklabels(class_labels)
+
+    # Rotate x-axis labels
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
+    # Add text annotations
+    threshold = confusion_matrix.max() / 2.0 if confusion_matrix.max() > 0 else 0.5
+    for i in range(num_classes):
+        for j in range(num_classes):
+            color = "white" if confusion_matrix[i, j] > threshold else "black"
+            ax.text(
+                j, i, format(confusion_matrix[i, j], '.4f'),
+                ha="center", va="center", color=color, fontsize=10
+            )
+
+    ax.set_xlabel('Predicted Label')
+    ax.set_ylabel('True Label')
+    ax.set_title(f'Confusion Matrix - {run_name}')
+
+    plt.tight_layout()
+
+    # Save plot
+    plot_path = os.path.join(output_dir, f"{run_name}_confusion_matrix.png")
+    plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+    return plot_path
+```

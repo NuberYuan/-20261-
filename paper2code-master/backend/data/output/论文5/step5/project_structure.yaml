@@ -1,0 +1,37 @@
+paper_name: 论文5
+project_name: Temporal_Fusion_Transformers_for_Interpretable_Mul
+root_structure:
+  directories:
+  - data
+  - models
+  - training
+  - evaluation
+  - utils
+  - config
+  files:
+    data:
+    - dataset.py
+    models:
+    - lstm.py
+    - transformer.py
+    - __init__.py
+    training:
+    - train.py
+    evaluation:
+    - evaluate.py
+    utils:
+    - metrics.py
+    config:
+    - config.yaml
+    .:
+    - main.py
+    - requirements.txt
+    - README.md
+module_mapping:
+  data: 数据加载与预处理
+  models: '模型定义: lstm, transformer'
+  training: 训练循环
+  evaluation: 评估与对比
+  utils: 工具函数
+  config: YAML 配置
+  entry_point: main.py

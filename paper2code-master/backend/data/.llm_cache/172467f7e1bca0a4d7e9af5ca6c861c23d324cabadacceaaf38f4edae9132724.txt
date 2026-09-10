@@ -1,0 +1,735 @@
+project:
+  name: "Using Deep Learning for Image-Based Plant Disease Detection"
+  paper: "Using Deep Learning for Image-Based Plant Disease Detection"
+  framework: "PyTorch"
+  task: "image_classification"
+  hardware: "EPFL GPU cluster computing resources"
+
+data_source: "external_dataset"
+acquisition: "local_path"
+
+dataset_versions: ["color", "grayscale", "segmented"]
+
+version_selector:
+  config_key: "dataset_version"
+  values: ["color", "grayscale", "segmented"]
+  default: "color"
+  note: "通过 config.yaml 的 dataset_version 字段切换预处理版本"
+
+data:
+  root: null
+  versions: ["color", "grayscale", "segmented"]
+  unresolved_dataset_versions: ["color", "grayscale", "segmented"]
+  image_size: [256, 256]
+  image_channels:
+    color: 3
+    grayscale: 1
+    segmented: 3
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+  normalize: true
+  normalize_note: "ImageNet normalization statistics; engineering default (paper does not explicitly report mean/std)."
+  color:
+    status: unresolved
+    reason: "PlantVillage color version local path not provided in project brief; set data.root or data.color.path before running."
+    description: "PlantVillage color images (RGB)."
+  grayscale:
+    status: unresolved
+    reason: "PlantVillage grayscale version local path not provided in project brief; set data.root or data.grayscale.path before running."
+    description: "PlantVillage grayscale images."
+  segmented:
+    status: unresolved
+    reason: "PlantVillage segmented version local path not provided in project brief; set data.root or data.segmented.path before running."
+    description: "PlantVillage segmented images."
+
+split_strategy:
+  method: "leaf_based_split"
+  train_test_splits: [0.8, 0.6, 0.5, 0.4, 0.2]
+  default_train_ratio: 0.8
+  val_split_ratio: 0.2
+  seed: 42
+  leaf_mapping_constraint: "同一片叶子的多张图片必须保持在同一个集合中"
+  note: "Train-test splits of 80-20, 60-40, 50-50, 40-60, and 20-80 were used. For 41,112 images with known leaf mappings, all images of the same leaf were kept either in training set or test set to avoid data leakage."
+
+reproduction_mode: "engineering"
+
+model:
+  architectures: ["AlexNet", "GoogLeNet"]
+  num_classes: 38
+  dropout_ratio: 0.5
+  weight_init: "kaiming_normal"
+  input_size: [256, 256]
+
+training_modes:
+  scratch:
+    description: "从头训练：所有层随机初始化"
+    pretrained: false
+    weight_init: "kaiming_normal"
+    reset_layers: []
+    freeze_backbone: false
+  transfer:
+    description: "迁移学习：加载ImageNet预训练权重，重置最后一层"
+    pretrained: true
+    pretrained_source: "torchvision.models (ImageNet)"
+    reset_layers:
+      - "classifier.6 (fc8, in_features=4096, out_features=38)"
+      - "fc (主分类器, out_features=38)"
+      - "aux1.fc2 (辅助分类器1, out_features=38)"
+      - "aux2.fc2 (辅助分类器2, out_features=38)"
+    freeze_backbone:
+      value: false
+      decision_type: "engineering_decision"
+      note: "⚠ 此项为纯工程决策（论文未提及，NOT_FOUND），不是论文要求。默认不冻结（全量微调），因为目标域与 ImageNet 差异较大。两种策略可选：(a) 不冻结 (fine-tuning)：所有层参与训练，收敛慢但效果好 — 推荐；(b) 冻结 backbone：只训练重置的分类层，收敛快但可能欠拟合。代码 Agent 可自由选择，但需在 config.yaml 中显式标注。"
+      engineering_default: false
+    note: "论文报告结果（仅作参考，代码须从实际评估动态计算）：Best PlantVillage result: GoogLeNet::TransferLearning::Color::80-20 achieved mean F1 score 0.9934 (overall accuracy 99.35%). Worst PlantVillage result: AlexNet::TrainingFromScratch::GrayScale::80-20 achieved overall accuracy 85.53% (mean F1 0.8524). GoogLeNet consistently performed better than AlexNet; transfer learning always yielded better results than training from scratch; color version performed best, followed by segmented, then grayscale. In extreme 20-80 split, GoogLeNet::TransferLearning::Color::20-80 achieved overall accuracy 98.21% (mean F1 0.9820). On online images, model accuracy was 31.40% vs random 2.63%; with crop information provided, accuracy increased to 47.93%; correct class in top-5 predictions in 52.89% of cases."
+
+training:
+  batch_size:
+    AlexNet: 100
+    GoogLeNet: 24
+  batch_size_note: "论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。"
+  epochs: 30
+  image_size: [256, 256]
+  optimizer:
+    name: "Stochastic Gradient Descent"
+    torch_optimizer: "SGD"
+    lr: 0.005
+    momentum: 0.9
+    weight_decay: 0.0005
+  scheduler:
+    name: "StepLR"
+    step_size: 10
+    gamma: 0.1
+    note: "每 10 个 epoch 将学习率乘以 0.1；PyTorch StepLR 与此行为等价。"
+  loss_function:
+    name: "CrossEntropyLoss"
+    note: "softmax cross-entropy (inferred from softmax layer)"
+  dropout_ratio: 0.5
+  early_stopping: null
+  early_stopping_note: "论文未提及 early stopping (NOT_FOUND)."
+
+checkpoint:
+  save_best: true
+  best_metric: "val_accuracy"
+  best_mode: "max"
+  save_final: true
+  save_frequency_epochs: null
+  save_optimizer_state: true
+  resume_from: null
+  note: "论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。"
+
+inference:
+  device: "cuda"
+  batch_size: null
+
+experiment:
+  runs:
+    - name: "AlexNet_scratch_color_80"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_color_60"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_color_50"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_color_40"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_color_20"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_grayscale_80"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_grayscale_60"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_grayscale_50"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_grayscale_40"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_grayscale_20"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_segmented_80"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_segmented_60"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_segmented_50"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_segmented_40"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_scratch_segmented_20"
+      model: "AlexNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_color_80"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_color_60"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_color_50"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_color_40"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_color_20"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_grayscale_80"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_grayscale_60"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_grayscale_50"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_grayscale_40"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_grayscale_20"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_segmented_80"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_segmented_60"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_segmented_50"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_segmented_40"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "AlexNet_transfer_segmented_20"
+      model: "AlexNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_color_80"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_color_60"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_color_50"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_color_40"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_color_20"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "color"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_grayscale_80"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_grayscale_60"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_grayscale_50"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_grayscale_40"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_grayscale_20"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "grayscale"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_segmented_80"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_segmented_60"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_segmented_50"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_segmented_40"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_scratch_segmented_20"
+      model: "GoogLeNet"
+      training_mode: "scratch"
+      dataset_version: "segmented"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_color_80"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_color_60"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_color_50"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_color_40"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_color_20"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "color"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_grayscale_80"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_grayscale_60"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_grayscale_50"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_grayscale_40"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_grayscale_20"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "grayscale"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_segmented_80"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.8
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_segmented_60"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.6
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_segmented_50"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.5
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_segmented_40"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.4
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+    - name: "GoogLeNet_transfer_segmented_20"
+      model: "GoogLeNet"
+      training_mode: "transfer"
+      dataset_version: "segmented"
+      train_ratio: 0.2
+      val_split_ratio: 0.2
+      split_method: "leaf_based_split"
+      data_source: "external_dataset"
+      acquisition: "local_path"
+
+logging:
+  level: "INFO"
+  log_dir: "logs"
+  save_metrics: true
+
+system:
+  device: "cuda"
+  num_workers: 4
+  seed: 42

@@ -1,0 +1,16 @@
+{
+  "table_id": "table_8",
+  "table_type": "other",
+  "caption_summary": "The table appears to contain fragmentary data with unclear labels, possibly representing ranges or values from a larger table.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Item", "value": "9k-130k"},
+      {"label": "Value1", "value": "020"},
+      {"label": "Value2", "value": "023"}
+    ]
+  },
+  "table_summary": "The table contains only three data points: a label 'Item' with a value '9k-130k', and two additional values '020' and '023'. Due to the lack of column headers or context, it is not possible to determine the table's purpose or interpret the values. The data appears to be a fragment of a larger table, possibly representing ranges or counts, but no meaningful conclusions can be drawn."
+}

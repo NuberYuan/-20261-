@@ -1,0 +1,15 @@
+{
+  "table_id": "table_3",
+  "table_type": "other",
+  "caption_summary": "This table lists operations on marks in the host graph with their time complexities.",
+  "extracted_data": {
+    "metrics": ["time complexity"],
+    "methods": ["firstHostNode(m)", "nextHostNode(m)"],
+    "best_result": null,
+    "key_values": [
+      {"label": "firstHostNode(m)", "value": "Fetch the first node of mark m in the host graph. O(1)"},
+      {"label": "nextHostNode(m)", "value": "Given a node of mark m, fetch the next node of mark m in the host graph. O(1)"}
+    ]
+  },
+  "table_summary": "The table describes two operations for iterating over nodes with a given mark in the host graph: firstHostNode(m) retrieves the first node of mark m, and nextHostNode(m) retrieves the next node of mark m given a current node. Both operations have constant time complexity O(1)."
+}

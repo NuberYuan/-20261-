@@ -1,0 +1,5 @@
+{
+  "data_source": "external_dataset",
+  "acquisition": "local_path",
+  "data_source_note": "论文明确依赖SCICOQA数据集（可从HuggingFace或TUdatalib下载），属于外部真实数据集，需用户提供本地路径。"
+}

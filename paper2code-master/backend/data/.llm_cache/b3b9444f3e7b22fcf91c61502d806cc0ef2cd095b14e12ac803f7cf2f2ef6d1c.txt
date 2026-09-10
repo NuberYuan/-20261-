@@ -1,0 +1,5 @@
+{
+  "data_source": "synthetic",
+  "acquisition": "n/a",
+  "data_source_note": "论文未指定外部数据集，实验使用程序化生成的各类图（如星图、根环图）进行运行时测试，属于合成数据。"
+}

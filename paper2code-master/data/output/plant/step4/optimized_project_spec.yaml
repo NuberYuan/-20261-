@@ -1,0 +1,228 @@
+project:
+  name: Using_Deep_Learning_for_ImageBased_Plant_Disease_D
+  description: image_classification
+  paper_type: model_proposing
+architecture:
+  modules:
+    data:
+      directory: data/
+      files:
+      - dataset.py
+      description: 数据加载与预处理
+    models:
+      directory: models/
+      files:
+      - deep convolutional neural network (cnn) for plant disease classification.py
+      description: '模型定义: Deep Convolutional Neural Network (CNN) for Plant Disease
+        Classification'
+      classes:
+      - name: Deep Convolutional Neural Network (CNN) for Plant Disease Classification
+        type: CNN
+        input: NOT_FOUND
+        output: NOT_FOUND
+        pretrained: Yes, for transfer learning experiments, models pre-trained on
+          ImageNet were used. The weights of the final layer (fc8 for AlexNet, loss{1,2,3}/classifier
+          for GoogLeNet) were reset.
+        file: models/deep convolutional neural network (cnn) for plant disease classification.py
+    training:
+      directory: training/
+      files:
+      - train.py
+      description: 训练循环
+    evaluation:
+      directory: evaluation/
+      files:
+      - evaluate.py
+      description: 评估与对比
+    utils:
+      directory: utils/
+      files:
+      - metrics.py
+      description: 工具函数
+    config:
+      directory: config/
+      files:
+      - config.yaml
+      description: YAML 配置
+dependencies:
+  files:
+  - README.md
+  - config/config.yaml
+  - data/dataset.py
+  - evaluation/evaluate.py
+  - main.py
+  - models/deep convolutional neural network (cnn) for plant disease classification.py
+  - requirements.txt
+  - training/train.py
+  - utils/metrics.py
+  external:
+  - torch
+  - torchvision
+  - numpy
+  - pyyaml
+  - scikit-learn
+execution_flow:
+- '1. main.py: 加载配置 (config/config.yaml)'
+- '2. data/: 准备数据集和数据加载器'
+- '3. models/: 初始化模型'
+- '4. training/train.py: 训练循环'
+- '5. training/train.py: 验证评估'
+- '6. evaluation/: 测试集评估'
+code_requirements:
+  data/dataset.py:
+    description: Loads and preprocesses the PlantVillage dataset, supporting color,
+      grayscale, and segmented versions. Provides a PyTorch Dataset class and functions
+      to create data loaders with various train-test splits.
+    class: PlantVillageDataset
+    parent_class: torch.utils.data.Dataset
+    methods:
+    - __init__
+    - __len__
+    - __getitem__
+    functions:
+    - load_data
+    - preprocess
+    - create_dataloaders
+    pseudocode: "class PlantVillageDataset(Dataset):\n    def __init__(self, root_dir,\
+      \ transform=None, version='color'):\n        # Load image paths and labels from\
+      \ root_dir, filter by version (color/grayscale/segmented)\n        # Store transform\
+      \ and version\n    def __len__(self):\n        return len(self.image_paths)\n\
+      \    def __getitem__(self, idx):\n        # Load image, convert to grayscale\
+      \ if version='grayscale', apply segmentation if version='segmented'\n      \
+      \  # Apply transform, return (image, label)\n\ndef load_data(root_dir, version='color'):\n\
+      \    # Return list of (image_path, label) pairs\n\ndef preprocess(image, version):\n\
+      \    # Resize to 256x256, convert to grayscale or apply segmentation as needed\n\
+      \ndef create_dataloaders(config):\n    # Create train/val/test datasets and\
+      \ loaders based on split ratios and version"
+  models/deep convolutional neural network (cnn) for plant disease classification.py:
+    description: Defines the deep CNN models (AlexNet and GoogLeNet) for plant disease
+      classification. Supports both training from scratch and transfer learning with
+      pretrained ImageNet weights, resetting the final layer for 38 classes.
+    class: PlantDiseaseCNN
+    parent_class: torch.nn.Module
+    methods:
+    - __init__
+    - forward
+    functions:
+    - create_alexnet
+    - create_googlenet
+    - get_model
+    pseudocode: "class PlantDiseaseCNN(nn.Module):\n    def __init__(self, model_name='googlenet',\
+      \ num_classes=38, pretrained=True):\n        # Initialize base model (AlexNet\
+      \ or GoogLeNet) from torchvision\n        # If pretrained, load ImageNet weights\
+      \ and reset final layer\n        # Replace final layer to output num_classes\n\
+      \    def forward(self, x):\n        return self.model(x)\n\ndef create_alexnet(num_classes,\
+      \ pretrained):\n    # Return AlexNet model with modified final layer\n\ndef\
+      \ create_googlenet(num_classes, pretrained):\n    # Return GoogLeNet model with\
+      \ modified final layer\n\ndef get_model(model_name, num_classes, pretrained):\n\
+      \    # Return appropriate model instance"
+  training/train.py:
+    description: Implements the training loop for the CNN models, including optimization
+      with SGD, learning rate scheduling, and validation after each epoch. Supports
+      both training from scratch and transfer learning.
+    functions:
+    - train_epoch
+    - validate
+    - main
+    uses:
+    - models.*
+    - data.dataset
+    - utils.metrics
+    pseudocode: "def train_epoch(model, dataloader, criterion, optimizer, device):\n\
+      \    # Set model to train mode\n    # Iterate over batches, compute loss, backpropagate,\
+      \ update weights\n    # Return average loss and accuracy\n\ndef validate(model,\
+      \ dataloader, criterion, device):\n    # Set model to eval mode\n    # Compute\
+      \ loss and accuracy on validation set\n    # Return average loss and accuracy\n\
+      \ndef main(config):\n    # Load config, create dataloaders, initialize model,\
+      \ criterion, optimizer, scheduler\n    # For each epoch: train_epoch, validate,\
+      \ save best model\n    # Log results"
+  evaluation/evaluate.py:
+    description: Evaluates the trained model on the test set, computing overall accuracy,
+      mean precision, recall, and F1 score. Also supports evaluation on external images
+      from online sources.
+    functions:
+    - evaluate_model
+    - compute_metrics
+    - evaluate_external
+    uses:
+    - models.*
+    - data.dataset
+    - utils.metrics
+    pseudocode: "def evaluate_model(model, dataloader, device):\n    # Set model to\
+      \ eval mode, collect predictions and true labels\n    # Compute metrics using\
+      \ utils.metrics\n    # Return metrics dictionary\n\ndef compute_metrics(y_true,\
+      \ y_pred):\n    # Compute accuracy, precision, recall, F1 (macro)\n\ndef evaluate_external(model,\
+      \ image_paths, device):\n    # Load and preprocess external images, predict\
+      \ classes, compute accuracy if labels available"
+  utils/metrics.py:
+    description: 'Provides utility functions for computing evaluation metrics: overall
+      accuracy, mean precision, mean recall, and mean F1 score.'
+    functions:
+    - accuracy
+    - precision_recall_f1
+    - mean_metrics
+    pseudocode: "def accuracy(y_true, y_pred):\n    # Return overall accuracy\n\n\
+      def precision_recall_f1(y_true, y_pred):\n    # Compute per-class precision,\
+      \ recall, F1, return lists\n\ndef mean_metrics(y_true, y_pred):\n    # Compute\
+      \ mean precision, recall, F1 across classes"
+  config/config.yaml:
+    description: Configuration file for dataset paths, model parameters, training
+      hyperparameters, and experiment settings.
+    functions: []
+    pseudocode: "dataset:\n  root_dir: 'data/plantvillage'\n  version: 'color'  #\
+      \ color, grayscale, segmented\n  split_ratio: 0.8  # train ratio, rest for val/test\n\
+      model:\n  name: 'googlenet'  # alexnet or googlenet\n  pretrained: true\n  num_classes:\
+      \ 38\ntraining:\n  epochs: 30\n  batch_size: 32\n  learning_rate: 0.005\n  optimizer:\
+      \ 'sgd'\n  scheduler: 'step'\n  step_size: 10\n  gamma: 0.1\nevaluation:\n \
+      \ metrics: ['accuracy', 'precision', 'recall', 'f1']"
+  main.py:
+    description: Entry point for the project. Loads configuration, orchestrates data
+      loading, model initialization, training, and evaluation.
+    functions:
+    - main
+    uses:
+    - config
+    - data.dataset
+    - models.*
+    - training.train
+    - evaluation.evaluate
+    pseudocode: "def main():\n    # Load config from config/config.yaml\n    # Create\
+      \ dataloaders\n    # Initialize model\n    # Train model (if train flag set)\n\
+      \    # Evaluate on test set\n    # Print results"
+  requirements.txt:
+    description: Lists Python dependencies required to run the project.
+    functions: []
+    pseudocode: 'torch>=1.9.0
+
+      torchvision>=0.10.0
+
+      numpy>=1.21.0
+
+      pyyaml>=5.4.1
+
+      scikit-learn>=0.24.0'
+  README.md:
+    description: Provides an overview of the project, installation instructions, usage,
+      and reproduction steps.
+    functions: []
+    pseudocode: '# Plant Disease Detection using Deep Learning
+
+
+      ## Overview
+
+      ...
+
+
+      ## Installation
+
+      ...
+
+
+      ## Usage
+
+      ...
+
+
+      ## Reproduction
+
+      ...'

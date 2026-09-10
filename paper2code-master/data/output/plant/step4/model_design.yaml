@@ -1,0 +1,11 @@
+paper_name: plant
+models:
+- name: Deep Convolutional Neural Network (CNN) for Plant Disease Classification
+  type: CNN
+  input: NOT_FOUND
+  output: NOT_FOUND
+  num_classes: 38 classes (14 crop species and 26 diseases, or absence thereof)
+  pretrained: Yes, for transfer learning experiments, models pre-trained on ImageNet
+    were used. The weights of the final layer (fc8 for AlexNet, loss{1,2,3}/classifier
+    for GoogLeNet) were reset.
+  code_class_name: Deep Convolutional Neural Network (CNN) for Plant Disease Classification

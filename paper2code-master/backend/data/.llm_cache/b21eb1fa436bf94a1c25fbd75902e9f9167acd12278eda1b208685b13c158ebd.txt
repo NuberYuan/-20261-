@@ -1,0 +1,461 @@
+```python
+"""Evaluation module for time series prediction tasks.
+
+This module implements the evaluation and reporting functionality required by
+FR-07 and FR-08:
+
+- FR-07: Compute evaluation metrics on the test set:
+    - Success rate (percentage of test instances solved perfectly)
+    - Accuracy as a function of complexity
+    - Training time (minutes)
+- FR-08: Generate a report containing the metrics and optionally generate
+  auxiliary charts for engineering purposes.
+
+The metrics are computed using the utils.metrics module and compared against
+the values reported in the paper "LEARNING SIMPLE ALGORITHMS FROM EXAMPLES".
+"""
+
+import json
+import logging
+import os
+import time
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
+import numpy as np
+import torch
+import yaml
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+import sys
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from utils.metrics import compute_metrics, format_metrics_report
+
+# Matplotlib is optional - only used for auxiliary charts
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+
+def _load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the config file. If None, uses the default
+            config/config.yaml path.
+
+    Returns:
+        Configuration dictionary.
+    """
+    if config_path is None:
+        config_path = PROJECT_ROOT / "config" / "config.yaml"
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any],
+    output_path: Path,
+) -> Optional[Path]:
+    """Generate a bar chart of the main evaluation metrics.
+
+    Args:
+        metrics: Complete metrics dictionary returned by compute_metrics.
+        output_path: Path where the chart should be saved.
+
+    Returns:
+        Path to the saved chart, or None if matplotlib is not available.
+    """
+    if plt is None:
+        return None
+
+    # Extract metrics for the bar chart
+    labels = []
+    values = []
+
+    # Success rate
+    if "success_rate" in metrics:
+        labels.append("Success Rate")
+        values.append(metrics["success_rate"])
+
+    # Accuracy by complexity - use the average if available
+    accuracy_by_complexity = metrics.get("accuracy_by_complexity", {})
+    if accuracy_by_complexity:
+        avg_accuracy = np.mean(list(accuracy_by_complexity.values()))
+        labels.append("Avg Accuracy")
+        values.append(avg_accuracy)
+
+    # Training time (in minutes)
+    if "training_time_minutes" in metrics:
+        labels.append("Training Time (min)")
+        values.append(metrics["training_time_minutes"])
+
+    if not labels:
+        return None
+
+    # Create the bar chart
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.bar(labels, values, color=["#2E86AB", "#A23B72", "#F18F01"])
+
+    # Add value labels on top of bars
+    for bar, value in zip(bars, values):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 0.5,
+            f"{value:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
+
+    ax.set_ylabel("Value")
+    ax.set_title("Evaluation Metrics Summary")
+    ax.grid(axis="y", alpha=0.3)
+
+    # Save the chart
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def _generate_accuracy_by_complexity_chart(
+    metrics: Dict[str, Any],
+    output_path: Path,
+) -> Optional[Path]:
+    """Generate a line chart of accuracy as a function of complexity.
+
+    Args:
+        metrics: Complete metrics dictionary returned by compute_metrics.
+        output_path: Path where the chart should be saved.
+
+    Returns:
+        Path to the saved chart, or None if matplotlib is not available.
+    """
+    if plt is None:
+        return None
+
+    accuracy_by_complexity = metrics.get("accuracy_by_complexity", {})
+    if not accuracy_by_complexity:
+        return None
+
+    # Sort by complexity level
+    complexity_levels = sorted(accuracy_by_complexity.keys())
+    accuracies = [accuracy_by_complexity[level] for level in complexity_levels]
+
+    # Create the line chart
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(complexity_levels, accuracies, marker="o", linestyle="-", linewidth=2, markersize=8)
+
+    # Add value labels
+    for x, y in zip(complexity_levels, accuracies):
+        ax.text(x, y + 1.0, f"{y:.1f}%", ha="center", va="bottom", fontsize=9)
+
+    ax.set_xlabel("Complexity Level")
+    ax.set_ylabel("Accuracy (%)")
+    ax.set_title("Accuracy as a Function of Complexity")
+    ax.grid(alpha=0.3)
+    ax.set_ylim(bottom=0, top=105)
+
+    # Save the chart
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: np.ndarray,
+    output_path: Path,
+    class_names: Optional[list] = None,
+) -> Optional[Path]:
+    """Generate a confusion matrix plot.
+
+    Args:
+        confusion_matrix: 2D numpy array representing the confusion matrix.
+        output_path: Path where the plot should be saved.
+        class_names: Optional list of class names for axis labels.
+
+    Returns:
+        Path to the saved plot, or None if matplotlib is not available.
+    """
+    if plt is None:
+        return None
+
+    if confusion_matrix is None or len(confusion_matrix) == 0:
+        return None
+
+    confusion_matrix = np.asarray(confusion_matrix)
+
+    # Create the confusion matrix plot
+    fig, ax = plt.subplots(figsize=(8, 6))
+    im = ax.imshow(confusion_matrix, interpolation="nearest", cmap="Blues")
+
+    # Add colorbar
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel("Count", rotation=-90, va="bottom")
+
+    # Set labels
+    if class_names is None:
+        class_names = [str(i) for i in range(confusion_matrix.shape[0])]
+
+    ax.set(
+        xticks=np.arange(confusion_matrix.shape[1]),
+        yticks=np.arange(confusion_matrix.shape[0]),
+        xticklabels=class_names,
+        yticklabels=class_names,
+        xlabel="Predicted Label",
+        ylabel="True Label",
+        title="Confusion Matrix",
+    )
+
+    # Rotate x-axis labels
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
+    # Add text annotations
+    thresh = confusion_matrix.max() / 2.0 if confusion_matrix.max() > 0 else 0.5
+    for i in range(confusion_matrix.shape[0]):
+        for j in range(confusion_matrix.shape[1]):
+            ax.text(
+                j,
+                i,
+                format(confusion_matrix[i, j], "d"),
+                ha="center",
+                va="center",
+                color="white" if confusion_matrix[i, j] > thresh else "black",
+            )
+
+    fig.tight_layout()
+
+    # Save the plot
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def evaluate_model(
+    model: torch.nn.Module,
+    test_loader: torch.utils.data.DataLoader,
+    config: Optional[Dict[str, Any]] = None,
+    device: Optional[torch.device] = None,
+    training_time_seconds: Optional[float] = None,
+    threshold: float = 0.5,
+) -> Dict[str, Any]:
+    """Evaluate a trained model on the test set.
+
+    Args:
+        model: The trained model to evaluate.
+        test_loader: DataLoader for the test set.
+        config: Configuration dictionary. If None, loads from config/config.yaml.
+        device: Device to run evaluation on. If None, auto-detected.
+        training_time_seconds: Total training time in seconds. If None,
+            a default value of 0.0 is used.
+        threshold: Threshold for considering a prediction correct.
+
+    Returns:
+        Dictionary containing evaluation metrics:
+            - success_rate: Percentage of test instances solved perfectly.
+            - accuracy_by_complexity: Dictionary mapping complexity levels
+              to accuracy values.
+            - training_time_minutes: Training time in minutes.
+            - total_instances: Total number of test instances.
+            - perfect_predictions: Number of perfectly solved instances.
+            - confusion_matrix: Confusion matrix (if applicable).
+    """
+    if config is None:
+        config = _load_config()
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = model.to(device)
+    model.eval()
+
+    # Collect predictions and targets
+    all_predictions = []
+    all_targets = []
+    all_complexities = []
+
+    with torch.no_grad():
+        for batch in test_loader:
+            input_grid = batch["input_grid"].to(device)
+            target = batch["target"].to(device)
+            input_mask = batch["input_mask"].to(device)
+            target_mask = batch["target_mask"].to(device)
+
+            batch_size, num_rows, seq_len = input_grid.shape
+            vocab_size = model.vocab_size
+
+            # Create one-hot encoding for input
+            input_one_hot = torch.zeros(
+                batch_size, seq_len, num_rows * vocab_size, device=device
+            )
+            for row in range(num_rows):
+                row_indices = input_grid[:, row, :]
+                row_indices = torch.clamp(row_indices, 0, vocab_size - 1)
+                one_hot_row = torch.nn.functional.one_hot(
+                    row_indices, num_classes=vocab_size
+                )
+                input_one_hot[:, :, row * vocab_size : (row + 1) * vocab_size] = one_hot_row
+
+            # Forward pass
+            symbol_logits, _ = model(input_one_hot)
+
+            # Get predictions
+            pred_symbols = torch.argmax(symbol_logits, dim=-1)  # (batch_size, seq_len)
+
+            # Apply target mask
+            valid_positions = target_mask.bool()
+            pred_masked = torch.where(valid_positions, pred_symbols, target)
+
+            all_predictions.append(pred_masked.cpu())
+            all_targets.append(target.cpu())
+
+            # Extract complexity from batch if available
+            if "complexity" in batch:
+                all_complexities.append(batch["complexity"].cpu())
+            else:
+                # Default complexity: use sequence length as a proxy
+                all_complexities.append(
+                    torch.full((batch_size,), seq_len, dtype=torch.long)
+                )
+
+    # Concatenate all batches
+    predictions = torch.cat(all_predictions, dim=0)
+    targets = torch.cat(all_targets, dim=0)
+    complexities = torch.cat(all_complexities, dim=0)
+
+    # Compute metrics
+    metrics = compute_metrics(
+        predictions=predictions,
+        targets=targets,
+        complexities=complexities,
+        training_time_seconds=training_time_seconds,
+        config=config,
+        threshold=threshold,
+    )
+
+    # Compute confusion matrix for symbol predictions
+    # Flatten predictions and targets
+    pred_flat = predictions.reshape(-1).numpy()
+    target_flat = targets.reshape(-1).numpy()
+
+    # Only consider valid positions (where target is not masked)
+    # For simplicity, we use all positions here
+    num_classes = model.vocab_size
+    confusion_matrix = np.zeros((num_classes, num_classes), dtype=np.int64)
+
+    for p, t in zip(pred_flat, target_flat):
+        p_idx = int(np.clip(p, 0, num_classes - 1))
+        t_idx = int(np.clip(t, 0, num_classes - 1))
+        confusion_matrix[t_idx, p_idx] += 1
+
+    metrics["confusion_matrix"] = confusion_matrix
+
+    return metrics
+
+
+def generate_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generate a report for a single evaluation run.
+
+    Args:
+        metrics: Dictionary returned by evaluate_model or compute_metrics.
+        run_name: Name of the run (used for file naming).
+        output_dir: Directory where the report should be saved.
+        config: Configuration dictionary. If None, loads from config/config.yaml.
+
+    Returns:
+        Path to the generated report file.
+    """
+    if config is None:
+        config = _load_config()
+
+    # Create output directory
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Generate text report
+    report_text = format_metrics_report(metrics)
+
+    # Add run information
+    header = f"Run: {run_name}\n"
+    header += f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+    header += "=" * 60 + "\n"
+
+    report_text = header + report_text
+
+    # Save text report
+    report_file = output_path / f"{run_name}_report.txt"
+    with open(report_file, "w", encoding="utf-8") as f:
+        f.write(report_text)
+
+    # Save metrics as JSON
+    metrics_json = {}
+    for key, value in metrics.items():
+        if isinstance(value, np.ndarray):
+            metrics_json[key] = value.tolist()
+        elif isinstance(value, dict):
+            metrics_json[key] = {str(k): v for k, v in value.items()}
+        else:
+            metrics_json[key] = value
+
+    json_file = output_path / f"{run_name}_metrics.json"
+    with open(json_file, "w", encoding="utf-8") as f:
+        json.dump(metrics_json, f, indent=2)
+
+    # Generate auxiliary charts (only if matplotlib is available)
+    chart_paths = []
+
+    # Bar chart of main metrics
+    bar_chart_path = _generate_metrics_bar_chart(
+        metrics, output_path / f"{run_name}_metrics_bar_chart.png"
+    )
+    if bar_chart_path is not None:
+        chart_paths.append(bar_chart_path)
+
+    # Accuracy by complexity chart
+    complexity_chart_path = _generate_accuracy_by_complexity_chart(
+        metrics, output_path / f"{run_name}_accuracy_by_complexity.png"
+    )
+    if complexity_chart_path is not None:
+        chart_paths.append(complexity_chart_path)
+
+    # Confusion matrix plot
+    if "confusion_matrix" in metrics and metrics["confusion_matrix"] is not None:
+        confusion_matrix = np.asarray(metrics["confusion_matrix"])
+        if confusion_matrix.size > 0:
+            cm_path = _generate_confusion_matrix_plot(
+                confusion_matrix,
+                output_path / f"{run_name}_confusion_matrix.png",
+            )
+            if cm_path is not None:
+                chart_paths.append(cm_path)
+
+    # Log summary
+    logging.info(f"Report generated for run '{run_name}' at {report_file}")
+    if chart_paths:
+        logging.info(f"Charts generated: {[str(p) for p in chart_paths]}")
+
+    return str(report_file)
+```

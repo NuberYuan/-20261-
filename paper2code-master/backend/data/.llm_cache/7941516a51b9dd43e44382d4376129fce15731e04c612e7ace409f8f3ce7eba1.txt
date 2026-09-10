@@ -1,0 +1,193 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+from PIL import Image
+
+def analyze_image(image_path):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # OCR text provided externally
+        ocr_text = """10%
+50%
+90%
+Mean
+Previous Hour
+0.3
+Daily Interval
+(n=-1)
+(24 hours)
+0.2
+0.1
+0.0
+-150
+-100
+-50
+Position Index (n)
+Forecast
+0=5
+T=10
+T=15
+T=20
+Time
+0.15
+0.10
+0.05
+0.00
+HHHULLu"""
+        
+        ocr_lower = ocr_text.lower()
+        
+        # Check for experiment_result indicators
+        experiment_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "curve", "performance", "comparison", "metric", "training",
+            "validation", "test accuracy", "learning rate"
+        ]
+        
+        # Check for architecture indicators
+        architecture_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        # Check for dataset indicators
+        dataset_keywords = [
+            "sample", "example", "input image", "dataset", "class",
+            "category", "ground truth", "label"
+        ]
+        
+        # Analyze OCR text
+        has_experiment = any(kw in ocr_lower for kw in experiment_keywords)
+        has_architecture = any(kw in ocr_lower for kw in architecture_keywords)
+        has_dataset = any(kw in ocr_lower for kw in dataset_keywords)
+        
+        # Additional visual analysis
+        height, width = img.shape[:2]
+        
+        # Check for plot-like characteristics (many text elements, axes)
+        # Simple heuristic: check if image has mostly white background with dark elements
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        white_ratio = np.sum(gray > 200) / (height * width)
+        
+        # Check for grid-like patterns (common in plots)
+        edges = cv2.Canny(gray, 50, 150)
+        edge_ratio = np.sum(edges > 0) / (height * width)
+        
+        # Determine type based on priority
+        if has_experiment:
+            # Check for specific experiment indicators in OCR
+            if any(kw in ocr_lower for kw in ["accuracy", "loss", "epoch", "precision", "recall", "f1"]):
+                result_type = "experiment_result"
+                description = "展示实验结果和性能指标变化"
+                
+                # Extract important components
+                components = []
+                if "accuracy" in ocr_lower:
+                    components.append("Accuracy")
+                if "loss" in ocr_lower:
+                    components.append("Loss")
+                if "precision" in ocr_lower:
+                    components.append("Precision")
+                if "recall" in ocr_lower:
+                    components.append("Recall")
+                if "f1" in ocr_lower:
+                    components.append("F1-score")
+                
+                code_info = "需要实现实验评估模块，计算并可视化性能指标"
+                
+            else:
+                result_type = "experiment_result"
+                description = "展示实验对比结果和性能分析"
+                components = []
+                code_info = "需要实现实验对比和结果分析功能"
+                
+        elif has_architecture:
+            result_type = "architecture"
+            description = "展示模型网络结构和数据流关系"
+            
+            # Extract specific architecture components
+            components = []
+            if "cnn" in ocr_lower:
+                components.append("CNN")
+            if "transformer" in ocr_lower:
+                components.append("Transformer")
+            if "attention" in ocr_lower:
+                components.append("Attention Module")
+            if "encoder" in ocr_lower:
+                components.append("Encoder")
+            if "decoder" in ocr_lower:
+                components.append("Decoder")
+            if "block" in ocr_lower:
+                components.append("Block")
+            if "embedding" in ocr_lower:
+                components.append("Embedding")
+            if "classifier" in ocr_lower:
+                components.append("Classifier")
+            if "alexnet" in ocr_lower:
+                components.append("AlexNet")
+            if "resnet" in ocr_lower:
+                components.append("ResNet")
+            if "vgg" in ocr_lower:
+                components.append("VGG")
+            if "googlenet" in ocr_lower:
+                components.append("GoogLeNet")
+            
+            code_info = "需要实现模型网络结构，包含特征提取和分类模块"
+            
+        elif has_dataset:
+            result_type = "dataset"
+            description = "展示数据集样本和类别示例"
+            components = []
+            code_info = "需要实现数据加载和预处理模块"
+            
+        else:
+            # Check visual characteristics for plots
+            if white_ratio > 0.5 and edge_ratio > 0.01:
+                result_type = "experiment_result"
+                description = "展示实验数据图表和结果分析"
+                components = []
+                code_info = "需要实现数据可视化模块"
+            else:
+                result_type = "other"
+                description = "无法确定图片类型"
+                components = []
+                code_info = ""
+        
+        return {
+            "type": result_type,
+            "description": description,
+            "important_components": components,
+            "code_relevant_information": code_info
+        }
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+    else:
+        image_path = r"D:\paper2code-master(1)\paper2code-master\backend\data\output\论文5\step1\images\image_6.png"
+    
+    result = analyze_image(image_path)
+    print(json.dumps(result, ensure_ascii=False))
+```

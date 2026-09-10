@@ -1,0 +1,11 @@
+The analyzed tables do not contain quantitative experimental results or performance comparisons. The main extractable findings are:
+
+1. **No standard evaluation tables were found:** None of the tables provide numerical accuracy, runtime, ablation, or comparison metrics.
+
+2. **Implementation/compilation pipeline is documented:** Some tables describe components such as GP 2-to-C, GCC, the runtime system, program, and graph, indicating a system/architecture description rather than experimental data.
+
+3. **Constant-time host graph operations are defined:** Two tables specify primitive graph-access operations—node iteration by mark and marked edge access—all with O(1) time complexity.
+
+4. **Remaining tables are non-quantitative or unparsed:** Several tables contain only labels, placeholders, arrows, or expressions like `root1(x | list)`, so no measurable results can be extracted.
+
+Overall, the tables mainly describe implementation-level graph operations and pipeline structure, not experimental findings.

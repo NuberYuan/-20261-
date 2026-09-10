@@ -1,0 +1,15 @@
+{
+  "table_id": "table_1",
+  "table_type": "other",
+  "caption_summary": "This table appears to be a malformed or diagrammatic representation related to GP 2 program execution and graph output, with no clear numerical data.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Program", "value": "GP 2"},
+      {"label": "Detected terms", "value": "Output, Execute, Program, Graph"}
+    ]
+  },
+  "table_summary": "The extracted content does not represent a standard experimental results, ablation, comparison, dataset, hyperparameter, or architecture table. It contains only the labels 'GP 2 Output', 'Execute', 'Program Graph', and 'Graph', suggesting it may be a diagram or a table that was not parsed correctly. No numerical values or metric results are available to summarize."
+}

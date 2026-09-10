@@ -1,0 +1,4 @@
+{
+  "experiment_matrix.known_best": "GRU",
+  "experiment_matrix.known_worst": "Feedforward Network"
+}

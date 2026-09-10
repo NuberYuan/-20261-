@@ -1,0 +1,63 @@
+```json
+{
+  "code_requirements": {
+    "main.py": {
+      "description": "Entry point for reproducing the paper's experiments. Loads configuration, generates synthetic graphs (star graphs, rooted cycle graphs, etc.), runs the enhanced GP 2 compiler simulation with the improved graph data structure, and executes the three case study programs (connectedness check, acyclicity check, Bellman-Ford shortest path). Reports runtime measurements and correctness verification results.",
+      "class": "None",
+      "parent_class": "None",
+      "methods": [],
+      "functions": ["main"],
+      "pseudocode": "1. Load config/config.yaml\n2. For each graph class in config (star, rooted_cycle, etc.):\n   a. Generate input graph\n   b. Run connectedness program, measure time, verify correctness\n   c. Run acyclicity program, measure time, verify correctness\n   d. Run Bellman-Ford program, measure time, verify correctness\n3. Print results table comparing measured complexity with theoretical O(n), O(n), O(n*m)"
+    },
+    "config/config.yaml": {
+      "description": "Configuration file containing parameters for graph generation and runtime experiments. Includes graph classes, node counts, edge weight ranges, and the enhanced graph data structure parameters (5 mark rows, 3 orientation columns).",
+      "class": "None",
+      "parent_class": "None",
+      "methods": [],
+      "functions": [],
+      "pseudocode": "graph_classes: [star, rooted_cycle, complete, random]\nnode_counts: [100, 500, 1000, 5000]\nedge_weight_range: [1, 100]\nmark_rows: [unmarked, dashed, red, green, blue]\norientation_columns: [incoming, outgoing, loop]\nrandom_seed: 42"
+    },
+    "src/enhancedgp2compilerwithimprovedgraphdatastructure.py": {
+      "description": "Core implementation of the enhanced GP 2 compiler with the improved graph data structure. Implements: (1) nodes stored in separate linked lists based on their marks, (2) each node has a two-dimensional array of linked lists (5 rows x 3 columns = 15 cells) storing all incident edges based on their marks and orientation. Provides constant-time access to nodes and edges with specific marks and orientations. Implements the three case study programs: linear-time connectedness check, linear-time acyclicity check, and Bellman-Ford shortest-path in O(n*m) time.",
+      "class": "EnhancedGP2Compiler",
+      "parent_class": "None",
+      "methods": [
+        "__init__",
+        "compile_program",
+        "execute_program",
+        "find_node_by_mark",
+        "find_edge_by_mark_and_orientation",
+        "connectedness_check",
+        "acyclicity_check",
+        "bellman_ford_shortest_path"
+      ],
+      "functions": [
+        "create_graph_data_structure",
+        "add_node_to_mark_list",
+        "add_edge_to_incidence_array",
+        "remove_node_from_mark_list",
+        "remove_edge_from_incidence_array",
+        "match_rule_left_hand_side",
+        "apply_rule"
+      ],
+      "pseudocode": "class EnhancedGP2Compiler:\n    def __init__(self, config):\n        self.mark_lists = {mark: [] for mark in config.mark_rows}\n        self.node_incidence_arrays = {}  # node_id -> 5x3 array of edge lists\n    \n    def create_graph_data_structure(self, graph):\n        # Initialize mark lists and incidence arrays for input graph\n        for node in graph.nodes:\n            self.add_node_to_mark_list(node)\n            self.node_incidence_arrays[node.id] = [[[] for _ in range(3)] for _ in range(5)]\n            for edge in node.incident_edges:\n                self.add_edge_to_incidence_array(edge)\n    \n    def find_node_by_mark(self, mark):\n        # O(1) access to first node with given mark\n        return self.mark_lists[mark][0] if self.mark_lists[mark] else None\n    \n    def find_edge_by_mark_and_orientation(self, node, mark, orientation):\n        # O(1) access to first edge with given mark and orientation from node\n        row = self.mark_to_row[mark]\n        col = self.orientation_to_col[orientation]\n        return self.node_incidence_arrays[node.id][row][col][0] if self.node_incidence_arrays[node.id][row][col] else None\n    \n    def connectedness_check(self, graph):\n        # Linear-time algorithm using mark-based node lists\n        # 1. Mark all nodes grey (unmarked)\n        # 2. Pick first node, mark it red, add to queue\n        # 3. While queue not empty: pop node, find all unmarked neighbors via incidence arrays, mark them red, enqueue\n        # 4. If all nodes are red, graph is connected; else fail\n        pass\n    \n    def acyclicity_check(self, graph):\n        # Linear-time algorithm using mark-based node lists\n        # 1. Mark all nodes grey\n        # 2. Find node with degree <= 1 (using incidence array lengths), mark it red\n        # 3. Remove it (logically), update neighbor degrees\n        # 4. Repeat until no such node exists\n        # 5. If all nodes removed, graph is acyclic; else fail\n        pass\n    \n    def bellman_ford_shortest_path(self, graph, source):\n        # O(n*m) time implementation\n        # 1. Initialize distances: source=0, others=infinity\n        # 2. For i in range(n-1):\n        #    a. For each edge (u,v) with weight w:\n        #       if dist[u] + w < dist[v]: update dist[v]\n        # 3. Check for negative cycles\n        # Uses incidence arrays for efficient edge iteration\n        pass"
+    },
+    "requirements.txt": {
+      "description": "Python dependencies required for the reproduction. Since this is a pure algorithm reproduction without ML training, only basic scientific computing libraries are needed.",
+      "class": "None",
+      "parent_class": "None",
+      "methods": [],
+      "functions": [],
+      "pseudocode": "numpy>=1.21.0\npyyaml>=5.4.0"
+    },
+    "README.md": {
+      "description": "Documentation file explaining how to reproduce the paper's results. Describes the enhanced graph data structure (nodes in mark-based linked lists, 5x3 incidence arrays for edges), the three case study programs, how to run the experiments, and how to interpret the runtime complexity results.",
+      "class": "None",
+      "parent_class": "None",
+      "methods": [],
+      "functions": [],
+      "pseudocode": "# Rule-Based Graph Programs Matching Time Complexity of Imperative Algorithms\n\n## Overview\nReproduction of the paper's enhanced GP 2 compiler with improved graph data structure.\n\n## Key Data Structure\n- Nodes stored in separate linked lists based on marks (unmarked, dashed, red, green, blue)\n- Each node has a 5x3 array of linked lists for incident edges (rows: marks, columns: incoming/outgoing/loop)\n\n## Case Studies\n1. Connectedness check - O(n) time\n2. Acyclicity check - O(n) time\n3. Bellman-Ford shortest path - O(n*m) time\n\n## Usage\npython main.py\n\n## Results\nExpected: linear-time connectedness and acyclicity, O(n*m) Bellman-Ford on arbitrary graphs"
+    }
+  }
+}
+```

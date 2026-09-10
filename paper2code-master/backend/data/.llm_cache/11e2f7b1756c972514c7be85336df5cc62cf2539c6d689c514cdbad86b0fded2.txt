@@ -1,0 +1,18 @@
+{
+  "table_id": "table_2",
+  "table_type": "other",
+  "caption_summary": "Sparse table listing components of the GP 2-to-C compilation pipeline: GP 2-to-C, GCC, Runtime System, Program, and Graph.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Component 1", "value": "GP 2-to-C"},
+      {"label": "Component 2", "value": "GCC"},
+      {"label": "Component 3", "value": "Runtime System"},
+      {"label": "Component 4", "value": "Program"},
+      {"label": "Component 5", "value": "Graph"}
+    ]
+  },
+  "table_summary": "The table contains no numerical data or performance metrics. It appears to list components of a compilation pipeline: GP 2-to-C, GCC, Runtime System, Program, and Graph. No quantitative results or best method can be extracted from this table."
+}

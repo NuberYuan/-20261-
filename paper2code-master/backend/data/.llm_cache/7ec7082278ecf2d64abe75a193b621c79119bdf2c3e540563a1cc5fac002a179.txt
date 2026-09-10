@@ -1,0 +1,21 @@
+{
+  "table_id": "table_2",
+  "table_type": "other",
+  "caption_summary": "A table showing a quote about implementation differences in evaluation code, likely from a reproducibility analysis.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {
+        "label": "Quote",
+        "value": "We found the implementation of the eval is different in their code"
+      },
+      {
+        "label": "Context",
+        "value": "Reproducibility Papers"
+      }
+    ]
+  },
+  "table_summary": "The table appears to be a fragment from a reproducibility analysis, highlighting a quote from a paper that notes differences in the implementation of evaluation code. The quote is repeated across cells, possibly indicating a pattern or emphasis. No numerical data or standard experimental results are present."
+}

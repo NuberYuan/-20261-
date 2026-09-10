@@ -1,0 +1,36 @@
+{
+  "table_id": "table_4",
+  "table_type": "other",
+  "caption_summary": "This table appears to contain multiple sub-figures and a results table for SELF-RAG variants, including accuracy, frequency, precision, and Mauve scores across different retrieval thresholds and ablation conditions.",
+  "extracted_data": {
+    "metrics": ["Accuracy", "Frequency", "Precision", "Mauve", "EM"],
+    "methods": ["SELF-RAG (50k)", "No Retriever R", "No Critic C", "No retrieval", "Hard constraints", "Retrieve top1", "Remove ISSUP"],
+    "best_result": {
+      "method": "SELF-RAG (50k)",
+      "metric": "PQA acc",
+      "value": 45.5
+    },
+    "key_values": [
+      {"label": "SELF-RAG (50k) PQA acc", "value": "45.5"},
+      {"label": "SELF-RAG (50k) Med acc", "value": "73.5"},
+      {"label": "SELF-RAG (50k) AS em", "value": "32.1"},
+      {"label": "No Retriever R PQA acc", "value": "43.6"},
+      {"label": "No Retriever R Med acc", "value": "67.8"},
+      {"label": "No Retriever R AS em", "value": "31.0"},
+      {"label": "No Critic C PQA acc", "value": "42.6"},
+      {"label": "No Critic C Med acc", "value": "72.0"},
+      {"label": "No Critic C AS em", "value": "18.1"},
+      {"label": "No retrieval PQA acc", "value": "24.7"},
+      {"label": "No retrieval Med acc", "value": "73.0"},
+      {"label": "Hard constraints PQA acc", "value": "28.3"},
+      {"label": "Hard constraints Med acc", "value": "72.6"},
+      {"label": "Retrieve top1 PQA acc", "value": "41.8"},
+      {"label": "Retrieve top1 Med acc", "value": "73.1"},
+      {"label": "Retrieve top1 AS em", "value": "28.6"},
+      {"label": "Remove ISSUP PQA acc", "value": "44.1"},
+      {"label": "Remove ISSUP Med acc", "value": "73.2"},
+      {"label": "Remove ISSUP AS em", "value": "30.6"}
+    ]
+  },
+  "table_summary": "The table presents a mix of plots and a results table. The plots show accuracy and frequency as functions of retrieval threshold for PubHealth and PopQA, with precision and Mauve scores for different weights for IsSupport. The results table compares SELF-RAG (50k) against ablations (No Retriever, No Critic) and test-time variations (No retrieval, Hard constraints, Retrieve top1, Remove ISSUP) on PQA accuracy, Med accuracy, and AS exact match. SELF-RAG (50k) achieves the highest PQA accuracy (45.5) and AS EM (32.1), while Med accuracy is highest for SELF-RAG (50k) and Retrieve top1 (73.5 and 73.1 respectively)."
+}

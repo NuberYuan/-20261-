@@ -1,0 +1,181 @@
+import sys
+import json
+import re
+import numpy as np
+import cv2
+
+
+def load_image(image_path):
+    data = np.fromfile(image_path, dtype=np.uint8)
+    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    return img
+
+
+def compute_visual_features(img):
+    h, w = img.shape[:2]
+    aspect = float(w) / float(h) if h else 0.0
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    white_mask = gray >= 235
+    white_ratio = float(np.mean(white_mask))
+
+    saturation = hsv[:, :, 1]
+    saturated_ratio = float(np.mean(saturation > 60))
+
+    gray_std = float(np.std(gray))
+
+    # 量化颜色，仅用于粗略判断颜色多样性，不统计边缘、轮廓或直线
+    quantized = (img // 32).astype(np.int32)
+    color_codes = (quantized[:, :, 0] * 64 + quantized[:, :, 1] * 8 + quantized[:, :, 2]).flatten()
+    unique_color_ratio = float(np.unique(color_codes).shape[0]) / float(color_codes.shape[0]) if color_codes.shape[0] else 0.0
+
+    # 非白色区域的空间分布方差，用于粗略区分图表与照片拼贴，不涉及轮廓或直线
+    mask = (gray < 235).astype(np.float32)
+    block_h = max(16, h // 12)
+    block_w = max(16, w // 12)
+    block_means = []
+    for y in range(0, h, block_h):
+        for x in range(0, w, block_w):
+            block = mask[y:y + block_h, x:x + block_w]
+            block_means.append(float(np.mean(block)))
+    block_std = float(np.std(block_means)) if block_means else 0.0
+
+    return {
+        "aspect": aspect,
+        "white_ratio": white_ratio,
+        "saturated_ratio": saturated_ratio,
+        "gray_std": gray_std,
+        "unique_color_ratio": unique_color_ratio,
+        "block_std": block_std
+    }
+
+
+def classify_image(ocr_text, vis):
+    text = (ocr_text or "").lower()
+
+    architecture_keywords = [
+        "cnn", "transformer", "attention", "encoder", "decoder", "block",
+        "embedding", "classifier", "feature extractor", "alexnet", "resnet",
+        "vgg", "googlenet", "convolution", "pooling"
+    ]
+    experiment_keywords = [
+        "accuracy", "loss", "epoch", "precision", "recall", "f1",
+        "f1-score", "map", "roc", "auc", "performance", "comparison"
+    ]
+    dataset_keywords = [
+        "sample", "example", "input image", "category", "class",
+        "dataset", "training images", "test images"
+    ]
+
+    has_experiment = any(k in text for k in experiment_keywords)
+    has_architecture = any(k in text for k in architecture_keywords)
+    has_dataset = any(k in text for k in dataset_keywords)
+
+    if has_experiment:
+        return "experiment_result"
+    if has_architecture:
+        return "architecture"
+    if has_dataset:
+        return "dataset"
+
+    if vis["white_ratio"] < 0.55 and vis["saturated_ratio"] > 0.15 and vis["gray_std"] > 60:
+        return "dataset"
+    if vis["white_ratio"] > 0.55 and vis["block_std"] > 0.15 and vis["saturated_ratio"] > 0.02:
+        return "experiment_result"
+    if vis["white_ratio"] > 0.65 and vis["saturated_ratio"] < 0.08:
+        return "architecture"
+
+    return "other"
+
+
+def extract_components(ocr_text, image_type):
+    text = ocr_text or ""
+
+    architecture_terms = [
+        "AlexNet", "ResNet", "VGG", "GoogLeNet", "CNN",
+        "Transformer", "Attention", "Encoder", "Decoder",
+        "Block", "Embedding", "Classifier", "Feature Extractor",
+        "Convolution", "Pooling"
+    ]
+    experiment_terms = [
+        "Accuracy", "Loss", "Epoch", "Precision", "Recall",
+        "F1-score", "F1", "mAP", "ROC", "AUC"
+    ]
+
+    candidates = []
+    if image_type == "experiment_result":
+        candidates = experiment_terms + architecture_terms
+    elif image_type == "architecture":
+        candidates = architecture_terms
+    elif image_type == "dataset":
+        candidates = []
+
+    found = []
+    for term in candidates:
+        if term.lower() in text.lower():
+            found.append(term)
+
+    seen = set()
+    unique = []
+    for term in found:
+        if term not in seen:
+            seen.add(term)
+            unique.append(term)
+    return unique
+
+
+def build_result(image_type, ocr_text):
+    if image_type == "architecture":
+        description = "展示模型网络结构和数据流关系"
+        code_relevant = "需要实现特征提取模块和分类器，并按结构图连接各模块"
+    elif image_type == "experiment_result":
+        description = "展示实验性能对比或训练过程指标变化"
+        code_relevant = "需要实现模型训练与评估流程，记录准确率、损失等指标"
+    elif image_type == "dataset":
+        description = "展示数据样本或类别示例"
+        code_relevant = "需要准备数据加载与预处理代码，支持样本输入"
+    else:
+        description = "无法确定图片类型"
+        code_relevant = ""
+
+    return {
+        "type": image_type,
+        "description": description,
+        "important_components": extract_components(ocr_text, image_type),
+        "code_relevant_information": code_relevant
+    }
+
+
+def main():
+    try:
+        image_path = sys.argv[1] if len(sys.argv) > 1 else ""
+        ocr_text = sys.argv[2] if len(sys.argv) > 2 else ""
+
+        img = load_image(image_path)
+        if img is None:
+            print(json.dumps({
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }, ensure_ascii=False))
+            return
+
+        vis = compute_visual_features(img)
+        image_type = classify_image(ocr_text, vis)
+        result = build_result(image_type, ocr_text)
+
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

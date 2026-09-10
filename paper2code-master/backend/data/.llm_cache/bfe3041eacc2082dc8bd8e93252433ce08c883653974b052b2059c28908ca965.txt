@@ -1,0 +1,7 @@
+{
+  "models[0].num_classes": "NOT_FOUND",
+  "models[0].pretrained": "NOT_FOUND",
+  "models[0].architecture.total_layers": "1",
+  "models[0].architecture.param_count": "NOT_FOUND",
+  "models[0].architecture.final_classifier": "线性层，将隐藏状态映射到给定接口的动作或目标符号"
+}

@@ -1,0 +1,181 @@
+{
+  "code_requirements": {
+    "models/gp2_connectedness_program.py": {
+      "description": "实现论文中的 GP2 connectedness 规则程序：基于节点标记链表和按标记/方向的入射边索引，在线性时间内判定任意度、可能不连通的有向标注图是否连通。",
+      "class": "GP2ConnectednessProgram",
+      "parent_class": "object",
+      "methods": [
+        "__init__",
+        "run",
+        "_is_connected",
+        "_expand_frontier"
+      ],
+      "functions": [],
+      "uses": [
+        "src.gp2compilerenhancementsandrootedgraphprograms"
+      ],
+      "pseudocode": "run(graph): 若 graph.node_count==0 返回 True；将所有节点标记为 unmarked；任选根节点标记为 grey；while 存在 grey 或 green 节点且其 unmarked 入边/出边链表非空：取该节点 u，从按标记和方向的边索引中取一条 unmarked 边到 v；将 v 标记为 grey，将边标记为 blue；若 u 不再有 unmarked 邻居则改为 green；最终若仍存在 unmarked 节点则返回 False，否则返回 True。"
+    },
+    "models/gp2_acyclicity_program.py": {
+      "description": "实现论文中的 GP2 acyclicity 规则程序：反复删除无入边的节点，利用按标记/方向的入射边索引使每次删除常数时间，整体线性时间检测任意度、可能不连通的有向图是否无环。",
+      "class": "GP2AcyclicityProgram",
+      "parent_class": "object",
+      "methods": [
+        "__init__",
+        "run",
+        "_is_acyclic",
+        "_remove_source_nodes"
+      ],
+      "functions": [],
+      "uses": [
+        "src.gp2compilerenhancementsandrootedgraphprograms"
+      ],
+      "pseudocode": "run(graph): 初始化所有节点和边为 unmarked；while True: 通过每个节点的 incoming 边索引查找没有未删除入边的节点集合；若为空则 break；对每个这样的节点，将其出边和入边标记为 dashed，节点标记为 green 并从后续匹配中排除；最终若存在未删除节点则返回 False（存在环），否则返回 True。"
+    },
+    "models/gp2_bellman_ford_program.py": {
+      "description": "实现论文中的 GP2 Bellman-Ford 单源最短路规则程序：在任意图上达到 O(n*m)，支持整数权重、负权边，并在检测到负环时失败。",
+      "class": "GP2BellmanFordProgram",
+      "parent_class": "object",
+      "methods": [
+        "__init__",
+        "run",
+        "_initialise_distances",
+        "_relax_all_edges",
+        "_detect_negative_cycle"
+      ],
+      "functions": [],
+      "uses": [
+        "src.gp2compilerenhancementsandrootedgraphprograms"
+      ],
+      "pseudocode": "run(graph, source): 初始化 dist[source]=0，其余节点 dist=INF；重复 n-1 次：遍历所有节点，通过 outgoing 和 loop 边索引访问每条边 (u,v,w)，若 dist[u]+w < dist[v] 则更新 dist[v] 并标记该边为 blue/red；之后再次遍历全部边，若仍可松弛则返回 negative_cycle_failure；否则返回 dist 距离图和由松弛边构成的最短路径子图。"
+    },
+    "src/gp2compilerenhancementsandrootedgraphprograms.py": {
+      "description": "实现论文增强的 GP2 编译器图数据结构：节点按 red/green/blue/grey/unmarked 五个标记链表存储；每个节点持有 5x3 入射边链表数组（red/green/blue/dashed/unmarked × incoming/outgoing/loop），支持按标记和方向常数时间访问边或判定不存在。",
+      "class": "GP2HostGraph",
+      "parent_class": "object",
+      "methods": [
+        "__init__",
+        "add_node",
+        "add_edge",
+        "get_nodes_by_mark",
+        "get_incident_edges",
+        "set_node_mark",
+        "set_edge_mark",
+        "remove_node",
+        "remove_edge",
+        "parse_graph"
+      ],
+      "functions": [
+        "build_from_adjacency",
+        "make_node_mark_index",
+        "make_edge_index"
+      ],
+      "uses": [],
+      "pseudocode": "GP2HostGraph 维护 node_mark_lists={'red':链表,'green':链表,'blue':链表,'grey':链表,'unmarked':链表}；Node 包含 edge_index[mark][orientation] 的链表，orientation∈{'incoming','outgoing','loop'}，mark∈{'red','green','blue','dashed','unmarked'}；add_edge 时按源节点和 target 节点及边的 mark 插入对应方向链表；set_node_mark 将节点从旧标记链表迁移到新标记链表；set_edge_mark 同步更新所有关联节点的 edge_index；get_incident_edges 按请求的 mark 和 orientation 常数时间返回链表或空链表。"
+    },
+    "evaluation/evaluate.py": {
+      "description": "评估与对比脚本：生成论文使用的多类合成图，执行 connectedness、acyclicity、Bellman-Ford 三个程序，测量运行时间，验证正确性，并对比命令式算法的复杂度表现。",
+      "class": "Evaluator",
+      "parent_class": "object",
+      "methods": [
+        "__init__",
+        "generate_graphs",
+        "run_case_studies",
+        "compare_with_imperative",
+        "report"
+      ],
+      "functions": [
+        "main"
+      ],
+      "uses": [
+        "models.gp2_connectedness_program",
+        "models.gp2_acyclicity_program",
+        "models.gp2_bellman_ford_program",
+        "utils.metrics",
+        "src.gp2compilerenhancementsandrootedgraphprograms"
+      ],
+      "pseudocode": "main(): 对每个图类(path, cycle, random, rooted_cycle)生成不同规模实例；分别运行 connectedness、acyclicity、Bellman-Ford；使用 metrics 记录 wall-clock 时间和正确性；对 Bellman-Ford 与命令式实现比较；输出表格或 JSON 报告。"
+    },
+    "utils/metrics.py": {
+      "description": "计时与正确性校验工具：提供运行时间测量、连通性/无环性/最短路径正确性断言，以及用于辅助验证线性时间或 O(n*m) 复杂度的缩放检查。",
+      "class": "Metrics",
+      "parent_class": "object",
+      "methods": [
+        "__init__",
+        "measure_runtime",
+        "assert_connected",
+        "assert_acyclic",
+        "assert_shortest_paths"
+      ],
+      "functions": [
+        "timeit",
+        "check_linear_scaling"
+      ],
+      "uses": [
+        "src.gp2compilerenhancementsandrootedgraphprograms"
+      ],
+      "pseudocode": "measure_runtime(fn,*args): 多次运行取最小时间；assert_shortest_paths 用简单的 Bellman-Ford 或 Floyd-Warshall 基准校验；check_linear_scaling 对递增规模运行时间做线性拟合，返回 R^2 和斜率。"
+    },
+    "main.py": {
+      "description": "命令行入口：加载输入主机图，选择要运行的 GP2 规则程序，执行并输出结果图或失败状态。",
+      "class": null,
+      "parent_class": null,
+      "methods": [],
+      "functions": [
+        "main",
+        "parse_args",
+        "load_graph",
+        "run_selected_program"
+      ],
+      "uses": [
+        "src.gp2compilerenhancementsandrootedgraphprograms",
+        "models.gp2_connectedness_program",
+        "models.gp2_acyclicity_program",
+        "models.gp2_bellman_ford_program"
+      ],
+      "pseudocode": "main(): 解析命令行参数 --program --input --source；调用 load_graph 读取主机图文本；根据 program 实例化对应程序；执行 run；成功时输出结果图或距离，失败时打印 failure。"
+    },
+    "models/gp2connectednessprogram.py": {
+      "description": "兼容模块：若项目采用 classes.file 的命名，则在本文件中定义或重新导出 GP2ConnectednessProgram；否则仅从 models.gp2_connectedness_program 导入。",
+      "class": "GP2ConnectednessProgram",
+      "parent_class": "object",
+      "methods": [
+        "__init__",
+        "run"
+      ],
+      "functions": [],
+      "uses": [
+        "models.gp2_connectedness_program"
+      ],
+      "pseudocode": "from models.gp2_connectedness_program import GP2ConnectednessProgram; 若需要独立实现则复制同名的连通性检查逻辑。"
+    },
+    "models/gp2acyclicityprogram.py": {
+      "description": "兼容模块：若项目采用 classes.file 的命名，则在本文件中定义或重新导出 GP2AcyclicityProgram；否则仅从 models.gp2_acyclicity_program 导入。",
+      "class": "GP2AcyclicityProgram",
+      "parent_class": "object",
+      "methods": [
+        "__init__",
+        "run"
+      ],
+      "functions": [],
+      "uses": [
+        "models.gp2_acyclicity_program"
+      ],
+      "pseudocode": "from models.gp2_acyclicity_program import GP2AcyclicityProgram; 若需要独立实现则复制同名的无环性检查逻辑。"
+    },
+    "models/gp2bellmanfordprogram.py": {
+      "description": "兼容模块：若项目采用 classes.file 的命名，则在本文件中定义或重新导出 GP2BellmanFordProgram；否则仅从 models.gp2_bellman_ford_program 导入。",
+      "class": "GP2BellmanFordProgram",
+      "parent_class": "object",
+      "methods": [
+        "__init__",
+        "run"
+      ],
+      "functions": [],
+      "uses": [
+        "models.gp2_bellman_ford_program"
+      ],
+      "pseudocode": "from models.gp2_bellman_ford_program import GP2BellmanFordProgram; 若需要独立实现则复制同名的 Bellman-Ford 逻辑。"
+    }
+  }
+}

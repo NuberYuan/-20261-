@@ -1,0 +1,287 @@
+```python
+import os
+import random
+import yaml
+import torch
+from torch.utils.data import Dataset, Subset, random_split
+from PIL import Image
+from torchvision import transforms
+
+
+class FourMedicalImagingDatasetsCellNucleiColonPolypLiverLungNoduleDataset(Dataset):
+    """
+    Dataset class for four medical imaging datasets:
+    cell nuclei, colon polyp, liver, lung nodule.
+
+    Supports three preprocessing versions: 'color', 'grayscale', 'segmented'.
+    The 'segmented' version is marked as unresolved in config.yaml and will
+    raise NotImplementedError if selected.
+    """
+
+    def __init__(self, root_dir, version='color', config=None, transform=None):
+        """
+        Args:
+            root_dir (str): Root directory containing the dataset folders.
+            version (str): Preprocessing version. One of 'color', 'grayscale', 'segmented'.
+            config (dict, optional): Loaded config dictionary. If None, will attempt to load from default path.
+            transform (callable, optional): Optional transform to be applied on a sample.
+        """
+        self.root_dir = root_dir
+        self.version = version
+        self.config = config
+        self.transform = transform
+
+        if self.config is None:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'config.yaml')
+            with open(config_path, 'r', encoding='utf-8') as f:
+                self.config = yaml.safe_load(f)
+
+        # Check if the selected version is unresolved
+        data_config = self.config.get('data', {})
+        version_config = data_config.get(self.version, {})
+        status = version_config.get('status', 'resolved')
+        if status == 'unresolved':
+            reason = version_config.get('reason', 'No reason provided.')
+            raise NotImplementedError(f"Dataset version '{self.version}' is unresolved: {reason}")
+
+        # Build image paths and labels
+        self.image_paths = []
+        self.labels = []
+
+        # Define dataset folder names and their corresponding labels
+        # For classification task, we assign a label to each dataset
+        # cell nuclei: 0, colon polyp: 1, liver: 2, lung nodule: 3
+        dataset_folders = {
+            'cell_nuclei': 0,
+            'colon_polyp': 1,
+            'liver': 2,
+            'lung_nodule': 3
+        }
+
+        for folder_name, label in dataset_folders.items():
+            folder_path = os.path.join(self.root_dir, folder_name)
+            if not os.path.isdir(folder_path):
+                print(f"Warning: Dataset folder '{folder_path}' not found. Skipping.")
+                continue
+            for img_name in os.listdir(folder_path):
+                if img_name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff')):
+                    img_path = os.path.join(folder_path, img_name)
+                    self.image_paths.append(img_path)
+                    self.labels.append(label)
+
+        if len(self.image_paths) == 0:
+            raise RuntimeError(f"No images found in root_dir '{self.root_dir}' for version '{self.version}'.")
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        img_path = self.image_paths[idx]
+        label = self.labels[idx]
+
+        # Load image with PIL
+        image = Image.open(img_path).convert('RGB')
+
+        if self.transform is not None:
+            image = self.transform(image)
+
+        return image, label
+
+    def preprocess_image(self, image, version=None):
+        """
+        Preprocess a single PIL image according to the specified version.
+
+        Args:
+            image (PIL.Image): Input image.
+            version (str, optional): Preprocessing version. Defaults to self.version.
+
+        Returns:
+            torch.Tensor: Preprocessed image tensor.
+        """
+        if version is None:
+            version = self.version
+
+        if version == 'color':
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+            ])
+        elif version == 'grayscale':
+            transform = transforms.Compose([
+                transforms.Grayscale(num_output_channels=1),
+                transforms.ToTensor(),
+                transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+            ])
+        elif version == 'segmented':
+            raise NotImplementedError(
+                "Segmented preprocessing is not implemented because the paper does not provide "
+                "the complete segmentation algorithm. Use 'color' or 'grayscale' instead."
+            )
+        else:
+            raise ValueError(f"Unknown version: {version}. Must be one of 'color', 'grayscale', 'segmented'.")
+
+        return transform(image)
+
+    def split_dataset(self, train_ratio=None, val_ratio=None, seed=None):
+        """
+        Split the dataset into train, validation, and test subsets.
+
+        Args:
+            train_ratio (float, optional): Ratio of training data. Defaults to config value or 0.8.
+            val_ratio (float, optional): Ratio of validation data (from training portion). Defaults to config value or 0.2.
+            seed (int, optional): Random seed for reproducibility. Defaults to config value or 42.
+
+        Returns:
+            tuple: (train_subset, val_subset, test_subset) as Subset objects.
+        """
+        split_config = self.config.get('split_strategy', {})
+        if train_ratio is None:
+            train_ratio = split_config.get('default_train_ratio', 0.8)
+        if val_ratio is None:
+            val_ratio = split_config.get('val_split_ratio', 0.2)
+        if seed is None:
+            seed = split_config.get('seed', 42)
+
+        generator = torch.Generator().manual_seed(seed)
+
+        total_size = len(self)
+        train_size = int(total_size * train_ratio)
+        test_size = total_size - train_size
+        train_dataset, test_dataset = random_split(
+            self, [train_size, test_size], generator=generator
+        )
+
+        # Further split train into train and validation
+        val_size = int(train_size * val_ratio)
+        train_size_final = train_size - val_size
+        train_subset, val_subset = random_split(
+            train_dataset, [train_size_final, val_size], generator=generator
+        )
+
+        return train_subset, val_subset, test_subset
+
+
+class TransformSubset(Dataset):
+    """
+    A lightweight wrapper around a Subset that applies a transform to each sample.
+    This avoids mutating the shared underlying Dataset object.
+    """
+
+    def __init__(self, subset, transform=None):
+        """
+        Args:
+            subset (Subset): The subset to wrap.
+            transform (callable, optional): Transform to apply to each sample.
+        """
+        self.subset = subset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.subset)
+
+    def __getitem__(self, idx):
+        x, y = self.subset[idx]
+        if self.transform is not None:
+            x = self.transform(x)
+        return x, y
+
+
+def get_transform(train=True, version='color'):
+    """
+    Get the appropriate transform for training or evaluation.
+
+    Args:
+        train (bool): Whether this is for training (adds augmentation) or evaluation.
+        version (str): Preprocessing version.
+
+    Returns:
+        callable: Transform function.
+    """
+    if version == 'color':
+        base_transforms = [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ]
+    elif version == 'grayscale':
+        base_transforms = [
+            transforms.Grayscale(num_output_channels=1),
+            transforms.ToTensor(),
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1)),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ]
+    elif version == 'segmented':
+        raise NotImplementedError(
+            "Segmented preprocessing is not implemented because the paper does not provide "
+            "the complete segmentation algorithm. Use 'color' or 'grayscale' instead."
+        )
+    else:
+        raise ValueError(f"Unknown version: {version}. Must be one of 'color', 'grayscale', 'segmented'.")
+
+    if train:
+        # Add augmentation for training
+        transforms_list = [
+            transforms.RandomHorizontalFlip(p=0.5)
+        ] + base_transforms
+    else:
+        transforms_list = base_transforms
+
+    return transforms.Compose(transforms_list)
+
+
+def get_dataloaders(config=None, version='color', batch_size=32, num_workers=4):
+    """
+    Create DataLoaders for train, validation, and test sets.
+
+    Args:
+        config (dict, optional): Loaded config dictionary.
+        version (str): Preprocessing version. Must be one of 'color', 'grayscale', 'segmented'.
+        batch_size (int): Batch size for DataLoaders.
+        num_workers (int): Number of worker processes for DataLoader.
+
+    Returns:
+        dict: Dictionary containing 'train', 'val', 'test' DataLoaders.
+    """
+    if config is None:
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+
+    data_config = config.get('data', {})
+    root_dir = data_config.get('root', './data')
+
+    # Create dataset
+    dataset = FourMedicalImagingDatasetsCellNucleiColonPolypLiverLungNoduleDataset(
+        root_dir=root_dir,
+        version=version,
+        config=config
+    )
+
+    # Split dataset
+    train_subset, val_subset, test_subset = dataset.split_dataset()
+
+    # Wrap with TransformSubset to apply transforms without mutating shared dataset
+    train_transform = get_transform(train=True, version=version)
+    eval_transform = get_transform(train=False, version=version)
+
+    train_dataset = TransformSubset(train_subset, transform=train_transform)
+    val_dataset = TransformSubset(val_subset, transform=eval_transform)
+    test_dataset = TransformSubset(test_subset, transform=eval_transform)
+
+    # Create DataLoaders
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
+    )
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    )
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    return {
+        'train': train_loader,
+        'val': val_loader,
+        'test': test_loader
+    }
+```

@@ -1,0 +1,182 @@
+```python
+import sys
+import json
+import os
+import numpy as np
+import cv2
+from PIL import Image
+
+def analyze_image(image_path, ocr_text):
+    """分析论文图片并返回结构化JSON"""
+    
+    # 默认结果
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+    
+    try:
+        # 读取图片（支持中文路径）
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return result
+        
+        # 获取图片基本信息
+        height, width = img.shape[:2]
+        
+        # 将OCR文字转为小写便于匹配
+        ocr_lower = ocr_text.lower()
+        
+        # 定义关键词列表
+        architecture_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        experiment_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "curve", "performance", "comparison", "training", "validation"
+        ]
+        
+        dataset_keywords = [
+            "dataset", "sample", "example", "input", "image", "class",
+            "category", "label"
+        ]
+        
+        # 判断类型
+        type_scores = {
+            "architecture": 0,
+            "experiment_result": 0,
+            "dataset": 0
+        }
+        
+        # 基于OCR文字判断
+        for kw in architecture_keywords:
+            if kw in ocr_lower:
+                type_scores["architecture"] += 1
+        
+        for kw in experiment_keywords:
+            if kw in ocr_lower:
+                type_scores["experiment_result"] += 1
+        
+        for kw in dataset_keywords:
+            if kw in ocr_lower:
+                type_scores["dataset"] += 1
+        
+        # 基于图片特征简单判断
+        # 检查是否为灰度图（可能是实验曲线）
+        if len(img.shape) == 2:
+            type_scores["experiment_result"] += 1
+        
+        # 检查图片尺寸比例（架构图通常较宽）
+        if width > height * 1.5:
+            type_scores["architecture"] += 1
+        
+        # 确定最终类型（按优先级）
+        if type_scores["experiment_result"] > 0:
+            result["type"] = "experiment_result"
+        elif type_scores["architecture"] > 0:
+            result["type"] = "architecture"
+        elif type_scores["dataset"] > 0:
+            result["type"] = "dataset"
+        
+        # 根据类型填充详细信息
+        if result["type"] == "architecture":
+            # 提取模型组件
+            components = []
+            for kw in architecture_keywords:
+                if kw in ocr_lower:
+                    # 格式化组件名称
+                    if kw == "cnn":
+                        components.append("CNN")
+                    elif kw == "transformer":
+                        components.append("Transformer")
+                    elif kw == "attention":
+                        components.append("Attention Module")
+                    elif kw == "encoder":
+                        components.append("Encoder")
+                    elif kw == "decoder":
+                        components.append("Decoder")
+                    elif kw == "block":
+                        components.append("Block")
+                    elif kw == "embedding":
+                        components.append("Embedding")
+                    elif kw == "classifier":
+                        components.append("Classifier")
+                    elif kw == "feature extractor":
+                        components.append("Feature Extractor")
+                    elif kw == "alexnet":
+                        components.append("AlexNet")
+                    elif kw == "resnet":
+                        components.append("ResNet")
+                    elif kw == "vgg":
+                        components.append("VGG")
+                    elif kw == "googlenet":
+                        components.append("GoogLeNet")
+            
+            result["important_components"] = list(set(components))[:5]
+            result["description"] = "展示模型网络结构和数据流关系"
+            result["code_relevant_information"] = "需要实现模型架构，包含特征提取和分类模块"
+            
+        elif result["type"] == "experiment_result":
+            # 提取指标名称
+            metrics = []
+            for kw in experiment_keywords:
+                if kw in ocr_lower:
+                    if kw == "accuracy":
+                        metrics.append("Accuracy")
+                    elif kw == "loss":
+                        metrics.append("Loss")
+                    elif kw == "epoch":
+                        metrics.append("Epoch")
+                    elif kw == "precision":
+                        metrics.append("Precision")
+                    elif kw == "recall":
+                        metrics.append("Recall")
+                    elif kw == "f1":
+                        metrics.append("F1-score")
+            
+            result["important_components"] = list(set(metrics))[:5]
+            result["description"] = "展示实验结果和性能指标对比"
+            result["code_relevant_information"] = "需要实现实验评估模块，计算并可视化性能指标"
+            
+        elif result["type"] == "dataset":
+            result["description"] = "展示数据集样本或输入示例"
+            result["code_relevant_information"] = "需要实现数据加载和预处理模块"
+        
+        return result
+        
+    except Exception as e:
+        # 任何异常都返回默认结果
+        return result
+
+def main():
+    # 获取图片路径
+    if len(sys.argv) < 2:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+        return
+    
+    image_path = sys.argv[1]
+    
+    # OCR文字（由外部提供）
+    ocr_text = "t8"
+    
+    # 分析图片
+    result = analyze_image(image_path, ocr_text)
+    
+    # 输出JSON
+    print(json.dumps(result, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```

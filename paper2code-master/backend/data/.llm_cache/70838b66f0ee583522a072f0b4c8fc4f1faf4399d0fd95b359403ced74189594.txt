@@ -1,0 +1,35 @@
+{
+  "table_id": "table_6",
+  "table_type": "comparison",
+  "caption_summary": "Comparison of task performance across different reward types (0/1, discretized, continuous) for various tasks.",
+  "extracted_data": {
+    "metrics": ["Task performance (likely success rate or score)"],
+    "methods": ["0/1 reward", "Discretized reward", "Continuous reward"],
+    "best_result": {
+      "method": "Continuous reward",
+      "metric": "Task performance",
+      "value": "250.0"
+    },
+    "key_values": [
+      {"label": "Coping - 0/1 reward", "value": "0.6"},
+      {"label": "Coping - Discretized reward", "value": "0.6"},
+      {"label": "Coping - Continuous reward", "value": "0.8"},
+      {"label": "Reverse (FF controller) - 0/1 reward", "value": "3.1"},
+      {"label": "Reverse (FF controller) - Discretized reward", "value": "3.1"},
+      {"label": "Reverse (FF controller) - Continuous reward", "value": "59.7"},
+      {"label": "Walk (FF controller) - 0/1 reward", "value": "11.1"},
+      {"label": "Walk (FF controller) - Discretized reward", "value": "9.5"},
+      {"label": "Walk (FF controller) - Continuous reward", "value": "250.0"},
+      {"label": "Addition - 0/1 reward", "value": "21.1"},
+      {"label": "Addition - Discretized reward", "value": "21.6"},
+      {"label": "Addition - Continuous reward", "value": "24.2"},
+      {"label": "3-number Addition (extra curriculum) - 0/1 reward", "value": "81.9"},
+      {"label": "3-number Addition (extra curriculum) - Discretized reward", "value": "77.9"},
+      {"label": "3-number Addition (extra curriculum) - Continuous reward", "value": "131.9"},
+      {"label": "Single Digit Multiplication - 0/1 reward", "value": "24.7"},
+      {"label": "Single Digit Multiplication - Discretized reward", "value": "26.5"},
+      {"label": "Single Digit Multiplication - Continuous reward", "value": "26.6"}
+    ]
+  },
+  "table_summary": "This table compares the performance of different tasks under three reward types: 0/1 reward, discretized reward, and continuous reward. The tasks include Coping, Reverse (FF controller), Walk (FF controller), Addition, 3-number Addition (extra curriculum), and Single Digit Multiplication. The continuous reward type generally yields the highest performance values across most tasks, with the most notable improvement in the Walk (FF controller) task (250.0 vs 11.1 and 9.5). The 0/1 and discretized rewards show similar performance on some tasks, but continuous reward consistently outperforms them, indicating that finer-grained reward signals improve learning efficiency."
+}

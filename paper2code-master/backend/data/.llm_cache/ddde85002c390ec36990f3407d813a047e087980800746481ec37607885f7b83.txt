@@ -1,0 +1,616 @@
+```python
+import os
+import sys
+import time
+import copy
+import random
+import logging
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import yaml
+from torch.utils.data import DataLoader
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders
+from models.u_net import UNet
+from models.wide_u_net import WideUNet
+
+
+def load_config(config_path=None):
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path (str, optional): Path to config file.
+            If None, defaults to 'config/config.yaml' relative to project root.
+
+    Returns:
+        dict: Configuration dictionary.
+    """
+    if config_path is None:
+        config_path = PROJECT_ROOT / 'config' / 'config.yaml'
+
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return config
+    except FileNotFoundError:
+        logging.warning(f"Config file not found at {config_path}. Using empty config.")
+        return {}
+    except Exception as e:
+        logging.warning(f"Error loading config from {config_path}: {e}. Using empty config.")
+        return {}
+
+
+def initialize_model(config=None, device=None):
+    """
+    Initialize the model based on configuration.
+
+    Args:
+        config (dict, optional): Configuration dictionary.
+        device (torch.device, optional): Device to move model to.
+
+    Returns:
+        nn.Module: Initialized model.
+    """
+    if config is None:
+        config = load_config()
+
+    # Determine model architecture
+    architectures = config.get('model', {}).get('architectures', ['UNetPlusPlus'])
+    architecture = architectures[0] if architectures else 'UNetPlusPlus'
+
+    # Create model based on architecture name
+    if architecture == 'UNetPlusPlus':
+        model = WideUNet(config=config)
+    elif architecture == 'UNet':
+        model = UNet(config=config)
+    else:
+        # Default to WideUNet (UNet++)
+        logging.warning(f"Unknown architecture '{architecture}'. Defaulting to WideUNet (UNet++).")
+        model = WideUNet(config=config)
+
+    # Apply weight initialization from config
+    weight_init = config.get('training_modes', {}).get('scratch', {}).get('weight_init', 'kaiming_normal')
+
+    def init_weights(m):
+        if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+            if weight_init == 'kaiming_normal':
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif weight_init == 'xavier_normal':
+                nn.init.xavier_normal_(m.weight)
+            elif weight_init == 'xavier_uniform':
+                nn.init.xavier_uniform_(m.weight)
+            elif weight_init == 'kaiming_uniform':
+                nn.init.kaiming_uniform_(m.weight, mode='fan_out', nonlinearity='relu')
+            else:
+                # Default to kaiming_normal
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
+
+    model.apply(init_weights)
+
+    # Move model to device
+    if device is not None:
+        model = model.to(device)
+
+    return model
+
+
+def dice_coefficient_loss(pred, target, smooth=1.0):
+    """
+    Compute Dice loss for binary segmentation.
+
+    Args:
+        pred (torch.Tensor): Predicted logits of shape (B, 1, H, W).
+        target (torch.Tensor): Ground truth of shape (B, 1, H, W) or (B, H, W).
+        smooth (float): Smoothing factor to avoid division by zero.
+
+    Returns:
+        torch.Tensor: Dice loss.
+    """
+    # Apply sigmoid to get probabilities
+    pred = torch.sigmoid(pred)
+
+    # Ensure target has same shape as pred
+    if target.dim() == 3:
+        target = target.unsqueeze(1)
+
+    # Flatten
+    pred_flat = pred.view(pred.size(0), -1)
+    target_flat = target.view(target.size(0), -1)
+
+    # Compute Dice coefficient
+    intersection = (pred_flat * target_flat).sum(dim=1)
+    union = pred_flat.sum(dim=1) + target_flat.sum(dim=1)
+
+    dice = (2.0 * intersection + smooth) / (union + smooth)
+
+    return 1.0 - dice.mean()
+
+
+def combined_loss(pred, target):
+    """
+    Combined loss: binary cross-entropy + dice coefficient.
+
+    Args:
+        pred (torch.Tensor): Predicted logits.
+        target (torch.Tensor): Ground truth.
+
+    Returns:
+        torch.Tensor: Combined loss value.
+    """
+    bce = nn.BCEWithLogitsLoss()(pred, target)
+    dice = dice_coefficient_loss(pred, target)
+    return bce + dice
+
+
+def train_one_epoch(model, train_loader, optimizer, criterion, device, epoch, config=None):
+    """
+    Train the model for one epoch.
+
+    Args:
+        model (nn.Module): Model to train.
+        train_loader (DataLoader): Training data loader.
+        optimizer (optim.Optimizer): Optimizer.
+        criterion (callable): Loss function.
+        device (torch.device): Device to use.
+        epoch (int): Current epoch number.
+        config (dict, optional): Configuration dictionary.
+
+    Returns:
+        tuple: (average_loss, accuracy)
+    """
+    model.train()
+    running_loss = 0.0
+    correct = 0
+    total = 0
+
+    for batch_idx, (inputs, targets) in enumerate(train_loader):
+        # Move data to device
+        inputs = inputs.to(device)
+        targets = targets.to(device)
+
+        # Ensure targets are float for BCE loss
+        if targets.dim() == 1:
+            targets = targets.float().unsqueeze(1)
+        else:
+            targets = targets.float()
+
+        # Zero gradients
+        optimizer.zero_grad()
+
+        # Forward pass
+        outputs = model(inputs)
+
+        # Compute loss
+        loss = criterion(outputs, targets)
+
+        # Backward pass
+        loss.backward()
+        optimizer.step()
+
+        # Statistics
+        running_loss += loss.item() * inputs.size(0)
+
+        # Compute accuracy (for binary classification)
+        probs = torch.sigmoid(outputs)
+        preds = (probs > 0.5).float()
+        correct += (preds == targets).sum().item()
+        total += targets.numel()
+
+    epoch_loss = running_loss / total if total > 0 else 0.0
+    epoch_acc = correct / total if total > 0 else 0.0
+
+    return epoch_loss, epoch_acc
+
+
+def validate(model, val_loader, criterion, device):
+    """
+    Validate the model.
+
+    Args:
+        model (nn.Module): Model to validate.
+        val_loader (DataLoader): Validation data loader.
+        criterion (callable): Loss function.
+        device (torch.device): Device to use.
+
+    Returns:
+        tuple: (average_loss, accuracy)
+    """
+    model.eval()
+    running_loss = 0.0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for inputs, targets in val_loader:
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+
+            if targets.dim() == 1:
+                targets = targets.float().unsqueeze(1)
+            else:
+                targets = targets.float()
+
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+
+            running_loss += loss.item() * inputs.size(0)
+
+            probs = torch.sigmoid(outputs)
+            preds = (probs > 0.5).float()
+            correct += (preds == targets).sum().item()
+            total += targets.numel()
+
+    val_loss = running_loss / total if total > 0 else 0.0
+    val_acc = correct / total if total > 0 else 0.0
+
+    return val_loss, val_acc
+
+
+def train_model(model, train_loader, val_loader, config=None, device=None):
+    """
+    Train the model.
+
+    Args:
+        model (nn.Module): Model to train.
+        train_loader (DataLoader): Training data loader.
+        val_loader (DataLoader, optional): Validation data loader. Can be None.
+        config (dict, optional): Configuration dictionary.
+        device (torch.device, optional): Device to use.
+
+    Returns:
+        tuple: (trained_model, training_history)
+    """
+    if config is None:
+        config = load_config()
+
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    # Training configuration
+    training_config = config.get('training', {})
+    epochs = training_config.get('epochs', 30)
+    optimizer_config = training_config.get('optimizer', {})
+    lr = optimizer_config.get('lr', 0.001)
+    weight_decay = optimizer_config.get('weight_decay', 0.0)
+    if weight_decay is None:
+        weight_decay = 0.0
+
+    # Scheduler configuration
+    scheduler_config = training_config.get('scheduler', {})
+    scheduler_name = scheduler_config.get('name')
+    step_size = scheduler_config.get('step_size')
+    gamma = scheduler_config.get('gamma')
+
+    # Checkpoint configuration
+    checkpoint_config = config.get('checkpoint', {})
+    save_best = checkpoint_config.get('save_best', True)
+    best_metric = checkpoint_config.get('best_metric', 'val_accuracy')
+    best_mode = checkpoint_config.get('best_mode', 'max')
+    save_final = checkpoint_config.get('save_final', True)
+    save_optimizer_state = checkpoint_config.get('save_optimizer_state', True)
+
+    # Logging configuration
+    logging_config = config.get('logging', {})
+    log_dir = logging_config.get('log_dir', './logs')
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Setup logging
+    log_file = os.path.join(log_dir, 'training.log')
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+
+    # Optimizer
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # Scheduler
+    scheduler = None
+    if scheduler_name and scheduler_name.lower() == 'steplr' and step_size is not None:
+        if gamma is None:
+            gamma = 0.1
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+
+    # Loss function: Combination of binary cross-entropy and dice coefficient
+    criterion = combined_loss
+
+    # Training history
+    history = {
+        'train_loss': [],
+        'train_acc': [],
+        'val_loss': [],
+        'val_acc': [],
+        'best_val_acc': 0.0,
+        'best_epoch': -1
+    }
+
+    # Best model tracking
+    best_model_state = None
+    best_val_acc = 0.0
+    best_epoch = -1
+
+    # Resume from checkpoint if specified
+    resume_from = checkpoint_config.get('resume_from')
+    start_epoch = 0
+    if resume_from and os.path.exists(resume_from):
+        logging.info(f"Resuming from checkpoint: {resume_from}")
+        checkpoint = torch.load(resume_from, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        if 'optimizer_state_dict' in checkpoint and save_optimizer_state:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint.get('epoch', 0)
+        if 'best_val_acc' in checkpoint:
+            best_val_acc = checkpoint['best_val_acc']
+            history['best_val_acc'] = best_val_acc
+        if 'best_epoch' in checkpoint:
+            best_epoch = checkpoint['best_epoch']
+            history['best_epoch'] = best_epoch
+
+    logging.info(f"Starting training for {epochs} epochs")
+    logging.info(f"Device: {device}")
+    logging.info(f"Optimizer: Adam, lr={lr}, weight_decay={weight_decay}")
+    logging.info(f"Loss function: Combination of binary cross-entropy and dice coefficient")
+
+    for epoch in range(start_epoch, epochs):
+        epoch_start_time = time.time()
+
+        # Train one epoch
+        train_loss, train_acc = train_one_epoch(
+            model, train_loader, optimizer, criterion, device, epoch, config
+        )
+
+        # Validate if validation loader is provided
+        val_loss = None
+        val_acc = None
+        if val_loader is not None:
+            val_loss, val_acc = validate(model, val_loader, criterion, device)
+
+        # Step scheduler
+        if scheduler is not None:
+            scheduler.step()
+
+        # Record history
+        history['train_loss'].append(train_loss)
+        history['train_acc'].append(train_acc)
+        if val_loss is not None:
+            history['val_loss'].append(val_loss)
+        if val_acc is not None:
+            history['val_acc'].append(val_acc)
+
+        # Log progress
+        epoch_time = time.time() - epoch_start_time
+        log_msg = (f"Epoch [{epoch+1}/{epochs}] - "
+                   f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}")
+        if val_loss is not None and val_acc is not None:
+            log_msg += f", Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}"
+        log_msg += f", Time: {epoch_time:.2f}s"
+        logging.info(log_msg)
+
+        # Save best model based on validation accuracy
+        if save_best and val_acc is not None:
+            if best_mode == 'max' and val_acc > best_val_acc:
+                best_val_acc = val_acc
+                best_epoch = epoch
+                best_model_state = copy.deepcopy(model.state_dict())
+                history['best_val_acc'] = best_val_acc
+                history['best_epoch'] = best_epoch
+                logging.info(f"  New best model! Val Acc: {val_acc:.4f}")
+
+                # Save best checkpoint
+                checkpoint_dir = os.path.join(log_dir, 'checkpoints')
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                best_checkpoint_path = os.path.join(checkpoint_dir, 'best_model.pth')
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'best_val_acc': best_val_acc,
+                    'best_epoch': best_epoch,
+                }
+                if save_optimizer_state:
+                    checkpoint['optimizer_state_dict'] = optimizer.state_dict()
+                torch.save(checkpoint, best_checkpoint_path)
+                logging.info(f"  Saved best model to {best_checkpoint_path}")
+
+            elif best_mode == 'min' and val_loss is not None and val_loss < best_val_acc:
+                # For min mode, track loss instead
+                best_val_acc = val_loss
+                best_epoch = epoch
+                best_model_state = copy.deepcopy(model.state_dict())
+                history['best_val_acc'] = best_val_acc
+                history['best_epoch'] = best_epoch
+
+                checkpoint_dir = os.path.join(log_dir, 'checkpoints')
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                best_checkpoint_path = os.path.join(checkpoint_dir, 'best_model.pth')
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'best_val_acc': best_val_acc,
+                    'best_epoch': best_epoch,
+                }
+                if save_optimizer_state:
+                    checkpoint['optimizer_state_dict'] = optimizer.state_dict()
+                torch.save(checkpoint, best_checkpoint_path)
+                logging.info(f"  Saved best model to {best_checkpoint_path}")
+
+    # Save final model
+    if save_final:
+        checkpoint_dir = os.path.join(log_dir, 'checkpoints')
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        final_checkpoint_path = os.path.join(checkpoint_dir, 'final_model.pth')
+        checkpoint = {
+            'epoch': epochs - 1,
+            'model_state_dict': model.state_dict(),
+            'train_loss': history['train_loss'][-1] if history['train_loss'] else None,
+            'train_acc': history['train_acc'][-1] if history['train_acc'] else None,
+        }
+        if save_optimizer_state:
+            checkpoint['optimizer_state_dict'] = optimizer.state_dict()
+        torch.save(checkpoint, final_checkpoint_path)
+        logging.info(f"Saved final model to {final_checkpoint_path}")
+
+    # Restore best model if available
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        logging.info(f"Restored best model from epoch {best_epoch + 1}")
+
+    logging.info("Training completed!")
+    logging.info(f"Best validation accuracy: {history['best_val_acc']:.4f} at epoch {history['best_epoch'] + 1}")
+
+    return model, history
+
+
+def save_model(model, filepath, optimizer=None, epoch=None, config=None):
+    """
+    Save model to file.
+
+    Args:
+        model (nn.Module): Model to save.
+        filepath (str): Path to save the model.
+        optimizer (optim.Optimizer, optional): Optimizer state to save.
+        epoch (int, optional): Current epoch.
+        config (dict, optional): Configuration dictionary.
+
+    Returns:
+        str: Path where the model was saved.
+    """
+    if config is None:
+        config = load_config()
+
+    checkpoint = {
+        'model_state_dict': model.state_dict(),
+    }
+
+    if optimizer is not None:
+        checkpoint['optimizer_state_dict'] = optimizer.state_dict()
+
+    if epoch is not None:
+        checkpoint['epoch'] = epoch
+
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+
+    torch.save(checkpoint, filepath)
+    logging.info(f"Model saved to {filepath}")
+
+    return filepath
+
+
+def main():
+    """
+    Main training function.
+    """
+    # Load configuration
+    config = load_config()
+
+    # Set random seeds for reproducibility
+    seed = config.get('system', {}).get('seed', 42)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # Determine device
+    device_name = config.get('system', {}).get('device', 'cuda')
+    if device_name == 'cuda' and torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+    print(f"Using device: {device}")
+
+    # Get reproduction mode
+    reproduction_mode = config.get('reproduction_mode', 'engineering')
+    print(f"Reproduction mode: {reproduction_mode}")
+
+    # Get dataset version from experiment runs
+    experiment_runs = config.get('experiment', {}).get('runs', [])
+    dataset_version = 'color'  # Default
+    if experiment_runs:
+        dataset_version = experiment_runs[0].get('dataset_version', 'color')
+
+    # Get batch size
+    batch_size = config.get('training', {}).get('batch_size', {}).get('UNetPlusPlus')
+    if batch_size is None:
+        batch_size = 32  # Default batch size
+
+    # Get number of workers
+    num_workers = config.get('system', {}).get('num_workers', 4)
+
+    # Get data root
+    data_root = config.get('data', {}).get('root', './data')
+
+    # Create dataloaders
+    print(f"Creating dataloaders with version='{dataset_version}', batch_size={batch_size}...")
+    loaders = get_dataloaders(
+        config=config,
+        version=dataset_version,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        seed=seed
+    )
+
+    train_loader = loaders['train']
+    val_loader = loaders['val']
+    test_loader = loaders['test']
+
+    print(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}, Test batches: {len(test_loader)}")
+
+    # For strict reproduction mode, don't use validation
+    if reproduction_mode == 'strict':
+        val_loader = None
+        print("Strict mode: No validation set used.")
+
+    # Initialize model
+    print("Initializing model...")
+    model = initialize_model(config=config, device=device)
+    print(f"Model initialized: {model.__class__.__name__}")
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Total parameters: {total_params:,}")
+
+    # Train model
+    print("Starting training...")
+    model, history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        config=config,
+        device=device
+    )
+
+    # Evaluate on test set
+    print("Evaluating on test set...")
+    criterion = combined_loss
+    test_loss, test_acc = validate(model, test_loader, criterion, device)
+    print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
+
+    # Save final model
+    logging_config = config.get('logging', {})
+    log_dir = logging_config.get('log_dir', './logs')
+    final_model_path = os.path.join(log_dir, 'final_model.pth')
+    save_model(model, final_model_path, config=config)
+    print(f"Final model saved to {final_model_path}")
+
+
+if __name__ == '__main__':
+    main()
+```

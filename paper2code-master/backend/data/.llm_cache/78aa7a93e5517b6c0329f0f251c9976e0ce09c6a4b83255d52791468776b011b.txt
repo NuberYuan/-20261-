@@ -1,0 +1,5 @@
+{
+  "data_source": "external_dataset",
+  "acquisition": "local_path",
+  "data_source_note": "论文明确依赖多个真实公开数据集（如 PopQA、TriviaQA、PubHealth、ARC-Challenge、Biography、ASQA 等），这些数据集需要用户自行获取或提供本地路径，且论文未说明可自动下载。"
+}

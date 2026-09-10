@@ -1,0 +1,61 @@
+{
+  "title": "NOT_FOUND",
+  "research_problem": "NOT_FOUND",
+  "motivation": "NOT_FOUND",
+  "main_contribution": "NOT_FOUND",
+  "methodology": {
+    "method_name": "NOT_FOUND",
+    "core_idea": "NOT_FOUND",
+    "pipeline": "NOT_FOUND",
+    "model": "NOT_FOUND",
+    "model_architecture": {
+      "input": "NOT_FOUND",
+      "output": "NOT_FOUND",
+      "feature_extraction": "NOT_FOUND",
+      "classification": "NOT_FOUND",
+      "pretrained_model": "NOT_FOUND",
+      "special_modules": "NOT_FOUND",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "NOT_FOUND",
+      "lstm": "NOT_FOUND"
+    }
+  },
+  "dataset": {
+    "dataset_name": "NOT_FOUND",
+    "dataset_source": "NOT_FOUND",
+    "dataset_size": "NOT_FOUND",
+    "number_of_classes": "NOT_FOUND",
+    "data_type": "NOT_FOUND",
+    "train_test_split": "NOT_FOUND",
+    "preprocessing": "NOT_FOUND"
+  },
+  "implementation_details": {
+    "programming_framework": "NOT_FOUND",
+    "optimizer": "NOT_FOUND",
+    "learning_rate": "NOT_FOUND",
+    "batch_size": "NOT_FOUND",
+    "epoch": "NOT_FOUND",
+    "loss_function": "NOT_FOUND",
+    "hardware": "NOT_FOUND",
+    "training_strategy": "NOT_FOUND"
+  },
+  "experiment": {
+    "evaluation_metrics": "NOT_FOUND",
+    "baseline_methods": "NOT_FOUND",
+    "comparison_results": "NOT_FOUND",
+    "ablation_study": "NOT_FOUND",
+    "important_results": "NOT_FOUND"
+  },
+  "reproduction_requirements": {
+    "required_modules": [],
+    "important_parameters": {},
+    "possible_difficulties": []
+  },
+  "figures": []
+}

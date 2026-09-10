@@ -1,0 +1,16 @@
+{
+  "table_id": "table_6",
+  "table_type": "other",
+  "caption_summary": "Extracted bullet-list items containing repeated arrow symbols and root1(x | list)",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "item_1", "value": "⇒ |"},
+      {"label": "item_2", "value": "⇒ |"},
+      {"label": "item_3", "value": "root1(x | list)"}
+    ]
+  },
+  "table_summary": "The table contains only bullet-list items with two arrow symbols and the expression root1(x | list). No numerical data, metrics, or method comparisons are present, so it is not an experimental results or ablation table."
+}

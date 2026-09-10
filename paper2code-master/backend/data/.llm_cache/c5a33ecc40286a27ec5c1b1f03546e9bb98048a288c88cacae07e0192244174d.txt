@@ -1,0 +1,5 @@
+{
+  "data_source": "external_dataset",
+  "acquisition": "local_path",
+  "data_source_note": "论文明确使用公开的 PlantVillage 数据集（54,306 张叶片图像），需用户自行获取数据，未提及自动下载。"
+}

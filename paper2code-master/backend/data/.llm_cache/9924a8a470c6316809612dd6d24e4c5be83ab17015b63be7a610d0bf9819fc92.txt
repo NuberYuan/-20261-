@@ -1,0 +1,125 @@
+# SCICOQA: Quality Assurance for Scientific Paper–Code Alignment
+
+## 项目简介
+
+SCICOQA 是一个面向科学论文与代码对齐的质量保障工具。本项目通过调用多种前沿大语言模型（LLM），对科学论文中的关键声明与对应代码实现进行一致性评估，并输出结构化的质量评估报告。
+
+本项目支持以下模型接口：
+
+- GPT-5 / GPT-5 Codex
+- GPT-OSS 120B / 20B
+- Gemini 2.5 Flash / Pro / 3.1 Pro
+- DeepSeek R1
+- Qwen 3
+- Mistral
+- Nemotron
+
+## 项目结构
+
+```
+README.md
+main.py
+requirements.txt
+config/config/config.yaml
+data/data/dataset.py
+evaluation/evaluation/compare.py
+evaluation/evaluation/evaluate.py
+models/models/__init__.py
+models/models/deep_seek_r1.py
+models/models/gemini25_flash.py
+models/models/gemini25_pro.py
+models/models/gemini31_pro.py
+models/models/gpt5.py
+models/models/gpt5_codex.py
+models/models/gptoss120_b.py
+models/models/gptoss20_b.py
+models/models/mistral.py
+models/models/nemotron.py
+models/models/qwen3.py
+utils/utils/metrics.py
+```
+
+## 环境要求
+
+- Python 3.9+
+- PyTorch 2.0+
+- 各模型对应的 API Key（如 OpenAI、Google Gemini、DeepSeek 等）
+
+## 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+## 配置说明
+
+所有配置集中在 `config/config/config.yaml` 中，主要配置项包括：
+
+| 配置路径 | 说明 |
+|---------|------|
+| `project.name` / `project.paper` / `project.framework` | 项目基本信息 |
+| `data.root` / `data.default.path` / `data.default.description` | 数据路径与描述 |
+| `data.feature_dim` / `data.normalization` | 数据特征维度与归一化方式 |
+| `data.versions` / `data.default.status` | 数据版本与状态 |
+| `version_selector` | 版本选择策略（`config_key` / `default` / `values` / `note`） |
+| `system.device` / `system.seed` / `system.num_workers` | 运行环境配置 |
+| `logging.level` / `logging.log_dir` / `logging.save_results` | 日志与结果保存配置 |
+| `experiment.runs` | 实验重复运行次数 |
+| `acquisition` / `data_source` | 数据获取方式与来源 |
+
+## 运行方法
+
+### 基本运行
+
+```bash
+python main.py
+```
+
+### 指定配置
+
+```bash
+python main.py --config config/config/config.yaml
+```
+
+### 指定数据版本
+
+通过 `version_selector` 配置选择数据版本，或在运行时通过命令行参数覆盖：
+
+```bash
+python main.py --data-version <version_key>
+```
+
+## 复现步骤
+
+1. **准备环境**：安装 Python 3.9+ 与 PyTorch 2.0+，安装 `requirements.txt` 中的依赖。
+
+2. **配置 API Key**：在环境变量中设置各模型对应的 API Key（如 `OPENAI_API_KEY`、`GOOGLE_API_KEY`、`DEEPSEEK_API_KEY` 等）。
+
+3. **准备数据**：将科学论文与代码数据放置在 `config['data.root']` 指定路径下，确保数据格式与 `data/data/dataset.py` 中的加载逻辑一致。
+
+4. **修改配置**：根据实际需求修改 `config/config/config.yaml` 中的模型选择、数据路径、日志目录等参数。
+
+5. **运行评估**：
+
+   ```bash
+   python main.py
+   ```
+
+6. **查看结果**：评估结果将保存在 `config['logging.log_dir']` 目录下，包含各模型的评估分数与对比报告。
+
+## 评估指标
+
+`utils/utils/metrics.py` 中实现了核心评估指标，`evaluation/evaluation/evaluate.py` 负责单模型评估流程，`evaluation/evaluation/compare.py` 负责多模型对比分析。
+
+所有对比结论均基于实际评估结果动态计算生成，不预设任何先验结论。
+
+## 日志与结果
+
+- 日志级别与保存路径通过 `config['logging.level']` 与 `config['logging.log_dir']` 配置。
+- 是否保存评估结果由 `config['logging.save_results']` 控制。
+
+## 注意事项
+
+- 各模型文件（`models/models/*.py`）为独立接口实现，新增模型时在 `models/models/__init__.py` 中注册即可。
+- 数据版本选择通过 `version_selector` 配置控制，支持多版本数据切换。
+- 实验重复次数由 `config['experiment.runs']` 控制，建议设置 ≥3 以获得稳定结论。

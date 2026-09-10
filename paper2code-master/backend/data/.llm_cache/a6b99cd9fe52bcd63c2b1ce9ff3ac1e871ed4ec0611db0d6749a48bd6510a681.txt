@@ -1,0 +1,121 @@
+{
+  "title": "SCICOQA: Quality Assurance for Scientific Paper–Code Alignment",
+  "research_problem": "论文与代码之间的不一致性破坏了科学研究的可复现性，而随着自动化研究代理的扩展，人工审查已无法应对。本文旨在系统性地衡量大语言模型（LLMs）检测论文与代码之间不一致性的能力，并构建一个基准数据集SCICOQA来支持这一跨模态验证任务。",
+  "motivation": "论文与代码之间的不一致性通常只有在复现努力和发表后才能被发现，导致资源浪费并侵蚀对科学的信任。随着提交数量的快速增长，审稿人面临严重的时间压力，进行细致的代码审查耗时且不切实际。此外，科学正通过自主代理系统扩展，人类无法验证迅速增长的输出量，因此需要自动化工具来验证代码是否忠实实现了论文中报告的方法。",
+  "main_contribution": "本文提出了SCICOQA，这是第一个用于检测科学论文与其代码之间不一致性的基准数据集，包含635个论文-代码不一致实例（92个真实，543个合成）。我们构建了不一致类型和类别的分类体系，并评估了22个模型，发现即使最好的LLM也只能检测46.7%的真实世界不一致，揭示了自动化科学质量保证中的关键差距。",
+  "methodology": {
+    "method_name": "SCICOQA",
+    "core_idea": "SCICOQA是一个用于检测论文与代码之间不一致性的基准数据集，通过从GitHub issues和可复现性论文中收集真实不一致，并利用合成生成管道扩展到AI以外的计算科学领域。",
+    "pipeline": "从GitHub issues和可复现性论文中收集真实不一致。对于GitHub issues，使用Qwen3 4B Thinking自动分类，然后人工筛选。对于可复现性论文，使用GPT-5提取不一致候选，然后人工验证。所有候选由Gemini 3.1 Pro和GPT-5验证并重新表述。对于合成数据，从GitHub爬取仓库，使用GPT-5生成代码差异，并采样最多三个更改。",
+    "model": "GPT-5, Gemini 3.1 Pro, GPT-OSS 20B, Gemini 2.5 Pro, GPT-5 Codex, GPT-OSS 120B, Gemini 2.5 Flash, Qwen3, DeepSeek R1, Nemotron, Mistral",
+    "model_architecture": {
+      "input": "论文和代码库的文本，以提示形式输入给LLM。",
+      "output": "论文与代码之间不一致的列表，以YAML格式输出。",
+      "feature_extraction": "NOT_FOUND",
+      "classification": "NOT_FOUND",
+      "pretrained_model": "NOT_FOUND",
+      "special_modules": "NOT_FOUND",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "NOT_FOUND",
+      "lstm": "NOT_FOUND"
+    }
+  },
+  "dataset": {
+    "dataset_name": "SCICOQA",
+    "dataset_source": "https://hf.co/datasets/ukplab/scicoqa",
+    "dataset_size": "635 paper-code discrepancies (92 real, 543 synthetic)",
+    "number_of_classes": "NOT_FOUND",
+    "data_type": "论文与代码不一致的文本描述，包括真实和合成数据。",
+    "train_test_split": "NOT_FOUND",
+    "preprocessing": "对于真实数据，从GitHub issues和可复现性论文中提取候选，使用LLM过滤和验证，并重新表述为标准化描述。对于合成数据，从GitHub仓库中采样，使用GPT-5生成代码差异，并确保差异与原始代码精确匹配。"
+  },
+  "implementation_details": {
+    "programming_framework": "NOT_FOUND",
+    "optimizer": "NOT_FOUND",
+    "learning_rate": "NOT_FOUND",
+    "batch_size": "NOT_FOUND",
+    "epoch": "NOT_FOUND",
+    "loss_function": "NOT_FOUND",
+    "hardware": "NOT_FOUND",
+    "training_strategy": "NOT_FOUND"
+  },
+  "experiment": {
+    "evaluation_metrics": "Recall",
+    "baseline_methods": "GPT-5, Gemini, GPT-OSS, Qwen3, DeepSeek R1, Nemotron, Mistral",
+    "comparison_results": "Gemini 3.1 Pro和GPT-5 Mini在真实数据上达到46.7%的召回率。在合成数据上，GPT-5检测到70.0%的不一致。真实和合成数据上的召回率之间存在强相关性（r=0.94）。",
+    "ablation_study": "代码仅输入消融实验：移除论文输入，仅提供代码，结果显示性能下降，表明跨模态推理的重要性。",
+    "important_results": "最佳模型仅检测到46.7%的真实世界不一致。Paper Omissions是最难检测的类型。输入长度越长，性能越低。模型在2025年发布的数据上表现最差，表明预训练数据污染的影响。"
+  },
+  "reproduction_requirements": {
+    "required_modules": ["LLM API", "代码库", "论文文本"],
+    "important_parameters": {
+      "prompt_tokens": "56,903 (median combined)",
+      "num_predictions": "5.3 (GPT-5 Mini), 5.8 (GPT-OSS 20B)"
+    },
+    "possible_difficulties": ["长上下文输入", "跨模态推理", "Paper Omissions的检测"]
+  },
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "data_example",
+      "description": "展示了一个论文与代码不一致的示例，其中论文描述使用FiLM条件化层，而代码实现使用了sigmoid激活。",
+      "data_characteristics": "论文描述与代码实现之间的差异。",
+      "categories": ["Difference"],
+      "visual_features": "论文文本和代码片段并排显示，突出差异。"
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "workflow",
+      "description": "SCICOQA数据收集过程的概述，包括从GitHub issues和可复现性论文中收集真实数据，以及合成数据生成管道。",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "NOT_FOUND",
+      "conclusion": "NOT_FOUND",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "other",
+      "description": "分析真实、合成和组合不一致数据的分布，包括领域、类型、类别和输入长度。",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "NOT_FOUND",
+      "conclusion": "NOT_FOUND",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "experiment_result",
+      "description": "展示了前8个最佳模型在不同分析维度上的召回率，包括数据来源、不一致类型、输入长度和发表年份。",
+      "x_axis": "不同分析维度（数据来源、类型、输入长度、发表年份）",
+      "y_axis": "召回率",
+      "trend": "召回率随输入长度增加而下降，Paper Omissions最难检测，2025年数据上性能最差。",
+      "conclusion": "模型在长上下文和Paper Omissions上表现不佳，且受预训练数据污染影响。",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    },
+    {
+      "figure_number": "Figure 5",
+      "type": "experiment_result",
+      "description": "展示了前8个模型在给定论文和代码与仅给定代码时的性能对比，按数据来源（真实、合成、组合）拆分。",
+      "x_axis": "模型",
+      "y_axis": "召回率",
+      "trend": "仅代码输入时性能下降，表明跨模态推理的重要性。",
+      "conclusion": "论文输入对于检测不一致至关重要。",
+      "data_characteristics": "NOT_FOUND",
+      "categories": "NOT_FOUND",
+      "visual_features": "NOT_FOUND"
+    }
+  ]
+}

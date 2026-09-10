@@ -1,0 +1,12 @@
+numpy
+pyyaml
+matplotlib
+torch
+transformers
+datasets
+tqdm
+sentencepiece
+protobuf
+pandas
+scikit-learn
+wandb

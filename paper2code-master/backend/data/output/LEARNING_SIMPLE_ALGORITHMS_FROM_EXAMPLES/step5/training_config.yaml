@@ -1,0 +1,72 @@
+paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+parameter_provenance:
+  paper_confirmed:
+  - batch_size
+  - batch_size_note
+  - learning_rate
+  - loss_function
+  inferred_from_paper:
+  - scheduler_name
+  - scheduler_step_size
+  - scheduler_gamma
+  - dropout_ratio
+  - image_size
+  engineering_default:
+  - checkpoint.save_best
+  - checkpoint.best_metric
+  - checkpoint.save_final
+  - checkpoint.save_optimizer_state
+  - inference.device
+  NOT_FOUND_in_paper:
+  - early_stopping
+  - checkpoint.save_frequency_epochs
+  - inference.batch_size
+  - freeze_backbone
+  note: 'paper_confirmed: 值直接来自论文 implementation_details；inferred_from_paper: 从论文描述推断但非逐字引用；engineering_default:
+    我们选择的工程实践值；NOT_FOUND_in_paper: 论文未提供，需自行决定'
+training_modes:
+  scratch:
+    description: 从头训练：所有层随机初始化
+    pretrained: false
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+training:
+  batch_size: '20'
+  batch_size_note: 论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。
+  epochs: '30'
+  image_size: NOT_FOUND
+  optimizer:
+    name: NOT_FOUND
+    lr: '0.1'
+    momentum: NOT_FOUND
+    weight_decay: NOT_FOUND
+  scheduler:
+    name: StepLR
+    step_size: '0'
+    gamma: '2.'
+    note: 每 0 个 epoch 将学习率乘以 2.；PyTorch StepLR 与此行为等价。
+  loss_function: Cross-entropy loss for symbol prediction; Q-learning loss with penalty
+    term for action learning
+  dropout_ratio: NOT_FOUND
+  early_stopping: NOT_FOUND
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: NOT_FOUND
+  save_optimizer_state: true
+  resume_from: NOT_FOUND
+  note: 论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。
+train_test_splits:
+- NOT_FOUND
+inference:
+  device: NOT_FOUND
+  batch_size: NOT_FOUND
+reproducibility_notes:
+- 环境非平稳性：符号预测的持续学习使Q-learning环境不断变化
+- 控制器容量选择困难：容量过小无法解决需要记忆的任务，容量过大则过拟合训练序列长度
+- 3行加法任务需要特殊课程学习才能成功
+- 乘法任务在长度为1000的测试序列上无法泛化
+- 强化学习性能高度随机，需要多次重复实验

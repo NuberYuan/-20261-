@@ -1,0 +1,128 @@
+project:
+  name: 'UNet++: A Nested U-Net Architecture for Medical Image Segmentation'
+  paper: 'UNet++: A Nested U-Net Architecture for Medical Image Segmentation'
+  framework: PyTorch
+  task: image_classification
+data_source: external_dataset
+acquisition: local_path
+data:
+  root_dir: null
+  versions:
+  - color
+  - grayscale
+  - segmented
+  unresolved_dataset_versions:
+  - color
+  - grayscale
+  - segmented
+  feature_dim: null
+  normalization: null
+  color:
+    status: resolved
+    reason: Local path not provided; please set data.color.path before running.
+  grayscale:
+    status: resolved
+    reason: Local path not provided; please set data.grayscale.path before running.
+  segmented:
+    status: unresolved
+    reason: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+split_strategy:
+  method: random_split
+  train_test_splits:
+  - 0.8
+  - 0.2
+  seed: 42
+  default_train_ratio: 0.8
+  val_split_ratio: 0.2
+reproduction_mode: engineering
+model:
+  architectures:
+  - UNet
+  - UNet++
+  num_classes: 1
+  dropout_ratio: null
+  weight_init: kaiming_normal
+training_modes:
+  scratch:
+    description: 从头训练：所有层随机初始化
+    pretrained: false
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+training:
+  batch_size: 16
+  batch_size_note: 论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。
+  epochs: 30
+  image_size: null
+  optimizer:
+    name: Adam
+    lr: 4
+    momentum: null
+    weight_decay: null
+  scheduler:
+    name: null
+    step_size: null
+    gamma: null
+    note: 论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略。
+  loss_function: binary cross-entropy + dice coefficient
+  dropout_ratio: null
+  early_stopping: null
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: null
+  save_optimizer_state: true
+  resume_from: null
+  note: 论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。
+inference:
+  device: null
+  batch_size: null
+version_selector:
+  config_key: dataset_version
+  values:
+  - color
+  - grayscale
+  - segmented
+  default: color
+  note: 通过 config.yaml 的 dataset_version 字段切换预处理版本
+experiment:
+  runs:
+  - run_name: unetplusplus_scratch_color
+    architecture: UNet++
+    training_mode: scratch
+    dataset_version: color
+    data_source: external_dataset
+    acquisition: local_path
+    notes: UNet++ 从头训练，color 预处理版本。
+  - run_name: unet_scratch_color
+    architecture: UNet
+    training_mode: scratch
+    dataset_version: color
+    data_source: external_dataset
+    acquisition: local_path
+    notes: UNet baseline 从头训练，color 预处理版本。
+  - run_name: unetplusplus_scratch_grayscale
+    architecture: UNet++
+    training_mode: scratch
+    dataset_version: grayscale
+    data_source: external_dataset
+    acquisition: local_path
+    notes: UNet++ 从头训练，grayscale 预处理版本。
+  - run_name: unetplusplus_scratch_segmented
+    architecture: UNet++
+    training_mode: scratch
+    dataset_version: segmented
+    data_source: external_dataset
+    acquisition: local_path
+    notes: UNet++ 从头训练，segmented 预处理版本。
+logging:
+  level: INFO
+  save_dir: logs
+  log_frequency_epochs: 1
+system:
+  device: cuda:0
+  num_workers: 4
+  seed: 42

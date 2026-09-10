@@ -1,0 +1,254 @@
+paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+generated_at: '2026-09-03T13:19:50.527322'
+reproduction_goal:
+  paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+  title: LEARNING SIMPLE ALGORITHMS FROM EXAMPLES
+  research_problem: 如何让神经网络模型从输入输出示例中学习简单算法（如复制、多位数加法、单位数乘法），并能泛化到比训练序列长得多的测试序列。
+  motivation: 许多日常任务需要多步交互与操作序列的精确协调。传统方法大多使用连续接口，可通过反向传播训练；而本文关注离散接口，必须依赖强化学习，更具挑战性。作者希望探索控制器在仅有稀疏奖励的情况下学习正确操作序列的能力。
+  main_contribution: 提出一种控制器-接口抽象框架，通过Q-learning的多种增强（动态折扣、Watkins Q(λ)、Q函数惩罚项）训练RNN控制器，在六个算法任务上成功学习并泛化到数千位数字的测试序列，同时揭示了控制器容量与泛化能力之间的权衡。
+  paper_type: model_proposing
+  task: time_series_prediction
+  input: 控制器输入包括当前时间步的接口读数和控制器上一时间步的隐藏状态
+  output: 控制器输出包括离散动作（如移动读写头、写入符号）和符号（从词汇表的softmax输出中取最大值）
+  num_classes: NOT_FOUND
+  reproduction_targets:
+  - 实现论文提出的模型架构
+  - 复现训练流程
+  - 复现评估指标计算
+  - 验证与论文结果的一致性
+  is_trainable: true
+technology:
+  paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+  framework:
+    recommended: PyTorch
+    candidates:
+    - PyTorch
+    source: 复现代码统一使用 PyTorch；论文原文框架见 programming_framework_mentioned
+  programming_framework_mentioned: NOT_FOUND
+  model_backbone:
+    names:
+    - LSTM
+    - GRU
+    - Feedforward Network
+    source: 论文提到
+  architecture_details:
+    lstm: 论文探索了两种不同大小的1层LSTM（200单元和400单元），以及1层GRU（200单元）和1层前馈网络（200单元）作为控制器。
+  training:
+    optimizer:
+      type: NOT_FOUND
+    loss:
+      type: Cross-entropy loss for symbol prediction; Q-learning loss with penalty
+        term for action learning
+    scheduler:
+      type: StepLR
+  pretrained_weights:
+    used: false
+    source: NOT_FOUND
+  special_modules: 输入磁带接口、输入网格接口、输出磁带接口
+  hardware:
+    mentioned: NOT_FOUND
+dataset:
+  paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+  data_source: synthetic
+  acquisition: n/a
+  data_source_note: 实验数据为程序化生成的算法任务输入输出对（copy、reverse、walk、加法、乘法等），无外部真实数据集依赖。
+  datasets:
+  - name: Synthetic algorithmic tasks (copy, reverse, walk, addition, 3-number addition,
+      single digit multiplication)
+    source: NOT_FOUND
+    size: 每个模型训练使用3×10^7个字符
+    num_classes: NOT_FOUND
+    data_type: 算术和序列操作任务的合成输入输出对
+  dataset_versions:
+  - default
+  preprocessing:
+    versions:
+      default:
+        description: 非图像数据：通用预处理（按数据语义做标准化/归一化）
+        preprocessing: 所有算术运算使用十进制（base 10）。3行加法任务使用额外课程：初始示例不涉及进位且包含许多零。
+        normalization:
+          note: 非图像数据无 RGB 通道概念，按数据语义做标准化（如 z-score/归一化）
+        augmentation: []
+        note: 数据集无颜色/灰度/分割版本；仅单一 default 版本
+    version_selector:
+      config_key: dataset_version
+      values:
+      - default
+      default: default
+      note: 非图像数据仅一个 default 版本
+  split_strategy:
+    method: random_split
+    ratios: 训练时使用课程学习，从复杂度6开始，达到100%准确率后增加4，直到模型能解决长度为100的验证序列。测试使用50个长度为100的测试实例，以及长度为1000的测试序列。
+    leaf_mapping_constraint: NOT_FOUND
+model_design:
+  paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+  models:
+  - name: Lstm
+    type: RNN
+    code_class_name: Lstm
+    input: 控制器输入包括当前时间步的接口读数和控制器上一时间步的隐藏状态
+    output: 控制器输出包括离散动作（如移动读写头、写入符号）和符号（从词汇表的softmax输出中取最大值）
+    num_classes: NOT_FOUND
+    pretrained: NOT_FOUND
+    architecture_summary: 论文探索了两种不同大小的1层LSTM（200单元和400单元），以及1层GRU（200单元）和1层前馈网络（200单元）作为控制器。
+    architecture:
+      total_layers: '1'
+      param_count: NOT_FOUND
+      special_components: []
+      final_classifier: 线性层，将隐藏状态映射到给定接口的动作或目标符号
+      implementation_notes: []
+experiment:
+  paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+  pipeline:
+  - 控制器接收当前状态和接口读数。控制器输出离散动作和符号。接口根据动作更新读写头位置或写入符号。训练时符号输出用交叉熵损失通过反向传播更新。动作输出用增强Q-learning更新。训练采用课程学习，从复杂度6开始，达到100%准确率后增加4，直到能解决长度为100的验证序列。
+  experiments:
+  - name: main_experiment
+    description: 标准Q-learning在大多数任务上失败（copy 90%, reverse 0%, walk 0%, 2-row addition
+      70%, 3-row addition 0%, single digit multiplication 100%）。使用全部三种增强后，copy 100%,
+      reverse (FF) 100%, walk (FF) 100%, 2-row addition 100%, 3-row addition (extra
+      curriculum) 80%, single digit multiplication 100%。在长度为1000的测试序列上，除乘法（0%）外，其他任务仍能泛化（copy
+      100%, reverse (FF) 100%, walk (FF) 100%, 2-row addition 100%, 3-row addition
+      60%）。
+  evaluation:
+    primary_metric: Accuracy
+    secondary_metrics:
+    - Success rate
+    - Test accuracy
+    - Median training time
+  comparison:
+    baselines:
+    - Standard Q-learning
+    - Supervised learning with ground truth actions
+    ablation_factors:
+    - 论文通过表2对比了不同配置：不同控制器容量（600, 400, 200单元）、不同折扣因子（γ=1, 0.99, 0.95）、是否使用动态折扣（D）、是否使用Watkins
+      Q(λ)、是否使用惩罚项。结果表明增加控制器容量会降低性能；动态折扣、Watkins Q(λ)和惩罚项各自都能显著提升性能，三者结合效果最佳。附录B研究了词汇量大小（base
+      2到10）对训练时间的影响，发现不频繁但可靠的奖励
+  experiment_matrix:
+    dimensions:
+      architectures:
+      - LSTM
+      - GRU
+      - Feedforward Network
+      training_modes:
+      - Scratch
+      data_types:
+      - default
+      train_test_splits:
+      - NOT_FOUND
+    total_configurations: 3
+    known_best: GRU
+    known_worst: Feedforward Network
+    run_all: true
+    recommended_subset: []
+    note: 实验组合 ≤4，可全量跑。
+  important_results: 使用全部三种Q-learning增强后，模型在所有六个任务上都能成功学习（测试长度100）。在长度为1000的测试序列上，除乘法任务外仍能泛化。监督学习实验中，前馈控制器在copy、reverse、walk任务上完美泛化，但在需要记忆的任务上完全失败。RNN控制器容量过大会导致学习到依赖序列长度的错误自动机，从而无法泛化到更长序列。
+project_structure:
+  paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+  project_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+  root_structure:
+    directories:
+    - data
+    - models
+    - training
+    - evaluation
+    - utils
+    - config
+    files:
+      data:
+      - dataset.py
+      models:
+      - lstm.py
+      - __init__.py
+      training:
+      - train.py
+      evaluation:
+      - evaluate.py
+      utils:
+      - metrics.py
+      config:
+      - config.yaml
+      .:
+      - main.py
+      - requirements.txt
+      - README.md
+  module_mapping:
+    data: 数据加载与预处理
+    models: '模型定义: lstm'
+    training: 训练循环
+    evaluation: 评估与对比
+    utils: 工具函数
+    config: YAML 配置
+    entry_point: main.py
+training_config:
+  paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+  parameter_provenance:
+    paper_confirmed:
+    - batch_size
+    - batch_size_note
+    - learning_rate
+    - loss_function
+    inferred_from_paper:
+    - scheduler_name
+    - scheduler_step_size
+    - scheduler_gamma
+    - dropout_ratio
+    - image_size
+    engineering_default:
+    - checkpoint.save_best
+    - checkpoint.best_metric
+    - checkpoint.save_final
+    - checkpoint.save_optimizer_state
+    - inference.device
+    NOT_FOUND_in_paper:
+    - early_stopping
+    - checkpoint.save_frequency_epochs
+    - inference.batch_size
+    - freeze_backbone
+    note: 'paper_confirmed: 值直接来自论文 implementation_details；inferred_from_paper: 从论文描述推断但非逐字引用；engineering_default:
+      我们选择的工程实践值；NOT_FOUND_in_paper: 论文未提供，需自行决定'
+  training_modes:
+    scratch:
+      description: 从头训练：所有层随机初始化
+      pretrained: false
+      weight_init: kaiming_normal
+      reset_layers: []
+      freeze_backbone: false
+  training:
+    batch_size: '20'
+    batch_size_note: 论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。
+    epochs: '30'
+    image_size: NOT_FOUND
+    optimizer:
+      name: NOT_FOUND
+      lr: '0.1'
+      momentum: NOT_FOUND
+      weight_decay: NOT_FOUND
+    scheduler:
+      name: StepLR
+      step_size: '0'
+      gamma: '2.'
+      note: 每 0 个 epoch 将学习率乘以 2.；PyTorch StepLR 与此行为等价。
+    loss_function: Cross-entropy loss for symbol prediction; Q-learning loss with
+      penalty term for action learning
+    dropout_ratio: NOT_FOUND
+    early_stopping: NOT_FOUND
+  checkpoint:
+    save_best: true
+    best_metric: val_accuracy
+    best_mode: max
+    save_final: true
+    save_frequency_epochs: NOT_FOUND
+    save_optimizer_state: true
+    resume_from: NOT_FOUND
+    note: 论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。
+  train_test_splits:
+  - NOT_FOUND
+  inference:
+    device: NOT_FOUND
+    batch_size: NOT_FOUND
+  reproducibility_notes:
+  - 环境非平稳性：符号预测的持续学习使Q-learning环境不断变化
+  - 控制器容量选择困难：容量过小无法解决需要记忆的任务，容量过大则过拟合训练序列长度
+  - 3行加法任务需要特殊课程学习才能成功
+  - 乘法任务在长度为1000的测试序列上无法泛化
+  - 强化学习性能高度随机，需要多次重复实验

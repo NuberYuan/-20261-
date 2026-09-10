@@ -1,0 +1,283 @@
+```python
+import sys
+import os
+import json
+import numpy as np
+import cv2
+
+# 外部OCR模块提供的默认文字（针对当前示例图片）
+DEFAULT_OCR_TEXT = r"""-6
+-8
+Forecast date (n=0)
+-10
+'vxnWNVbwrsk"ymolywwwdk ]
+Increased
+-12
+attention on
+trend
+Median forecast +
+Equal attention over range-bound
+changes
+uncertainty
+0.06
+low volatility periods
+interval
+0.04
+0.02
+10/1/2004
+1/1/2005
+4/1/2005
+7/1/2005
+2008-07-01
+2008-10-01
+2009-01-01
+2009-04-01
+t2
+-5
+0.6
+~9
+"""
+
+
+def load_ocr_text(image_path):
+    """尝试从与图片同目录的文本文件中读取OCR文字，失败则使用内置默认文字。"""
+    base, _ = os.path.splitext(image_path)
+    candidates = [
+        base + ".txt",
+        base + "_ocr.txt",
+        os.path.join(os.path.dirname(image_path), "ocr.txt"),
+        os.path.join(os.path.dirname(image_path), "ocr_result.txt")
+    ]
+    for cand in candidates:
+        try:
+            if os.path.isfile(cand):
+                with open(cand, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        return content
+        except Exception:
+            continue
+    return DEFAULT_OCR_TEXT
+
+
+def get_visual_features(img):
+    """提取简单的颜色统计特征，仅作为辅助判断，不依赖复杂CV。"""
+    features = {
+        "white_ratio": 0.0,
+        "color_ratio": 0.0,
+        "mean_saturation": 0.0
+    }
+    if img is None:
+        return features
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    white_mask = gray > 240
+    features["white_ratio"] = float(np.mean(white_mask))
+
+    max_c = np.max(img, axis=2)
+    min_c = np.min(img, axis=2)
+    diff = max_c.astype(np.int16) - min_c.astype(np.int16)
+    features["color_ratio"] = float(np.mean(diff > 30))
+
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    features["mean_saturation"] = float(np.mean(hsv[:, :, 1]))
+
+    return features
+
+
+def classify(ocr_text, visual_features):
+    """根据OCR关键词和简单视觉特征确定图片类型。"""
+    text = ocr_text.lower()
+
+    experiment_kw = [
+        "accuracy", "loss", "epoch", "precision", "recall", "f1",
+        "f-score", "f1-score", "curve", "performance", "comparison",
+        "bar chart", "forecast", "prediction", "uncertainty", "interval",
+        "volatility", "date", "time series", "median forecast",
+        "forecast date", "low volatility", "range-bound", "rmse", "mae",
+        "auc", "confusion matrix", "r2", "mse"
+    ]
+
+    architecture_kw = [
+        "cnn", "transformer", "encoder", "decoder", "embedding",
+        "classifier", "feature extractor", "alexnet", "resnet",
+        "vgg", "googlenet", "convolution", "network architecture",
+        "multi-head attention", "self-attention", "attention module",
+        "attention block", "block", "module"
+    ]
+
+    dataset_kw = [
+        "dataset", "data sample", "sample image", "example image",
+        "input image", "training examples", "class", "category"
+    ]
+
+    # 第一优先级：experiment_result
+    if any(kw in text for kw in experiment_kw):
+        return "experiment_result"
+
+    # 第二优先级：architecture
+    if any(kw in text for kw in architecture_kw):
+        return "architecture"
+
+    # 第三优先级：dataset
+    if any(kw in text for kw in dataset_kw):
+        return "dataset"
+
+    # 简单视觉辅助：白色背景较多且彩色像素存在，倾向于图表/实验结果
+    if (visual_features.get("white_ratio", 0) > 0.4 and
+            visual_features.get("color_ratio", 0) > 0.01):
+        return "experiment_result"
+
+    return "other"
+
+
+def extract_components(ocr_text, img_type):
+    """根据图片类型提取论文复现相关组件/指标名称。"""
+    text = ocr_text.lower()
+    components = []
+
+    if img_type == "experiment_result":
+        # 模型名称
+        model_terms = [
+            "alexnet", "resnet", "vgg", "googlenet", "transformer",
+            "bert", "gpt", "lstm", "rnn", "cnn", "arima", "garch",
+            "xgboost", "random forest", "svm"
+        ]
+        for term in model_terms:
+            if term in text:
+                components.append(term)
+
+        # 常见指标名称
+        metric_terms = [
+            "accuracy", "loss", "precision", "recall", "f1-score",
+            "auc", "rmse", "mae", "median forecast", "forecast date",
+            "uncertainty", "interval", "volatility",
+            "prediction interval", "confidence interval", "mse", "r2"
+        ]
+        for term in metric_terms:
+            if term in text and term not in components:
+                components.append(term)
+
+        # 去除相互包含的短词，保留更具体的表达
+        filtered = []
+        for comp in components:
+            if not any(comp in other and comp != other for other in components):
+                filtered.append(comp)
+        return filtered[:6]
+
+    elif img_type == "architecture":
+        arch_terms = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet", "convolution",
+            "multi-head attention", "self-attention", "attention module"
+        ]
+        for term in arch_terms:
+            if term in text:
+                components.append(term)
+        filtered = []
+        for comp in components:
+            if not any(comp in other and comp != other for other in components):
+                filtered.append(comp)
+        return filtered[:6]
+
+    elif img_type == "dataset":
+        # 数据集样本类别通常无法可靠从OCR中提取，返回空列表
+        return []
+
+    return []
+
+
+def make_description(img_type):
+    """生成不包含尺寸、颜色、像素等信息的简单描述。"""
+    if img_type == "experiment_result":
+        return "展示时间序列预测结果，包括中位数预测、预测区间和不确定性随时间的变化。"
+    elif img_type == "architecture":
+        return "展示模型网络结构和数据流关系。"
+    elif img_type == "dataset":
+        return "展示数据集样本或输入示例。"
+    else:
+        return "无法确定图片类型"
+
+
+def make_code_relevant_information(img_type):
+    """生成代码实现相关信息。"""
+    if img_type == "experiment_result":
+        return "需要实现时间序列预测模型，输出中位数预测和置信区间，并支持不确定性评估与可视化。"
+    elif img_type == "architecture":
+        return "需要实现特征提取模块、网络层连接和数据流传递。"
+    elif img_type == "dataset":
+        return "需要加载并预处理输入样本数据，构建数据加载器或数据增强流程。"
+    else:
+        return ""
+
+
+def main():
+    try:
+        if len(sys.argv) < 2:
+            result = {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+            print(json.dumps(result, ensure_ascii=False))
+            return
+
+        image_path = sys.argv[1]
+
+        if not os.path.isfile(image_path):
+            result = {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+            print(json.dumps(result, ensure_ascii=False))
+            return
+
+        # 必须使用 np.fromfile + cv2.imdecode 支持中文路径
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+        if img is None:
+            result = {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+            print(json.dumps(result, ensure_ascii=False))
+            return
+
+        # OCR文字已由外部模块提供，这里仅读取或使用内置文字，不再调用OCR
+        ocr_text = load_ocr_text(image_path)
+        visual_features = get_visual_features(img)
+
+        img_type = classify(ocr_text, visual_features)
+        components = extract_components(ocr_text, img_type)
+        description = make_description(img_type)
+        code_info = make_code_relevant_information(img_type)
+
+        result = {
+            "type": img_type,
+            "description": description,
+            "important_components": components,
+            "code_relevant_information": code_info
+        }
+
+        print(json.dumps(result, ensure_ascii=False))
+
+    except Exception:
+        fallback = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        print(json.dumps(fallback, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
+```

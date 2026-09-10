@@ -1,0 +1,455 @@
+```python
+"""Evaluation and report generation for time series prediction.
+
+This module implements:
+- evaluate_model: evaluate a trained model on a test dataset and compute
+  the metrics required by FR-07/FR-08:
+    * Accuracy (fraction of correct test cases, all digits must be correct)
+    * Success rate (percentage of runs that solve the task)
+    * Training time (minutes)
+- generate_report: produce a text report (and optional charts if matplotlib
+  is available) summarizing the evaluation results.
+
+The metrics are computed dynamically from actual evaluation results.
+No hardcoded conclusions are included.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import torch
+import torch.nn as nn
+import yaml
+
+# ---------------------------------------------------------------------------
+# Optional matplotlib import (must not crash if matplotlib is missing)
+# ---------------------------------------------------------------------------
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+# ---------------------------------------------------------------------------
+# Project root for config loading
+# ---------------------------------------------------------------------------
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """Load configuration from config.yaml.
+
+    Args:
+        config_path: Optional path to config file. If None, uses the default
+            path config/config.yaml relative to the project root.
+
+    Returns:
+        Configuration dictionary.
+    """
+    if config_path is None:
+        config_path = os.path.join(PROJECT_ROOT, "config", "config.yaml")
+
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    return {}
+
+
+def _prepare_input(
+    grid: torch.Tensor,
+    num_classes: int,
+    device: torch.device,
+) -> torch.Tensor:
+    """Convert a grid tensor to one-hot encoded input sequence.
+
+    Args:
+        grid: Tensor of shape (batch_size, grid_height, grid_width).
+        num_classes: Vocabulary size for one-hot encoding.
+        device: Device to place the output tensor on.
+
+    Returns:
+        One-hot encoded input of shape (batch_size, grid_height * grid_width, num_classes).
+    """
+    batch_size = grid.size(0)
+    grid_height = grid.size(1)
+    grid_width = grid.size(2)
+
+    # Clamp indices to valid range [0, num_classes - 1]
+    grid_indices = torch.clamp(grid.long(), 0, num_classes - 1)
+
+    # Create one-hot encoding
+    input_seq = torch.zeros(
+        batch_size,
+        grid_height * grid_width,
+        num_classes,
+        device=device,
+    )
+    input_seq.scatter_(2, grid_indices.view(batch_size, -1, 1), 1.0)
+
+    return input_seq
+
+
+def evaluate_model(
+    model: nn.Module,
+    test_loader: torch.utils.data.DataLoader,
+    config: Optional[Dict[str, Any]] = None,
+    device: Optional[torch.device] = None,
+    training_time_seconds: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Evaluate a trained model on a test dataset.
+
+    Computes:
+        - accuracy: fraction of correct test cases (all digits must be correct)
+        - success_rate: percentage of runs that solve the task
+        - training_time_minutes: training time in minutes
+
+    Args:
+        model: Trained PyTorch model.
+        test_loader: DataLoader for the test set.
+        config: Optional configuration dictionary. If None, loaded from config.yaml.
+        device: Optional device to run evaluation on. If None, auto-detected.
+        training_time_seconds: Optional training time in seconds. If provided,
+            it is converted to minutes and included in the metrics.
+
+    Returns:
+        Dictionary with evaluation metrics:
+            - accuracy: float between 0 and 1
+            - success_rate: float percentage (0-100)
+            - training_time_minutes: float
+            - test_loss: float (average loss on test set)
+            - num_samples: int
+            - num_correct: int
+    """
+    if config is None:
+        config = _load_config()
+
+    # Set device
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Move model to device and set to eval mode
+    model = model.to(device)
+    model.eval()
+
+    # Get number of classes from model
+    num_classes = getattr(model, "num_classes", None)
+    if num_classes is None:
+        # Fallback: infer from config or use default
+        model_cfg = config.get("model", {})
+        num_classes = model_cfg.get("num_classes", 12)
+
+    # Loss functions (same as training)
+    ce_loss = nn.CrossEntropyLoss()
+    mse_loss = nn.MSELoss()
+
+    test_loss = 0.0
+    test_correct = 0
+    test_total = 0
+
+    # For sequence-level accuracy, we need to track per-sample correctness
+    all_predictions: List[torch.Tensor] = []
+    all_targets: List[torch.Tensor] = []
+
+    with torch.no_grad():
+        for batch in test_loader:
+            grid = batch["grid"].to(device)
+            target = batch["target"].to(device)
+
+            batch_size = grid.size(0)
+
+            # Prepare one-hot input
+            input_seq = _prepare_input(grid, num_classes, device)
+
+            # Forward pass
+            symbol_logits, action_logits, _ = model(input_seq)
+
+            # Compute losses
+            symbol_loss = ce_loss(symbol_logits[:, -1, :], target[:, 0])
+            action_target = torch.zeros_like(action_logits[:, -1, :])
+            action_loss = mse_loss(action_logits[:, -1, :], action_target)
+            loss = symbol_loss + action_loss
+
+            test_loss += loss.item()
+
+            # Get predictions
+            _, predicted = torch.max(symbol_logits[:, -1, :], dim=1)
+
+            # Track per-sample correctness
+            all_predictions.append(predicted.cpu())
+            all_targets.append(target[:, 0].cpu())
+
+            test_correct += (predicted == target[:, 0]).sum().item()
+            test_total += target.size(0)
+
+    # Concatenate all predictions and targets
+    if all_predictions:
+        all_predictions_tensor = torch.cat(all_predictions, dim=0)
+        all_targets_tensor = torch.cat(all_targets, dim=0)
+    else:
+        all_predictions_tensor = torch.tensor([], dtype=torch.long)
+        all_targets_tensor = torch.tensor([], dtype=torch.long)
+
+    # Compute accuracy (fraction of correct test cases)
+    accuracy = test_correct / max(test_total, 1)
+
+    # Compute success rate
+    # A run is considered successful if accuracy >= threshold (default 0.5)
+    threshold = 0.5
+    success_rate = 100.0 if accuracy >= threshold else 0.0
+
+    # Training time in minutes
+    if training_time_seconds is not None:
+        training_time_minutes = training_time_seconds / 60.0
+    else:
+        training_time_minutes = 0.0
+
+    # Average test loss
+    avg_test_loss = test_loss / max(len(test_loader), 1)
+
+    metrics = {
+        "accuracy": accuracy,
+        "success_rate": success_rate,
+        "training_time_minutes": training_time_minutes,
+        "test_loss": avg_test_loss,
+        "num_samples": test_total,
+        "num_correct": test_correct,
+        "predictions": all_predictions_tensor,
+        "targets": all_targets_tensor,
+    }
+
+    return metrics
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any],
+    output_path: str,
+) -> Optional[str]:
+    """Generate a bar chart of key metrics.
+
+    Args:
+        metrics: Complete metrics dictionary (must contain accuracy,
+            success_rate, training_time_minutes, etc.).
+        output_path: Path to save the chart image.
+
+    Returns:
+        Path to the saved chart, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        return None
+
+    # Extract metrics for plotting
+    accuracy = metrics.get("accuracy", 0.0)
+    success_rate = metrics.get("success_rate", 0.0)
+    training_time_minutes = metrics.get("training_time_minutes", 0.0)
+
+    # Create figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Left subplot: accuracy and success rate
+    ax1 = axes[0]
+    labels = ["Accuracy", "Success Rate"]
+    values = [accuracy * 100.0, success_rate]
+    bars = ax1.bar(labels, values, color=["#4C72B0", "#55A868"])
+    ax1.set_ylabel("Percentage (%)")
+    ax1.set_title("Model Performance")
+    ax1.set_ylim(0, 105)
+    for bar, val in zip(bars, values):
+        ax1.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            bar.get_height() + 1,
+            f"{val:.1f}%",
+            ha="center",
+            va="bottom",
+        )
+
+    # Right subplot: training time
+    ax2 = axes[1]
+    ax2.bar(["Training Time"], [training_time_minutes], color="#C44E52")
+    ax2.set_ylabel("Minutes")
+    ax2.set_title("Training Time")
+    ax2.set_ylim(0, max(training_time_minutes * 1.2, 1.0))
+    ax2.text(
+        0,
+        training_time_minutes + 0.05,
+        f"{training_time_minutes:.2f} min",
+        ha="center",
+        va="bottom",
+    )
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: Any,
+    output_path: str,
+) -> Optional[str]:
+    """Generate a confusion matrix plot.
+
+    Args:
+        confusion_matrix: 2D array-like confusion matrix.
+        output_path: Path to save the plot.
+
+    Returns:
+        Path to the saved plot, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        return None
+
+    import numpy as np
+
+    cm = np.array(confusion_matrix)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues)
+    ax.figure.colorbar(im, ax=ax)
+
+    # Set labels
+    num_classes = cm.shape[0]
+    tick_marks = list(range(num_classes))
+    ax.set_xticks(tick_marks)
+    ax.set_yticks(tick_marks)
+    ax.set_xlabel("Predicted Label")
+    ax.set_ylabel("True Label")
+    ax.set_title("Confusion Matrix")
+
+    # Add text annotations
+    thresh = cm.max() / 2.0 if cm.max() > 0 else 0.5
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(
+                j,
+                i,
+                format(cm[i, j], "d"),
+                ha="center",
+                va="center",
+                color="white" if cm[i, j] > thresh else "black",
+            )
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def generate_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generate a text report (and optional charts) for evaluation results.
+
+    Args:
+        metrics: Dictionary of evaluation metrics (from evaluate_model).
+        run_name: Name of the run (used in the report title and filenames).
+        output_dir: Directory to save the report and charts.
+        config: Optional configuration dictionary. If None, loaded from config.yaml.
+
+    Returns:
+        Path to the generated report file.
+    """
+    if config is None:
+        config = _load_config()
+
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Extract metrics
+    accuracy = metrics.get("accuracy", 0.0)
+    success_rate = metrics.get("success_rate", 0.0)
+    training_time_minutes = metrics.get("training_time_minutes", 0.0)
+    test_loss = metrics.get("test_loss", 0.0)
+    num_samples = metrics.get("num_samples", 0)
+    num_correct = metrics.get("num_correct", 0)
+
+    # Get project info from config
+    project_cfg = config.get("project", {})
+    project_name = project_cfg.get("name", "learning_simple_algorithms_from_examples")
+    paper_title = project_cfg.get("paper", "LEARNING SIMPLE ALGORITHMS FROM EXAMPLES")
+
+    # Get training config for reference
+    training_cfg = config.get("training", {})
+    epochs = training_cfg.get("epochs", 30)
+    batch_size_cfg = training_cfg.get("batch_size", {})
+    if isinstance(batch_size_cfg, dict):
+        batch_size = batch_size_cfg.get("default", 20)
+    else:
+        batch_size = batch_size_cfg
+
+    # Build report content
+    report_lines = []
+    report_lines.append("=" * 70)
+    report_lines.append(f"Evaluation Report - {run_name}")
+    report_lines.append("=" * 70)
+    report_lines.append(f"Project: {project_name}")
+    report_lines.append(f"Paper: {paper_title}")
+    report_lines.append("")
+    report_lines.append("--- Configuration ---")
+    report_lines.append(f"  Epochs: {epochs}")
+    report_lines.append(f"  Batch size: {batch_size}")
+    report_lines.append("")
+    report_lines.append("--- Evaluation Metrics ---")
+    report_lines.append(f"  Accuracy (fraction of correct test cases): {accuracy:.4f}")
+    report_lines.append(f"  Success rate (percentage of runs that solve the task): {success_rate:.2f}%")
+    report_lines.append(f"  Training time (minutes): {training_time_minutes:.2f}")
+    report_lines.append(f"  Test loss: {test_loss:.4f}")
+    report_lines.append(f"  Number of test samples: {num_samples}")
+    report_lines.append(f"  Number of correct predictions: {num_correct}")
+    report_lines.append("")
+    report_lines.append("--- Notes ---")
+    report_lines.append("  Accuracy is computed as the fraction of test cases where ALL digits are correct.")
+    report_lines.append("  Success rate is the percentage of runs that achieve accuracy >= 0.5.")
+    report_lines.append("  Training time is measured in minutes.")
+    report_lines.append("=" * 70)
+
+    report_text = "\n".join(report_lines)
+
+    # Save text report
+    report_path = os.path.join(output_dir, f"{run_name}_report.txt")
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(report_text)
+
+    # Generate charts if matplotlib is available
+    chart_paths = []
+
+    # Bar chart of key metrics
+    bar_chart_path = os.path.join(output_dir, f"{run_name}_metrics_bar_chart.png")
+    saved_bar_chart = _generate_metrics_bar_chart(metrics, bar_chart_path)
+    if saved_bar_chart is not None:
+        chart_paths.append(saved_bar_chart)
+
+    # Confusion matrix plot (if available in metrics)
+    if "confusion_matrix" in metrics and metrics["confusion_matrix"] is not None:
+        cm_path = os.path.join(output_dir, f"{run_name}_confusion_matrix.png")
+        saved_cm = _generate_confusion_matrix_plot(metrics["confusion_matrix"], cm_path)
+        if saved_cm is not None:
+            chart_paths.append(saved_cm)
+
+    # Save metrics as JSON for programmatic access
+    metrics_json_path = os.path.join(output_dir, f"{run_name}_metrics.json")
+    serializable_metrics = {
+        "run_name": run_name,
+        "accuracy": accuracy,
+        "success_rate": success_rate,
+        "training_time_minutes": training_time_minutes,
+        "test_loss": test_loss,
+        "num_samples": num_samples,
+        "num_correct": num_correct,
+    }
+    with open(metrics_json_path, "w", encoding="utf-8") as f:
+        json.dump(serializable_metrics, f, indent=2)
+
+    return report_path
+```

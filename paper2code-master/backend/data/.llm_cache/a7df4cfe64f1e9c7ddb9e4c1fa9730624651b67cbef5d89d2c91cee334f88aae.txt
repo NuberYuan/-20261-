@@ -1,0 +1,643 @@
+```python
+import os
+import sys
+import time
+import copy
+import logging
+from pathlib import Path
+
+import yaml
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+
+# Add project root to path so that local imports work
+PROJECT_ROOT = Path(__file__).parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders
+from models.u_net import UNet
+from models.wide_u_net import WideUNet
+
+
+def load_config(config_path=None):
+    """
+    Load configuration from config.yaml.
+
+    Args:
+        config_path (str, optional): Path to config file. If None, uses default path.
+
+    Returns:
+        dict: Configuration dictionary.
+    """
+    if config_path is None:
+        config_path = PROJECT_ROOT / 'config' / 'config.yaml'
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def initialize_model(config=None, model_name='UNetPlusPlus'):
+    """
+    Initialize the model from scratch (random initialization).
+
+    Args:
+        config (dict, optional): Configuration dictionary. If None, loads from config.yaml.
+        model_name (str): Name of the model architecture. Options: 'UNetPlusPlus', 'UNet', 'WideUNet'.
+
+    Returns:
+        nn.Module: Initialized model.
+    """
+    if config is None:
+        config = load_config()
+
+    # Determine which model class to use
+    if model_name == 'UNetPlusPlus' or model_name == 'WideUNet':
+        model = WideUNet(config=config)
+    elif model_name == 'UNet':
+        model = UNet(config=config)
+    else:
+        raise ValueError(f"Unknown model name: {model_name}. Must be one of 'UNetPlusPlus', 'UNet', 'WideUNet'.")
+
+    # Apply weight initialization from config
+    weight_init = config.get('model', {}).get('weight_init', 'kaiming_normal')
+
+    def init_weights(m):
+        if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+            if weight_init == 'kaiming_normal':
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif weight_init == 'xavier_normal':
+                nn.init.xavier_normal_(m.weight)
+            elif weight_init == 'normal':
+                nn.init.normal_(m.weight, mean=0.0, std=0.01)
+            elif weight_init == 'xavier_uniform':
+                nn.init.xavier_uniform_(m.weight)
+            else:
+                # Default to kaiming_normal
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
+
+    model.apply(init_weights)
+
+    return model
+
+
+def dice_coefficient_loss(pred, target, smooth=1e-6):
+    """
+    Compute the Dice coefficient loss.
+
+    Args:
+        pred (torch.Tensor): Predicted logits of shape (batch_size, num_classes, H, W).
+        target (torch.Tensor): Ground truth of shape (batch_size, H, W) or (batch_size, num_classes, H, W).
+        smooth (float): Smoothing factor to avoid division by zero.
+
+    Returns:
+        torch.Tensor: Dice loss.
+    """
+    # Apply sigmoid to get probabilities
+    pred_probs = torch.sigmoid(pred)
+
+    # If target is not one-hot encoded, convert it
+    if target.dim() == 3:
+        # target shape: (batch_size, H, W) -> convert to one-hot
+        num_classes = pred.shape[1]
+        target_one_hot = torch.zeros_like(pred_probs)
+        for c in range(num_classes):
+            target_one_hot[:, c, :, :] = (target == c).float()
+        target = target_one_hot
+
+    # Flatten spatial dimensions
+    pred_flat = pred_probs.view(pred_probs.size(0), pred_probs.size(1), -1)
+    target_flat = target.view(target.size(0), target.size(1), -1)
+
+    # Compute Dice coefficient per class
+    intersection = (pred_flat * target_flat).sum(dim=2)
+    union = pred_flat.sum(dim=2) + target_flat.sum(dim=2)
+
+    dice = (2.0 * intersection + smooth) / (union + smooth)
+
+    # Average over classes and batch
+    dice_loss = 1.0 - dice.mean()
+
+    return dice_loss
+
+
+def combined_loss(pred, target, bce_weight=0.5, dice_weight=0.5):
+    """
+    Combined loss: binary cross-entropy + dice coefficient.
+
+    Args:
+        pred (torch.Tensor): Predicted logits.
+        target (torch.Tensor): Ground truth.
+        bce_weight (float): Weight for BCE loss.
+        dice_weight (float): Weight for Dice loss.
+
+    Returns:
+        torch.Tensor: Combined loss.
+    """
+    bce_loss = nn.functional.binary_cross_entropy_with_logits(pred, target.float())
+    dice_loss = dice_coefficient_loss(pred, target)
+
+    return bce_weight * bce_loss + dice_weight * dice_loss
+
+
+def train_one_epoch(model, train_loader, optimizer, criterion, device, epoch, log_interval=10):
+    """
+    Train the model for one epoch.
+
+    Args:
+        model (nn.Module): Model to train.
+        train_loader (DataLoader): Training data loader.
+        optimizer (optim.Optimizer): Optimizer.
+        criterion (callable): Loss function.
+        device (torch.device): Device to use.
+        epoch (int): Current epoch number.
+        log_interval (int): Log interval.
+
+    Returns:
+        tuple: (average_loss, accuracy)
+    """
+    model.train()
+    total_loss = 0.0
+    correct = 0
+    total = 0
+
+    for batch_idx, (data, target) in enumerate(train_loader):
+        data, target = data.to(device), target.to(device)
+
+        optimizer.zero_grad()
+        output = model(data)
+
+        # For segmentation, target needs to be shaped as (batch, 1, H, W) for BCE
+        # But for classification, we need to handle differently
+        # Since this is a classification task, we'll adapt the loss
+        # For classification, output shape is (batch, num_classes, H, W)
+        # We'll use the mean over spatial dimensions for classification
+
+        # For classification, we need to reduce spatial dimensions
+        # Use global average pooling
+        if output.dim() == 4:
+            # Global average pooling over spatial dimensions
+            pooled_output = output.mean(dim=(2, 3))
+        else:
+            pooled_output = output
+
+        # For classification, target is a scalar label
+        # Convert to one-hot if needed
+        num_classes = pooled_output.shape[1]
+        if target.dim() == 1:
+            target_one_hot = torch.zeros(target.size(0), num_classes, device=device)
+            target_one_hot.scatter_(1, target.unsqueeze(1), 1)
+            target_for_loss = target_one_hot
+        else:
+            target_for_loss = target
+
+        # Compute loss
+        loss = criterion(pooled_output, target_for_loss)
+
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+
+        # Compute accuracy
+        _, predicted = torch.max(pooled_output, 1)
+        if target.dim() == 1:
+            correct += (predicted == target).sum().item()
+            total += target.size(0)
+        else:
+            _, target_labels = torch.max(target, 1)
+            correct += (predicted == target_labels).sum().item()
+            total += target.size(0)
+
+        if batch_idx % log_interval == 0:
+            print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} '
+                  f'({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f}')
+
+    avg_loss = total_loss / len(train_loader)
+    accuracy = 100. * correct / total if total > 0 else 0.0
+
+    return avg_loss, accuracy
+
+
+def validate(model, val_loader, criterion, device):
+    """
+    Validate the model.
+
+    Args:
+        model (nn.Module): Model to validate.
+        val_loader (DataLoader): Validation data loader.
+        criterion (callable): Loss function.
+        device (torch.device): Device to use.
+
+    Returns:
+        tuple: (average_loss, accuracy)
+    """
+    model.eval()
+    total_loss = 0.0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for data, target in val_loader:
+            data, target = data.to(device), target.to(device)
+
+            output = model(data)
+
+            # Global average pooling for classification
+            if output.dim() == 4:
+                pooled_output = output.mean(dim=(2, 3))
+            else:
+                pooled_output = output
+
+            # Convert target to one-hot if needed
+            num_classes = pooled_output.shape[1]
+            if target.dim() == 1:
+                target_one_hot = torch.zeros(target.size(0), num_classes, device=device)
+                target_one_hot.scatter_(1, target.unsqueeze(1), 1)
+                target_for_loss = target_one_hot
+            else:
+                target_for_loss = target
+
+            loss = criterion(pooled_output, target_for_loss)
+            total_loss += loss.item()
+
+            _, predicted = torch.max(pooled_output, 1)
+            if target.dim() == 1:
+                correct += (predicted == target).sum().item()
+                total += target.size(0)
+            else:
+                _, target_labels = torch.max(target, 1)
+                correct += (predicted == target_labels).sum().item()
+                total += target.size(0)
+
+    avg_loss = total_loss / len(val_loader) if len(val_loader) > 0 else 0.0
+    accuracy = 100. * correct / total if total > 0 else 0.0
+
+    return avg_loss, accuracy
+
+
+def train_model(model, train_loader, val_loader, config=None, device=None, model_name='UNetPlusPlus'):
+    """
+    Train the model.
+
+    Args:
+        model (nn.Module): Model to train.
+        train_loader (DataLoader): Training data loader.
+        val_loader (DataLoader, optional): Validation data loader. Can be None.
+        config (dict, optional): Configuration dictionary. If None, loads from config.yaml.
+        device (torch.device, optional): Device to use. If None, uses config or auto-detect.
+        model_name (str): Name of the model architecture.
+
+    Returns:
+        tuple: (trained_model, training_history)
+    """
+    if config is None:
+        config = load_config()
+
+    # Determine device
+    if device is None:
+        device_name = config.get('system', {}).get('device', 'cuda')
+        device = torch.device(device_name if torch.cuda.is_available() else 'cpu')
+
+    # Get training configuration
+    training_config = config.get('training', {})
+    epochs = training_config.get('epochs', 30)
+    if epochs is None:
+        epochs = 30
+
+    # Get optimizer configuration
+    optimizer_config = training_config.get('optimizer', {})
+    optimizer_name = optimizer_config.get('name', 'Adam')
+    lr = optimizer_config.get('lr', 0.001)
+    if lr is None:
+        lr = 0.001
+
+    weight_decay = optimizer_config.get('weight_decay', 0.0)
+    if weight_decay is None:
+        weight_decay = 0.0
+
+    momentum = optimizer_config.get('momentum', 0.9)
+    if momentum is None:
+        momentum = 0.9
+
+    # Create optimizer
+    if optimizer_name.lower() == 'adam':
+        optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    elif optimizer_name.lower() == 'sgd':
+        optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # Get scheduler configuration
+    scheduler_config = training_config.get('scheduler', {})
+    scheduler_name = scheduler_config.get('name', None)
+    scheduler = None
+
+    if scheduler_name is not None:
+        step_size = scheduler_config.get('step_size', 10)
+        gamma = scheduler_config.get('gamma', 0.1)
+        if step_size is None:
+            step_size = 10
+        if gamma is None:
+            gamma = 0.1
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+
+    # Loss function: Combination of binary cross-entropy and dice coefficient
+    def criterion(pred, target):
+        return combined_loss(pred, target, bce_weight=0.5, dice_weight=0.5)
+
+    # Get checkpoint configuration
+    checkpoint_config = config.get('checkpoint', {})
+    save_best = checkpoint_config.get('save_best', True)
+    best_metric = checkpoint_config.get('best_metric', 'val_accuracy')
+    best_mode = checkpoint_config.get('best_mode', 'max')
+    save_final = checkpoint_config.get('save_final', True)
+    save_optimizer_state = checkpoint_config.get('save_optimizer_state', True)
+
+    # Determine reproduction mode
+    reproduction_mode = config.get('reproduction_mode', 'engineering')
+
+    # Create checkpoint directory
+    checkpoint_dir = PROJECT_ROOT / 'checkpoints'
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Training history
+    history = {
+        'train_loss': [],
+        'train_acc': [],
+        'val_loss': [],
+        'val_acc': []
+    }
+
+    best_model_state = None
+    best_val_acc = 0.0
+    best_val_loss = float('inf')
+
+    print(f"Training started on device: {device}")
+    print(f"Reproduction mode: {reproduction_mode}")
+    print(f"Epochs: {epochs}, Optimizer: {optimizer_name}, LR: {lr}")
+
+    for epoch in range(1, epochs + 1):
+        # Train one epoch
+        train_loss, train_acc = train_one_epoch(
+            model, train_loader, optimizer, criterion, device, epoch
+        )
+
+        # Validate if val_loader is provided
+        val_loss = None
+        val_acc = None
+        if val_loader is not None:
+            val_loss, val_acc = validate(model, val_loader, criterion, device)
+
+        # Update scheduler
+        if scheduler is not None:
+            scheduler.step()
+
+        # Record history
+        history['train_loss'].append(train_loss)
+        history['train_acc'].append(train_acc)
+        if val_loss is not None:
+            history['val_loss'].append(val_loss)
+            history['val_acc'].append(val_acc)
+
+        # Print epoch summary
+        if val_loss is not None:
+            print(f'Epoch {epoch}: Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, '
+                  f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+        else:
+            print(f'Epoch {epoch}: Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%')
+
+        # Save best model based on validation accuracy (engineering mode)
+        if save_best and val_loader is not None and val_acc is not None:
+            if best_mode == 'max' and val_acc > best_val_acc:
+                best_val_acc = val_acc
+                best_model_state = copy.deepcopy(model.state_dict())
+                # Save best model checkpoint
+                checkpoint_path = checkpoint_dir / f'{model_name}_best.pth'
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict() if save_optimizer_state else None,
+                    'val_acc': val_acc,
+                    'val_loss': val_loss,
+                    'train_acc': train_acc,
+                    'train_loss': train_loss,
+                    'config': config
+                }
+                torch.save(checkpoint, checkpoint_path)
+                print(f'  Best model saved to {checkpoint_path} (val_acc: {val_acc:.2f}%)')
+            elif best_mode == 'min' and val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = copy.deepcopy(model.state_dict())
+                checkpoint_path = checkpoint_dir / f'{model_name}_best.pth'
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict() if save_optimizer_state else None,
+                    'val_acc': val_acc,
+                    'val_loss': val_loss,
+                    'train_acc': train_acc,
+                    'train_loss': train_loss,
+                    'config': config
+                }
+                torch.save(checkpoint, checkpoint_path)
+                print(f'  Best model saved to {checkpoint_path} (val_loss: {val_loss:.4f})')
+
+    # Save final model
+    if save_final:
+        final_checkpoint_path = checkpoint_dir / f'{model_name}_final.pth'
+        checkpoint = {
+            'epoch': epochs,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict() if save_optimizer_state else None,
+            'train_acc': history['train_acc'][-1] if history['train_acc'] else 0.0,
+            'train_loss': history['train_loss'][-1] if history['train_loss'] else 0.0,
+            'config': config
+        }
+        if history['val_acc']:
+            checkpoint['val_acc'] = history['val_acc'][-1]
+        if history['val_loss']:
+            checkpoint['val_loss'] = history['val_loss'][-1]
+
+        torch.save(checkpoint, final_checkpoint_path)
+        print(f'Final model saved to {final_checkpoint_path}')
+
+    # Restore best model if available
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        print(f'Restored best model with val_acc: {best_val_acc:.2f}%')
+
+    return model, history
+
+
+def save_model(model, filepath, config=None, optimizer=None, epoch=None, metrics=None):
+    """
+    Save model checkpoint.
+
+    Args:
+        model (nn.Module): Model to save.
+        filepath (str): Path to save the model.
+        config (dict, optional): Configuration dictionary.
+        optimizer (optim.Optimizer, optional): Optimizer state to save.
+        epoch (int, optional): Current epoch.
+        metrics (dict, optional): Metrics to save.
+
+    Returns:
+        str: Path where the model was saved.
+    """
+    if config is None:
+        config = load_config()
+
+    checkpoint = {
+        'model_state_dict': model.state_dict(),
+        'config': config
+    }
+
+    if optimizer is not None:
+        checkpoint['optimizer_state_dict'] = optimizer.state_dict()
+
+    if epoch is not None:
+        checkpoint['epoch'] = epoch
+
+    if metrics is not None:
+        checkpoint['metrics'] = metrics
+
+    # Ensure directory exists
+    filepath = Path(filepath)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+
+    torch.save(checkpoint, filepath)
+    print(f'Model saved to {filepath}')
+
+    return str(filepath)
+
+
+def main():
+    """
+    Main training script.
+    """
+    # Load configuration
+    config = load_config()
+
+    # Set random seed for reproducibility
+    seed = config.get('system', {}).get('seed', 42)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # Determine device
+    device_name = config.get('system', {}).get('device', 'cuda')
+    device = torch.device(device_name if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+
+    # Get experiment configuration
+    experiment_config = config.get('experiment', {})
+    runs = experiment_config.get('runs', [])
+
+    if not runs:
+        # Default run
+        runs = [{
+            'name': 'unetpp_scratch',
+            'mode': 'scratch',
+            'dataset_version': 'color'
+        }]
+
+    # Get training configuration
+    training_config = config.get('training', {})
+    batch_size = training_config.get('batch_size', 32)
+    if batch_size is None:
+        batch_size = 32
+
+    num_workers = config.get('system', {}).get('num_workers', 4)
+    if num_workers is None:
+        num_workers = 4
+
+    # Get reproduction mode
+    reproduction_mode = config.get('reproduction_mode', 'engineering')
+
+    for run in runs:
+        run_name = run.get('name', 'unetpp_scratch')
+        mode = run.get('mode', 'scratch')
+        dataset_version = run.get('dataset_version', 'color')
+
+        # Skip runs with unresolved dataset version
+        data_config = config.get('data', {})
+        version_config = data_config.get(dataset_version, {})
+        status = version_config.get('status', 'resolved')
+        if status == 'unresolved':
+            print(f"\nSkipping run '{run_name}': Dataset version '{dataset_version}' is unresolved: {version_config.get('reason', 'No reason provided.')}")
+            continue
+
+        print(f"\n{'='*60}")
+        print(f"Starting run: {run_name}")
+        print(f"Mode: {mode}, Dataset version: {dataset_version}")
+        print(f"{'='*60}")
+
+        # Get dataloaders
+        dataloaders = get_dataloaders(
+            config=config,
+            version=dataset_version,
+            batch_size=batch_size,
+            num_workers=num_workers
+        )
+
+        train_loader = dataloaders['train']
+        val_loader = dataloaders['val']
+        test_loader = dataloaders['test']
+
+        # Initialize model
+        model = initialize_model(config=config, model_name='UNetPlusPlus')
+        model = model.to(device)
+
+        # Count parameters
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"Model parameters: Total={total_params:,}, Trainable={trainable_params:,}")
+
+        # Train model
+        model, history = train_model(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            config=config,
+            device=device,
+            model_name=run_name
+        )
+
+        # Evaluate on test set
+        print(f"\nEvaluating on test set...")
+        criterion = lambda pred, target: combined_loss(pred, target, bce_weight=0.5, dice_weight=0.5)
+        test_loss, test_acc = validate(model, test_loader, criterion, device)
+        print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.2f}%")
+
+        # Save final model with test metrics
+        checkpoint_dir = PROJECT_ROOT / 'checkpoints'
+        final_path = checkpoint_dir / f'{run_name}_final.pth'
+        save_model(
+            model=model,
+            filepath=final_path,
+            config=config,
+            epoch=training_config.get('epochs', 30),
+            metrics={
+                'test_loss': test_loss,
+                'test_acc': test_acc,
+                'train_loss': history['train_loss'][-1] if history['train_loss'] else 0.0,
+                'train_acc': history['train_acc'][-1] if history['train_acc'] else 0.0
+            }
+        )
+
+        print(f"\nRun {run_name} completed.")
+        print(f"Final Test Accuracy: {test_acc:.2f}%")
+
+
+if __name__ == '__main__':
+    main()
+```

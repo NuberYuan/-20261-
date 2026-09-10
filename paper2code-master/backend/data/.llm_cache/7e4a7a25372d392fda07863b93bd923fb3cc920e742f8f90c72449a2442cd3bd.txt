@@ -1,0 +1,86 @@
+```python
+import sys
+import json
+import os
+import numpy as np
+import cv2
+
+def analyze_image(image_path):
+    try:
+        # 读取图片（支持中文路径）
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法读取图片",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # 获取图片基本信息
+        height, width = img.shape[:2]
+        
+        # OCR文字信息（外部提供，此处为空）
+        ocr_text = ""
+        
+        # 分析逻辑
+        # 由于没有OCR文字，基于图片基本特征进行简单判断
+        # 检查图片是否为灰度图（可能是实验曲线或数据集）
+        if len(img.shape) == 2:
+            gray = img
+        else:
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # 计算基本统计信息
+        mean_val = np.mean(gray)
+        std_val = np.std(gray)
+        
+        # 简单判断：如果图片较暗且对比度高，可能是实验曲线
+        if mean_val < 128 and std_val > 50:
+            return {
+                "type": "experiment_result",
+                "description": "图片可能包含实验曲线或性能对比图",
+                "important_components": [],
+                "code_relevant_information": "需要实现实验结果的绘制和对比功能"
+            }
+        
+        # 如果图片较亮且均匀，可能是数据集样本
+        elif mean_val > 128 and std_val < 50:
+            return {
+                "type": "dataset",
+                "description": "图片可能展示数据集样本或输入示例",
+                "important_components": [],
+                "code_relevant_information": "需要实现数据加载和预处理功能"
+            }
+        
+        # 其他情况
+        else:
+            return {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+            
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "图片分析过程中出现错误",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+        result = analyze_image(image_path)
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        print(json.dumps({
+            "type": "other",
+            "description": "未提供图片路径",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+```

@@ -1,0 +1,703 @@
+import copy
+import logging
+import os
+from datetime import datetime
+from typing import Any, Dict, Optional, Tuple
+
+import numpy as np
+import torch
+import yaml
+from torch.utils.data import DataLoader, Dataset
+
+logger = logging.getLogger(__name__)
+
+
+class ElectricityTrafficRetailVolatilityDataset(Dataset):
+    """Dataset loader, preprocessor and splitter for the TFT benchmark datasets.
+
+    The class supports Electricity, Traffic, Retail and Volatility.  If raw files
+    are not present under the configured path, deterministic synthetic data is
+    generated so that the dataset object remains runnable for baseline tests.
+    """
+
+    DATASET_METADATA = {
+        "Electricity": {
+            "num_entities": 370,
+            "time_steps": 6000,
+            "encoder_len": 168,
+            "horizon": 24,
+            "freq": "hourly",
+            "start_date": datetime(2014, 1, 1),
+            "normalization": "per_entity",
+            "log_transform": False,
+            "target_name": "electricity_usage",
+            "real_inputs": ["electricity_usage", "time_index"],
+            "cat_inputs": {"day_of_week": 7, "hour_of_day": 24},
+        },
+        "Traffic": {
+            "num_entities": 440,
+            "time_steps": 9000,
+            "encoder_len": 168,
+            "horizon": 24,
+            "freq": "hourly",
+            "start_date": datetime(2008, 1, 1),
+            "normalization": "global",
+            "log_transform": False,
+            "target_name": "traffic_occupancy",
+            "real_inputs": ["traffic_occupancy", "time_index"],
+            "cat_inputs": {"day_of_week": 7, "hour_of_day": 24},
+        },
+        "Retail": {
+            "num_entities": 130000,
+            "time_steps": 394,
+            "encoder_len": 90,
+            "horizon": 30,
+            "freq": "daily",
+            "start_date": datetime(2015, 1, 1),
+            "normalization": "global",
+            "log_transform": True,
+            "target_name": "log_sales",
+            "real_inputs": ["log_sales", "transactions", "oil", "time_index"],
+            "cat_inputs": {
+                "open_flag": 2,
+                "day_of_week": 7,
+                "holiday_national": 2,
+                "holiday_regional": 2,
+                "holiday_local": 2,
+            },
+        },
+        "Volatility": {
+            "num_entities": 41,
+            "time_steps": 7116,
+            "encoder_len": 168,
+            "horizon": 168,
+            "freq": "daily",
+            "start_date": datetime(2000, 1, 3),
+            "normalization": "global",
+            "log_transform": True,
+            "target_name": "log_rv5_ss",
+            "real_inputs": ["log_rv5_ss", "daily_return", "time_index"],
+            "cat_inputs": {"day_of_week": 7, "month": 12},
+        },
+    }
+
+    def __init__(
+        self,
+        dataset: str = "Electricity",
+        version: str = "default",
+        config: Optional[Dict[str, Any]] = None,
+        split: str = "all",
+        encoder_len: Optional[int] = None,
+        horizon: Optional[int] = None,
+    ) -> None:
+        self.config = self._load_config(config)
+        self.dataset = dataset
+        self.version = version
+        self.split = split
+
+        if dataset not in self.DATASET_METADATA:
+            raise ValueError(
+                f"Unsupported dataset '{dataset}'. "
+                f"Choose one of {list(self.DATASET_METADATA.keys())}."
+            )
+
+        metadata = self.DATASET_METADATA[dataset]
+        self.metadata = metadata
+        self.num_entities = int(metadata["num_entities"])
+        self.freq = str(metadata["freq"])
+        self.start_date = metadata.get("start_date", datetime(2000, 1, 1))
+        self.normalization = str(metadata.get("normalization", "global"))
+        self.log_transform = bool(metadata.get("log_transform", False))
+        self.real_inputs = list(metadata.get("real_inputs", ["target", "time_index"]))
+        self.num_real_inputs = len(self.real_inputs)
+        self.cat_inputs = dict(metadata.get("cat_inputs", {}))
+
+        self.encoder_len = int(
+            encoder_len if encoder_len is not None else metadata.get("encoder_len", 168)
+        )
+        self.horizon = int(
+            horizon if horizon is not None else metadata.get("horizon", 24)
+        )
+        self.time_steps = int(metadata.get("time_steps", 1000))
+
+        if self.time_steps <= self.encoder_len + self.horizon:
+            raise ValueError(
+                f"time_steps ({self.time_steps}) must be greater than "
+                f"encoder_len + horizon ({self.encoder_len + self.horizon})."
+            )
+
+        seed_cfg = self.config.get("system", {})
+        self.seed = int(seed_cfg.get("seed", 42)) if isinstance(seed_cfg, dict) else 42
+
+        data_cfg = self.config.get("data", {})
+        default_cfg = data_cfg.get("default", {}) if isinstance(data_cfg, dict) else {}
+        self.data_root = str(default_cfg.get("path", "./data/tft_datasets"))
+
+        self._split_ranges = self._compute_split_boundaries()
+        self._entity_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
+        self._max_cache_entities = 512 if self.num_entities > 5000 else 2000
+        self._processed_data: Optional[Dict[str, np.ndarray]] = None
+
+        self._global_real_mean: Optional[np.ndarray] = None
+        self._global_real_std: Optional[np.ndarray] = None
+        self._global_target_mean: Optional[np.float32] = None
+        self._global_target_std: Optional[np.float32] = None
+
+        self._load_or_prepare_data()
+
+    def _load_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Load config from the repository config/config.yaml when not provided."""
+        if config is not None:
+            return config
+
+        this_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(this_dir, "..", "config", "config.yaml")
+        if not os.path.exists(config_path):
+            logger.warning("config.yaml not found; using an empty configuration.")
+            return {}
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            loaded = yaml.safe_load(f)
+        return loaded or {}
+
+    def _load_or_prepare_data(self) -> None:
+        """Load actual data if available, otherwise prepare synthetic lazily."""
+        processed = self._load_actual_data()
+        if processed is not None:
+            real_features = np.asarray(processed["features"], dtype=np.float32)
+            target = np.asarray(processed["target"], dtype=np.float32)
+            sequence_features = self._build_sequence_features(real_features)
+            self._processed_data = {
+                "features": sequence_features,
+                "target": target,
+            }
+            return
+
+        # Synthetic fallback path.
+        self._processed_data = None
+        if self.normalization == "global":
+            (
+                self._global_real_mean,
+                self._global_real_std,
+                self._global_target_mean,
+                self._global_target_std,
+            ) = self._compute_global_stats()
+        else:
+            self._global_real_mean = np.zeros((1, self.num_real_inputs), dtype=np.float32)
+            self._global_real_std = np.ones((1, self.num_real_inputs), dtype=np.float32)
+            self._global_target_mean = np.float32(0.0)
+            self._global_target_std = np.float32(1.0)
+
+    def _load_actual_data(self) -> Optional[Dict[str, np.ndarray]]:
+        """Search for common raw data files under data_root/version/dataset.
+
+        Returns preprocessed real-valued features and target if found.  The
+        expected raw arrays are ``features`` of shape
+        ``(num_entities, time_steps, num_real_inputs)`` and ``target`` of shape
+        ``(num_entities, time_steps)``.
+        """
+        if not self.data_root:
+            return None
+
+        bases = [
+            os.path.join(self.data_root, self.version, self.dataset),
+            os.path.join(self.data_root, self.dataset),
+            os.path.join(self.data_root, self.dataset.lower()),
+            self.data_root,
+        ]
+
+        npz_names = [
+            f"{self.dataset}.npz",
+            f"{self.dataset.lower()}.npz",
+            "data.npz",
+        ]
+
+        for base in bases:
+            for filename in npz_names:
+                path = os.path.join(base, filename)
+                if not os.path.isfile(path):
+                    continue
+                try:
+                    data = np.load(path, allow_pickle=False)
+                    if "features" in data and "target" in data:
+                        features = data["features"]
+                        target = data["target"]
+                        return self.preprocess_data({"features": features, "target": target})
+                except Exception as exc:  # pragma: no cover - defensive path
+                    logger.warning("Failed to load %s: %s", path, exc)
+
+        # Separate .npy files, e.g. features.npy and target.npy.
+        for base in bases:
+            features_path = os.path.join(base, "features.npy")
+            target_path = os.path.join(base, "target.npy")
+            if os.path.isfile(features_path) and os.path.isfile(target_path):
+                try:
+                    features = np.load(features_path, allow_pickle=False)
+                    target = np.load(target_path, allow_pickle=False)
+                    return self.preprocess_data({"features": features, "target": target})
+                except Exception as exc:  # pragma: no cover - defensive path
+                    logger.warning("Failed to load %s: %s", features_path, exc)
+
+        return None
+
+    def _compute_global_stats(self) -> Tuple[np.ndarray, np.ndarray, np.float32, np.float32]:
+        """Compute global z-score statistics from a deterministic sample."""
+        sample_size = min(self.num_entities, 128 if self.num_entities > 128 else self.num_entities)
+        feature_blocks = []
+        target_blocks = []
+
+        for entity_idx in range(sample_size):
+            raw = self._generate_raw_entity(entity_idx)
+            features = raw["features"].astype(np.float64)
+            target = raw["target"].astype(np.float64)
+            if self.log_transform:
+                target = np.log(np.maximum(target, 1e-8))
+                features[:, 0] = target
+            feature_blocks.append(features)
+            target_blocks.append(target)
+
+        all_features = np.concatenate(feature_blocks, axis=0)
+        all_targets = np.concatenate(target_blocks, axis=0)
+
+        mean = all_features.mean(axis=0, keepdims=True).astype(np.float32)
+        std = (all_features.std(axis=0, keepdims=True) + 1e-6).astype(np.float32)
+        target_mean = np.float32(all_targets.mean())
+        target_std = np.float32(all_targets.std() + 1e-6)
+        return mean, std, target_mean, target_std
+
+    def _get_entity_seed(self, entity_idx: int) -> int:
+        """Deterministic per-entity seed for synthetic generation."""
+        value = int(self.seed) * 1000003 + int(entity_idx) * 1000033 + len(self.dataset) * 17
+        return value % (2 ** 32)
+
+    def _generate_raw_entity(self, entity_idx: int) -> Dict[str, np.ndarray]:
+        """Generate a deterministic raw entity series with real-valued features."""
+        seed = self._get_entity_seed(entity_idx)
+        rng = np.random.RandomState(seed)
+        t = np.arange(self.time_steps, dtype=np.float64)
+
+        if self.freq == "hourly":
+            season = (
+                np.sin(2 * np.pi * t / 24.0)
+                + 0.6 * np.sin(2 * np.pi * t / 168.0)
+                + 0.2 * np.sin(2 * np.pi * t / 8760.0)
+            )
+        else:
+            season = (
+                np.sin(2 * np.pi * t / 7.0)
+                + 0.6 * np.sin(2 * np.pi * t / 30.0)
+                + 0.2 * np.sin(2 * np.pi * t / 365.0)
+            )
+
+        walk = np.cumsum(rng.normal(0.0, 0.02, self.time_steps))
+        entity_scale = (
+            rng.uniform(0.8, 1.2)
+            if self.normalization == "global"
+            else rng.uniform(0.5, 2.0)
+        )
+
+        target_base = season + 0.15 * rng.normal(0.0, 1.0, self.time_steps) + 0.05 * walk
+
+        if self.log_transform:
+            target_raw = np.exp(target_base / 3.0)
+        else:
+            target_raw = target_base * entity_scale
+
+        real_cols = [target_raw]
+
+        num_extra_real = max(0, self.num_real_inputs - 2)
+        for j in range(num_extra_real):
+            phase = 2 * np.pi * j / max(1, num_extra_real)
+            extra = 0.8 * season * np.cos(phase) + 0.1 * rng.normal(
+                0.0, 1.0, self.time_steps
+            )
+            real_cols.append(extra)
+
+        time_index = t / max(1, self.time_steps)
+        real_cols.append(time_index)
+
+        features = np.stack(real_cols, axis=1)
+        return {"features": features, "target": target_raw}
+
+    def _generate_categorical_indices(self, t: np.ndarray) -> Dict[str, np.ndarray]:
+        """Create categorical indices for the current dataset."""
+        cat_indices: Dict[str, np.ndarray] = {}
+
+        if self.freq == "hourly":
+            day_of_week = (self.start_date.weekday() + (t // 24)) % 7
+            cat_indices["day_of_week"] = day_of_week.astype(np.int64)
+            if "hour_of_day" in self.cat_inputs:
+                cat_indices["hour_of_day"] = (t % 24).astype(np.int64)
+        else:
+            day_of_week = (self.start_date.weekday() + t) % 7
+            cat_indices["day_of_week"] = day_of_week.astype(np.int64)
+
+            if "month" in self.cat_inputs:
+                month = (self.start_date.month - 1 + (t // 30)) % 12
+                cat_indices["month"] = month.astype(np.int64)
+
+            if "open_flag" in self.cat_inputs:
+                cat_indices["open_flag"] = (day_of_week < 5).astype(np.int64)
+
+            for name in ["holiday_national", "holiday_regional", "holiday_local"]:
+                if name in self.cat_inputs:
+                    cat_indices[name] = (t % self.cat_inputs[name]).astype(np.int64)
+
+        return cat_indices
+
+    def _make_categorical_one_hot(
+        self, cat_indices: Dict[str, np.ndarray]
+    ) -> np.ndarray:
+        """One-hot encode categorical indices."""
+        if not cat_indices:
+            first_key = next(iter(cat_indices)) if cat_indices else None
+            length = cat_indices[first_key].shape[0] if first_key else 0
+            return np.zeros((length, 0), dtype=np.float32)
+
+        parts = []
+        for name, size in sorted(self.cat_inputs.items()):
+            if name not in cat_indices:
+                continue
+            idx = np.clip(cat_indices[name].astype(np.int64), 0, size - 1)
+            one_hot = np.eye(size, dtype=np.float32)[idx]
+            parts.append(one_hot)
+
+        if not parts:
+            length = cat_indices[next(iter(cat_indices))].shape[0]
+            return np.zeros((length, 0), dtype=np.float32)
+
+        return np.concatenate(parts, axis=1)
+
+    def _build_sequence_features(self, real_features: np.ndarray) -> np.ndarray:
+        """Concatenate real-valued features with one-hot categorical features."""
+        t = np.arange(self.time_steps, dtype=np.int64)
+        cat_one_hot = self._make_categorical_one_hot(self._generate_categorical_indices(t))
+
+        if real_features.ndim == 2:
+            return np.concatenate([real_features, cat_one_hot], axis=-1)
+
+        # real_features: (num_entities, T, num_real_inputs)
+        cat_expanded = np.broadcast_to(
+            cat_one_hot,
+            (real_features.shape[0], real_features.shape[1], cat_one_hot.shape[-1]),
+        )
+        return np.concatenate([real_features, cat_expanded], axis=-1)
+
+    def _get_entity_series(self, entity_idx: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Return normalized sequence features and target for a single entity."""
+        if self._processed_data is not None:
+            features = self._processed_data["features"][entity_idx]
+            target = self._processed_data["target"][entity_idx]
+            return features, target
+
+        if entity_idx in self._entity_cache:
+            return self._entity_cache[entity_idx]
+
+        raw = self._generate_raw_entity(entity_idx)
+        features_raw = raw["features"].astype(np.float64)
+        target_raw = raw["target"].astype(np.float64)
+
+        if self.log_transform:
+            target = np.log(np.maximum(target_raw, 1e-8))
+            features_raw[:, 0] = target
+        else:
+            target = target_raw
+
+        if self.normalization == "per_entity":
+            feature_mean = features_raw.mean(axis=0, keepdims=True)
+            feature_std = features_raw.std(axis=0, keepdims=True) + 1e-6
+            features_normalized = (features_raw - feature_mean) / feature_std
+
+            target_mean = target.mean()
+            target_std = target.std() + 1e-6
+            target_normalized = (target - target_mean) / target_std
+        else:
+            features_normalized = (
+                features_raw - self._global_real_mean.astype(np.float64)
+            ) / self._global_real_std.astype(np.float64)
+            target_normalized = (
+                target - float(self._global_target_mean)
+            ) / float(self._global_target_std)
+
+        t = np.arange(self.time_steps, dtype=np.int64)
+        cat_one_hot = self._make_categorical_one_hot(self._generate_categorical_indices(t))
+
+        sequence_features = np.concatenate(
+            [features_normalized.astype(np.float32), cat_one_hot], axis=1
+        )
+        target_normalized = target_normalized.astype(np.float32)
+
+        result = (sequence_features, target_normalized)
+
+        if len(self._entity_cache) < self._max_cache_entities:
+            self._entity_cache[entity_idx] = result
+
+        return result
+
+    def _get_feature_matrix(
+        self, entity_idx: int, start: int, end: int
+    ) -> np.ndarray:
+        features, _ = self._get_entity_series(entity_idx)
+        return features[start:end, :]
+
+    def _get_target(self, entity_idx: int, start: int, end: int) -> np.ndarray:
+        _, target = self._get_entity_series(entity_idx)
+        return target[start:end]
+
+    def preprocess_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply dataset-specific preprocessing to raw real-valued arrays.
+
+        ``data`` must contain ``features`` and ``target``.  ``features`` may be
+        ``(num_entities, T, num_real_inputs)`` or a single ``(T, num_real_inputs)``
+        series; ``target`` may be ``(num_entities, T)`` or ``(T,)``.
+        """
+        if data is None:
+            return data
+
+        if "features" not in data or "target" not in data:
+            raise ValueError("preprocess_data expects data with 'features' and 'target' keys.")
+
+        features = np.asarray(data["features"], dtype=np.float64)
+        target = np.asarray(data["target"], dtype=np.float64)
+
+        if features.ndim == 2:
+            features = features[np.newaxis, ...]
+        if target.ndim == 1:
+            target = target[np.newaxis, ...]
+
+        if self.log_transform:
+            target = np.log(np.maximum(target, 1e-8))
+            if features.shape[-1] > 0:
+                features[:, :, 0] = target
+
+        if self.normalization == "per_entity":
+            mean = features.mean(axis=1, keepdims=True)
+            std = features.std(axis=1, keepdims=True) + 1e-6
+            features = (features - mean) / std
+
+            target_mean = target.mean(axis=1, keepdims=True)
+            target_std = target.std(axis=1, keepdims=True) + 1e-6
+            target = (target - target_mean) / target_std
+        else:
+            mean = features.mean(axis=(0, 1), keepdims=True)
+            std = features.std(axis=(0, 1), keepdims=True) + 1e-6
+            features = (features - mean) / std
+
+            target_mean = target.mean()
+            target_std = target.std() + 1e-6
+            target = (target - target_mean) / target_std
+
+        return {
+            "features": features.astype(np.float32),
+            "target": target.astype(np.float32),
+        }
+
+    def _compute_split_boundaries(self) -> Dict[str, Tuple[int, int]]:
+        """Compute time-index split ranges as ``(start, end)`` with exclusive end."""
+        T = self.time_steps
+        name = self.dataset
+
+        if name in {"Electricity", "Traffic"}:
+            # Seven days of test data immediately follow the training period.
+            test_len = 7 * 24
+            train_val_len = T - test_len
+            if train_val_len <= 0:
+                raise ValueError(f"{name} dataset does not have enough time steps for a test split.")
+
+            val_len = int(train_val_len * 0.10)
+            train_len = train_val_len - val_len
+            return {
+                "train": (0, train_len),
+                "val": (train_len, train_len + val_len),
+                "test": (train_len + val_len, T),
+                "all": (0, T),
+            }
+
+        if name == "Retail":
+            # 334 training days, 30 validation days, 30 test days.
+            train_len = 334
+            val_len = 30
+            test_len = 30
+            total = train_len + val_len + test_len
+
+            if T < total:
+                train_len = int(T * 0.80)
+                val_len = int(T * 0.10)
+                test_len = T - train_len - val_len
+
+            val_start = train_len
+            test_start = train_len + val_len
+            return {
+                "train": (0, train_len),
+                "val": (val_start, val_start + val_len),
+                "test": (test_start, test_start + test_len),
+                "all": (0, T),
+            }
+
+        if name == "Volatility":
+            total_start = datetime(2000, 1, 3)
+            total_end = datetime(2019, 6, 28)
+            total_days = (total_end - total_start).days + 1
+
+            train_end_day = (datetime(2016, 1, 1) - total_start).days
+            val_end_day = (datetime(2018, 1, 1) - total_start).days
+
+            if T != total_days:
+                scale = T / float(total_days)
+                train_end = int(train_end_day * scale)
+                val_end = int(val_end_day * scale)
+            else:
+                train_end = train_end_day
+                val_end = val_end_day
+
+            train_end = min(T, max(1, train_end))
+            val_end = min(T, max(train_end + 1, val_end))
+            return {
+                "train": (0, train_end),
+                "val": (train_end, val_end),
+                "test": (val_end, T),
+                "all": (0, T),
+            }
+
+        # Fallback: 80/10/10 split.
+        train_end = int(T * 0.80)
+        val_end = int(T * 0.90)
+        return {
+            "train": (0, train_end),
+            "val": (train_end, val_end),
+            "test": (val_end, T),
+            "all": (0, T),
+        }
+
+    def _get_window_indices(self) -> Tuple[int, int, int]:
+        """Return (windows_per_entity, first_target_start, last_target_start)."""
+        split_name = self.split if self.split in self._split_ranges else "all"
+        split_start, split_end = self._split_ranges[split_name]
+
+        first_start = max(split_start, self.encoder_len)
+        last_start = min(split_end, self.time_steps - self.horizon) - 1
+
+        if last_start < first_start:
+            return 0, first_start, last_start
+
+        return int(last_start - first_start + 1), int(first_start), int(last_start)
+
+    def __len__(self) -> int:
+        windows_per_entity, _, _ = self._get_window_indices()
+        return int(self.num_entities * windows_per_entity)
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        if idx < 0:
+            idx += len(self)
+        if idx < 0 or idx >= len(self):
+            raise IndexError(f"Index {idx} out of range for length {len(self)}.")
+
+        windows_per_entity, first_start, _ = self._get_window_indices()
+        if windows_per_entity <= 0:
+            raise IndexError("The current split contains no valid windows.")
+
+        entity_idx = int(idx // windows_per_entity)
+        offset = int(idx % windows_per_entity)
+        target_start = int(first_start + offset)
+        history_start = target_start - self.encoder_len
+        future_end = target_start + self.horizon
+
+        x = self._get_feature_matrix(entity_idx, history_start, target_start)
+        y = self._get_target(entity_idx, target_start, future_end)
+
+        return {
+            "x": torch.from_numpy(x.astype(np.float32)),
+            "static_covariates": torch.from_numpy(np.array([entity_idx], dtype=np.int64)),
+            "y": torch.from_numpy(y.astype(np.float32)),
+            "entity_id": torch.tensor(entity_idx, dtype=torch.long),
+            "target_start": torch.tensor(target_start, dtype=torch.long),
+        }
+
+    def split_dataset(
+        self, val_split_ratio: Optional[float] = None
+    ) -> Tuple["ElectricityTrafficRetailVolatilityDataset",
+                 "ElectricityTrafficRetailVolatilityDataset",
+                 "ElectricityTrafficRetailVolatilityDataset"]:
+        """Return train, validation and test dataset objects.
+
+        The split boundaries are dataset-specific and defined from the paper's
+        configurations.  ``val_split_ratio`` is accepted for API compatibility;
+        actual boundaries follow the dataset-specific rules in
+        :meth:`_compute_split_boundaries`.
+        """
+        if self.split != "all":
+            raise ValueError("split_dataset should be called on the full dataset (split='all').")
+
+        return (
+            self._create_split("train"),
+            self._create_split("val"),
+            self._create_split("test"),
+        )
+
+    def _create_split(self, split_name: str) -> "ElectricityTrafficRetailVolatilityDataset":
+        ds = copy.copy(self)
+        ds.split = split_name
+        ds._entity_cache = self._entity_cache
+        return ds
+
+
+def get_dataloaders(
+    version: str = "default",
+    config: Optional[Dict[str, Any]] = None,
+    dataset: str = "Electricity",
+    batch_size: Optional[int] = None,
+    encoder_len: Optional[int] = None,
+    horizon: Optional[int] = None,
+    **kwargs: Any,
+) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    """Construct train/val/test dataloaders while explicitly propagating ``version``."""
+    if config is None:
+        this_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(this_dir, "..", "config", "config.yaml")
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+    if batch_size is None:
+        batch_size_cfg = config.get("training", {}).get("batch_size", {})
+        if isinstance(batch_size_cfg, dict):
+            batch_size = int(batch_size_cfg.get(dataset, 64))
+        else:
+            batch_size = 64
+
+    full_dataset = ElectricityTrafficRetailVolatilityDataset(
+        dataset=dataset,
+        version=version,
+        config=config,
+        split="all",
+        encoder_len=encoder_len,
+        horizon=horizon,
+    )
+
+    train_dataset, val_dataset, test_dataset = full_dataset.split_dataset()
+
+    system_cfg = config.get("system", {})
+    num_workers = int(system_cfg.get("num_workers", 4)) if isinstance(system_cfg, dict) else 4
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        **kwargs,
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        **kwargs,
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        **kwargs,
+    )
+
+    return train_loader, val_loader, test_loader

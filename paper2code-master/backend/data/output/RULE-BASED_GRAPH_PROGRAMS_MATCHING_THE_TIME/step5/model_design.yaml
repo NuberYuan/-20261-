@@ -1,0 +1,53 @@
+paper_name: RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME
+models:
+- name: GP 2 connectedness program
+  type: other
+  code_class_name: GP2ConnectednessProgram
+  input: Host graphs over labels with directed labelled nodes and edges; input graphs
+    may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have
+    integer edge weights.
+  output: Output host graph, or failure if the program fails or the input violates
+    the checked property.
+  num_classes: NOT_FOUND
+  pretrained: NOT_FOUND
+  architecture_summary: NOT_FOUND
+  architecture:
+    total_layers: NOT_FOUND
+    param_count: NOT_FOUND
+    special_components: []
+    final_classifier: NOT_FOUND
+    implementation_notes: []
+- name: GP 2 acyclicity program
+  type: other
+  code_class_name: GP2AcyclicityProgram
+  input: Host graphs over labels with directed labelled nodes and edges; input graphs
+    may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have
+    integer edge weights.
+  output: Output host graph, or failure if the program fails or the input violates
+    the checked property.
+  num_classes: NOT_FOUND
+  pretrained: NOT_FOUND
+  architecture_summary: NOT_FOUND
+  architecture:
+    total_layers: NOT_FOUND
+    param_count: NOT_FOUND
+    special_components: []
+    final_classifier: NOT_FOUND
+    implementation_notes: []
+- name: GP 2 Bellman-Ford program
+  type: VLM
+  code_class_name: GP2BellmanFordProgram
+  input: Host graphs over labels with directed labelled nodes and edges; input graphs
+    may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have
+    integer edge weights.
+  output: Output host graph, or failure if the program fails or the input violates
+    the checked property.
+  num_classes: NOT_FOUND
+  pretrained: NOT_FOUND
+  architecture_summary: NOT_FOUND
+  architecture:
+    total_layers: NOT_FOUND
+    param_count: NOT_FOUND
+    special_components: []
+    final_classifier: NOT_FOUND
+    implementation_notes: []

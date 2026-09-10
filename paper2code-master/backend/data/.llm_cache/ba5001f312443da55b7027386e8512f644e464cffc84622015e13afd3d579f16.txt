@@ -1,0 +1,5 @@
+{
+  "data_source": "external_dataset",
+  "acquisition": "local_path",
+  "data_source_note": "论文明确使用四个真实医学影像公开数据集（DSB 2018、ASU-Mayo、LiTS、LIDC-IDRI），需用户自行下载并放置到本地路径。"
+}

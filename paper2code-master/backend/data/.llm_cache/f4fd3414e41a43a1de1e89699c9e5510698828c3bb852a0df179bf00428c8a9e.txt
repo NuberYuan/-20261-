@@ -1,0 +1,392 @@
+```python
+import os
+import sys
+import argparse
+import logging
+from pathlib import Path
+
+import yaml
+import torch
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders
+from training.train import initialize_model, train_model, combined_loss, validate, load_config
+from evaluation.evaluate import evaluate_model, generate_report
+
+
+def parse_args():
+    """
+    Parse command line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed arguments.
+    """
+    parser = argparse.ArgumentParser(description='UNet++ Medical Image Segmentation')
+    parser.add_argument('--run', type=int, default=None,
+                        help='Index of the experiment run to execute (default: run all)')
+    parser.add_argument('--config', type=str, default='config/config.yaml',
+                        help='Path to configuration file (default: config/config.yaml)')
+    return parser.parse_args()
+
+
+def setup_logging(log_dir, log_level='INFO'):
+    """
+    Setup logging configuration.
+
+    Args:
+        log_dir (str): Directory to save log files.
+        log_level (str): Logging level.
+
+    Returns:
+        None
+    """
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, 'main.log')
+
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+
+    logging.basicConfig(
+        level=numeric_level,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
+
+
+def set_seed(seed):
+    """
+    Set random seeds for reproducibility.
+
+    Args:
+        seed (int): Random seed.
+
+    Returns:
+        None
+    """
+    import random
+    import numpy as np
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def get_device(config):
+    """
+    Determine the device to use.
+
+    Args:
+        config (dict): Configuration dictionary.
+
+    Returns:
+        torch.device: Device to use.
+    """
+    device_name = config.get('system', {}).get('device', 'cuda')
+    if device_name == 'cuda' and torch.cuda.is_available():
+        return torch.device('cuda')
+    else:
+        return torch.device('cpu')
+
+
+def run_experiment(run_config, config, device, output_dir):
+    """
+    Run a single experiment.
+
+    Args:
+        run_config (dict): Configuration for this run.
+        config (dict): Global configuration dictionary.
+        device (torch.device): Device to use.
+        output_dir (Path): Directory to save outputs.
+
+    Returns:
+        dict or None: Evaluation metrics if successful, None if skipped.
+    """
+    run_name = run_config.get('name', 'unnamed_run')
+    mode = run_config.get('mode', 'scratch')
+    dataset_version = run_config.get('dataset_version', 'color')
+
+    # Check if dataset version is unresolved
+    version_status = config.get('data', {}).get(dataset_version, {}).get('status', 'resolved')
+    if version_status == 'unresolved':
+        reason = config.get('data', {}).get(dataset_version, {}).get('reason', 'Unknown reason')
+        logging.warning(f"Run '{run_name}' skipped: dataset version '{dataset_version}' is unresolved: {reason}")
+        return None
+
+    logging.info(f"=== Running experiment: {run_name} ===")
+    logging.info(f"Mode: {mode}, Dataset version: {dataset_version}")
+
+    # Get batch size
+    batch_size = config.get('training', {}).get('batch_size', {}).get('UNetPlusPlus')
+    if batch_size is None:
+        batch_size = 32
+
+    # Get number of workers
+    num_workers = config.get('system', {}).get('num_workers', 4)
+
+    # Get seed
+    seed = config.get('system', {}).get('seed', 42)
+
+    # Get reproduction mode
+    reproduction_mode = config.get('reproduction_mode', 'engineering')
+
+    # Create dataloaders
+    logging.info(f"Creating dataloaders with version='{dataset_version}', batch_size={batch_size}...")
+    loaders = get_dataloaders(
+        config=config,
+        version=dataset_version,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        seed=seed
+    )
+
+    train_loader = loaders['train']
+    val_loader = loaders['val']
+    test_loader = loaders['test']
+
+    logging.info(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}, Test batches: {len(test_loader)}")
+
+    # For strict reproduction mode, don't use validation
+    if reproduction_mode == 'strict':
+        val_loader = None
+        logging.info("Strict mode: No validation set used.")
+
+    # Initialize model
+    logging.info("Initializing model...")
+    model = initialize_model(config=config, device=device)
+    logging.info(f"Model initialized: {model.__class__.__name__}")
+    total_params = sum(p.numel() for p in model.parameters())
+    logging.info(f"Total parameters: {total_params:,}")
+
+    # Train model
+    logging.info("Starting training...")
+    model, history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        config=config,
+        device=device
+    )
+
+    # Evaluate on test set
+    logging.info("Evaluating on test set...")
+    metrics = evaluate_model(model, test_loader, device=device, threshold=0.5)
+
+    # Generate report
+    run_output_dir = output_dir / run_name
+    report_path = generate_report(metrics, run_name, str(run_output_dir), config)
+    logging.info(f"Report saved to {report_path}")
+
+    # Log metrics
+    logging.info(f"Run '{run_name}' metrics:")
+    for key, value in metrics.items():
+        if key != 'confusion_matrix':
+            logging.info(f"  {key}: {value:.4f}")
+
+    return metrics
+
+
+def generate_summary_report(results, output_dir, config):
+    """
+    Generate a summary report for all runs.
+
+    Args:
+        results (dict): Dictionary mapping run names to metrics.
+        output_dir (Path): Directory to save the report.
+        config (dict): Configuration dictionary.
+
+    Returns:
+        Path: Path to the summary report.
+    """
+    summary_path = output_dir / 'summary_report.txt'
+
+    lines = []
+    lines.append('=' * 60)
+    lines.append('Summary Report - UNet++ Medical Image Segmentation')
+    lines.append('=' * 60)
+    lines.append('')
+
+    # Project info
+    project_config = config.get('project', {})
+    lines.append(f'Project: {project_config.get("name", "N/A")}')
+    lines.append(f'Paper: {project_config.get("paper", "N/A")}')
+    lines.append('')
+
+    # Reproduction mode
+    lines.append(f'Reproduction Mode: {config.get("reproduction_mode", "engineering")}')
+    lines.append('')
+
+    # Training config
+    training_config = config.get('training', {})
+    lines.append(f'Epochs: {training_config.get("epochs", "N/A")}')
+    optimizer_config = training_config.get('optimizer', {})
+    lines.append(f'Optimizer: {optimizer_config.get("name", "N/A")}')
+    lines.append(f'Learning Rate: {optimizer_config.get("lr", "N/A")}')
+    lines.append(f'Loss Function: {training_config.get("loss_function", "N/A")}')
+    lines.append('')
+
+    # Results
+    lines.append('Results:')
+    lines.append('-' * 40)
+
+    if not results:
+        lines.append('  No successful runs.')
+    else:
+        for run_name, metrics in results.items():
+            lines.append(f'  {run_name}:')
+            if metrics is None:
+                lines.append('    Skipped (dataset version unresolved)')
+            else:
+                if 'iou' in metrics:
+                    lines.append(f'    IoU: {metrics["iou"]:.4f}')
+                if 'dice' in metrics:
+                    lines.append(f'    Dice: {metrics["dice"]:.4f}')
+                if 'mean_f1' in metrics and metrics['mean_f1'] is not None:
+                    lines.append(f'    F1: {metrics["mean_f1"]:.4f}')
+                if 'accuracy' in metrics and metrics['accuracy'] is not None:
+                    lines.append(f'    Accuracy: {metrics["accuracy"]:.4f}')
+            lines.append('')
+
+    # Dynamic comparison (if multiple runs)
+    if len(results) > 1:
+        lines.append('Comparison:')
+        lines.append('-' * 40)
+
+        # Compare IoU
+        iou_values = {}
+        for run_name, metrics in results.items():
+            if metrics is not None and 'iou' in metrics:
+                iou_values[run_name] = metrics['iou']
+
+        if len(iou_values) > 1:
+            best_run = max(iou_values, key=iou_values.get)
+            lines.append(f'  Best IoU: {best_run} ({iou_values[best_run]:.4f})')
+            for run_name, iou in iou_values.items():
+                if run_name != best_run:
+                    diff = iou_values[best_run] - iou
+                    lines.append(f'    {run_name}: {iou:.4f} (diff: {diff:+.4f})')
+
+        # Compare Dice
+        dice_values = {}
+        for run_name, metrics in results.items():
+            if metrics is not None and 'dice' in metrics:
+                dice_values[run_name] = metrics['dice']
+
+        if len(dice_values) > 1:
+            best_run = max(dice_values, key=dice_values.get)
+            lines.append(f'  Best Dice: {best_run} ({dice_values[best_run]:.4f})')
+            for run_name, dice in dice_values.items():
+                if run_name != best_run:
+                    diff = dice_values[best_run] - dice
+                    lines.append(f'    {run_name}: {dice:.4f} (diff: {diff:+.4f})')
+
+        lines.append('')
+        lines.append('  Note: Comparisons are computed dynamically from actual evaluation results.')
+        lines.append('  The paper reports that UNet++ with deep supervision achieves average IoU gains')
+        lines.append('  over U-Net and wide U-Net. Verify these claims with the actual results above.')
+
+    lines.append('')
+    lines.append('=' * 60)
+
+    with open(summary_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+
+    return summary_path
+
+
+def main():
+    """
+    Main entry point for the project.
+    """
+    # Parse command line arguments
+    args = parse_args()
+
+    # Load configuration
+    config_path = args.config
+    if not os.path.exists(config_path):
+        logging.error(f"Config file not found at {config_path}")
+        sys.exit(1)
+
+    config = load_config(config_path)
+
+    # Setup logging
+    logging_config = config.get('logging', {})
+    log_dir = logging_config.get('log_dir', './logs')
+    log_level = logging_config.get('log_level', 'INFO')
+    setup_logging(log_dir, log_level)
+
+    # Set random seeds
+    seed = config.get('system', {}).get('seed', 42)
+    set_seed(seed)
+
+    # Determine device
+    device = get_device(config)
+    logging.info(f"Using device: {device}")
+
+    # Initialize output directory before the run loop
+    output_dir = Path('reports')
+    output_dir.mkdir(exist_ok=True)
+
+    # Get experiment runs
+    experiment_runs = config.get('experiment', {}).get('runs', [])
+
+    if not experiment_runs:
+        logging.warning("No experiment runs found in config.")
+        # Generate empty summary report
+        summary_path = generate_summary_report({}, output_dir, config)
+        logging.info(f"Summary report saved to {summary_path}")
+        return
+
+    # Determine which runs to execute
+    if args.run is not None:
+        if args.run < 0 or args.run >= len(experiment_runs):
+            logging.error(f"Run index {args.run} out of range (0-{len(experiment_runs)-1})")
+            sys.exit(1)
+        runs_to_execute = [experiment_runs[args.run]]
+        run_indices = [args.run]
+    else:
+        runs_to_execute = experiment_runs
+        run_indices = list(range(len(experiment_runs)))
+
+    # Execute runs
+    results = {}
+    for idx, run_config in zip(run_indices, runs_to_execute):
+        run_name = run_config.get('name', f'run_{idx}')
+        logging.info(f"Processing run {idx}: {run_name}")
+
+        try:
+            metrics = run_experiment(run_config, config, device, output_dir)
+            results[run_name] = metrics
+        except Exception as e:
+            logging.error(f"Run '{run_name}' failed: {e}")
+            results[run_name] = None
+
+    # Generate summary report
+    summary_path = generate_summary_report(results, output_dir, config)
+    logging.info(f"Summary report saved to {summary_path}")
+
+    # Print summary to console
+    print(f"\n{'='*60}")
+    print("Summary Report")
+    print(f"{'='*60}")
+    for run_name, metrics in results.items():
+        if metrics is None:
+            print(f"  {run_name}: Skipped/Failed")
+        else:
+            iou = metrics.get('iou', 'N/A')
+            dice = metrics.get('dice', 'N/A')
+            print(f"  {run_name}: IoU={iou:.4f}, Dice={dice:.4f}" if isinstance(iou, float) else f"  {run_name}: IoU={iou}, Dice={dice}")
+    print(f"{'='*60}")
+    print(f"Full report: {summary_path}")
+
+
+if __name__ == '__main__':
+    main()
+```

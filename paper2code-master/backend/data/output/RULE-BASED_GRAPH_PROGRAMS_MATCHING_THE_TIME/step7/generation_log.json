@@ -1,0 +1,152 @@
+{
+  "paper": "RULE-BASED_GRAPH_PROGRAMS_MATCHING_THE_TIME",
+  "files": [
+    {
+      "file": "config/config.yaml",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "requirements.txt",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "README.md",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "models/__init__.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        },
+        {
+          "attempt": 2,
+          "action": "sandbox_repair",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "utils/metrics.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "models/gp2_connectedness_program.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "models/gp2_acyclicity_program.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "models/gp2_bellman_ford_program.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "src/gp2compilerenhancementsandrootedgraphprograms.py",
+      "status": "sandbox_failed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        },
+        {
+          "attempt": 2,
+          "action": "sandbox_repair",
+          "status": "failed",
+          "errors": [
+            "[ValueError] empty range in randrange(12, 12)",
+            "Traceback:\n  File \"<sandbox>\", line 712, in <module>\n  File \"<sandbox>\", line 609, in run\n  File \"<sandbox>\", line 407, in build_dag\n  File \"C:\\Users\\yuan2\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\random.py\", line 323, in randrange\n    raise ValueError(f\"empty range in randrange({start}, {stop})\")\nValueError: empty range in randrange(12, 12)"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "evaluation/evaluate.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "main.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

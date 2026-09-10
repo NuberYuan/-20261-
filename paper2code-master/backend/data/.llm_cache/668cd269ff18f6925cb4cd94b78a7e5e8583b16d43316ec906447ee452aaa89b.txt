@@ -1,0 +1,17 @@
+```python
+# models/__init__.py
+"""
+Model package initialization.
+
+This module provides a unified interface for importing all model
+architectures used in the plant disease detection project.
+"""
+
+from .alexnet import Alexnet
+from .googlenet import Googlenet
+
+__all__ = [
+    "Alexnet",
+    "Googlenet",
+]
+```

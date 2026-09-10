@@ -1,0 +1,12 @@
+{
+  "training.image_size": "NOT_FOUND",
+  "training.optimizer.name": "NOT_FOUND",
+  "training.optimizer.momentum": "NOT_FOUND",
+  "training.optimizer.weight_decay": "NOT_FOUND",
+  "training.dropout_ratio": "NOT_FOUND",
+  "training.early_stopping": "NOT_FOUND",
+  "checkpoint.save_frequency_epochs": "NOT_FOUND",
+  "checkpoint.resume_from": "NOT_FOUND",
+  "inference.device": "NOT_FOUND",
+  "inference.batch_size": "NOT_FOUND"
+}

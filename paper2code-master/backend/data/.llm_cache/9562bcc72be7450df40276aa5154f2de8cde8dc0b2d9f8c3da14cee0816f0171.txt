@@ -1,0 +1,603 @@
+```python
+import math
+from typing import Optional, Tuple, List, Dict, Any
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import yaml
+import os
+
+
+class Nemotron(nn.Module):
+    """
+    Nemotron model for SCICOQA: Quality Assurance for Scientific Paper–Code Alignment.
+
+    This model is designed to take a prompt containing the paper text and code repository
+    content, and output a list of inconsistencies between the paper and the code in YAML format.
+
+    The model is randomly initialized (no pretrained weights are loaded). The architecture
+    follows a transformer-based decoder-only structure, similar to the Nemotron family of models.
+    Since the paper does not specify exact hyperparameters, we use reasonable defaults derived
+    from the Nemotron-4-15B architecture (which is a standard reference for this model family).
+
+    The model processes tokenized input sequences and generates output sequences token by token.
+    """
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        """
+        Initialize the Nemotron model.
+
+        Args:
+            config: Configuration dictionary loaded from config/config.yaml.
+                   If None, a default configuration will be used.
+        """
+        super(Nemotron, self).__init__()
+
+        # Load configuration
+        if config is None:
+            config = self._load_default_config()
+        self.config = config
+
+        # Extract model hyperparameters from config with safe defaults
+        # The paper does not specify exact hyperparameters, so we use defaults
+        # derived from the Nemotron-4-15B architecture.
+        # These defaults are chosen to be in the same order of magnitude as the
+        # reference implementation, allowing for a reasonable parameter count.
+
+        # Vocabulary size: The paper deals with scientific papers and code.
+        # We use a tokenizer with a vocabulary size of 50272 (similar to Nemotron-4).
+        # This is a concrete default value derived from the Nemotron-4 tokenizer.
+        vocab_size = self._get_config_value(config, ['model', 'vocab_size'], 50272)
+
+        # Hidden size: 4096 for Nemotron-4-15B
+        hidden_size = self._get_config_value(config, ['model', 'hidden_size'], 4096)
+
+        # Number of transformer layers: 32 for Nemotron-4-15B
+        num_layers = self._get_config_value(config, ['model', 'num_layers'], 32)
+
+        # Number of attention heads: 32 for Nemotron-4-15B
+        num_attention_heads = self._get_config_value(config, ['model', 'num_attention_heads'], 32)
+
+        # Intermediate size (FFN dimension): 16384 for Nemotron-4-15B
+        intermediate_size = self._get_config_value(config, ['model', 'intermediate_size'], 16384)
+
+        # Max sequence length: 4096 tokens
+        max_position_embeddings = self._get_config_value(config, ['model', 'max_position_embeddings'], 4096)
+
+        # Dropout ratio: 0.0 for inference, 0.1 for training (default)
+        dropout_ratio = self._get_config_value(config, ['model', 'dropout_ratio'], 0.1)
+
+        # Layer norm epsilon
+        layer_norm_eps = self._get_config_value(config, ['model', 'layer_norm_eps'], 1e-5)
+
+        # Number of key-value heads (for grouped query attention)
+        # Nemotron-4 uses GQA with 8 KV heads
+        num_key_value_heads = self._get_config_value(config, ['model', 'num_key_value_heads'], 8)
+
+        # Store hyperparameters
+        self.vocab_size = vocab_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
+        self.intermediate_size = intermediate_size
+        self.max_position_embeddings = max_position_embeddings
+        self.dropout_ratio = dropout_ratio
+        self.layer_norm_eps = layer_norm_eps
+
+        # Validate that all shape parameters are concrete integers
+        assert isinstance(vocab_size, int) and vocab_size > 0, "vocab_size must be a positive integer"
+        assert isinstance(hidden_size, int) and hidden_size > 0, "hidden_size must be a positive integer"
+        assert isinstance(num_layers, int) and num_layers > 0, "num_layers must be a positive integer"
+        assert isinstance(num_attention_heads, int) and num_attention_heads > 0, "num_attention_heads must be a positive integer"
+        assert isinstance(intermediate_size, int) and intermediate_size > 0, "intermediate_size must be a positive integer"
+        assert isinstance(max_position_embeddings, int) and max_position_embeddings > 0, "max_position_embeddings must be a positive integer"
+        assert isinstance(dropout_ratio, float) and 0.0 <= dropout_ratio <= 1.0, "dropout_ratio must be a float between 0 and 1"
+        assert isinstance(layer_norm_eps, float) and layer_norm_eps > 0, "layer_norm_eps must be a positive float"
+        assert isinstance(num_key_value_heads, int) and num_key_value_heads > 0, "num_key_value_heads must be a positive integer"
+
+        # Ensure head_dim is an integer
+        assert hidden_size % num_attention_heads == 0, "hidden_size must be divisible by num_attention_heads"
+        self.head_dim = hidden_size // num_attention_heads
+
+        # Token embeddings
+        self.embed_tokens = nn.Embedding(vocab_size, hidden_size)
+
+        # Position embeddings (learned absolute position embeddings)
+        self.embed_positions = nn.Embedding(max_position_embeddings, hidden_size)
+
+        # Dropout layer
+        self.dropout = nn.Dropout(dropout_ratio)
+
+        # Transformer layers
+        self.layers = nn.ModuleList([
+            self._create_transformer_layer(
+                hidden_size=hidden_size,
+                num_attention_heads=num_attention_heads,
+                num_key_value_heads=num_key_value_heads,
+                head_dim=self.head_dim,
+                intermediate_size=intermediate_size,
+                dropout_ratio=dropout_ratio,
+                layer_norm_eps=layer_norm_eps,
+            )
+            for _ in range(num_layers)
+        ])
+
+        # Final layer norm
+        self.final_layernorm = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
+
+        # Output projection (tied with input embeddings)
+        self.lm_head = nn.Linear(hidden_size, vocab_size, bias=False)
+        # Tie weights with embedding layer
+        self.lm_head.weight = self.embed_tokens.weight
+
+        # Initialize weights
+        self._init_weights()
+
+    def _load_default_config(self) -> Dict[str, Any]:
+        """
+        Load default configuration from config/config.yaml.
+
+        Returns:
+            Dictionary containing configuration.
+        """
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'config.yaml')
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+                if config is None:
+                    config = {}
+        except FileNotFoundError:
+            config = {}
+        return config
+
+    def _get_config_value(self, config: Dict[str, Any], keys: List[str], default: Any) -> Any:
+        """
+        Safely get a value from the config dictionary using a list of keys.
+
+        Args:
+            config: Configuration dictionary.
+            keys: List of keys to traverse.
+            default: Default value if the key path does not exist.
+
+        Returns:
+            The value at the specified key path, or the default value.
+        """
+        current = config
+        for key in keys:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return default
+        return current
+
+    def _create_transformer_layer(
+        self,
+        hidden_size: int,
+        num_attention_heads: int,
+        num_key_value_heads: int,
+        head_dim: int,
+        intermediate_size: int,
+        dropout_ratio: float,
+        layer_norm_eps: float,
+    ) -> nn.Module:
+        """
+        Create a single transformer decoder layer.
+
+        Args:
+            hidden_size: Hidden size of the model.
+            num_attention_heads: Number of attention heads.
+            num_key_value_heads: Number of key/value heads (for GQA).
+            head_dim: Dimension of each attention head.
+            intermediate_size: Intermediate size of the FFN.
+            dropout_ratio: Dropout ratio.
+            layer_norm_eps: Epsilon for layer norm.
+
+        Returns:
+            A transformer decoder layer module.
+        """
+        return NemotronDecoderLayer(
+            hidden_size=hidden_size,
+            num_attention_heads=num_attention_heads,
+            num_key_value_heads=num_key_value_heads,
+            head_dim=head_dim,
+            intermediate_size=intermediate_size,
+            dropout_ratio=dropout_ratio,
+            layer_norm_eps=layer_norm_eps,
+        )
+
+    def _init_weights(self) -> None:
+        """
+        Initialize model weights using the standard transformer initialization scheme.
+        """
+        # Initialize embeddings
+        nn.init.normal_(self.embed_tokens.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.embed_positions.weight, mean=0.0, std=0.02)
+
+        # Initialize output projection (tied with embeddings, so already initialized)
+
+        # Initialize transformer layers
+        for layer in self.layers:
+            # Attention layers
+            for name, param in layer.named_parameters():
+                if 'q_proj' in name or 'k_proj' in name or 'v_proj' in name or 'o_proj' in name:
+                    nn.init.normal_(param, mean=0.0, std=0.02)
+                elif 'gate_proj' in name or 'up_proj' in name or 'down_proj' in name:
+                    nn.init.normal_(param, mean=0.0, std=0.02)
+                elif 'weight' in name and 'norm' in name:
+                    nn.init.ones_(param)
+                elif 'bias' in name:
+                    nn.init.zeros_(param)
+
+        # Initialize final layer norm
+        nn.init.ones_(self.final_layernorm.weight)
+        nn.init.zeros_(self.final_layernorm.bias)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the Nemotron model.
+
+        Args:
+            input_ids: Token indices of shape (batch_size, sequence_length).
+            attention_mask: Attention mask of shape (batch_size, sequence_length).
+                          1 for tokens to attend to, 0 for tokens to ignore.
+            position_ids: Position indices of shape (batch_size, sequence_length).
+                          If None, positions are computed automatically.
+            labels: Target token indices for language modeling loss of shape (batch_size, sequence_length).
+                    If provided, the loss is computed and returned.
+
+        Returns:
+            Dictionary containing:
+                - logits: Output logits of shape (batch_size, sequence_length, vocab_size)
+                - loss: Language modeling loss (if labels are provided)
+        """
+        batch_size, seq_length = input_ids.shape
+
+        # Compute position IDs if not provided
+        if position_ids is None:
+            position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+            position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
+
+        # Ensure position_ids are within the valid range
+        position_ids = torch.clamp(position_ids, 0, self.max_position_embeddings - 1)
+
+        # Token embeddings
+        hidden_states = self.embed_tokens(input_ids)
+
+        # Position embeddings
+        position_embeddings = self.embed_positions(position_ids)
+        hidden_states = hidden_states + position_embeddings
+
+        # Apply dropout
+        hidden_states = self.dropout(hidden_states)
+
+        # Create causal attention mask
+        # This mask ensures that each position can only attend to previous positions
+        causal_mask = torch.triu(
+            torch.ones(seq_length, seq_length, dtype=torch.bool, device=input_ids.device),
+            diagonal=1
+        )
+        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0)  # (1, 1, seq_length, seq_length)
+
+        # Combine with attention mask if provided
+        if attention_mask is not None:
+            # Expand attention mask to 4D: (batch_size, 1, 1, seq_length)
+            attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+            # Combine: positions that are masked in either mask are masked
+            combined_mask = causal_mask | (~attention_mask.bool())
+        else:
+            combined_mask = causal_mask
+
+        # Pass through transformer layers
+        for layer in self.layers:
+            hidden_states = layer(
+                hidden_states=hidden_states,
+                attention_mask=combined_mask,
+            )
+
+        # Final layer norm
+        hidden_states = self.final_layernorm(hidden_states)
+
+        # Output projection
+        logits = self.lm_head(hidden_states)
+
+        # Compute loss if labels are provided
+        loss = None
+        if labels is not None:
+            # Shift logits and labels for next-token prediction
+            shift_logits = logits[:, :-1, :].contiguous()
+            shift_labels = labels[:, 1:].contiguous()
+            loss = F.cross_entropy(
+                shift_logits.view(-1, self.vocab_size),
+                shift_labels.view(-1),
+                ignore_index=-100,
+            )
+
+        return {
+            'logits': logits,
+            'loss': loss,
+        }
+
+
+class NemotronDecoderLayer(nn.Module):
+    """
+    A single transformer decoder layer for the Nemotron model.
+
+    This layer consists of:
+    1. A self-attention sublayer with grouped query attention (GQA)
+    2. A feed-forward network (FFN) with SwiGLU activation
+    3. Pre-normalization with residual connections
+    """
+
+    def __init__(
+        self,
+        hidden_size: int,
+        num_attention_heads: int,
+        num_key_value_heads: int,
+        head_dim: int,
+        intermediate_size: int,
+        dropout_ratio: float,
+        layer_norm_eps: float,
+    ):
+        """
+        Initialize the decoder layer.
+
+        Args:
+            hidden_size: Hidden size of the model.
+            num_attention_heads: Number of attention heads.
+            num_key_value_heads: Number of key/value heads (for GQA).
+            head_dim: Dimension of each attention head.
+            intermediate_size: Intermediate size of the FFN.
+            dropout_ratio: Dropout ratio.
+            layer_norm_eps: Epsilon for layer norm.
+        """
+        super(NemotronDecoderLayer, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
+        self.head_dim = head_dim
+        self.intermediate_size = intermediate_size
+        self.dropout_ratio = dropout_ratio
+        self.layer_norm_eps = layer_norm_eps
+
+        # Self-attention sublayer
+        self.self_attn = NemotronAttention(
+            hidden_size=hidden_size,
+            num_attention_heads=num_attention_heads,
+            num_key_value_heads=num_key_value_heads,
+            head_dim=head_dim,
+            dropout_ratio=dropout_ratio,
+        )
+
+        # Pre-normalization layers
+        self.input_layernorm = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
+        self.post_attention_layernorm = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
+
+        # Feed-forward network with SwiGLU activation
+        self.mlp = NemotronMLP(
+            hidden_size=hidden_size,
+            intermediate_size=intermediate_size,
+            dropout_ratio=dropout_ratio,
+        )
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Forward pass of the decoder layer.
+
+        Args:
+            hidden_states: Input hidden states of shape (batch_size, sequence_length, hidden_size).
+            attention_mask: Attention mask of shape (batch_size, 1, sequence_length, sequence_length).
+
+        Returns:
+            Output hidden states of shape (batch_size, sequence_length, hidden_size).
+        """
+        # Self-attention with residual connection
+        residual = hidden_states
+        hidden_states = self.input_layernorm(hidden_states)
+        hidden_states = self.self_attn(
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+        )
+        hidden_states = residual + hidden_states
+
+        # FFN with residual connection
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states = self.mlp(hidden_states)
+        hidden_states = residual + hidden_states
+
+        return hidden_states
+
+
+class NemotronAttention(nn.Module):
+    """
+    Grouped Query Attention (GQA) module for the Nemotron model.
+
+    In GQA, the number of key/value heads is smaller than the number of query heads.
+    This reduces the memory footprint and computational cost while maintaining quality.
+    """
+
+    def __init__(
+        self,
+        hidden_size: int,
+        num_attention_heads: int,
+        num_key_value_heads: int,
+        head_dim: int,
+        dropout_ratio: float,
+    ):
+        """
+        Initialize the attention module.
+
+        Args:
+            hidden_size: Hidden size of the model.
+            num_attention_heads: Number of query attention heads.
+            num_key_value_heads: Number of key/value heads.
+            head_dim: Dimension of each attention head.
+            dropout_ratio: Dropout ratio.
+        """
+        super(NemotronAttention, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
+        self.head_dim = head_dim
+        self.dropout_ratio = dropout_ratio
+
+        # Ensure num_key_value_heads divides num_attention_heads
+        assert num_attention_heads % num_key_value_heads == 0, "num_attention_heads must be divisible by num_key_value_heads"
+        self.num_key_value_groups = num_attention_heads // num_key_value_heads
+
+        # Query projection
+        self.q_proj = nn.Linear(hidden_size, num_attention_heads * head_dim, bias=False)
+
+        # Key and value projections (shared across KV heads)
+        self.k_proj = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=False)
+        self.v_proj = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=False)
+
+        # Output projection
+        self.o_proj = nn.Linear(num_attention_heads * head_dim, hidden_size, bias=False)
+
+        # Dropout for attention weights
+        self.attn_dropout = nn.Dropout(dropout_ratio)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Forward pass of the attention module.
+
+        Args:
+            hidden_states: Input hidden states of shape (batch_size, sequence_length, hidden_size).
+            attention_mask: Attention mask of shape (batch_size, 1, sequence_length, sequence_length).
+
+        Returns:
+            Output hidden states of shape (batch_size, sequence_length, hidden_size).
+        """
+        batch_size, seq_length, _ = hidden_states.shape
+
+        # Project to queries, keys, and values
+        query_states = self.q_proj(hidden_states)  # (batch_size, seq_length, num_heads * head_dim)
+        key_states = self.k_proj(hidden_states)    # (batch_size, seq_length, num_kv_heads * head_dim)
+        value_states = self.v_proj(hidden_states)  # (batch_size, seq_length, num_kv_heads * head_dim)
+
+        # Reshape to (batch_size, num_heads, seq_length, head_dim)
+        query_states = query_states.view(batch_size, seq_length, self.num_attention_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(batch_size, seq_length, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(batch_size, seq_length, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+
+        # Repeat key and value states to match the number of query heads
+        # This is the "grouped" part of GQA
+        key_states = key_states.repeat_interleave(self.num_key_value_groups, dim=1)
+        value_states = value_states.repeat_interleave(self.num_key_value_groups, dim=1)
+
+        # Compute attention scores
+        # (batch_size, num_heads, seq_length, head_dim) @ (batch_size, num_heads, head_dim, seq_length)
+        # -> (batch_size, num_heads, seq_length, seq_length)
+        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
+
+        # Apply attention mask
+        if attention_mask is not None:
+            # attention_mask: (batch_size, 1, seq_length, seq_length)
+            # True means masked (should be -inf), False means unmasked
+            attn_weights = attn_weights.masked_fill(attention_mask, float('-inf'))
+
+        # Apply softmax
+        attn_weights = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+
+        # Apply dropout
+        attn_weights = self.attn_dropout(attn_weights)
+
+        # Compute attention output
+        # (batch_size, num_heads, seq_length, seq_length) @ (batch_size, num_heads, seq_length, head_dim)
+        # -> (batch_size, num_heads, seq_length, head_dim)
+        attn_output = torch.matmul(attn_weights, value_states)
+
+        # Reshape back to (batch_size, seq_length, num_heads * head_dim)
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_length, -1)
+
+        # Output projection
+        attn_output = self.o_proj(attn_output)
+
+        return attn_output
+
+
+class NemotronMLP(nn.Module):
+    """
+    Feed-forward network with SwiGLU activation for the Nemotron model.
+
+    The SwiGLU activation is defined as: SwiGLU(x) = Swish(xW1) ⊗ (xW2)
+    where Swish(x) = x * sigmoid(x) and ⊗ is element-wise multiplication.
+    """
+
+    def __init__(
+        self,
+        hidden_size: int,
+        intermediate_size: int,
+        dropout_ratio: float,
+    ):
+        """
+        Initialize the MLP module.
+
+        Args:
+            hidden_size: Hidden size of the model.
+            intermediate_size: Intermediate size of the FFN.
+            dropout_ratio: Dropout ratio.
+        """
+        super(NemotronMLP, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.dropout_ratio = dropout_ratio
+
+        # SwiGLU uses three projections:
+        # gate_proj: projects to intermediate size, used for the gating mechanism
+        # up_proj: projects to intermediate size, used for the value
+        # down_proj: projects back to hidden size
+        self.gate_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.up_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+        self.down_proj = nn.Linear(intermediate_size, hidden_size, bias=False)
+
+        # Dropout
+        self.dropout = nn.Dropout(dropout_ratio)
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the MLP module.
+
+        Args:
+            hidden_states: Input hidden states of shape (batch_size, sequence_length, hidden_size).
+
+        Returns:
+            Output hidden states of shape (batch_size, sequence_length, hidden_size).
+        """
+        # Compute gate and up projections
+        gate = self.gate_proj(hidden_states)
+        up = self.up_proj(hidden_states)
+
+        # Apply SwiGLU activation: Swish(gate) * up
+        # Swish(x) = x * sigmoid(x)
+        gate_activated = gate * torch.sigmoid(gate)
+        intermediate = gate_activated * up
+
+        # Apply dropout
+        intermediate = self.dropout(intermediate)
+
+        # Down projection
+        output = self.down_proj(intermediate)
+
+        return output
+```

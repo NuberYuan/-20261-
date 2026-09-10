@@ -1,0 +1,25 @@
+paper_name: plant
+framework:
+  recommended: PyTorch
+  candidates:
+  - PyTorch
+  source: 从模型名推断
+model_backbone:
+  names:
+  - NOT_FOUND
+  source: NOT_FOUND
+training:
+  optimizer:
+    type: Stochastic Gradient Descent (SGD)
+  loss:
+    type: not mentioned (likely softmax cross-entropy loss)
+  scheduler:
+    type: NOT_FOUND
+pretrained_weights:
+  used: true
+  source: Yes, for transfer learning experiments, models pre-trained on ImageNet were
+    used. The weights of the final layer (fc8 for AlexNet, loss{1,2,3}/classifier
+    for GoogLeNet) were reset.
+hardware:
+  mentioned: High performance GPU cluster computer for training; classification can
+    be done on a CPU in less than a second.

@@ -1,0 +1,199 @@
+# LEARNING SIMPLE ALGORITHMS FROM EXAMPLES — Time Series Prediction
+
+## Project Overview
+
+This project implements the time series prediction task from the paper *"Learning Simple Algorithms from Examples"*. The goal is to train neural sequence models (LSTM-based) to learn simple algorithmic patterns from time series data through example-based supervision.
+
+The implementation uses a dual-objective training scheme:
+- **Cross-entropy loss** for next-symbol prediction
+- **Q-learning loss** for action/value prediction (reinforcement learning component)
+
+## Paper Reference
+
+- **Title**: Learning Simple Algorithms from Examples
+- **Framework**: PyTorch
+- **Task**: Time Series Prediction
+
+## Project Structure
+
+```
+README.md
+main.py
+requirements.txt
+config/config/config.yaml
+data/data/dataset.py
+evaluation/evaluation/evaluate.py
+models/models/__init__.py
+models/models/lstm.py
+training/training/train.py
+utils/utils/metrics.py
+```
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8+
+- PyTorch 1.9+
+- CUDA (optional, for GPU acceleration)
+
+### Setup
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd <repository-name>
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+## Configuration
+
+All configuration is managed through `config/config/config.yaml`. Key configuration sections include:
+
+### Data Configuration
+- `data.root`: Root directory for datasets
+- `data.default.path`: Path to the default dataset
+- `data.feature_dim`: Dimensionality of input features
+- `data.normalization`: Normalization strategy
+- `data.versions`: Available dataset versions
+
+### Model Configuration
+- `model.architectures`: Model architecture definitions
+- `model.dropout_ratio`: Dropout rate
+- `model.num_classes`: Number of output classes
+- `model.weight_init`: Weight initialization method
+
+### Training Configuration
+- `training.batch_size`: Batch size (default: 20)
+- `training.epochs`: Number of training epochs (default: 30)
+- `training.optimizer`: Optimizer settings
+  - `name`: Optimizer name
+  - `lr`: Learning rate (default: 0.1)
+  - `momentum`: Momentum factor
+  - `weight_decay`: Weight decay
+- `training.loss_function`: Loss function specification
+- `training.scheduler`: Learning rate scheduler
+  - `name`: Scheduler type (StepLR)
+  - `step_size`: Scheduler step size
+  - `gamma`: Scheduler gamma (default: 2.0)
+
+### Evaluation Configuration
+- `evaluation.batch_size`: Evaluation batch size
+- `evaluation.device`: Device for evaluation
+
+### System Configuration
+- `system.device`: Computing device (cpu/cuda)
+- `system.seed`: Random seed
+- `system.num_workers`: Number of data loading workers
+
+## Usage
+
+### Training
+
+To train the model from scratch:
+
+```bash
+python main.py --mode train
+```
+
+### Evaluation
+
+To evaluate a trained model:
+
+```bash
+python main.py --mode evaluate --checkpoint <path-to-checkpoint>
+```
+
+### Inference
+
+To run inference on new data:
+
+```bash
+python main.py --mode inference --checkpoint <path-to-checkpoint>
+```
+
+## Data Split Strategy
+
+**Important Note**: The original paper uses only train/test splits without a separate validation set. This implementation follows the paper's protocol with an engineering deviation:
+
+- **Train/Test Split**: The dataset is divided into training and test sets according to `split_strategy.train_test_ratio`
+- **Validation Set**: When validation is needed (e.g., for early stopping or best model selection), a validation set is created by further splitting the training set (80/20 ratio). This is an **engineering deviation from the paper** and is clearly marked as such.
+
+## Model Architecture
+
+The core model is an LSTM-based sequence model (`models/models/lstm.py`) designed for time series prediction. The model is trained with a dual objective:
+
+1. **Symbol Prediction**: Cross-entropy loss for predicting the next symbol in the sequence
+2. **Action Prediction**: Q-learning loss for predicting optimal actions (reinforcement learning component)
+
+## Training Details
+
+### Optimizer
+- Learning rate: 0.1
+- Batch size: 20
+- Epochs: 30
+
+### Loss Functions
+- **Symbol Prediction**: Cross-entropy loss
+- **Action Prediction**: Q-learning loss
+
+### Learning Rate Scheduler
+- Type: StepLR
+- Step size: 0 (scheduler step disabled)
+- Gamma: 2.0
+
+## Evaluation Metrics
+
+The evaluation module (`evaluation/evaluation/evaluate.py`) computes standard metrics for time series prediction:
+
+- Accuracy (for symbol prediction)
+- Mean Squared Error (MSE) for continuous predictions
+- Additional metrics as defined in `utils/utils/metrics.py`
+
+## Reproduction Guide
+
+To reproduce the experimental results:
+
+1. **Prepare Data**: Ensure the dataset is available at the path specified in `config.data.default.path`
+
+2. **Configure**: Adjust `config/config/config.yaml` as needed. Key parameters:
+   - Set `system.seed` for reproducibility
+   - Configure `training.optimizer.lr` (default: 0.1)
+   - Set `training.batch_size` (default: 20)
+   - Set `training.epochs` (default: 30)
+
+3. **Train**: Run the training script:
+   ```bash
+   python main.py --mode train
+   ```
+
+4. **Evaluate**: Evaluate the trained model:
+   ```bash
+   python main.py --mode evaluate
+   ```
+
+5. **Analyze**: Compare results across different configurations. Note that comparative conclusions (e.g., which model performs better) must be derived from actual evaluation results, not assumed a priori.
+
+## Checkpointing
+
+The training script supports checkpointing with the following options:
+- `checkpoint.save_best`: Save the best model based on validation accuracy
+- `checkpoint.save_final`: Save the final model after training
+- `checkpoint.save_frequency_epochs`: Save checkpoints every N epochs
+- `checkpoint.resume_from`: Resume training from a checkpoint
+
+**Note**: Since the paper does not use a validation set, using validation accuracy for best model selection is an engineering deviation. The validation set is derived from the training set (80/20 split) for this purpose.
+
+## Logging
+
+Training logs are saved to the directory specified in `logging.log_dir`. Metrics can be saved to file by setting `logging.save_metrics: true`.
+
+## License
+
+This project is for research purposes. Please cite the original paper if you use this code.
+
+## Contact
+
+For questions or issues, please open an issue in the repository.

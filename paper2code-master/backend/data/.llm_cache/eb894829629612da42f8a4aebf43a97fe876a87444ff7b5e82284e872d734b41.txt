@@ -1,0 +1,156 @@
+```python
+import os
+import sys
+import json
+import numpy as np
+import cv2
+from PIL import Image
+
+def analyze_image(image_path):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # OCR text provided externally
+        ocr_text = """Quantile Forecasts
+9t+1(0.1)   9t+1(0.5)   9t+1(0.9)
+Yt+r(0.1)  Yt+r(0.5)  yt+r(0.9)
+Add & Norm
+Gate
+Dense
+Residual
+Dropout
+Connection
+Temporal Fusion Decoder
+ELU
+External
+Primary
+Context
+Position-wise
+GRN
+Input
+(Optional)
+Feed-forward
+Temporal
+Gated Residual Network (GRN)
+Self-Attention
+Masked Interpretable Multi-head Attention
+(j) c(j)
+vxt &{
+j=1
+Static
+Variable
+Selection
+Enrichment"""
+        
+        # Convert OCR text to lowercase for matching
+        ocr_lower = ocr_text.lower()
+        
+        # Architecture keywords
+        arch_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        # Experiment result keywords
+        exp_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "curve", "performance", "comparison"
+        ]
+        
+        # Dataset keywords
+        dataset_keywords = [
+            "sample", "example", "dataset", "input image"
+        ]
+        
+        # Check for experiment result first (highest priority)
+        exp_matches = [kw for kw in exp_keywords if kw in ocr_lower]
+        if exp_matches:
+            # Extract model names and metrics
+            components = []
+            for kw in ["alexnet", "resnet", "vgg", "googlenet", "transformer", "cnn"]:
+                if kw in ocr_lower:
+                    components.append(kw.capitalize())
+            for kw in ["accuracy", "loss", "precision", "recall", "f1"]:
+                if kw in ocr_lower:
+                    components.append(kw.capitalize())
+            
+            return {
+                "type": "experiment_result",
+                "description": "展示实验结果对比和性能指标",
+                "important_components": components if components else [],
+                "code_relevant_information": "需要实现模型训练和评估代码，包含指标计算"
+            }
+        
+        # Check for architecture
+        arch_matches = [kw for kw in arch_keywords if kw in ocr_lower]
+        if arch_matches:
+            # Extract specific components
+            components = []
+            if "transformer" in ocr_lower:
+                components.append("Transformer")
+            if "attention" in ocr_lower:
+                components.append("Attention Module")
+            if "encoder" in ocr_lower:
+                components.append("Encoder")
+            if "decoder" in ocr_lower:
+                components.append("Decoder")
+            if "grn" in ocr_lower:
+                components.append("Gated Residual Network")
+            if "self-attention" in ocr_lower:
+                components.append("Self-Attention")
+            if "multi-head" in ocr_lower:
+                components.append("Multi-head Attention")
+            
+            return {
+                "type": "architecture",
+                "description": "展示模型网络结构和数据流关系",
+                "important_components": components if components else [],
+                "code_relevant_information": "需要实现包含注意力机制和门控残差网络的深度学习模型"
+            }
+        
+        # Check for dataset
+        dataset_matches = [kw for kw in dataset_keywords if kw in ocr_lower]
+        if dataset_matches:
+            return {
+                "type": "dataset",
+                "description": "展示数据集样本或输入示例",
+                "important_components": [],
+                "code_relevant_information": "需要实现数据加载和预处理代码"
+            }
+        
+        # Default case
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+    else:
+        image_path = r"D:\paper2code-master(1)\paper2code-master\backend\data\output\论文5\step1\images\image_2.png"
+    
+    result = analyze_image(image_path)
+    print(json.dumps(result, ensure_ascii=False))
+```

@@ -1,0 +1,226 @@
+```python
+import os
+import sys
+import json
+import numpy as np
+import cv2
+
+def analyze_image(image_path, ocr_text):
+    """Analyze scientific paper image and classify it."""
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法读取图片文件",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # Get basic image info
+        height, width = img.shape[:2]
+        
+        # Convert OCR text to lowercase for matching
+        ocr_lower = ocr_text.lower()
+        
+        # Define keyword sets
+        architecture_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        experiment_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "curve", "performance", "comparison", "experiment"
+        ]
+        
+        dataset_keywords = [
+            "sample", "example", "dataset", "input image", "data sample"
+        ]
+        
+        # Check for architecture indicators
+        architecture_components = []
+        for kw in architecture_keywords:
+            if kw in ocr_lower:
+                # Extract actual component names
+                if kw == "cnn":
+                    architecture_components.append("CNN")
+                elif kw == "transformer":
+                    architecture_components.append("Transformer")
+                elif kw == "attention":
+                    architecture_components.append("Attention Module")
+                elif kw == "encoder":
+                    architecture_components.append("Encoder")
+                elif kw == "decoder":
+                    architecture_components.append("Decoder")
+                elif kw == "block":
+                    architecture_components.append("Block")
+                elif kw == "embedding":
+                    architecture_components.append("Embedding")
+                elif kw == "classifier":
+                    architecture_components.append("Classifier")
+                elif kw == "feature extractor":
+                    architecture_components.append("Feature Extractor")
+                elif kw == "alexnet":
+                    architecture_components.append("AlexNet")
+                elif kw == "resnet":
+                    architecture_components.append("ResNet")
+                elif kw == "vgg":
+                    architecture_components.append("VGG")
+                elif kw == "googlenet":
+                    architecture_components.append("GoogLeNet")
+        
+        # Check for experiment indicators
+        experiment_components = []
+        for kw in experiment_keywords:
+            if kw in ocr_lower:
+                if kw == "accuracy":
+                    experiment_components.append("Accuracy")
+                elif kw == "loss":
+                    experiment_components.append("Loss")
+                elif kw == "epoch":
+                    experiment_components.append("Epoch")
+                elif kw == "precision":
+                    experiment_components.append("Precision")
+                elif kw == "recall":
+                    experiment_components.append("Recall")
+                elif kw == "f1":
+                    experiment_components.append("F1-score")
+                elif kw == "curve":
+                    experiment_components.append("Performance Curve")
+                elif kw == "comparison":
+                    experiment_components.append("Comparison")
+        
+        # Check for dataset indicators
+        dataset_components = []
+        for kw in dataset_keywords:
+            if kw in ocr_lower:
+                if kw == "sample":
+                    dataset_components.append("Data Sample")
+                elif kw == "example":
+                    dataset_components.append("Example")
+                elif kw == "dataset":
+                    dataset_components.append("Dataset")
+        
+        # Determine image type based on priority
+        has_experiment = len(experiment_components) > 0
+        has_architecture = len(architecture_components) > 0
+        has_dataset = len(dataset_components) > 0
+        
+        # Check for specific patterns in OCR text
+        has_shap = "shap" in ocr_lower
+        has_defect = "defect" in ocr_lower
+        has_module = "module" in ocr_lower
+        has_metrics = any(metric in ocr_lower for metric in ["complexity", "size", "effort", "lines of code"])
+        
+        # Determine type with priority
+        if has_experiment or (has_shap and has_metrics):
+            # Check if it's an experiment result
+            if has_shap and (has_defect or has_module):
+                # SHAP-based analysis with metrics
+                result_type = "experiment_result"
+                description = "展示基于SHAP的软件工程决策分析结果，包含缺陷预测相关指标"
+                components = ["SHAP", "Defect Prediction"]
+                if has_metrics:
+                    components.extend(["Module Size", "Complexity"])
+                code_info = "需要实现SHAP值计算和特征重要性分析模块"
+            else:
+                result_type = "experiment_result"
+                description = "展示实验结果和性能指标"
+                components = experiment_components if experiment_components else ["Experiment Results"]
+                code_info = "需要实现实验评估和结果可视化模块"
+        elif has_architecture:
+            result_type = "architecture"
+            description = "展示模型网络结构和数据流关系"
+            components = architecture_components if architecture_components else []
+            code_info = "需要实现模型架构和特征提取模块"
+        elif has_dataset:
+            result_type = "dataset"
+            description = "展示数据集样本和输入示例"
+            components = dataset_components if dataset_components else []
+            code_info = "需要实现数据加载和预处理模块"
+        else:
+            result_type = "other"
+            description = "无法确定图片类型"
+            components = []
+            code_info = ""
+        
+        # Clean up components - remove duplicates and empty strings
+        components = list(dict.fromkeys([c for c in components if c]))
+        
+        return {
+            "type": result_type,
+            "description": description,
+            "important_components": components,
+            "code_relevant_information": code_info
+        }
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+def main():
+    try:
+        # Get image path from command line
+        if len(sys.argv) < 2:
+            print(json.dumps({
+                "type": "other",
+                "description": "未提供图片路径",
+                "important_components": [],
+                "code_relevant_information": ""
+            }, ensure_ascii=False))
+            return
+        
+        image_path = sys.argv[1]
+        
+        # OCR text provided externally
+        ocr_text = """Y SHAP-Based Qualitative Examples for Software Engineering Decisions
+(a) Defect-Prone Module
+(b) Non-Defective Module
+Module Size
+Comment Density
+Halstead Difficulty
+High complexity
+Low-risk feature
+and size drive defects
+contributions
+Halstead Effort
+McCabe Cyclomatic Complexity
+Lines of Code (LOC)
+0.0
+0.1
+0.2
+0.3
+0.4
+0.00
+0.02
+0.04
+0.06
+0.08
+SHAP Value"""
+        
+        # Analyze image
+        result = analyze_image(image_path, ocr_text)
+        
+        # Output JSON
+        print(json.dumps(result, ensure_ascii=False))
+        
+    except Exception as e:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,18 @@
+{
+  "table_id": "table_12",
+  "table_type": "other",
+  "caption_summary": "A list of percentage values, likely representing performance metrics or improvements, but without context.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "value1", "value": "5.24%"},
+      {"label": "value2", "value": "4.63%"},
+      {"label": "value3", "value": "4.63%"},
+      {"label": "value4", "value": "4.63%"},
+      {"label": "value5", "value": "4.02%"}
+    ]
+  },
+  "table_summary": "The table presents a list of five percentage values (5.24%, 4.63%, 4.63%, 4.63%, 4.02%) without any accompanying labels or context. These could represent performance improvements, error rates, or other metrics, but the lack of headers or descriptions makes it impossible to determine their exact meaning. The values are all relatively close, suggesting they might be results from different configurations or runs of the same experiment."
+}

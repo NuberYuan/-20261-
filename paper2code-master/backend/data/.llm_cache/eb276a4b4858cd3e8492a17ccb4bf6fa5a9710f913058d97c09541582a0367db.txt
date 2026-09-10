@@ -1,0 +1,49 @@
+project:
+  name: SCICOQA
+  paper: "SCICOQA: Quality Assurance for Scientific Paper–Code Alignment"
+  framework: PyTorch
+
+data_source: external_dataset
+acquisition: local_path
+
+data:
+  root: null
+  versions:
+    - default
+  default:
+    status: resolved
+    path: null
+    description: "Default dataset version for SCICOQA paper-code alignment quality assurance"
+  feature_dim: null
+  normalization: null
+
+experiment:
+  runs:
+    - name: scicoqa_default
+      data_source: external_dataset
+      acquisition: local_path
+      dataset_version: default
+      split_strategy:
+        method: random_split
+        ratios: null
+        leaf_mapping_constraint: null
+      preprocessing:
+        enabled: true
+        description: "Preprocessing pipeline for paper-code alignment analysis"
+
+logging:
+  level: INFO
+  log_dir: logs
+  save_results: true
+
+system:
+  device: cuda
+  num_workers: 4
+  seed: 42
+
+version_selector:
+  config_key: dataset_version
+  values:
+    - default
+  default: default
+  note: "Non-image data has only one default version"

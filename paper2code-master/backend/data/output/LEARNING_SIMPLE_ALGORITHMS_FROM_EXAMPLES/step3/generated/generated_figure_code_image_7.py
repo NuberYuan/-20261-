@@ -1,0 +1,227 @@
+import sys
+import json
+import numpy as np
+import cv2
+from PIL import Image
+import os
+
+def analyze_image(image_path):
+    try:
+        # Read image using numpy fromfile to support Chinese paths
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # OCR text provided
+        ocr_text = """
+output
+Tape
+8 41
+Input
+Gr id
+"""
+        
+        ocr_lower = ocr_text.lower()
+        
+        # Check for experiment_result indicators
+        experiment_keywords = [
+            'accuracy', 'loss', 'epoch', 'precision', 'recall', 'f1',
+            'performance', 'comparison', 'result', 'experiment',
+            'training', 'validation', 'test', 'curve', 'plot',
+            'chart', 'graph', 'baseline', 'improvement'
+        ]
+        
+        # Check for architecture indicators
+        architecture_keywords = [
+            'cnn', 'transformer', 'attention', 'encoder', 'decoder',
+            'block', 'embedding', 'classifier', 'feature extractor',
+            'alexnet', 'resnet', 'vgg', 'googlenet',
+            'layer', 'network', 'module', 'architecture',
+            'input', 'output', 'conv', 'pooling', 'fully connected'
+        ]
+        
+        # Check for dataset indicators
+        dataset_keywords = [
+            'sample', 'example', 'dataset', 'class', 'category',
+            'image', 'instance', 'training data', 'test data'
+        ]
+        
+        # Count keyword matches
+        experiment_count = sum(1 for kw in experiment_keywords if kw in ocr_lower)
+        architecture_count = sum(1 for kw in architecture_keywords if kw in ocr_lower)
+        dataset_count = sum(1 for kw in dataset_keywords if kw in ocr_lower)
+        
+        # Analyze visual characteristics
+        h, w = img.shape[:2]
+        aspect_ratio = w / h if h > 0 else 0
+        
+        # Check if image has multiple subplots or panels (common in experiment results)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Simple color analysis
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        saturation = np.mean(hsv[:, :, 1])
+        brightness = np.mean(gray)
+        
+        # Check for grid-like patterns (common in architecture diagrams)
+        # Use simple edge detection for basic structure analysis
+        edges = cv2.Canny(gray, 50, 150)
+        edge_density = np.sum(edges > 0) / (h * w)
+        
+        # Determine type based on priority
+        image_type = "other"
+        description = ""
+        important_components = []
+        code_relevant_info = ""
+        
+        # Priority: experiment_result > architecture > dataset > other
+        if experiment_count > 0:
+            image_type = "experiment_result"
+            description = "展示实验结果和性能指标"
+            
+            # Extract model names and metrics
+            components = []
+            model_names = ['alexnet', 'resnet', 'vgg', 'googlenet', 'cnn', 'transformer']
+            metric_names = ['accuracy', 'loss', 'precision', 'recall', 'f1', 'epoch']
+            
+            for model in model_names:
+                if model in ocr_lower:
+                    components.append(model.capitalize())
+            
+            for metric in metric_names:
+                if metric in ocr_lower:
+                    if metric == 'f1':
+                        components.append('F1-score')
+                    elif metric == 'loss':
+                        components.append('Loss')
+                    elif metric == 'epoch':
+                        components.append('Epoch')
+                    else:
+                        components.append(metric.capitalize())
+            
+            important_components = components
+            code_relevant_info = "需要实现模型训练和评估代码，包括性能指标计算"
+            
+        elif architecture_count > 0:
+            image_type = "architecture"
+            description = "展示模型网络结构和数据流关系"
+            
+            # Extract architecture components
+            components = []
+            arch_components = [
+                'cnn', 'transformer', 'attention', 'encoder', 'decoder',
+                'block', 'embedding', 'classifier', 'feature extractor',
+                'alexnet', 'resnet', 'vgg', 'googlenet',
+                'conv', 'pooling', 'fully connected', 'input', 'output'
+            ]
+            
+            for comp in arch_components:
+                if comp in ocr_lower:
+                    if comp == 'cnn':
+                        components.append('CNN')
+                    elif comp == 'transformer':
+                        components.append('Transformer')
+                    elif comp == 'attention':
+                        components.append('Attention Module')
+                    elif comp == 'encoder':
+                        components.append('Encoder')
+                    elif comp == 'decoder':
+                        components.append('Decoder')
+                    elif comp == 'block':
+                        components.append('Block')
+                    elif comp == 'embedding':
+                        components.append('Embedding')
+                    elif comp == 'classifier':
+                        components.append('Classifier')
+                    elif comp == 'feature extractor':
+                        components.append('Feature Extractor')
+                    elif comp == 'alexnet':
+                        components.append('AlexNet')
+                    elif comp == 'resnet':
+                        components.append('ResNet')
+                    elif comp == 'vgg':
+                        components.append('VGG')
+                    elif comp == 'googlenet':
+                        components.append('GoogLeNet')
+                    elif comp == 'conv':
+                        components.append('Convolutional Layer')
+                    elif comp == 'pooling':
+                        components.append('Pooling Layer')
+                    elif comp == 'fully connected':
+                        components.append('Fully Connected Layer')
+                    elif comp == 'input':
+                        components.append('Input Layer')
+                    elif comp == 'output':
+                        components.append('Output Layer')
+            
+            important_components = components
+            code_relevant_info = "需要实现网络结构定义和前向传播逻辑"
+            
+        elif dataset_count > 0:
+            image_type = "dataset"
+            description = "展示数据样本和类别示例"
+            important_components = []
+            code_relevant_info = "需要准备数据加载和预处理代码"
+            
+        else:
+            # Fallback to visual analysis
+            if edge_density > 0.1 and aspect_ratio > 1.5:
+                image_type = "architecture"
+                description = "展示模型网络结构和数据流关系"
+                important_components = []
+                code_relevant_info = "需要实现网络结构定义"
+            elif saturation > 50 and brightness > 100:
+                image_type = "dataset"
+                description = "展示数据样本和类别示例"
+                important_components = []
+                code_relevant_info = "需要准备数据加载和预处理代码"
+            else:
+                image_type = "other"
+                description = "无法确定图片类型"
+                important_components = []
+                code_relevant_info = ""
+        
+        return {
+            "type": image_type,
+            "description": description,
+            "important_components": important_components,
+            "code_relevant_information": code_relevant_info
+        }
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    try:
+        if len(sys.argv) < 2:
+            result = {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        else:
+            image_path = sys.argv[1]
+            result = analyze_image(image_path)
+        
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception as e:
+        result = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        print(json.dumps(result, ensure_ascii=False))

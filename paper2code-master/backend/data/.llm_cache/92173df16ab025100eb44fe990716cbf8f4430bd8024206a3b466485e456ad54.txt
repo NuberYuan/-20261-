@@ -1,0 +1,573 @@
+```python
+import os
+import re
+import json
+import random
+import logging
+from typing import Dict, List, Optional, Tuple, Any, Union
+
+import yaml
+import torch
+from torch.utils.data import Dataset, Subset, random_split
+
+logger = logging.getLogger(__name__)
+
+
+class NaturalQuestionsTriviaQAWebQuestionsCuratedTrecMSMARCOJeopardyQuestionGenerationFEVERDataset(Dataset):
+    """
+    Dataset class for loading and preprocessing the following datasets:
+    - Natural Questions (NQ)
+    - TriviaQA
+    - WebQuestions (WQ)
+    - CuratedTrec (CT)
+    - MS-MARCO
+    - Jeopardy Question Generation
+    - FEVER
+
+    This dataset follows the preprocessing described in the paper
+    "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks":
+    - Wikipedia articles are split into 100-word chunks (21M documents total).
+    - For TriviaQA, answer candidates are filtered if they are not in the top-1000 documents for the query.
+    - For CuratedTrec, answers are preprocessed using regular expressions.
+
+    The dataset supports a 'default' version only (non-image data).
+    """
+
+    def __init__(
+        self,
+        version: str = 'default',
+        config: Optional[Dict[str, Any]] = None,
+        split: str = 'train',
+        seed: int = 42,
+        transform: Optional[Any] = None,
+    ):
+        """
+        Args:
+            version: Dataset version. Only 'default' is supported.
+            config: Configuration dictionary loaded from config/config.yaml.
+            split: One of 'train', 'dev', 'test'.
+            seed: Random seed for reproducibility.
+            transform: Optional transform to apply to samples (not used for non-image data).
+        """
+        super().__init__()
+        self.version = version
+        self.config = config if config is not None else self._load_default_config()
+        self.split = split
+        self.seed = seed
+        self.transform = transform
+
+        # Validate version
+        if version != 'default':
+            raise ValueError(f"Unsupported dataset version: {version}. Only 'default' is supported.")
+
+        # Resolve data root path
+        data_root = self.config.get('data', {}).get('root', './data')
+        self.data_root = data_root
+
+        # Load raw data
+        self.raw_data = self._load_raw_data(split)
+
+        # Preprocess data
+        self.data = self.preprocess_data(self.raw_data)
+
+        # Split dataset (train/dev/test)
+        self.data = self.split_dataset(self.data, split)
+
+        logger.info(
+            f"Dataset initialized: version={version}, split={split}, samples={len(self.data)}"
+        )
+
+    def _load_default_config(self) -> Dict[str, Any]:
+        """Load default config from config/config.yaml."""
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+
+    def _load_raw_data(self, split: str) -> List[Dict[str, Any]]:
+        """
+        Load raw data from local files.
+
+        Expected file structure:
+        ./data/default/{split}.jsonl
+
+        Each line is a JSON object with fields:
+        - query: str
+        - answers: List[str]
+        - documents: List[str] (list of document texts)
+        - dataset: str (dataset name)
+
+        If files do not exist, generate synthetic data for testing.
+        """
+        split_map = {
+            'train': 'train',
+            'dev': 'dev',
+            'test': 'test',
+        }
+        split_name = split_map.get(split, 'train')
+
+        # Expected sample counts per dataset per split
+        expected_counts = {
+            'train': {
+                'nq': 79169,
+                'triviaqa': 78786,
+                'webquestions': 3418,
+                'curatedtrec': 635,
+                'msmarco': 100000,
+                'jeopardy': 10000,
+                'fever': 100000,
+            },
+            'dev': {
+                'nq': 8758,
+                'triviaqa': 8838,
+                'webquestions': 362,
+                'curatedtrec': 134,
+                'msmarco': 10000,
+                'jeopardy': 1000,
+                'fever': 10000,
+            },
+            'test': {
+                'nq': 3611,
+                'triviaqa': 11314,
+                'webquestions': 2033,
+                'curatedtrec': 635,
+                'msmarco': 10000,
+                'jeopardy': 1000,
+                'fever': 10000,
+            },
+        }
+
+        file_path = os.path.join(self.data_root, self.version, f'{split_name}.jsonl')
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                raw_data = [json.loads(line) for line in f if line.strip()]
+            logger.info(f"Loaded {len(raw_data)} samples from {file_path}")
+            return raw_data
+
+        # Generate synthetic data for testing if file does not exist
+        logger.warning(
+            f"Data file {file_path} not found. Generating synthetic data for testing."
+        )
+        return self._generate_synthetic_data(split_name, expected_counts[split_name])
+
+    def _generate_synthetic_data(
+        self, split: str, counts: Dict[str, int]
+    ) -> List[Dict[str, Any]]:
+        """Generate synthetic data for testing when real data is unavailable."""
+        random.seed(self.seed)
+        raw_data = []
+
+        dataset_names = [
+            'nq', 'triviaqa', 'webquestions', 'curatedtrec',
+            'msmarco', 'jeopardy', 'fever'
+        ]
+
+        for dataset_name in dataset_names:
+            count = counts.get(dataset_name, 100)
+            for i in range(count):
+                query = f"{dataset_name} query {i}"
+                answers = [f"answer_{i}_{j}" for j in range(random.randint(1, 3))]
+                num_docs = random.randint(5, 20)
+                documents = [
+                    f"Document {j} for query {i}: " + " ".join(
+                        f"word_{k}" for k in range(100)
+                    )
+                    for j in range(num_docs)
+                ]
+                raw_data.append({
+                    'query': query,
+                    'answers': answers,
+                    'documents': documents,
+                    'dataset': dataset_name,
+                })
+
+        return raw_data
+
+    def preprocess_data(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Preprocess raw data according to the paper:
+        - Wikipedia articles are split into 100-word chunks (21M documents total).
+        - For TriviaQA, filter answer candidates if not in top-1000 documents for the query.
+        - For CuratedTrec, preprocess answers using regular expressions.
+
+        Args:
+            raw_data: List of raw data samples.
+
+        Returns:
+            List of preprocessed samples.
+        """
+        preprocessed_data = []
+
+        for sample in raw_data:
+            dataset_name = sample.get('dataset', 'unknown')
+            query = sample.get('query', '')
+            answers = sample.get('answers', [])
+            documents = sample.get('documents', [])
+
+            # Preprocess answers based on dataset
+            if dataset_name == 'curatedtrec':
+                answers = self._preprocess_curatedtrec_answers(answers)
+            elif dataset_name == 'triviaqa':
+                answers = self._filter_triviaqa_answers(answers, documents)
+
+            # Split documents into 100-word chunks
+            chunked_documents = []
+            for doc in documents:
+                chunks = self._split_into_chunks(doc, chunk_size=100)
+                chunked_documents.extend(chunks)
+
+            # Limit to top-1000 documents for TriviaQA
+            if dataset_name == 'triviaqa':
+                chunked_documents = chunked_documents[:1000]
+
+            preprocessed_data.append({
+                'query': query,
+                'answers': answers,
+                'documents': chunked_documents,
+                'dataset': dataset_name,
+            })
+
+        return preprocessed_data
+
+    def _split_into_chunks(self, text: str, chunk_size: int = 100) -> List[str]:
+        """
+        Split text into chunks of approximately chunk_size words.
+
+        Args:
+            text: Input text.
+            chunk_size: Number of words per chunk.
+
+        Returns:
+            List of text chunks.
+        """
+        words = text.split()
+        chunks = []
+        for i in range(0, len(words), chunk_size):
+            chunk = ' '.join(words[i:i + chunk_size])
+            if chunk.strip():
+                chunks.append(chunk)
+        return chunks
+
+    def _preprocess_curatedtrec_answers(self, answers: List[str]) -> List[str]:
+        """
+        Preprocess CuratedTrec answers using regular expressions.
+
+        The paper mentions using regex to clean answers for CuratedTrec.
+        Common preprocessing steps:
+        - Remove HTML tags
+        - Remove extra whitespace
+        - Normalize quotes
+        """
+        preprocessed = []
+        for answer in answers:
+            # Remove HTML tags
+            answer = re.sub(r'<[^>]+>', '', answer)
+            # Remove extra whitespace
+            answer = re.sub(r'\s+', ' ', answer).strip()
+            # Normalize quotes
+            answer = answer.replace('&quot;', '"').replace('&#39;', "'")
+            if answer:
+                preprocessed.append(answer)
+        return preprocessed
+
+    def _filter_triviaqa_answers(
+        self, answers: List[str], documents: List[str]
+    ) -> List[str]:
+        """
+        Filter TriviaQA answers: keep only answers that appear in the documents.
+
+        The paper states: "For TriviaQA, filter answer candidates if they are not
+        in the top-1000 documents for the query."
+
+        Args:
+            answers: List of answer strings.
+            documents: List of document texts.
+
+        Returns:
+            Filtered list of answers.
+        """
+        if not documents:
+            return answers
+
+        # Concatenate all documents for searching
+        all_text = ' '.join(documents).lower()
+
+        filtered = []
+        for answer in answers:
+            if answer.lower() in all_text:
+                filtered.append(answer)
+
+        # If all answers are filtered out, keep the original answers
+        if not filtered:
+            return answers
+
+        return filtered
+
+    def split_dataset(
+        self, data: List[Dict[str, Any]], split: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Split dataset according to the paper's strategy.
+
+        The paper uses the same splits as prior work (e.g., DPR).
+        For CuratedTrec and WebQuestions, the NQ model is used for initialization.
+
+        Args:
+            data: Preprocessed data.
+            split: One of 'train', 'dev', 'test'.
+
+        Returns:
+            Data for the requested split.
+        """
+        # The data is already split by the file naming convention
+        # (train.jsonl, dev.jsonl, test.jsonl)
+        # This method is kept for API compatibility and potential additional splitting.
+        return data
+
+    def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
+        return len(self.data)
+
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """
+        Get a sample from the dataset.
+
+        Returns:
+            Dictionary with keys:
+            - query: str
+            - answers: List[str]
+            - documents: List[str]
+            - dataset: str
+        """
+        if idx < 0 or idx >= len(self.data):
+            raise IndexError(f"Index {idx} out of range for dataset of size {len(self.data)}")
+
+        sample = self.data[idx]
+
+        # Apply transform if provided (not used for non-image data)
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        return sample
+
+    def get_dataloader(
+        self,
+        batch_size: int = 32,
+        shuffle: bool = True,
+        num_workers: int = 4,
+        drop_last: bool = False,
+    ) -> torch.utils.data.DataLoader:
+        """
+        Create a DataLoader for this dataset.
+
+        Args:
+            batch_size: Batch size.
+            shuffle: Whether to shuffle the data.
+            num_workers: Number of worker processes.
+            drop_last: Whether to drop the last incomplete batch.
+
+        Returns:
+            DataLoader instance.
+        """
+        return torch.utils.data.DataLoader(
+            self,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            drop_last=drop_last,
+        )
+
+
+def get_dataloaders(
+    config: Optional[Dict[str, Any]] = None,
+    version: str = 'default',
+    batch_size: int = 32,
+    num_workers: int = 4,
+    seed: int = 42,
+) -> Dict[str, torch.utils.data.DataLoader]:
+    """
+    Create DataLoaders for train, dev, and test splits.
+
+    Args:
+        config: Configuration dictionary.
+        version: Dataset version (default: 'default').
+        batch_size: Batch size for DataLoaders.
+        num_workers: Number of worker processes.
+        seed: Random seed.
+
+    Returns:
+        Dictionary with keys 'train', 'dev', 'test' mapping to DataLoader objects.
+    """
+    if config is None:
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+
+    # Get batch size from config if not provided
+    if batch_size is None:
+        batch_size = config.get('training', {}).get('batch_size', 32)
+        if batch_size is None:
+            batch_size = 32
+
+    # Get num_workers from config if not provided
+    if num_workers is None:
+        num_workers = config.get('system', {}).get('num_workers', 4)
+
+    # Get seed from config if not provided
+    if seed is None:
+        seed = config.get('system', {}).get('seed', 42)
+
+    # Create datasets for each split
+    datasets = {}
+    for split in ['train', 'dev', 'test']:
+        dataset = NaturalQuestionsTriviaQAWebQuestionsCuratedTrecMSMARCOJeopardyQuestionGenerationFEVERDataset(
+            version=version,
+            config=config,
+            split=split,
+            seed=seed,
+        )
+        datasets[split] = dataset
+
+    # Create DataLoaders
+    train_loader = datasets['train'].get_dataloader(
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+    )
+    dev_loader = datasets['dev'].get_dataloader(
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+    )
+    test_loader = datasets['test'].get_dataloader(
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+    )
+
+    return {
+        'train': train_loader,
+        'dev': dev_loader,
+        'test': test_loader,
+    }
+
+
+def create_train_val_loaders(
+    config: Optional[Dict[str, Any]] = None,
+    version: str = 'default',
+    batch_size: int = 32,
+    num_workers: int = 4,
+    seed: int = 42,
+    val_split_ratio: float = 0.2,
+) -> Dict[str, torch.utils.data.DataLoader]:
+    """
+    Create train and validation DataLoaders.
+
+    Note: The paper only uses train/test splits. This function creates a
+    validation set by splitting the training set (engineering deviation).
+
+    Args:
+        config: Configuration dictionary.
+        version: Dataset version.
+        batch_size: Batch size.
+        num_workers: Number of worker processes.
+        seed: Random seed.
+        val_split_ratio: Ratio of training data to use for validation.
+
+    Returns:
+        Dictionary with keys 'train' and 'val' mapping to DataLoader objects.
+    """
+    if config is None:
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+
+    # Get batch size from config if not provided
+    if batch_size is None:
+        batch_size = config.get('training', {}).get('batch_size', 32)
+        if batch_size is None:
+            batch_size = 32
+
+    # Get num_workers from config if not provided
+    if num_workers is None:
+        num_workers = config.get('system', {}).get('num_workers', 4)
+
+    # Get seed from config if not provided
+    if seed is None:
+        seed = config.get('system', {}).get('seed', 42)
+
+    # Get val_split_ratio from config if not provided
+    if val_split_ratio is None:
+        val_split_ratio = config.get('split_strategy', {}).get('val_split_ratio', 0.2)
+
+    # Create training dataset
+    train_dataset = NaturalQuestionsTriviaQAWebQuestionsCuratedTrecMSMARCOJeopardyQuestionGenerationFEVERDataset(
+        version=version,
+        config=config,
+        split='train',
+        seed=seed,
+    )
+
+    # Split training data into train and validation
+    train_size = int((1 - val_split_ratio) * len(train_dataset))
+    val_size = len(train_dataset) - train_size
+
+    generator = torch.Generator().manual_seed(seed)
+    train_subset, val_subset = random_split(
+        train_dataset, [train_size, val_size], generator=generator
+    )
+
+    # Create DataLoaders
+    train_loader = torch.utils.data.DataLoader(
+        train_subset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+    )
+    val_loader = torch.utils.data.DataLoader(
+        val_subset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+    )
+
+    return {
+        'train': train_loader,
+        'val': val_loader,
+    }
+
+
+if __name__ == '__main__':
+    # Basic test
+    logging.basicConfig(level=logging.INFO)
+
+    # Load config
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.yaml')
+    with open(config_path, 'r', encoding='utf-8') as f:
+        cfg = yaml.safe_load(f)
+
+    # Test dataset creation
+    dataset = NaturalQuestionsTriviaQAWebQuestionsCuratedTrecMSMARCOJeopardyQuestionGenerationFEVERDataset(
+        version='default',
+        config=cfg,
+        split='train',
+    )
+    print(f"Dataset size: {len(dataset)}")
+
+    # Test getitem
+    sample = dataset[0]
+    print(f"Sample keys: {list(sample.keys())}")
+    print(f"Query: {sample['query'][:50]}...")
+    print(f"Answers: {sample['answers'][:3]}")
+    print(f"Number of documents: {len(sample['documents'])}")
+
+    # Test dataloaders
+    loaders = get_dataloaders(config=cfg, version='default', batch_size=4)
+    print(f"Train batches: {len(loaders['train'])}")
+    print(f"Dev batches: {len(loaders['dev'])}")
+    print(f"Test batches: {len(loaders['test'])}")
+
+    # Test train/val split
+    train_val_loaders = create_train_val_loaders(config=cfg, version='default', batch_size=4)
+    print(f"Train batches (with val): {len(train_val_loaders['train'])}")
+    print(f"Val batches: {len(train_val_loaders['val'])}")
+```

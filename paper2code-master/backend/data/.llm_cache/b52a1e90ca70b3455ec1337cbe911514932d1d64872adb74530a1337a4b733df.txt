@@ -1,0 +1,479 @@
+```python
+import os
+import sys
+import time
+import copy
+import logging
+from pathlib import Path
+from typing import Dict, Optional, Tuple, Any
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders, load_config
+from models.lstm import Lstm
+
+
+def initialize_model(config: Optional[dict] = None) -> nn.Module:
+    """
+    Initialize the LSTM model from scratch.
+
+    Args:
+        config: Configuration dictionary. If None, loads from config/config.yaml.
+
+    Returns:
+        Initialized LSTM model with random weights.
+    """
+    if config is None:
+        config = load_config()
+
+    # Create model instance - this uses random initialization by default
+    model = Lstm(config=config)
+
+    # Apply weight initialization if specified in config
+    training_modes = config.get("training_modes", {})
+    scratch_config = training_modes.get("scratch", {})
+    weight_init = scratch_config.get("weight_init", "kaiming_normal")
+
+    if weight_init == "kaiming_normal":
+        # Apply Kaiming Normal initialization to all linear and LSTM layers
+        def _init_weights(module):
+            if isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight, mode="fan_in", nonlinearity="relu")
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.LSTM):
+                for name, param in module.named_parameters():
+                    if "weight_ih" in name:
+                        nn.init.kaiming_normal_(param, mode="fan_in", nonlinearity="relu")
+                    elif "weight_hh" in name:
+                        nn.init.orthogonal_(param)
+                    elif "bias" in name:
+                        nn.init.constant_(param, 0)
+
+        model.apply(_init_weights)
+
+    return model
+
+
+def train_model(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: Optional[DataLoader] = None,
+    config: Optional[dict] = None,
+    device: Optional[torch.device] = None,
+) -> Dict[str, Any]:
+    """
+    Train the model for the specified number of epochs.
+
+    Args:
+        model: The model to train.
+        train_loader: DataLoader for training data.
+        val_loader: Optional DataLoader for validation data. If None, validation is skipped.
+        config: Configuration dictionary. If None, loads from config/config.yaml.
+        device: Device to train on. If None, auto-detected.
+
+    Returns:
+        Dictionary containing training history and best model state.
+    """
+    if config is None:
+        config = load_config()
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = model.to(device)
+
+    # Extract training configuration
+    training_config = config.get("training", {})
+    epochs = training_config.get("epochs", 30)
+    lr = training_config.get("optimizer", {}).get("lr", 0.1)
+
+    # Setup optimizer
+    optimizer = optim.SGD(model.parameters(), lr=lr)
+
+    # Setup scheduler
+    scheduler_config = training_config.get("scheduler", {})
+    scheduler_name = scheduler_config.get("name", "StepLR")
+    step_size = scheduler_config.get("step_size", 0)
+    gamma = scheduler_config.get("gamma", 2.0)
+
+    if scheduler_name == "StepLR":
+        # Ensure step_size is at least 1 to avoid division by zero
+        effective_step_size = max(step_size, 1)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=effective_step_size, gamma=gamma)
+    else:
+        scheduler = None
+
+    # Setup loss functions
+    # Cross-entropy for symbol prediction, Q-learning loss for actions
+    symbol_criterion = nn.CrossEntropyLoss()
+    action_criterion = nn.CrossEntropyLoss()
+
+    # Checkpoint configuration
+    checkpoint_config = config.get("checkpoint", {})
+    save_best = checkpoint_config.get("save_best", True)
+    best_metric = checkpoint_config.get("best_metric", "val_accuracy")
+    best_mode = checkpoint_config.get("best_mode", "max")
+    save_final = checkpoint_config.get("save_final", True)
+    save_optimizer_state = checkpoint_config.get("save_optimizer_state", True)
+
+    # Determine reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # Training history
+    history = {
+        "train_loss": [],
+        "train_symbol_loss": [],
+        "train_action_loss": [],
+        "val_loss": [],
+        "val_accuracy": [],
+        "epochs": [],
+    }
+
+    best_model_state = None
+    best_metric_value = float("-inf") if best_mode == "max" else float("inf")
+
+    # Create checkpoint directory
+    checkpoint_dir = Path("checkpoints")
+    checkpoint_dir.mkdir(exist_ok=True)
+
+    logging.info(f"Training on device: {device}")
+    logging.info(f"Epochs: {epochs}, Learning rate: {lr}, Batch size: {train_loader.batch_size}")
+
+    for epoch in range(epochs):
+        model.train()
+        total_loss = 0.0
+        total_symbol_loss = 0.0
+        total_action_loss = 0.0
+        num_batches = 0
+
+        for batch_idx, batch in enumerate(train_loader):
+            # Move batch to device
+            input_grid = batch["input_grid"].to(device)
+            target = batch["target"].to(device)
+            input_mask = batch["input_mask"].to(device)
+            target_mask = batch["target_mask"].to(device)
+
+            # Prepare input for LSTM
+            # Convert input grid to one-hot encoding
+            batch_size, num_rows, seq_len = input_grid.shape
+            vocab_size = model.vocab_size
+
+            # Create one-hot encoding for input
+            input_one_hot = torch.zeros(
+                batch_size, seq_len, num_rows * vocab_size, device=device
+            )
+            for row in range(num_rows):
+                row_indices = input_grid[:, row, :]  # (batch_size, seq_len)
+                # Clamp indices to valid range
+                row_indices = torch.clamp(row_indices, 0, vocab_size - 1)
+                one_hot_row = torch.nn.functional.one_hot(
+                    row_indices, num_classes=vocab_size
+                )  # (batch_size, seq_len, vocab_size)
+                input_one_hot[:, :, row * vocab_size : (row + 1) * vocab_size] = one_hot_row
+
+            # Forward pass
+            symbol_logits, action_logits = model(input_one_hot)
+
+            # Prepare targets
+            # Symbol target: the result row (last row of grid)
+            symbol_target = target  # (batch_size, seq_len)
+
+            # Action target: for simplicity, use a dummy action target
+            # In a real implementation, this would come from the algorithm's action sequence
+            # For now, we use a simple heuristic: predict "no-op" (index 3) for all positions
+            action_target = torch.full(
+                (batch_size, seq_len), 3, dtype=torch.long, device=device
+            )
+
+            # Compute losses
+            # Reshape logits for loss computation
+            symbol_logits_flat = symbol_logits.reshape(-1, vocab_size)
+            symbol_target_flat = symbol_target.reshape(-1)
+
+            action_logits_flat = action_logits.reshape(-1, model.num_actions)
+            action_target_flat = action_target.reshape(-1)
+
+            # Apply target mask for symbol loss
+            target_mask_flat = target_mask.reshape(-1)
+            valid_indices = target_mask_flat.nonzero(as_tuple=True)[0]
+
+            if len(valid_indices) > 0:
+                symbol_loss = symbol_criterion(
+                    symbol_logits_flat[valid_indices],
+                    symbol_target_flat[valid_indices],
+                )
+            else:
+                symbol_loss = torch.tensor(0.0, device=device)
+
+            action_loss = action_criterion(action_logits_flat, action_target_flat)
+
+            # Combined loss
+            loss = symbol_loss + action_loss
+
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+            total_symbol_loss += symbol_loss.item()
+            total_action_loss += action_loss.item()
+            num_batches += 1
+
+        # Average losses
+        avg_loss = total_loss / max(num_batches, 1)
+        avg_symbol_loss = total_symbol_loss / max(num_batches, 1)
+        avg_action_loss = total_action_loss / max(num_batches, 1)
+
+        history["train_loss"].append(avg_loss)
+        history["train_symbol_loss"].append(avg_symbol_loss)
+        history["train_action_loss"].append(avg_action_loss)
+        history["epochs"].append(epoch)
+
+        # Validation
+        val_loss = None
+        val_accuracy = None
+
+        if val_loader is not None:
+            model.eval()
+            val_total_loss = 0.0
+            correct = 0
+            total = 0
+            val_num_batches = 0
+
+            with torch.no_grad():
+                for batch in val_loader:
+                    input_grid = batch["input_grid"].to(device)
+                    target = batch["target"].to(device)
+                    input_mask = batch["input_mask"].to(device)
+                    target_mask = batch["target_mask"].to(device)
+
+                    batch_size, num_rows, seq_len = input_grid.shape
+                    vocab_size = model.vocab_size
+
+                    # Create one-hot encoding for input
+                    input_one_hot = torch.zeros(
+                        batch_size, seq_len, num_rows * vocab_size, device=device
+                    )
+                    for row in range(num_rows):
+                        row_indices = input_grid[:, row, :]
+                        row_indices = torch.clamp(row_indices, 0, vocab_size - 1)
+                        one_hot_row = torch.nn.functional.one_hot(
+                            row_indices, num_classes=vocab_size
+                        )
+                        input_one_hot[:, :, row * vocab_size : (row + 1) * vocab_size] = one_hot_row
+
+                    symbol_logits, action_logits = model(input_one_hot)
+
+                    # Compute validation loss
+                    symbol_logits_flat = symbol_logits.reshape(-1, vocab_size)
+                    symbol_target_flat = target.reshape(-1)
+                    target_mask_flat = target_mask.reshape(-1)
+                    valid_indices = target_mask_flat.nonzero(as_tuple=True)[0]
+
+                    if len(valid_indices) > 0:
+                        symbol_loss = symbol_criterion(
+                            symbol_logits_flat[valid_indices],
+                            symbol_target_flat[valid_indices],
+                        )
+                    else:
+                        symbol_loss = torch.tensor(0.0, device=device)
+
+                    action_target = torch.full(
+                        (batch_size, seq_len), 3, dtype=torch.long, device=device
+                    )
+                    action_logits_flat = action_logits.reshape(-1, model.num_actions)
+                    action_target_flat = action_target.reshape(-1)
+                    action_loss = action_criterion(action_logits_flat, action_target_flat)
+
+                    val_loss_batch = symbol_loss + action_loss
+                    val_total_loss += val_loss_batch.item()
+                    val_num_batches += 1
+
+                    # Compute accuracy on valid positions
+                    pred_symbols = torch.argmax(symbol_logits, dim=-1)  # (batch_size, seq_len)
+                    valid_positions = target_mask  # (batch_size, seq_len)
+                    correct += ((pred_symbols == target) & valid_positions).sum().item()
+                    total += valid_positions.sum().item()
+
+            val_loss = val_total_loss / max(val_num_batches, 1)
+            val_accuracy = correct / max(total, 1)
+
+            history["val_loss"].append(val_loss)
+            history["val_accuracy"].append(val_accuracy)
+
+            logging.info(
+                f"Epoch {epoch + 1}/{epochs} - "
+                f"Train Loss: {avg_loss:.4f} (Symbol: {avg_symbol_loss:.4f}, Action: {avg_action_loss:.4f}), "
+                f"Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.4f}"
+            )
+
+            # Save best model based on validation metric
+            if save_best:
+                if best_mode == "max" and val_accuracy > best_metric_value:
+                    best_metric_value = val_accuracy
+                    best_model_state = copy.deepcopy(model.state_dict())
+                    if save_optimizer_state:
+                        best_optimizer_state = copy.deepcopy(optimizer.state_dict())
+                    else:
+                        best_optimizer_state = None
+                elif best_mode == "min" and val_loss < best_metric_value:
+                    best_metric_value = val_loss
+                    best_model_state = copy.deepcopy(model.state_dict())
+                    if save_optimizer_state:
+                        best_optimizer_state = copy.deepcopy(optimizer.state_dict())
+                    else:
+                        best_optimizer_state = None
+        else:
+            # No validation - just log training loss
+            logging.info(
+                f"Epoch {epoch + 1}/{epochs} - "
+                f"Train Loss: {avg_loss:.4f} (Symbol: {avg_symbol_loss:.4f}, Action: {avg_action_loss:.4f})"
+            )
+
+        # Step scheduler
+        if scheduler is not None:
+            scheduler.step()
+
+    # Save final model
+    if save_final:
+        final_model_path = checkpoint_dir / "final_model.pth"
+        checkpoint_data = {
+            "model_state_dict": model.state_dict(),
+            "config": config,
+        }
+        if save_optimizer_state:
+            checkpoint_data["optimizer_state_dict"] = optimizer.state_dict()
+        torch.save(checkpoint_data, final_model_path)
+        logging.info(f"Final model saved to {final_model_path}")
+
+    # Save best model
+    if save_best and best_model_state is not None:
+        best_model_path = checkpoint_dir / "best_model.pth"
+        checkpoint_data = {
+            "model_state_dict": best_model_state,
+            "config": config,
+            "best_metric_value": best_metric_value,
+        }
+        if save_optimizer_state and best_optimizer_state is not None:
+            checkpoint_data["optimizer_state_dict"] = best_optimizer_state
+        torch.save(checkpoint_data, best_model_path)
+        logging.info(f"Best model saved to {best_model_path} with {best_metric}={best_metric_value:.4f}")
+
+    return history
+
+
+def save_model(
+    model: nn.Module,
+    path: str,
+    config: Optional[dict] = None,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+) -> None:
+    """
+    Save model weights to the specified path.
+
+    Args:
+        model: The model to save.
+        path: Path where to save the model.
+        config: Configuration dictionary. If None, loads from config/config.yaml.
+        optimizer: Optional optimizer whose state should also be saved.
+    """
+    if config is None:
+        config = load_config()
+
+    checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "config": config,
+    }
+
+    if optimizer is not None:
+        checkpoint["optimizer_state_dict"] = optimizer.state_dict()
+
+    # Ensure directory exists
+    save_path = Path(path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+
+    torch.save(checkpoint, save_path)
+    logging.info(f"Model saved to {save_path}")
+
+
+def main() -> None:
+    """
+    Main training entry point.
+    """
+    # Setup logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+
+    # Load config
+    config = load_config()
+
+    # Determine device
+    device_config = config.get("system", {}).get("device")
+    if device_config is not None:
+        device = torch.device(device_config)
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Get dataset version from experiment config
+    experiment_config = config.get("experiment", {})
+    runs = experiment_config.get("runs", [])
+    dataset_version = "default"
+    if runs:
+        dataset_version = runs[0].get("dataset_version", "default")
+
+    # Get batch size from config
+    batch_size = config.get("training", {}).get("batch_size", {}).get("default", 20)
+
+    # Get dataloaders
+    dataloaders = get_dataloaders(
+        config=config,
+        version=dataset_version,
+        batch_size=batch_size,
+        seed=config.get("system", {}).get("seed", 42),
+    )
+
+    train_loader = dataloaders["train"]
+    val_loader = dataloaders["val"]
+    test_loader = dataloaders["test"]
+
+    # Determine reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # In strict mode, don't use validation loader
+    if reproduction_mode == "strict":
+        val_loader = None
+
+    # Initialize model
+    model = initialize_model(config)
+
+    # Train model
+    history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        config=config,
+        device=device,
+    )
+
+    # Log training summary
+    logging.info("Training completed!")
+    logging.info(f"Final training loss: {history['train_loss'][-1]:.4f}")
+    if history.get("val_accuracy"):
+        logging.info(f"Best validation accuracy: {max(history['val_accuracy']):.4f}")
+
+
+if __name__ == "__main__":
+    main()
+```

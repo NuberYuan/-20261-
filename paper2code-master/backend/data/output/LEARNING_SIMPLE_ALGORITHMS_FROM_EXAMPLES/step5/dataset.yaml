@@ -1,0 +1,32 @@
+paper_name: LEARNING_SIMPLE_ALGORITHMS_FROM_EXAMPLES
+data_source: synthetic
+acquisition: n/a
+data_source_note: 实验数据为程序化生成的算法任务输入输出对（copy、reverse、walk、加法、乘法等），无外部真实数据集依赖。
+datasets:
+- name: Synthetic algorithmic tasks (copy, reverse, walk, addition, 3-number addition,
+    single digit multiplication)
+  source: NOT_FOUND
+  size: 每个模型训练使用3×10^7个字符
+  num_classes: NOT_FOUND
+  data_type: 算术和序列操作任务的合成输入输出对
+dataset_versions:
+- default
+preprocessing:
+  versions:
+    default:
+      description: 非图像数据：通用预处理（按数据语义做标准化/归一化）
+      preprocessing: 所有算术运算使用十进制（base 10）。3行加法任务使用额外课程：初始示例不涉及进位且包含许多零。
+      normalization:
+        note: 非图像数据无 RGB 通道概念，按数据语义做标准化（如 z-score/归一化）
+      augmentation: []
+      note: 数据集无颜色/灰度/分割版本；仅单一 default 版本
+  version_selector:
+    config_key: dataset_version
+    values:
+    - default
+    default: default
+    note: 非图像数据仅一个 default 版本
+split_strategy:
+  method: random_split
+  ratios: 训练时使用课程学习，从复杂度6开始，达到100%准确率后增加4，直到模型能解决长度为100的验证序列。测试使用50个长度为100的测试实例，以及长度为1000的测试序列。
+  leaf_mapping_constraint: NOT_FOUND

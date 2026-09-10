@@ -1,0 +1,355 @@
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+import numpy as np
+import torch
+import yaml
+
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:  # Optional visualization dependency
+    plt = None
+
+from utils.metrics import compute_metrics
+
+_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+
+
+def _load_config(config: Optional[Union[str, Path, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Load config from a dict, explicit path, or default project config path."""
+    if isinstance(config, dict):
+        return config
+
+    if isinstance(config, (str, Path)):
+        config_path = Path(config)
+    else:
+        config_path = _DEFAULT_CONFIG_PATH
+
+    if not config_path.exists():
+        fallback = Path("config/config.yaml")
+        if fallback.exists():
+            config_path = fallback
+        else:
+            return {}
+
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+    except (FileNotFoundError, OSError):
+        return {}
+
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _resolve_device(config: Dict[str, Any], device: Optional[str] = None) -> torch.device:
+    """Resolve evaluation device from explicit argument or config fallback."""
+    if device is None:
+        system_cfg = config.get("system", {})
+        if not isinstance(system_cfg, dict):
+            system_cfg = {}
+        device = system_cfg.get("device", "cuda")
+
+    if device == "cuda" and not torch.cuda.is_available():
+        device = "cpu"
+
+    return torch.device(device)
+
+
+def _extract_logits(outputs: Any) -> torch.Tensor:
+    """Return class scores from AlexNet or GoogLeNet forward output."""
+    if hasattr(outputs, "logits"):
+        return outputs.logits
+    if isinstance(outputs, tuple):
+        return outputs[0]
+    return outputs
+
+
+def _compute_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
+    """Build a class-index confusion matrix without relying on sklearn."""
+    y_true = np.asarray(y_true).reshape(-1)
+    y_pred = np.asarray(y_pred).reshape(-1)
+
+    if y_true.size == 0 or y_pred.size == 0:
+        return np.zeros((0, 0), dtype=np.int64)
+
+    classes = np.unique(np.concatenate([y_true, y_pred]))
+    class_to_index = {int(cls): idx for idx, cls in enumerate(classes)}
+
+    matrix = np.zeros((len(classes), len(classes)), dtype=np.int64)
+    for true_label, pred_label in zip(y_true.tolist(), y_pred.tolist()):
+        true_idx = class_to_index[int(true_label)]
+        pred_idx = class_to_index[int(pred_label)]
+        matrix[true_idx, pred_idx] += 1
+
+    return matrix
+
+
+def evaluate_model(
+    model: Optional[torch.nn.Module] = None,
+    test_loader: Optional[Any] = None,
+    device: Optional[str] = None,
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+    threshold: float = 0.5,
+    batch_size: int = 32,
+) -> Dict[str, Any]:
+    """Evaluate a model on the given test dataloader.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Contains ``mean_f1_score``, ``mean_precision``, ``mean_recall``,
+        ``overall_accuracy``, ``confusion_matrix``, ``num_samples``, and the
+        raw ``true_labels``/``pred_labels`` arrays used to generate charts.
+    """
+    cfg = _load_config(config)
+    device_obj = _resolve_device(cfg, device)
+
+    if model is None or test_loader is None:
+        empty_metrics = compute_metrics(
+            outputs=None,
+            targets=None,
+            config=cfg,
+            threshold=threshold,
+            batch_size=batch_size,
+        )
+        empty_metrics["confusion_matrix"] = np.zeros((0, 0), dtype=np.int64)
+        empty_metrics["num_samples"] = 0
+        empty_metrics["true_labels"] = np.empty((0,), dtype=np.int64)
+        empty_metrics["pred_labels"] = np.empty((0,), dtype=np.int64)
+        return empty_metrics
+
+    model.to(device_obj)
+    model.eval()
+
+    all_logits: list = []
+    all_labels: list = []
+
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images = images.to(device_obj)
+            labels = labels.to(device_obj)
+
+            raw_outputs = model(images)
+            logits = _extract_logits(raw_outputs)
+
+            all_logits.append(logits.cpu().numpy())
+            all_labels.append(labels.cpu().numpy())
+
+    if all_logits:
+        logits_array = np.concatenate(all_logits, axis=0)
+    else:
+        logits_array = np.empty((0, 0), dtype=np.float32)
+
+    if all_labels:
+        labels_array = np.concatenate(all_labels, axis=0)
+    else:
+        labels_array = np.empty((0,), dtype=np.int64)
+
+    metrics = compute_metrics(
+        outputs=logits_array,
+        targets=labels_array,
+        config=cfg,
+        threshold=threshold,
+        batch_size=batch_size,
+    )
+
+    if logits_array.size > 0:
+        pred_labels = np.argmax(logits_array, axis=1)
+    else:
+        pred_labels = np.empty((0,), dtype=np.int64)
+
+    metrics["confusion_matrix"] = _compute_confusion_matrix(labels_array, pred_labels)
+    metrics["num_samples"] = int(labels_array.shape[0])
+    metrics["true_labels"] = labels_array
+    metrics["pred_labels"] = pred_labels
+
+    return metrics
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any],
+    output_path: Optional[Union[str, Path]] = None,
+) -> Optional[str]:
+    """Generate a bar chart for mean F1, precision, recall, and accuracy.
+
+    This function intentionally receives the complete metrics dictionary.
+    """
+    if plt is None:
+        return None
+
+    if not isinstance(metrics, dict):
+        return None
+
+    metric_keys = [
+        "mean_f1_score",
+        "mean_precision",
+        "mean_recall",
+        "overall_accuracy",
+    ]
+    metric_labels = [
+        "Mean F1",
+        "Mean Precision",
+        "Mean Recall",
+        "Overall Accuracy",
+    ]
+
+    try:
+        values = [float(metrics.get(key, 0.0)) for key in metric_keys]
+    except (TypeError, ValueError):
+        return None
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    bars = ax.bar(metric_labels, values, color=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"])
+    ax.set_ylim(0, 1.05)
+    ax.set_ylabel("Score")
+    ax.set_title("Evaluation Metrics")
+
+    for bar, value in zip(bars, values):
+        text_y = min(value + 0.03, 1.02)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            text_y,
+            f"{value:.4f}",
+            ha="center",
+            va="bottom",
+        )
+
+    if output_path is None:
+        plt.close(fig)
+        return None
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, bbox_inches="tight", dpi=150)
+    plt.close(fig)
+
+    return str(output_path)
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: Union[np.ndarray, list, None],
+    output_path: Optional[Union[str, Path]] = None,
+) -> Optional[str]:
+    """Generate a confusion matrix heatmap.
+
+    Parameters
+    ----------
+    confusion_matrix:
+        A two-dimensional confusion matrix array, normally taken from
+        ``metrics['confusion_matrix']``.
+    """
+    if plt is None:
+        return None
+
+    try:
+        matrix = np.asarray(confusion_matrix)
+    except Exception:
+        return None
+
+    if matrix.ndim != 2 or matrix.size == 0:
+        return None
+
+    fig, ax = plt.subplots(
+        figsize=(max(6, matrix.shape[1] * 0.5), max(6, matrix.shape[0] * 0.5))
+    )
+    im = ax.imshow(matrix, interpolation="nearest", cmap="viridis")
+    ax.set_xlabel("Predicted label")
+    ax.set_ylabel("True label")
+    ax.set_title("Confusion Matrix")
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+    if output_path is None:
+        plt.close(fig)
+        return None
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, bbox_inches="tight", dpi=150)
+    plt.close(fig)
+
+    return str(output_path)
+
+
+def generate_report(
+    metrics: Optional[Dict[str, Any]],
+    run_name: str,
+    output_dir: Union[str, Path],
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+) -> str:
+    """Generate a text evaluation report for a single run.
+
+    The report always contains the required numeric metrics. If matplotlib is
+    installed, a bar chart and confusion matrix heatmap are also generated,
+    but their absence never blocks report generation.
+
+    Returns
+    -------
+    str
+        Path to the generated text report.
+    """
+    cfg = _load_config(config)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    metrics = metrics if isinstance(metrics, dict) else {}
+
+    project_cfg = cfg.get("project", {})
+    if not isinstance(project_cfg, dict):
+        project_cfg = {}
+    project_name = project_cfg.get(
+        "name",
+        "Using Deep Learning for Image-Based Plant Disease Detection",
+    )
+
+    report_path = output_dir / f"{run_name}_report.txt"
+
+    lines: list = []
+    lines.append("Evaluation Report")
+    lines.append("=================")
+    lines.append(f"Run name: {run_name}")
+    lines.append(f"Project: {project_name}")
+    lines.append("")
+    lines.append("Metrics")
+    lines.append("-------")
+    lines.append(f"Mean F1 score:  {float(metrics.get('mean_f1_score', 0.0)):.6f}")
+    lines.append(f"Mean precision: {float(metrics.get('mean_precision', 0.0)):.6f}")
+    lines.append(f"Mean recall:    {float(metrics.get('mean_recall', 0.0)):.6f}")
+    lines.append(f"Overall accuracy: {float(metrics.get('overall_accuracy', 0.0)):.6f}")
+    lines.append(f"Number of samples: {int(metrics.get('num_samples', 0))}")
+    lines.append("")
+    lines.append("Paper reference: best reported PlantVillage result achieved")
+    lines.append("mean F1 score 0.9934 and overall accuracy 99.35%.")
+    lines.append("")
+
+    bar_chart_path = None
+    confusion_plot_path = None
+
+    if plt is not None:
+        bar_chart_path = _generate_metrics_bar_chart(
+            metrics,
+            output_dir / f"{run_name}_metrics_bar.png",
+        )
+
+        confusion_matrix = metrics.get("confusion_matrix")
+        if confusion_matrix is not None:
+            confusion_plot_path = _generate_confusion_matrix_plot(
+                confusion_matrix,
+                output_dir / f"{run_name}_confusion_matrix.png",
+            )
+
+    if bar_chart_path is not None:
+        lines.append(f"Metrics bar chart: {bar_chart_path}")
+    else:
+        lines.append("Metrics bar chart: not generated (matplotlib unavailable or invalid data)")
+
+    if confusion_plot_path is not None:
+        lines.append(f"Confusion matrix plot: {confusion_plot_path}")
+    else:
+        lines.append("Confusion matrix plot: not generated (matplotlib unavailable or invalid data)")
+
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    return str(report_path)

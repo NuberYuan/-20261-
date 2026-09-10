@@ -1,0 +1,16 @@
+{
+  "table_id": "table_2",
+  "table_type": "other",
+  "caption_summary": "Fragment of a table describing input symbol lengths for arithmetic tasks and a Q-learning method",
+  "extracted_data": {
+    "metrics": [],
+    "methods": ["Q-LEARNING"],
+    "best_result": null,
+    "key_values": [
+      {"label": "input symbols; for addition would involve two", "value": "104"},
+      {"label": "long numbers; for", "value": "3"},
+      {"label": "long numbers and for single digit multiplication would involve a single", "value": ""}
+    ]
+  },
+  "table_summary": "The table appears to be a partial or malformed extraction from a paper, containing fragments about input symbol lengths for arithmetic tasks and a mention of Q-learning. The numerical values 104 and 3 likely refer to input lengths or number of symbols, but the table is too incomplete to interpret reliably."
+}

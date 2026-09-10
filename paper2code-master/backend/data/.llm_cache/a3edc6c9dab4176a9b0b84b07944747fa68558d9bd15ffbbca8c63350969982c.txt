@@ -1,0 +1,124 @@
+```python
+import sys
+import json
+import os
+import numpy as np
+import cv2
+
+def analyze_image(image_path):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法读取图片",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # Get basic image info
+        height, width = img.shape[:2]
+        
+        # OCR text is empty in this case
+        ocr_text = ""
+        
+        # Since OCR is empty, use visual features and keywords
+        # Check for typical architecture/experiment/dataset visual patterns
+        
+        # Simple color analysis
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        
+        # Check for blue-ish tones (common in architecture diagrams)
+        blue_mask = cv2.inRange(hsv, (100, 50, 50), (130, 255, 255))
+        blue_ratio = np.sum(blue_mask > 0) / (height * width)
+        
+        # Check for red/orange tones (common in experiment plots)
+        red_mask = cv2.inRange(hsv, (0, 50, 50), (10, 255, 255))
+        red_ratio = np.sum(red_mask > 0) / (height * width)
+        
+        # Check for green tones (common in dataset images)
+        green_mask = cv2.inRange(hsv, (40, 50, 50), (80, 255, 255))
+        green_ratio = np.sum(green_mask > 0) / (height * width)
+        
+        # Check image aspect ratio and size
+        aspect_ratio = width / height if height > 0 else 0
+        
+        # Determine type based on visual characteristics
+        # Architecture diagrams often have blue tones and are wider
+        # Experiment plots often have red/orange lines
+        # Dataset images often have natural colors
+        
+        if blue_ratio > 0.15 and aspect_ratio > 1.2:
+            # Likely architecture diagram
+            return {
+                "type": "architecture",
+                "description": "展示模型网络结构和数据流关系",
+                "important_components": [],
+                "code_relevant_information": "需要实现神经网络模型结构"
+            }
+        elif red_ratio > 0.1 or (red_ratio > 0.05 and aspect_ratio > 1.5):
+            # Likely experiment result plot
+            return {
+                "type": "experiment_result",
+                "description": "展示实验结果对比或性能变化",
+                "important_components": [],
+                "code_relevant_information": "需要实现实验评估和结果可视化"
+            }
+        elif green_ratio > 0.2:
+            # Likely dataset sample
+            return {
+                "type": "dataset",
+                "description": "展示数据集样本或输入示例",
+                "important_components": [],
+                "code_relevant_information": "需要实现数据加载和预处理"
+            }
+        else:
+            # Check if it's a plot-like image (mostly white background with colored elements)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            white_ratio = np.sum(gray > 200) / (height * width)
+            
+            if white_ratio > 0.5:
+                # Likely a plot or diagram
+                return {
+                    "type": "experiment_result",
+                    "description": "展示实验结果或数据可视化",
+                    "important_components": [],
+                    "code_relevant_information": "需要实现结果分析和可视化"
+                }
+            else:
+                return {
+                    "type": "other",
+                    "description": "无法确定图片类型",
+                    "important_components": [],
+                    "code_relevant_information": ""
+                }
+                
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+def main():
+    if len(sys.argv) < 2:
+        result = {
+            "type": "other",
+            "description": "未提供图片路径",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+    else:
+        image_path = sys.argv[1]
+        result = analyze_image(image_path)
+    
+    # Output only JSON
+    print(json.dumps(result, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```

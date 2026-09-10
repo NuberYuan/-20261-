@@ -1,0 +1,712 @@
+from __future__ import annotations
+
+import logging
+import math
+import os
+import random
+import time
+from collections import defaultdict
+from dataclasses import dataclass, field
+from enum import IntEnum
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - PyYAML is listed as dependency
+    yaml = None
+
+
+DEFAULT_CONFIG_PATH = os.path.join("config", "config.yaml")
+DEFAULT_LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+
+class Orientation(IntEnum):
+    OUTGOING = 0
+    INCOMING = 1
+    UNDIRECTED = 2
+
+
+@dataclass(eq=False)
+class Edge:
+    id: int
+    source: int
+    target: int
+    mark: int = 0
+    weight: float = 1.0
+    directed: bool = True
+
+
+class IncidentTable:
+    """Per-node incident edge table keyed by (edge_mark, orientation).
+
+    The paper's compiler enhancement stores these buckets as linked lists.
+    Python lists provide the same O(1) append/remove behaviour needed by the
+    implemented rules.
+    """
+
+    def __init__(self) -> None:
+        self._buckets: Dict[Tuple[int, Orientation], List[Edge]] = defaultdict(list)
+
+    def add(self, edge_mark: int, orientation: Orientation, edge: Edge) -> None:
+        self._buckets[(edge_mark, orientation)].append(edge)
+
+    def remove(self, edge_mark: int, orientation: Orientation, edge: Edge) -> None:
+        bucket = self._buckets.get((edge_mark, orientation))
+        if bucket is None:
+            return
+        try:
+            bucket.remove(edge)
+        except ValueError:
+            pass
+        if not bucket:
+            del self._buckets[(edge_mark, orientation)]
+
+    def get(self, edge_mark: int, orientation: Orientation) -> List[Edge]:
+        return self._buckets.get((edge_mark, orientation), [])
+
+    def iter_edges(
+        self,
+        orientation: Optional[Orientation] = None,
+        edge_mark: Optional[int] = None,
+    ) -> Iterator[Edge]:
+        for (mark, ori), bucket in self._buckets.items():
+            if edge_mark is not None and mark != edge_mark:
+                continue
+            if orientation is not None and ori != orientation:
+                continue
+            yield from bucket
+
+
+class NodeStore:
+    """Nodes grouped by mark, mirroring the paper's linked lists per mark."""
+
+    def __init__(self) -> None:
+        self._by_mark: Dict[int, List[Node]] = defaultdict(list)
+
+    def add(self, node: Node) -> None:
+        self._by_mark[node.mark].append(node)
+
+    def remove(self, node: Node) -> None:
+        bucket = self._by_mark.get(node.mark)
+        if bucket is None:
+            return
+        try:
+            bucket.remove(node)
+        except ValueError:
+            pass
+        if not bucket:
+            del self._by_mark[node.mark]
+
+    def nodes_by_mark(self, mark: int) -> List[Node]:
+        return list(self._by_mark.get(mark, []))
+
+    def all_nodes(self) -> Iterator[Node]:
+        for bucket in self._by_mark.values():
+            yield from bucket
+
+
+@dataclass(eq=False)
+class Node:
+    id: int
+    mark: int = 0
+    incident: IncidentTable = field(default_factory=IncidentTable)
+
+
+class RootedGraph:
+    """Directed/undirected graph with optional root, using the enhanced node store.
+
+    Incident edges are stored by edge mark and orientation at each node. This
+    mirrors the GP 2 compiler data structure described in the paper.
+    """
+
+    def __init__(self, directed: bool = True, root: Optional[int] = None) -> None:
+        self.directed = directed
+        self.root = root
+        self.nodes: Dict[int, Node] = {}
+        self.edges: Dict[int, Edge] = {}
+        self.node_store = NodeStore()
+        self._next_node_id = 0
+        self._next_edge_id = 0
+
+    def add_node(self, node_id: Optional[int] = None, mark: int = 0) -> int:
+        if node_id is None:
+            while self._next_node_id in self.nodes:
+                self._next_node_id += 1
+            node_id = self._next_node_id
+            self._next_node_id += 1
+
+        if node_id in self.nodes:
+            raise ValueError(f"Node {node_id} already exists")
+
+        node = Node(node_id, mark)
+        self.nodes[node_id] = node
+        self.node_store.add(node)
+
+        if node_id >= self._next_node_id:
+            self._next_node_id = node_id + 1
+
+        return node_id
+
+    def add_edge(
+        self,
+        source: int,
+        target: int,
+        mark: int = 0,
+        weight: float = 1.0,
+        directed: Optional[bool] = None,
+    ) -> int:
+        if source not in self.nodes:
+            raise ValueError(f"Source node {source} is missing")
+        if target not in self.nodes:
+            raise ValueError(f"Target node {target} is missing")
+
+        if directed is None:
+            directed = self.directed
+
+        edge_id = self._next_edge_id
+        self._next_edge_id += 1
+        edge = Edge(edge_id, source, target, mark, float(weight), directed)
+        self.edges[edge_id] = edge
+
+        if directed:
+            self.nodes[source].incident.add(mark, Orientation.OUTGOING, edge)
+            self.nodes[target].incident.add(mark, Orientation.INCOMING, edge)
+        else:
+            self.nodes[source].incident.add(mark, Orientation.UNDIRECTED, edge)
+            self.nodes[target].incident.add(mark, Orientation.UNDIRECTED, edge)
+
+        return edge_id
+
+    def remove_edge(self, edge_id: int) -> None:
+        edge = self.edges.pop(edge_id)
+        if edge.directed:
+            self.nodes[edge.source].incident.remove(
+                edge.mark, Orientation.OUTGOING, edge
+            )
+            self.nodes[edge.target].incident.remove(
+                edge.mark, Orientation.INCOMING, edge
+            )
+        else:
+            self.nodes[edge.source].incident.remove(
+                edge.mark, Orientation.UNDIRECTED, edge
+            )
+            self.nodes[edge.target].incident.remove(
+                edge.mark, Orientation.UNDIRECTED, edge
+            )
+
+    def incident_edges(
+        self,
+        node_id: int,
+        orientation: Optional[Orientation] = None,
+        edge_mark: Optional[int] = None,
+    ) -> Iterator[Edge]:
+        node = self.nodes[node_id]
+        yield from node.incident.iter_edges(
+            orientation=orientation, edge_mark=edge_mark
+        )
+
+    def outgoing_edges(self, node_id: int) -> Iterator[Edge]:
+        orientation = (
+            Orientation.OUTGOING if self.directed else Orientation.UNDIRECTED
+        )
+        yield from self.incident_edges(node_id, orientation=orientation)
+
+    def incoming_edges(self, node_id: int) -> Iterator[Edge]:
+        orientation = (
+            Orientation.INCOMING if self.directed else Orientation.UNDIRECTED
+        )
+        yield from self.incident_edges(node_id, orientation=orientation)
+
+    @staticmethod
+    def other_endpoint(edge: Edge, node_id: int) -> int:
+        if edge.source == node_id:
+            return edge.target
+        if edge.target == node_id:
+            return edge.source
+        raise ValueError(f"Node {node_id} is not an endpoint of edge {edge.id}")
+
+
+def is_connected(graph: RootedGraph) -> bool:
+    """Check connectivity of the underlying undirected graph in O(V+E)."""
+    if not graph.nodes:
+        return True
+
+    start = next(iter(graph.nodes))
+    visited = {start}
+    stack = [start]
+
+    while stack:
+        u = stack.pop()
+        for edge in graph.incident_edges(u):
+            v = graph.other_endpoint(edge, u)
+            if v not in visited:
+                visited.add(v)
+                stack.append(v)
+
+    return len(visited) == len(graph.nodes)
+
+
+def is_acyclic(graph: RootedGraph) -> bool:
+    """Check acyclicity using iterative DFS; O(V+E) for directed and undirected graphs."""
+    if not graph.nodes:
+        return True
+
+    color: Dict[int, int] = {node_id: 0 for node_id in graph.nodes}
+
+    for start in graph.nodes:
+        if color[start] != 0:
+            continue
+
+        color[start] = 1
+        stack: List[Tuple[int, int, Iterator[Edge]]] = [
+            (start, -1, graph.outgoing_edges(start))
+        ]
+
+        while stack:
+            u, parent, it = stack[-1]
+            for edge in it:
+                v = graph.other_endpoint(edge, u)
+
+                if not graph.directed and v == parent:
+                    continue
+
+                if color[v] == 0:
+                    color[v] = 1
+                    stack.append((v, u, graph.outgoing_edges(v)))
+                    break
+                elif color[v] == 1:
+                    return False
+                # color == 2 means already fully processed, skip
+            else:
+                color[u] = 2
+                stack.pop()
+
+    return True
+
+
+def bellman_ford(
+    graph: RootedGraph, source: int, tolerance: float = 1e-9
+) -> Dict[str, Any]:
+    """Bellman-Ford single-source shortest paths on a directed weighted graph.
+
+    Runs in O(VE). Detects negative-weight cycles reachable from the source.
+    """
+    if source not in graph.nodes:
+        raise ValueError(f"Source node {source} is not in graph")
+    if not graph.directed:
+        raise ValueError("Bellman-Ford expects a directed graph")
+
+    distances: Dict[int, float] = {
+        node_id: math.inf for node_id in graph.nodes
+    }
+    predecessors: Dict[int, Optional[int]] = {
+        node_id: None for node_id in graph.nodes
+    }
+    distances[source] = 0.0
+
+    edges = list(graph.edges.values())
+    n = len(graph.nodes)
+
+    for _ in range(n - 1):
+        updated = False
+        for edge in edges:
+            du = distances[edge.source]
+            if math.isinf(du):
+                continue
+            candidate = du + edge.weight
+            if candidate < distances[edge.target] - tolerance:
+                distances[edge.target] = candidate
+                predecessors[edge.target] = edge.source
+                updated = True
+        if not updated:
+            break
+
+    has_negative_cycle = False
+    for edge in edges:
+        du = distances[edge.source]
+        if math.isinf(du):
+            continue
+        if du + edge.weight < distances[edge.target] - tolerance:
+            has_negative_cycle = True
+            break
+
+    return {
+        "distances": distances,
+        "predecessors": predecessors,
+        "has_negative_cycle": has_negative_cycle,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Graph builders for the three case studies and for runtime scaling
+# ---------------------------------------------------------------------------
+
+def build_connected_undirected_graph(
+    n: int, seed: int = 42, extra_edges: int = 0
+) -> RootedGraph:
+    graph = RootedGraph(directed=False)
+    for i in range(n):
+        graph.add_node(i)
+
+    seen_pairs = set()
+    for i in range(n - 1):
+        graph.add_edge(i, i + 1)
+        seen_pairs.add((i, i + 1))
+
+    rng = random.Random(seed)
+    max_extra = max(0, n * (n - 1) // 2 - (n - 1))
+    extra_edges = max(0, min(int(extra_edges), max_extra))
+    attempts = 0
+
+    while len(seen_pairs) < (n - 1) + extra_edges and attempts < 10000:
+        i = rng.randrange(n)
+        j = rng.randrange(n)
+        if i == j:
+            continue
+        a, b = (i, j) if i < j else (j, i)
+        if (a, b) not in seen_pairs:
+            graph.add_edge(a, b)
+            seen_pairs.add((a, b))
+        attempts += 1
+
+    return graph
+
+
+def build_disconnected_undirected_graph(
+    n: int, seed: int = 42
+) -> RootedGraph:
+    if n < 2:
+        return build_connected_undirected_graph(n, seed=seed)
+
+    graph = RootedGraph(directed=False)
+    for i in range(n):
+        graph.add_node(i)
+
+    half = max(1, n // 2)
+    for i in range(half - 1):
+        graph.add_edge(i, i + 1)
+    for i in range(half, n - 1):
+        graph.add_edge(i, i + 1)
+
+    return graph
+
+
+def build_dag(n: int, seed: int = 42, edge_factor: float = 2.0) -> RootedGraph:
+    graph = RootedGraph(directed=True)
+    for i in range(n):
+        graph.add_node(i)
+
+    max_edges = n * (n - 1) // 2
+    target_edges = min(max_edges, max(1, int(n * edge_factor)))
+    seen_pairs = set()
+    rng = random.Random(seed)
+    attempts = 0
+
+    while len(seen_pairs) < target_edges and attempts < max(10000, target_edges * 20):
+        i = rng.randrange(n - 1)
+        j = rng.randrange(i + 1, n)
+        if (i, j) not in seen_pairs:
+            graph.add_edge(i, j)
+            seen_pairs.add((i, j))
+        attempts += 1
+
+    return graph
+
+
+def build_cyclic_graph(n: int, seed: int = 42, extra_edges: int = 0) -> RootedGraph:
+    graph = RootedGraph(directed=True)
+    for i in range(n):
+        graph.add_node(i)
+
+    for i in range(n):
+        graph.add_edge(i, (i + 1) % n)
+
+    rng = random.Random(seed)
+    for _ in range(extra_edges):
+        i = rng.randrange(n)
+        j = rng.randrange(n)
+        if i != j:
+            graph.add_edge(i, j)
+
+    return graph
+
+
+def build_bellman_ford_graph() -> RootedGraph:
+    """Small Bellman-Ford example with a negative edge but no negative cycle."""
+    graph = RootedGraph(directed=True)
+    for i in range(5):
+        graph.add_node(i)
+    graph.root = 0
+
+    edges = [
+        (0, 1, 6.0),
+        (0, 2, 7.0),
+        (1, 2, 8.0),
+        (1, 3, 5.0),
+        (1, 4, -4.0),
+        (2, 3, -3.0),
+        (2, 4, 9.0),
+        (3, 1, -2.0),
+        (4, 3, 7.0),
+        (4, 0, 2.0),
+    ]
+    for u, v, w in edges:
+        graph.add_edge(u, v, weight=w)
+
+    return graph
+
+
+def build_negative_cycle_graph() -> RootedGraph:
+    graph = RootedGraph(directed=True)
+    for i in range(3):
+        graph.add_node(i)
+    graph.root = 0
+
+    graph.add_edge(0, 1, weight=-1.0)
+    graph.add_edge(1, 2, weight=-1.0)
+    graph.add_edge(2, 0, weight=-1.0)
+    return graph
+
+
+def build_bellman_benchmark_graph(n: int, seed: int = 42) -> RootedGraph:
+    """Directed path with edges inserted in descending topological order.
+
+    This forces Bellman-Ford to perform close to the V-1 relaxation passes on
+    the path, giving a cleaner qualitative runtime view.
+    """
+    graph = RootedGraph(directed=True)
+    for i in range(n):
+        graph.add_node(i)
+    graph.root = 0
+
+    for i in range(n - 2, -1, -1):
+        graph.add_edge(i, i + 1, weight=1.0)
+
+    return graph
+
+
+# ---------------------------------------------------------------------------
+# Helpers for running and reporting dynamic, data-dependent results
+# ---------------------------------------------------------------------------
+
+def _load_config(config: Any) -> Dict[str, Any]:
+    if config is None:
+        if os.path.exists(DEFAULT_CONFIG_PATH):
+            config = DEFAULT_CONFIG_PATH
+        else:
+            return {}
+
+    if isinstance(config, str):
+        if yaml is None:
+            raise ImportError("PyYAML is required to load config/config.yaml")
+        with open(config, "r", encoding="utf-8") as f:
+            loaded = yaml.safe_load(f)
+            return loaded if isinstance(loaded, dict) else {}
+
+    if isinstance(config, dict):
+        return config
+
+    raise TypeError("config must be a path to a YAML file or a dictionary")
+
+
+def _setup_logger(config: Dict[str, Any]) -> logging.Logger:
+    logger = logging.getLogger("GP2CompilerEnhancementsAndRootedGraphPrograms")
+    if logger.handlers:
+        return logger
+
+    log_cfg = config.get("logging", {})
+    level_name = str(log_cfg.get("level", "INFO")).upper()
+    log_format = str(log_cfg.get("format", DEFAULT_LOG_FORMAT))
+    console = bool(log_cfg.get("console", True))
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(log_format))
+    logger.addHandler(handler)
+    logger.setLevel(getattr(logging, level_name, logging.INFO))
+    logger.propagate = False
+    return logger
+
+
+def _measure_runtime(
+    func: Callable[..., Any], *args: Any, repeat: int = 5
+) -> float:
+    # Warm-up call outside the measured samples.
+    try:
+        func(*args)
+    except Exception:
+        pass
+
+    samples: List[float] = []
+    for _ in range(repeat):
+        start = time.perf_counter()
+        func(*args)
+        samples.append(time.perf_counter() - start)
+
+    if not samples:
+        return math.inf
+
+    samples.sort()
+    return samples[len(samples) // 2]
+
+
+def _growth_exponents(
+    sizes: Sequence[float], times: Sequence[float]
+) -> List[float]:
+    exponents: List[float] = []
+    for i in range(1, len(sizes)):
+        if sizes[i - 1] <= 0 or times[i - 1] <= 0 or times[i] <= 0:
+            continue
+        size_ratio = sizes[i] / sizes[i - 1]
+        time_ratio = times[i] / times[i - 1]
+        if size_ratio > 0 and time_ratio > 0:
+            exponents.append(math.log(time_ratio) / math.log(size_ratio))
+    return exponents
+
+
+class GP2CompilerEnhancementsAndRootedGraphPrograms:
+    """Convenience class exposing the paper-method ``run``."""
+
+    def __init__(self, config: Any = None) -> None:
+        self.config = config
+
+    def run(self, threshold: float = 0.5, batch_size: int = 32) -> Dict[str, Any]:
+        return run(self.config, threshold=threshold, batch_size=batch_size)
+
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+
+def run(config: Any = None, threshold: float = 0.5, batch_size: int = 32) -> Dict[str, Any]:
+    """Execute the three case-study checks and qualitative runtime comparison.
+
+    The returned dictionary contains only measured correctness and runtime
+    results; no algorithm-quality conclusions are hardcoded.
+    """
+    cfg = _load_config(config)
+    logger = _setup_logger(cfg)
+
+    system_cfg = cfg.get("system", {})
+    seed = int(system_cfg.get("seed", 42))
+    random.seed(seed)
+
+    repeat = max(1, min(max(1, int(batch_size)), 5))
+    distance_tolerance = max(1e-9, float(threshold) * 1e-8)
+
+    correctness: Dict[str, Any] = {}
+
+    # --- Connectedness checking ---
+    connected_graph = build_connected_undirected_graph(
+        12, seed=seed, extra_edges=6
+    )
+    disconnected_graph = build_disconnected_undirected_graph(12, seed=seed)
+    correctness["connectedness"] = {
+        "connected_graph": bool(is_connected(connected_graph)),
+        "disconnected_graph": bool(is_connected(disconnected_graph)),
+    }
+
+    # --- Acyclicity checking ---
+    dag = build_dag(12, seed=seed, edge_factor=2.0)
+    cyclic_graph = build_cyclic_graph(12, seed=seed)
+    correctness["acyclicity"] = {
+        "dag": bool(is_acyclic(dag)),
+        "cyclic_graph": bool(is_acyclic(cyclic_graph)),
+    }
+
+    # --- Bellman-Ford shortest paths and negative-cycle detection ---
+    bf_graph = build_bellman_ford_graph()
+    bf_result = bellman_ford(bf_graph, source=0, tolerance=distance_tolerance)
+    expected_distances = {0: 0.0, 1: 2.0, 2: 7.0, 3: 4.0, 4: 2.0}
+    distances_match = all(
+        node in bf_result["distances"]
+        and math.isclose(
+            bf_result["distances"][node],
+            expected,
+            rel_tol=distance_tolerance,
+            abs_tol=distance_tolerance,
+        )
+        for node, expected in expected_distances.items()
+    )
+
+    negative_cycle_graph = build_negative_cycle_graph()
+    negative_cycle_result = bellman_ford(
+        negative_cycle_graph, source=0, tolerance=distance_tolerance
+    )
+
+    correctness["bellman_ford"] = {
+        "expected_distances_match": bool(distances_match),
+        "negative_cycle_detected": bool(
+            negative_cycle_result["has_negative_cycle"]
+        ),
+    }
+
+    logger.info("Correctness checks: %s", correctness)
+
+    # --- Qualitative runtime scaling ---
+    linear_sizes = [40, 80, 160, 320, 640]
+    connected_times: List[float] = []
+    acyclic_times: List[float] = []
+    for n in linear_sizes:
+        g = build_connected_undirected_graph(n, seed=seed, extra_edges=n)
+        connected_times.append(
+            _measure_runtime(is_connected, g, repeat=repeat)
+        )
+
+        g = build_dag(n, seed=seed, edge_factor=2.0)
+        acyclic_times.append(_measure_runtime(is_acyclic, g, repeat=repeat))
+
+    bellman_sizes = [20, 40, 80, 160, 320]
+    bellman_times: List[float] = []
+    for n in bellman_sizes:
+        g = build_bellman_benchmark_graph(n, seed=seed)
+
+        def _time_bellman(graph: RootedGraph = g) -> None:
+            bellman_ford(graph, source=0, tolerance=distance_tolerance)
+
+        bellman_times.append(_measure_runtime(_time_bellman, repeat=repeat))
+
+    runtime_results = {
+        "connectedness": {
+            "sizes": linear_sizes,
+            "median_times_seconds": connected_times,
+            "empirical_growth_exponents": _growth_exponents(
+                linear_sizes, connected_times
+            ),
+        },
+        "acyclicity": {
+            "sizes": linear_sizes,
+            "median_times_seconds": acyclic_times,
+            "empirical_growth_exponents": _growth_exponents(
+                linear_sizes, acyclic_times
+            ),
+        },
+        "bellman_ford": {
+            "sizes": bellman_sizes,
+            "median_times_seconds": bellman_times,
+            "empirical_growth_exponents": _growth_exponents(
+                bellman_sizes, bellman_times
+            ),
+        },
+    }
+
+    logger.info(
+        "Runtime medians (connectedness, acyclicity, Bellman-Ford): %s, %s, %s",
+        connected_times,
+        acyclic_times,
+        bellman_times,
+    )
+    logger.info("Empirical growth exponents: %s", runtime_results)
+
+    return {
+        "config": cfg,
+        "correctness": correctness,
+        "runtime": runtime_results,
+        "parameters": {
+            "threshold": threshold,
+            "batch_size": batch_size,
+        },
+    }
+
+
+if __name__ == "__main__":
+    run()

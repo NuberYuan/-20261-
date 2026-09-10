@@ -1,0 +1,14 @@
+{
+  "table_id": "table_6",
+  "table_type": "other",
+  "caption_summary": "The table appears to be a fragment or malformed extraction, showing only partial header text with unclear content.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Header fragment", "value": "Pa C P | per ode +C"}
+    ]
+  },
+  "table_summary": "The provided table content is incomplete and appears to be a corrupted or partial extraction from the original paper. It contains only a fragment of a header row with text 'Pa C P | per ode +C', which does not provide enough information to determine the table's purpose or extract any meaningful numerical data. Further context from the original paper is required to interpret this table."
+}

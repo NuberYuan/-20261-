@@ -1,0 +1,14 @@
+{
+  "name": "paper2code-frontend",
+  "version": "1.0.0",
+  "description": "论文复现验证系统 - 前端中间层",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}

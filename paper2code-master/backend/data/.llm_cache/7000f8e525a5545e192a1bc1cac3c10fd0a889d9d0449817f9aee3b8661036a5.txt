@@ -1,0 +1,374 @@
+```python
+import math
+from typing import Optional, Tuple
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import yaml
+from pathlib import Path
+
+
+class GPTOSS20B(nn.Module):
+    """
+    GPT-OSS 20B model for scientific paper-code alignment quality assurance.
+
+    This model follows the GPT architecture with a transformer decoder stack.
+    The model is randomly initialized (no pretrained weights) and is designed
+    to process tokenized scientific text and code sequences.
+
+    Architecture details:
+    - Token embedding layer
+    - Positional embedding layer
+    - N transformer decoder layers with:
+        - Multi-head self-attention
+        - Feed-forward network
+        - Layer normalization
+        - Residual connections
+    - Final layer normalization
+    - Output projection head
+
+    The model is designed to be flexible with configurable dimensions,
+    allowing adaptation to different dataset sizes and requirements.
+    """
+
+    def __init__(self, config: Optional[dict] = None):
+        """
+        Initialize the GPT-OSS 20B model.
+
+        Args:
+            config: Configuration dictionary. If None, loads from config/config.yaml.
+                   Expected keys (with defaults if not present):
+                   - data.feature_dim: feature dimension (default: 768)
+                   - model parameters are derived from feature_dim
+        """
+        super(GPTOSS20B, self).__init__()
+
+        if config is None:
+            config = self._load_config()
+
+        # Extract configuration with safe defaults
+        # The feature_dim represents the model's hidden dimension
+        # Default 768 is a standard transformer hidden size (e.g., GPT-2 base)
+        feature_dim = self._get_nested(config, ['data', 'feature_dim'], default=768)
+        if feature_dim is None:
+            feature_dim = 768  # Default hidden dimension for transformer models
+
+        # Model hyperparameters derived from feature_dim
+        # These follow standard transformer scaling rules
+        self.hidden_dim = int(feature_dim)
+        self.num_layers = 12  # Number of transformer decoder layers
+        self.num_heads = 12   # Number of attention heads
+        self.vocab_size = 50257  # GPT-2 vocabulary size (standard for GPT models)
+        self.max_seq_len = 1024   # Maximum sequence length
+        self.dropout_ratio = 0.1  # Dropout probability
+
+        # Try to read dropout from config if available
+        dropout_from_config = self._get_nested(config, ['data', 'normalization'], default=None)
+        if isinstance(dropout_from_config, dict) and 'dropout' in dropout_from_config:
+            self.dropout_ratio = float(dropout_from_config['dropout'])
+
+        # Validate dimensions
+        assert self.hidden_dim % self.num_heads == 0, \
+            f"hidden_dim ({self.hidden_dim}) must be divisible by num_heads ({self.num_heads})"
+        self.head_dim = self.hidden_dim // self.num_heads
+
+        # Token and position embeddings
+        self.token_embedding = nn.Embedding(self.vocab_size, self.hidden_dim)
+        self.position_embedding = nn.Embedding(self.max_seq_len, self.hidden_dim)
+
+        # Dropout for embeddings
+        self.embedding_dropout = nn.Dropout(self.dropout_ratio)
+
+        # Transformer decoder layers
+        self.layers = nn.ModuleList([
+            TransformerDecoderLayer(
+                hidden_dim=self.hidden_dim,
+                num_heads=self.num_heads,
+                dropout_ratio=self.dropout_ratio
+            )
+            for _ in range(self.num_layers)
+        ])
+
+        # Final layer normalization
+        self.final_layer_norm = nn.LayerNorm(self.hidden_dim)
+
+        # Output projection head
+        self.output_projection = nn.Linear(self.hidden_dim, self.vocab_size, bias=False)
+
+        # Tie weights between token embedding and output projection
+        # This is a common practice in GPT models to reduce parameters
+        self.output_projection.weight = self.token_embedding.weight
+
+        # Initialize weights
+        self._init_weights()
+
+    def _load_config(self) -> dict:
+        """Load configuration from config/config.yaml."""
+        config_path = Path(__file__).parent.parent / 'config' / 'config.yaml'
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        except FileNotFoundError:
+            # Return empty config if file not found
+            return {}
+
+    def _get_nested(self, config: dict, keys: list, default=None):
+        """Safely get nested config value."""
+        current = config
+        for key in keys:
+            if not isinstance(current, dict):
+                return default
+            current = current.get(key)
+            if current is None:
+                return default
+        return current
+
+    def _init_weights(self):
+        """Initialize model weights using standard GPT initialization scheme."""
+        # Initialize embeddings
+        nn.init.normal_(self.token_embedding.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.position_embedding.weight, mean=0.0, std=0.02)
+
+        # Initialize output projection (tied with token embedding)
+        # Already initialized through token embedding
+
+        # Initialize transformer layers
+        for layer in self.layers:
+            # Attention weights
+            nn.init.normal_(layer.self_attention.query.weight, mean=0.0, std=0.02)
+            nn.init.normal_(layer.self_attention.key.weight, mean=0.0, std=0.02)
+            nn.init.normal_(layer.self_attention.value.weight, mean=0.0, std=0.02)
+            nn.init.normal_(layer.self_attention.output.weight, mean=0.0, std=0.02)
+
+            # Feed-forward weights
+            nn.init.normal_(layer.feed_forward.fc1.weight, mean=0.0, std=0.02)
+            nn.init.normal_(layer.feed_forward.fc2.weight, mean=0.0, std=0.02)
+
+            # Layer norms (default initialization is fine)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """
+        Forward pass of the GPT-OSS 20B model.
+
+        Args:
+            input_ids: Token indices of shape (batch_size, seq_len)
+            attention_mask: Attention mask of shape (batch_size, seq_len)
+                           where 1 indicates valid positions and 0 indicates padding
+            position_ids: Position indices of shape (batch_size, seq_len).
+                         If None, positions are computed automatically.
+
+        Returns:
+            logits: Output logits of shape (batch_size, seq_len, vocab_size)
+        """
+        batch_size, seq_len = input_ids.shape
+
+        # Validate sequence length
+        if seq_len > self.max_seq_len:
+            # Truncate if sequence is too long
+            input_ids = input_ids[:, :self.max_seq_len]
+            seq_len = self.max_seq_len
+            if attention_mask is not None:
+                attention_mask = attention_mask[:, :self.max_seq_len]
+
+        # Create position ids if not provided
+        if position_ids is None:
+            position_ids = torch.arange(seq_len, dtype=torch.long, device=input_ids.device)
+            position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
+
+        # Clamp position ids to valid range
+        position_ids = torch.clamp(position_ids, 0, self.max_seq_len - 1)
+
+        # Get token and position embeddings
+        token_embeddings = self.token_embedding(input_ids)
+        position_embeddings = self.position_embedding(position_ids)
+
+        # Combine embeddings
+        hidden_states = token_embeddings + position_embeddings
+        hidden_states = self.embedding_dropout(hidden_states)
+
+        # Create causal attention mask if not provided
+        if attention_mask is None:
+            # Create causal mask (prevent attending to future tokens)
+            causal_mask = torch.triu(
+                torch.ones(seq_len, seq_len, dtype=torch.bool, device=input_ids.device),
+                diagonal=1
+            )
+            attention_mask = ~causal_mask.unsqueeze(0).unsqueeze(0)
+        else:
+            # Expand attention mask to 4D for transformer layers
+            # Shape: (batch_size, 1, 1, seq_len)
+            attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+            # Convert to boolean mask (True = attend, False = don't attend)
+            attention_mask = attention_mask.bool()
+
+        # Pass through transformer layers
+        for layer in self.layers:
+            hidden_states = layer(hidden_states, attention_mask)
+
+        # Final layer normalization
+        hidden_states = self.final_layer_norm(hidden_states)
+
+        # Project to vocabulary size
+        logits = self.output_projection(hidden_states)
+
+        return logits
+
+
+class MultiHeadSelfAttention(nn.Module):
+    """Multi-head self-attention mechanism."""
+
+    def __init__(self, hidden_dim: int, num_heads: int, dropout_ratio: float = 0.1):
+        super(MultiHeadSelfAttention, self).__init__()
+
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.head_dim = hidden_dim // num_heads
+
+        # Query, Key, Value projections
+        self.query = nn.Linear(hidden_dim, hidden_dim)
+        self.key = nn.Linear(hidden_dim, hidden_dim)
+        self.value = nn.Linear(hidden_dim, hidden_dim)
+
+        # Output projection
+        self.output = nn.Linear(hidden_dim, hidden_dim)
+
+        # Dropout
+        self.attention_dropout = nn.Dropout(dropout_ratio)
+        self.output_dropout = nn.Dropout(dropout_ratio)
+
+        # Scaling factor for attention scores
+        self.scale = math.sqrt(self.head_dim)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """
+        Forward pass of multi-head self-attention.
+
+        Args:
+            hidden_states: Input tensor of shape (batch_size, seq_len, hidden_dim)
+            attention_mask: Attention mask of shape (batch_size, 1, 1, seq_len)
+                           or (batch_size, 1, seq_len, seq_len)
+
+        Returns:
+            Output tensor of shape (batch_size, seq_len, hidden_dim)
+        """
+        batch_size, seq_len, _ = hidden_states.shape
+
+        # Project to query, key, value
+        query = self.query(hidden_states)
+        key = self.key(hidden_states)
+        value = self.value(hidden_states)
+
+        # Reshape to (batch_size, num_heads, seq_len, head_dim)
+        query = query.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        key = key.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+        value = value.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+        # Compute attention scores
+        attention_scores = torch.matmul(query, key.transpose(-2, -1)) / self.scale
+
+        # Apply attention mask
+        if attention_mask is not None:
+            # Convert mask to float and add large negative for masked positions
+            mask_float = attention_mask.float()
+            mask_float = mask_float.masked_fill(mask_float == 0, float('-inf'))
+            mask_float = mask_float.masked_fill(mask_float == 1, 0.0)
+            attention_scores = attention_scores + mask_float
+
+        # Apply softmax
+        attention_probs = F.softmax(attention_scores, dim=-1)
+        attention_probs = self.attention_dropout(attention_probs)
+
+        # Apply attention to values
+        context = torch.matmul(attention_probs, value)
+
+        # Reshape back to (batch_size, seq_len, hidden_dim)
+        context = context.transpose(1, 2).contiguous().view(batch_size, seq_len, self.hidden_dim)
+
+        # Output projection
+        output = self.output(context)
+        output = self.output_dropout(output)
+
+        return output
+
+
+class FeedForward(nn.Module):
+    """Position-wise feed-forward network."""
+
+    def __init__(self, hidden_dim: int, dropout_ratio: float = 0.1):
+        super(FeedForward, self).__init__()
+
+        # Standard GPT feed-forward with 4x expansion
+        self.fc1 = nn.Linear(hidden_dim, hidden_dim * 4)
+        self.fc2 = nn.Linear(hidden_dim * 4, hidden_dim)
+        self.dropout = nn.Dropout(dropout_ratio)
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        """Forward pass of feed-forward network."""
+        hidden_states = self.fc1(hidden_states)
+        hidden_states = F.gelu(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+        hidden_states = self.fc2(hidden_states)
+        return hidden_states
+
+
+class TransformerDecoderLayer(nn.Module):
+    """Transformer decoder layer with self-attention and feed-forward."""
+
+    def __init__(self, hidden_dim: int, num_heads: int, dropout_ratio: float = 0.1):
+        super(TransformerDecoderLayer, self).__init__()
+
+        # Self-attention
+        self.self_attention = MultiHeadSelfAttention(hidden_dim, num_heads, dropout_ratio)
+
+        # Feed-forward
+        self.feed_forward = FeedForward(hidden_dim, dropout_ratio)
+
+        # Layer normalizations
+        self.norm1 = nn.LayerNorm(hidden_dim)
+        self.norm2 = nn.LayerNorm(hidden_dim)
+
+        # Dropout for residual connections
+        self.dropout1 = nn.Dropout(dropout_ratio)
+        self.dropout2 = nn.Dropout(dropout_ratio)
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """
+        Forward pass of transformer decoder layer.
+
+        Args:
+            hidden_states: Input tensor of shape (batch_size, seq_len, hidden_dim)
+            attention_mask: Attention mask
+
+        Returns:
+            Output tensor of shape (batch_size, seq_len, hidden_dim)
+        """
+        # Self-attention with residual connection
+        residual = hidden_states
+        hidden_states = self.norm1(hidden_states)
+        hidden_states = self.self_attention(hidden_states, attention_mask)
+        hidden_states = self.dropout1(hidden_states)
+        hidden_states = residual + hidden_states
+
+        # Feed-forward with residual connection
+        residual = hidden_states
+        hidden_states = self.norm2(hidden_states)
+        hidden_states = self.feed_forward(hidden_states)
+        hidden_states = self.dropout2(hidden_states)
+        hidden_states = residual + hidden_states
+
+        return hidden_states
+```

@@ -1,0 +1,700 @@
+```python
+import torch
+import torch.nn as nn
+import yaml
+import os
+
+
+class Qwen25Coder15B7BInstruct(nn.Module):
+    """
+    Qwen2.5-Coder-1.5B/7B-Instruct model structure.
+
+    This class defines a decoder-only transformer model following the Qwen2.5-Coder
+    architecture. The model is randomly initialized (no pretrained weights are loaded).
+    The model receives tokenized input sequences and outputs logits over the vocabulary.
+
+    The architecture follows the Qwen2.5-Coder design:
+    - Token embedding layer
+    - Multiple decoder layers (self-attention + feed-forward)
+    - Final layer norm
+    - LM head (tied with token embedding)
+
+    Note: The model is designed to be flexible regarding hidden size, number of layers,
+    and number of attention heads. These hyperparameters are read from the config file.
+    If the config does not specify them, sensible defaults are used based on the
+    Qwen2.5-Coder-1.5B architecture.
+    """
+
+    def __init__(self, config=None):
+        """
+        Initialize the Qwen2.5-Coder model.
+
+        Args:
+            config (dict, optional): Configuration dictionary loaded from config.yaml.
+                If None, default hyperparameters are used.
+        """
+        super(Qwen25Coder15B7BInstruct, self).__init__()
+
+        # Load config if provided, otherwise use defaults
+        if config is None:
+            config = {}
+
+        # Extract model hyperparameters from config with safe defaults
+        # The Qwen2.5-Coder-1.5B model has:
+        # - hidden_size: 1536
+        # - intermediate_size: 8960
+        # - num_hidden_layers: 28
+        # - num_attention_heads: 12
+        # - num_key_value_heads: 2 (GQA)
+        # - vocab_size: 151936
+        # - max_position_embeddings: 32768
+        # - rms_norm_eps: 1e-6
+        # - rope_theta: 1000000.0
+
+        # Vocabulary size: Qwen2.5-Coder uses a tokenizer with 151936 tokens.
+        # This is the default vocab size for Qwen2.5 series models.
+        # If config specifies num_classes, use that as vocab_size (for compatibility).
+        vocab_size = config.get('model', {}).get('num_classes', None)
+        if vocab_size is None:
+            # Default vocab size for Qwen2.5-Coder tokenizer
+            vocab_size = 151936
+
+        hidden_size = config.get('model', {}).get('hidden_size', 1536)
+        intermediate_size = config.get('model', {}).get('intermediate_size', 8960)
+        num_hidden_layers = config.get('model', {}).get('num_hidden_layers', 28)
+        num_attention_heads = config.get('model', {}).get('num_attention_heads', 12)
+        num_key_value_heads = config.get('model', {}).get('num_key_value_heads', 2)
+        max_position_embeddings = config.get('model', {}).get('max_position_embeddings', 32768)
+        rms_norm_eps = config.get('model', {}).get('rms_norm_eps', 1e-6)
+        rope_theta = config.get('model', {}).get('rope_theta', 1000000.0)
+
+        # Dropout ratio from config, default to 0.0 if not specified
+        dropout_ratio = config.get('model', {}).get('dropout_ratio', None)
+        if dropout_ratio is None:
+            dropout_ratio = 0.0
+
+        # Store hyperparameters
+        self.vocab_size = vocab_size
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.num_hidden_layers = num_hidden_layers
+        self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
+        self.max_position_embeddings = max_position_embeddings
+        self.rms_norm_eps = rms_norm_eps
+        self.rope_theta = rope_theta
+        self.dropout_ratio = dropout_ratio
+
+        # Ensure head_dim is integer
+        self.head_dim = hidden_size // num_attention_heads
+
+        # Token embedding layer
+        self.embed_tokens = nn.Embedding(vocab_size, hidden_size)
+
+        # Decoder layers
+        self.layers = nn.ModuleList([
+            self._create_decoder_layer(layer_idx) for layer_idx in range(num_hidden_layers)
+        ])
+
+        # Final layer norm
+        self.norm = RMSNorm(hidden_size, eps=rms_norm_eps)
+
+        # LM head (tied with token embedding)
+        self.lm_head = nn.Linear(hidden_size, vocab_size, bias=False)
+        self.lm_head.weight = self.embed_tokens.weight  # Weight tying
+
+        # Dropout layer
+        self.dropout = nn.Dropout(dropout_ratio)
+
+        # Initialize weights
+        self._init_weights()
+
+    def _create_decoder_layer(self, layer_idx):
+        """
+        Create a single decoder layer.
+
+        Args:
+            layer_idx (int): Index of the layer.
+
+        Returns:
+            nn.Module: Decoder layer.
+        """
+        return DecoderLayer(
+            hidden_size=self.hidden_size,
+            intermediate_size=self.intermediate_size,
+            num_attention_heads=self.num_attention_heads,
+            num_key_value_heads=self.num_key_value_heads,
+            head_dim=self.head_dim,
+            rms_norm_eps=self.rms_norm_eps,
+            rope_theta=self.rope_theta,
+            dropout_ratio=self.dropout_ratio,
+            layer_idx=layer_idx,
+        )
+
+    def _init_weights(self):
+        """
+        Initialize model weights.
+        """
+        # Initialize embedding with normal distribution
+        nn.init.normal_(self.embed_tokens.weight, mean=0.0, std=0.02)
+
+        # Initialize decoder layers
+        for layer in self.layers:
+            layer._init_weights()
+
+        # Initialize final norm
+        nn.init.ones_(self.norm.weight)
+
+        # Initialize lm_head (tied with embedding, so no separate init needed)
+
+    def forward(self, input_ids, attention_mask=None, position_ids=None):
+        """
+        Forward pass of the model.
+
+        Args:
+            input_ids (torch.Tensor): Token indices of shape (batch_size, sequence_length).
+            attention_mask (torch.Tensor, optional): Attention mask of shape
+                (batch_size, sequence_length) or (batch_size, 1, sequence_length, sequence_length).
+                Values of 1 indicate positions to attend to, 0 indicate positions to ignore.
+            position_ids (torch.Tensor, optional): Position indices of shape
+                (batch_size, sequence_length). If None, positions are computed automatically.
+
+        Returns:
+            torch.Tensor: Logits of shape (batch_size, sequence_length, vocab_size).
+        """
+        batch_size, seq_length = input_ids.shape
+
+        # Compute position_ids if not provided
+        if position_ids is None:
+            position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
+            position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
+
+        # Token embedding
+        hidden_states = self.embed_tokens(input_ids)
+
+        # Apply dropout
+        hidden_states = self.dropout(hidden_states)
+
+        # Prepare causal attention mask if not provided
+        if attention_mask is None:
+            # Create causal mask: (batch_size, 1, seq_length, seq_length)
+            causal_mask = torch.tril(
+                torch.ones((seq_length, seq_length), dtype=torch.bool, device=input_ids.device)
+            ).view(1, 1, seq_length, seq_length)
+            attention_mask = causal_mask.expand(batch_size, 1, seq_length, seq_length)
+        elif attention_mask.dim() == 2:
+            # Convert 2D mask (batch_size, seq_length) to 4D causal mask
+            # Expand to (batch_size, 1, seq_length, seq_length)
+            mask_2d = attention_mask.unsqueeze(1).unsqueeze(2)  # (batch_size, 1, 1, seq_length)
+            causal_mask = torch.tril(
+                torch.ones((seq_length, seq_length), dtype=torch.bool, device=input_ids.device)
+            ).view(1, 1, seq_length, seq_length)
+            attention_mask = mask_2d & causal_mask
+
+        # Pass through decoder layers
+        for layer in self.layers:
+            hidden_states = layer(hidden_states, attention_mask, position_ids)
+
+        # Final layer norm
+        hidden_states = self.norm(hidden_states)
+
+        # LM head
+        logits = self.lm_head(hidden_states)
+
+        return logits
+
+
+class RMSNorm(nn.Module):
+    """
+    Root Mean Square Layer Normalization.
+
+    This is the normalization used in Qwen2.5 models.
+    """
+
+    def __init__(self, hidden_size, eps=1e-6):
+        """
+        Initialize RMSNorm.
+
+        Args:
+            hidden_size (int): Hidden size.
+            eps (float): Epsilon for numerical stability.
+        """
+        super(RMSNorm, self).__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.eps = eps
+
+    def forward(self, x):
+        """
+        Forward pass of RMSNorm.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (..., hidden_size).
+
+        Returns:
+            torch.Tensor: Normalized tensor.
+        """
+        # Compute RMS
+        rms = torch.sqrt(torch.mean(x.float() ** 2, dim=-1, keepdim=True) + self.eps)
+        # Normalize
+        x_norm = x / rms
+        # Scale
+        return self.weight * x_norm
+
+
+class DecoderLayer(nn.Module):
+    """
+    Single decoder layer for Qwen2.5-Coder model.
+
+    Consists of:
+    - Input RMSNorm
+    - Self-attention (with GQA)
+    - Post-attention RMSNorm
+    - MLP (SwiGLU)
+    """
+
+    def __init__(self, hidden_size, intermediate_size, num_attention_heads,
+                 num_key_value_heads, head_dim, rms_norm_eps, rope_theta,
+                 dropout_ratio, layer_idx):
+        """
+        Initialize decoder layer.
+
+        Args:
+            hidden_size (int): Hidden size.
+            intermediate_size (int): Intermediate size for MLP.
+            num_attention_heads (int): Number of attention heads.
+            num_key_value_heads (int): Number of key/value heads (for GQA).
+            head_dim (int): Dimension of each attention head.
+            rms_norm_eps (float): Epsilon for RMSNorm.
+            rope_theta (float): Theta for RoPE.
+            dropout_ratio (float): Dropout ratio.
+            layer_idx (int): Layer index.
+        """
+        super(DecoderLayer, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
+        self.head_dim = head_dim
+        self.rms_norm_eps = rms_norm_eps
+        self.rope_theta = rope_theta
+        self.dropout_ratio = dropout_ratio
+        self.layer_idx = layer_idx
+
+        # Input layer norm
+        self.input_layernorm = RMSNorm(hidden_size, eps=rms_norm_eps)
+
+        # Self-attention
+        self.self_attn = SelfAttention(
+            hidden_size=hidden_size,
+            num_attention_heads=num_attention_heads,
+            num_key_value_heads=num_key_value_heads,
+            head_dim=head_dim,
+            rope_theta=rope_theta,
+            dropout_ratio=dropout_ratio,
+        )
+
+        # Post-attention layer norm
+        self.post_attention_layernorm = RMSNorm(hidden_size, eps=rms_norm_eps)
+
+        # MLP (SwiGLU)
+        self.mlp = MLP(
+            hidden_size=hidden_size,
+            intermediate_size=intermediate_size,
+            dropout_ratio=dropout_ratio,
+        )
+
+    def _init_weights(self):
+        """
+        Initialize weights for this layer.
+        """
+        self.self_attn._init_weights()
+        self.mlp._init_weights()
+        nn.init.ones_(self.input_layernorm.weight)
+        nn.init.ones_(self.post_attention_layernorm.weight)
+
+    def forward(self, hidden_states, attention_mask, position_ids):
+        """
+        Forward pass of decoder layer.
+
+        Args:
+            hidden_states (torch.Tensor): Input tensor of shape (batch_size, seq_length, hidden_size).
+            attention_mask (torch.Tensor): Attention mask of shape (batch_size, 1, seq_length, seq_length).
+            position_ids (torch.Tensor): Position indices of shape (batch_size, seq_length).
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_length, hidden_size).
+        """
+        # Residual connection
+        residual = hidden_states
+
+        # Input layer norm
+        hidden_states = self.input_layernorm(hidden_states)
+
+        # Self-attention
+        hidden_states = self.self_attn(hidden_states, attention_mask, position_ids)
+
+        # Residual connection
+        hidden_states = residual + hidden_states
+
+        # Residual connection
+        residual = hidden_states
+
+        # Post-attention layer norm
+        hidden_states = self.post_attention_layernorm(hidden_states)
+
+        # MLP
+        hidden_states = self.mlp(hidden_states)
+
+        # Residual connection
+        hidden_states = residual + hidden_states
+
+        return hidden_states
+
+
+class SelfAttention(nn.Module):
+    """
+    Self-attention with Grouped Query Attention (GQA).
+
+    Qwen2.5-Coder uses GQA where the number of key/value heads is less than
+    the number of query heads.
+    """
+
+    def __init__(self, hidden_size, num_attention_heads, num_key_value_heads,
+                 head_dim, rope_theta, dropout_ratio):
+        """
+        Initialize self-attention.
+
+        Args:
+            hidden_size (int): Hidden size.
+            num_attention_heads (int): Number of query heads.
+            num_key_value_heads (int): Number of key/value heads.
+            head_dim (int): Dimension of each head.
+            rope_theta (float): Theta for RoPE.
+            dropout_ratio (float): Dropout ratio.
+        """
+        super(SelfAttention, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.num_attention_heads = num_attention_heads
+        self.num_key_value_heads = num_key_value_heads
+        self.head_dim = head_dim
+        self.rope_theta = rope_theta
+        self.dropout_ratio = dropout_ratio
+
+        # Number of key/value groups
+        self.num_key_value_groups = num_attention_heads // num_key_value_heads
+
+        # Query projection
+        self.q_proj = nn.Linear(hidden_size, num_attention_heads * head_dim, bias=True)
+
+        # Key projection
+        self.k_proj = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=True)
+
+        # Value projection
+        self.v_proj = nn.Linear(hidden_size, num_key_value_heads * head_dim, bias=True)
+
+        # Output projection
+        self.o_proj = nn.Linear(num_attention_heads * head_dim, hidden_size, bias=False)
+
+        # Dropout
+        self.dropout = nn.Dropout(dropout_ratio)
+
+        # Initialize RoPE
+        self.rope = RotaryPositionalEmbedding(
+            head_dim=head_dim,
+            theta=rope_theta,
+        )
+
+    def _init_weights(self):
+        """
+        Initialize weights for this module.
+        """
+        nn.init.normal_(self.q_proj.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.k_proj.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.v_proj.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.o_proj.weight, mean=0.0, std=0.02)
+        if self.q_proj.bias is not None:
+            nn.init.zeros_(self.q_proj.bias)
+        if self.k_proj.bias is not None:
+            nn.init.zeros_(self.k_proj.bias)
+        if self.v_proj.bias is not None:
+            nn.init.zeros_(self.v_proj.bias)
+
+    def forward(self, hidden_states, attention_mask, position_ids):
+        """
+        Forward pass of self-attention.
+
+        Args:
+            hidden_states (torch.Tensor): Input tensor of shape (batch_size, seq_length, hidden_size).
+            attention_mask (torch.Tensor): Attention mask of shape (batch_size, 1, seq_length, seq_length).
+            position_ids (torch.Tensor): Position indices of shape (batch_size, seq_length).
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_length, hidden_size).
+        """
+        batch_size, seq_length, _ = hidden_states.shape
+
+        # Project to queries, keys, values
+        query_states = self.q_proj(hidden_states)  # (batch_size, seq_length, num_heads * head_dim)
+        key_states = self.k_proj(hidden_states)    # (batch_size, seq_length, num_kv_heads * head_dim)
+        value_states = self.v_proj(hidden_states)  # (batch_size, seq_length, num_kv_heads * head_dim)
+
+        # Reshape to (batch_size, num_heads, seq_length, head_dim)
+        query_states = query_states.view(batch_size, seq_length, self.num_attention_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(batch_size, seq_length, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(batch_size, seq_length, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+
+        # Apply RoPE
+        query_states, key_states = self.rope(query_states, key_states, position_ids)
+
+        # Repeat key/value states for GQA
+        # key_states: (batch_size, num_kv_heads, seq_length, head_dim)
+        # -> (batch_size, num_heads, seq_length, head_dim)
+        key_states = self._repeat_kv(key_states, self.num_key_value_groups)
+        value_states = self._repeat_kv(value_states, self.num_key_value_groups)
+
+        # Compute attention scores
+        # (batch_size, num_heads, seq_length, head_dim) @ (batch_size, num_heads, head_dim, seq_length)
+        # -> (batch_size, num_heads, seq_length, seq_length)
+        attn_weights = torch.matmul(query_states, key_states.transpose(-2, -1)) / (self.head_dim ** 0.5)
+
+        # Apply attention mask
+        if attention_mask is not None:
+            # Convert boolean mask to float mask
+            # mask: 1 -> attend, 0 -> ignore
+            # We add -inf to ignored positions
+            attn_mask = attention_mask.to(dtype=attn_weights.dtype)
+            attn_mask = (1.0 - attn_mask) * torch.finfo(attn_weights.dtype).min
+            attn_weights = attn_weights + attn_mask
+
+        # Softmax
+        attn_weights = torch.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+
+        # Dropout
+        attn_weights = self.dropout(attn_weights)
+
+        # Apply attention weights to values
+        # (batch_size, num_heads, seq_length, seq_length) @ (batch_size, num_heads, seq_length, head_dim)
+        # -> (batch_size, num_heads, seq_length, head_dim)
+        attn_output = torch.matmul(attn_weights, value_states)
+
+        # Reshape back to (batch_size, seq_length, num_heads * head_dim)
+        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, seq_length, -1)
+
+        # Output projection
+        attn_output = self.o_proj(attn_output)
+
+        return attn_output
+
+    def _repeat_kv(self, hidden_states, n_rep):
+        """
+        Repeat key/value states for Grouped Query Attention.
+
+        Args:
+            hidden_states (torch.Tensor): Tensor of shape (batch_size, num_kv_heads, seq_length, head_dim).
+            n_rep (int): Number of repetitions.
+
+        Returns:
+            torch.Tensor: Tensor of shape (batch_size, num_heads, seq_length, head_dim).
+        """
+        batch_size, num_kv_heads, seq_length, head_dim = hidden_states.shape
+        if n_rep == 1:
+            return hidden_states
+        hidden_states = hidden_states[:, :, None, :, :].expand(
+            batch_size, num_kv_heads, n_rep, seq_length, head_dim
+        )
+        return hidden_states.reshape(batch_size, num_kv_heads * n_rep, seq_length, head_dim)
+
+
+class RotaryPositionalEmbedding(nn.Module):
+    """
+    Rotary Positional Embedding (RoPE).
+
+    Applies rotary position encoding to query and key tensors.
+    """
+
+    def __init__(self, head_dim, theta=1000000.0):
+        """
+        Initialize RoPE.
+
+        Args:
+            head_dim (int): Dimension of each attention head.
+            theta (float): Base for the rotation frequencies.
+        """
+        super(RotaryPositionalEmbedding, self).__init__()
+
+        self.head_dim = head_dim
+        self.theta = theta
+
+        # Precompute inverse frequencies
+        # dim = head_dim // 2
+        inv_freq = 1.0 / (theta ** (torch.arange(0, head_dim, 2).float() / head_dim))
+        self.register_buffer('inv_freq', inv_freq, persistent=False)
+
+    def forward(self, query_states, key_states, position_ids):
+        """
+        Apply RoPE to query and key states.
+
+        Args:
+            query_states (torch.Tensor): Query states of shape (batch_size, num_heads, seq_length, head_dim).
+            key_states (torch.Tensor): Key states of shape (batch_size, num_kv_heads, seq_length, head_dim).
+            position_ids (torch.Tensor): Position indices of shape (batch_size, seq_length).
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Rotated query and key states.
+        """
+        batch_size, num_heads, seq_length, head_dim = query_states.shape
+
+        # Compute frequencies
+        # position_ids: (batch_size, seq_length)
+        # inv_freq: (head_dim // 2,)
+        # freqs: (batch_size, seq_length, head_dim // 2)
+        position_ids = position_ids.unsqueeze(-1).to(dtype=self.inv_freq.dtype)
+        freqs = position_ids * self.inv_freq.unsqueeze(0)  # (batch_size, seq_length, head_dim // 2)
+
+        # Compute rotation angles
+        # emb: (batch_size, seq_length, head_dim // 2, 2)
+        emb = torch.stack([freqs, freqs], dim=-1).reshape(batch_size, seq_length, -1)
+
+        # Compute cos and sin
+        # cos: (batch_size, seq_length, head_dim)
+        # sin: (batch_size, seq_length, head_dim)
+        cos = torch.cos(emb)
+        sin = torch.sin(emb)
+
+        # Reshape for broadcasting
+        # cos: (batch_size, 1, seq_length, head_dim)
+        # sin: (batch_size, 1, seq_length, head_dim)
+        cos = cos.unsqueeze(1)
+        sin = sin.unsqueeze(1)
+
+        # Apply rotation
+        query_states = self._rotate_half(query_states, cos, sin)
+        key_states = self._rotate_half(key_states, cos, sin)
+
+        return query_states, key_states
+
+    def _rotate_half(self, x, cos, sin):
+        """
+        Apply rotary rotation to the input tensor.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, num_heads, seq_length, head_dim).
+            cos (torch.Tensor): Cosine values of shape (batch_size, 1, seq_length, head_dim).
+            sin (torch.Tensor): Sine values of shape (batch_size, 1, seq_length, head_dim).
+
+        Returns:
+            torch.Tensor: Rotated tensor.
+        """
+        # Split into two halves
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2:]
+
+        # Apply rotation
+        rotated = torch.cat([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
+
+        return rotated
+
+
+class MLP(nn.Module):
+    """
+    Multi-Layer Perceptron with SwiGLU activation.
+
+    Qwen2.5-Coder uses SwiGLU activation in the MLP.
+    """
+
+    def __init__(self, hidden_size, intermediate_size, dropout_ratio):
+        """
+        Initialize MLP.
+
+        Args:
+            hidden_size (int): Hidden size.
+            intermediate_size (int): Intermediate size.
+            dropout_ratio (float): Dropout ratio.
+        """
+        super(MLP, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.dropout_ratio = dropout_ratio
+
+        # Gate projection
+        self.gate_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+
+        # Up projection
+        self.up_proj = nn.Linear(hidden_size, intermediate_size, bias=False)
+
+        # Down projection
+        self.down_proj = nn.Linear(intermediate_size, hidden_size, bias=False)
+
+        # Dropout
+        self.dropout = nn.Dropout(dropout_ratio)
+
+        # Activation function (SiLU)
+        self.act_fn = nn.SiLU()
+
+    def _init_weights(self):
+        """
+        Initialize weights for this module.
+        """
+        nn.init.normal_(self.gate_proj.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.up_proj.weight, mean=0.0, std=0.02)
+        nn.init.normal_(self.down_proj.weight, mean=0.0, std=0.02)
+
+    def forward(self, x):
+        """
+        Forward pass of MLP.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_length, hidden_size).
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, seq_length, hidden_size).
+        """
+        # SwiGLU: down_proj(act_fn(gate_proj(x)) * up_proj(x))
+        gate_output = self.act_fn(self.gate_proj(x))
+        up_output = self.up_proj(x)
+        hidden_states = gate_output * up_output
+        hidden_states = self.down_proj(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+
+        return hidden_states
+
+
+def load_config(config_path='config/config.yaml'):
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path (str): Path to the config file.
+
+    Returns:
+        dict: Configuration dictionary.
+    """
+    if not os.path.exists(config_path):
+        return {}
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+
+def create_model(config=None):
+    """
+    Create a Qwen25Coder15B7BInstruct model.
+
+    Args:
+        config (dict, optional): Configuration dictionary.
+
+    Returns:
+        Qwen25Coder15B7BInstruct: Model instance.
+    """
+    if config is None:
+        config = load_config()
+
+    model = Qwen25Coder15B7BInstruct(config=config)
+
+    return model
+```

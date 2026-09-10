@@ -1,0 +1,323 @@
+```python
+import math
+from typing import Optional, Tuple
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import yaml
+import os
+
+
+class DeepSeekR1(nn.Module):
+    """
+    DeepSeekR1 model for SCICOQA: Quality Assurance for Scientific Paper–Code Alignment.
+
+    This model is a transformer-based architecture designed to process
+    preprocessed inputs (paper-code pairs) and output alignment quality predictions.
+    The structure is randomly initialized (no pretrained weights / transfer learning).
+
+    The model consists of:
+    - An embedding layer (token + position)
+    - Multiple transformer encoder layers
+    - A classification head for alignment quality prediction
+
+    Shape parameters are read from config.yaml. If null, sensible defaults derived
+    from the paper description are used (see comments below).
+    """
+
+    def __init__(self, config: Optional[dict] = None):
+        """
+        Initialize the DeepSeekR1 model.
+
+        Args:
+            config: Configuration dictionary loaded from config/config.yaml.
+                    If None, a default configuration is used.
+        """
+        super(DeepSeekR1, self).__init__()
+
+        # Load config if not provided
+        if config is None:
+            config = self._load_default_config()
+
+        # ------------------------------------------------------------------
+        # Extract model hyperparameters from config with safe fallbacks.
+        # The paper does not specify exact values for all parameters, so we
+        # derive reasonable defaults where necessary.
+        # ------------------------------------------------------------------
+
+        # Vocabulary size: The paper deals with scientific paper-code alignment.
+        # Input tokens include code tokens, paper text tokens, and special symbols.
+        # Default: 30000 (common vocabulary size for scientific/code corpora)
+        # If config provides a value, use it; otherwise use the default.
+        vocab_size = self._get_config_value(
+            config, ["model", "vocab_size"], default=30000
+        )
+        if vocab_size is None:
+            vocab_size = 30000  # Default vocabulary size
+
+        # Embedding dimension
+        d_model = self._get_config_value(config, ["model", "d_model"], default=768)
+        if d_model is None:
+            d_model = 768  # Default embedding dimension
+
+        # Number of transformer encoder layers
+        num_layers = self._get_config_value(
+            config, ["model", "num_layers"], default=12
+        )
+        if num_layers is None:
+            num_layers = 12  # Default number of layers
+
+        # Number of attention heads
+        num_heads = self._get_config_value(
+            config, ["model", "num_heads"], default=12
+        )
+        if num_heads is None:
+            num_heads = 12  # Default number of attention heads
+
+        # Feed-forward dimension
+        d_ff = self._get_config_value(config, ["model", "d_ff"], default=3072)
+        if d_ff is None:
+            d_ff = 3072  # Default feed-forward dimension
+
+        # Dropout ratio
+        dropout_ratio = self._get_config_value(
+            config, ["model", "dropout_ratio"], default=0.1
+        )
+        if dropout_ratio is None:
+            dropout_ratio = 0.1  # Default dropout ratio
+
+        # Maximum sequence length
+        max_seq_len = self._get_config_value(
+            config, ["model", "max_seq_len"], default=512
+        )
+        if max_seq_len is None:
+            max_seq_len = 512  # Default maximum sequence length
+
+        # Number of classes for the output (alignment quality prediction)
+        # The paper predicts alignment quality, which can be binary (aligned/not)
+        # or multi-class. Default: 2 (binary classification)
+        num_classes = self._get_config_value(
+            config, ["model", "num_classes"], default=2
+        )
+        if num_classes is None:
+            num_classes = 2  # Default: binary classification
+
+        # ------------------------------------------------------------------
+        # Store hyperparameters
+        # ------------------------------------------------------------------
+        self.vocab_size = vocab_size
+        self.d_model = d_model
+        self.num_layers = num_layers
+        self.num_heads = num_heads
+        self.d_ff = d_ff
+        self.dropout_ratio = dropout_ratio
+        self.max_seq_len = max_seq_len
+        self.num_classes = num_classes
+
+        # ------------------------------------------------------------------
+        # Model components
+        # ------------------------------------------------------------------
+
+        # Token embedding layer
+        self.token_embedding = nn.Embedding(
+            num_embeddings=vocab_size,
+            embedding_dim=d_model,
+            padding_idx=0,  # Index 0 is reserved for padding
+        )
+
+        # Positional embedding layer (learnable)
+        self.position_embedding = nn.Embedding(
+            num_embeddings=max_seq_len,
+            embedding_dim=d_model,
+        )
+
+        # Dropout layer
+        self.dropout = nn.Dropout(p=dropout_ratio)
+
+        # Transformer encoder layers
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=num_heads,
+            dim_feedforward=d_ff,
+            dropout=dropout_ratio,
+            activation="gelu",
+            batch_first=True,
+            norm_first=True,  # Pre-LN transformer (more stable)
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer=encoder_layer,
+            num_layers=num_layers,
+        )
+
+        # Layer normalization for the final output
+        self.layer_norm = nn.LayerNorm(d_model)
+
+        # Classification head
+        self.classifier = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.GELU(),
+            nn.Dropout(p=dropout_ratio),
+            nn.Linear(d_model, num_classes),
+        )
+
+        # Initialize weights (Xavier uniform for linear layers, normal for embeddings)
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        """
+        Initialize model weights.
+        This is a default initialization; the training script may override it.
+        """
+        # Embedding layers
+        nn.init.normal_(self.token_embedding.weight, mean=0.0, std=self.d_model**-0.5)
+        nn.init.normal_(self.position_embedding.weight, mean=0.0, std=self.d_model**-0.5)
+
+        # Transformer encoder layers (recursively initialize)
+        for layer in self.transformer_encoder.layers:
+            # Self-attention
+            nn.init.xavier_uniform_(layer.self_attn.in_proj_weight)
+            nn.init.constant_(layer.self_attn.in_proj_bias, 0.0)
+            nn.init.xavier_uniform_(layer.self_attn.out_proj.weight)
+            nn.init.constant_(layer.self_attn.out_proj.bias, 0.0)
+
+            # Feed-forward network
+            nn.init.xavier_uniform_(layer.linear1.weight)
+            nn.init.constant_(layer.linear1.bias, 0.0)
+            nn.init.xavier_uniform_(layer.linear2.weight)
+            nn.init.constant_(layer.linear2.bias, 0.0)
+
+            # Layer norms
+            nn.init.ones_(layer.norm1.weight)
+            nn.init.zeros_(layer.norm1.bias)
+            nn.init.ones_(layer.norm2.weight)
+            nn.init.zeros_(layer.norm2.bias)
+
+        # Final layer norm
+        nn.init.ones_(self.layer_norm.weight)
+        nn.init.zeros_(self.layer_norm.bias)
+
+        # Classifier
+        for layer in self.classifier:
+            if isinstance(layer, nn.Linear):
+                nn.init.xavier_uniform_(layer.weight)
+                nn.init.constant_(layer.bias, 0.0)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Forward pass of the DeepSeekR1 model.
+
+        Args:
+            input_ids: Token indices of shape (batch_size, seq_len).
+                       Values must be in range [0, vocab_size).
+            attention_mask: Optional attention mask of shape (batch_size, seq_len).
+                           1.0 for real tokens, 0.0 for padding tokens.
+                           If None, all tokens are attended to.
+
+        Returns:
+            logits: Classification logits of shape (batch_size, num_classes).
+        """
+        batch_size, seq_len = input_ids.shape
+
+        # Clamp input_ids to valid range to avoid embedding index errors
+        input_ids = torch.clamp(input_ids, min=0, max=self.vocab_size - 1)
+
+        # Token embeddings
+        token_embeds = self.token_embedding(input_ids)  # (batch, seq, d_model)
+
+        # Positional embeddings
+        positions = torch.arange(seq_len, device=input_ids.device).unsqueeze(0)
+        positions = positions.expand(batch_size, seq_len)
+        # Clamp positions to valid range
+        positions = torch.clamp(positions, min=0, max=self.max_seq_len - 1)
+        pos_embeds = self.position_embedding(positions)  # (batch, seq, d_model)
+
+        # Combine embeddings
+        embeddings = token_embeds + pos_embeds
+        embeddings = self.dropout(embeddings)
+
+        # Prepare attention mask for transformer encoder
+        # TransformerEncoder expects a mask of shape (batch, seq) or (batch*num_heads, seq, seq)
+        # We'll use the padding mask directly (batch, seq) -> (batch, seq)
+        if attention_mask is not None:
+            # Ensure mask is float and in [0, 1]
+            attention_mask = attention_mask.float()
+            # Convert to boolean mask for transformer (True = attend, False = mask)
+            # TransformerEncoder expects src_key_padding_mask where True means masked
+            src_key_padding_mask = (attention_mask == 0.0)
+        else:
+            src_key_padding_mask = None
+
+        # Pass through transformer encoder
+        encoded = self.transformer_encoder(
+            embeddings,
+            src_key_padding_mask=src_key_padding_mask,
+        )  # (batch, seq, d_model)
+
+        # Apply layer norm
+        encoded = self.layer_norm(encoded)
+
+        # Pool the sequence representation
+        # Use mean pooling over the sequence dimension (ignoring padding)
+        if attention_mask is not None:
+            # Expand mask to d_model dimension
+            mask_expanded = attention_mask.unsqueeze(-1)  # (batch, seq, 1)
+            masked_encoded = encoded * mask_expanded
+            sum_encoded = masked_encoded.sum(dim=1)  # (batch, d_model)
+            mask_sum = mask_expanded.sum(dim=1).clamp(min=1e-9)  # (batch, 1)
+            pooled = sum_encoded / mask_sum
+        else:
+            pooled = encoded.mean(dim=1)  # (batch, d_model)
+
+        # Classification head
+        logits = self.classifier(pooled)  # (batch, num_classes)
+
+        return logits
+
+    def _load_default_config(self) -> dict:
+        """
+        Load the default configuration from config/config.yaml.
+
+        Returns:
+            dict: Configuration dictionary.
+        """
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "config",
+            "config.yaml",
+        )
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            return config
+        except FileNotFoundError:
+            # Return an empty config if file not found
+            return {}
+
+    def _get_config_value(
+        self, config: dict, keys: list, default: object
+    ) -> object:
+        """
+        Safely get a value from nested config dictionary.
+
+        Args:
+            config: Configuration dictionary.
+            keys: List of keys to traverse.
+            default: Default value if key not found.
+
+        Returns:
+            Value from config or default.
+        """
+        current = config
+        for key in keys:
+            if not isinstance(current, dict):
+                return default
+            if key not in current:
+                return default
+            current = current[key]
+        return current
+```

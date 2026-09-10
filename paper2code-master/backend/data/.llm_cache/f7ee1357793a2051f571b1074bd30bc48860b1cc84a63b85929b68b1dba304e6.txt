@@ -1,0 +1,78 @@
+```python
+import torch
+import torch.nn as nn
+import yaml
+from pathlib import Path
+from torchvision.models import GoogLeNet, GoogLeNetOutputs
+
+
+class Googlenet(GoogLeNet):
+    """
+    GoogLeNet (Inception v1) model for plant disease classification.
+
+    This class inherits from torchvision's GoogLeNet implementation to ensure
+    compatibility with ImageNet pretrained weights. The architecture consists of
+    22 layers with 9 Inception modules, each running parallel 1x1, 3x3, and 5x5
+    convolutions along with a maxpooling layer. 1x1 convolutions are used for
+    dimensionality reduction before the 3x3 and 5x5 convolutions.
+
+    The model is shared between scratch and transfer learning modes — only the
+    weight initialization differs, which is handled externally in
+    training/train.py.
+
+    Args:
+        config (dict, optional): Configuration dictionary loaded from
+            config/config.yaml. If None, defaults are used.
+    """
+
+    def __init__(self, config=None):
+        # Load config if not provided
+        if config is None:
+            config_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+
+        # Extract model configuration with safe access
+        model_config = config.get("model", {})
+
+        # num_classes: default to 38 (crop-disease pairs from the paper)
+        # The paper uses 38 classes for plant disease detection.
+        num_classes = model_config.get("num_classes", 38)
+        if num_classes is None:
+            num_classes = 38  # Default from paper: 38 crop-disease pairs
+
+        # dropout_ratio: default to 0.5 as specified in config
+        dropout_ratio = model_config.get("dropout_ratio", 0.5)
+        if dropout_ratio is None:
+            dropout_ratio = 0.5  # Default dropout ratio
+
+        # Initialize the GoogLeNet backbone
+        # aux_logits=True is the default for torchvision's GoogLeNet,
+        # enabling auxiliary classifiers during training.
+        super().__init__(
+            num_classes=num_classes,
+            dropout=dropout_ratio,
+            aux_logits=True,
+            init_weights=False,  # Weight init handled externally
+        )
+
+        # The final fully connected layer is already set by the parent class
+        # with the correct num_classes. No additional modification needed here.
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor | GoogLeNetOutputs:
+        """
+        Forward pass through the GoogLeNet model.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (N, 3, H, W) where
+                H and W are typically 224x224 (or resized to 256x256 then
+                center-cropped to 224x224).
+
+        Returns:
+            torch.Tensor | GoogLeNetOutputs: If training mode and aux_logits
+                are enabled, returns GoogLeNetOutputs with logits, aux_logits1,
+                and aux_logits2. Otherwise, returns the main logits tensor
+                of shape (N, num_classes).
+        """
+        return super().forward(x)
+```

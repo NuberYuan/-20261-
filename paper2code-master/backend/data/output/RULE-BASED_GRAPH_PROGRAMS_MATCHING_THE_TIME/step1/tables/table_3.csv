@@ -1,0 +1,2 @@
+﻿"firstHostNode(m)","Fetch the first node of mark m in the host graph.","O(1)"
+"nextHostNode(m)","Given a node of mark m, fetch the next node of mark m in the host graph.","O(1)"

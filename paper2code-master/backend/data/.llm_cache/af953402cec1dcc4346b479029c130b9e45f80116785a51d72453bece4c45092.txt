@@ -1,0 +1,167 @@
+```python
+"""Evaluation metrics for Temporal Fusion Transformer.
+
+Implements Normalized Quantile Losses (P50 and P90 risk) and q-Risk
+as described in the TFT paper (FR-08).
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import torch
+from typing import Dict, Optional, Tuple
+
+
+def _quantile_loss(
+    y_true: torch.Tensor,
+    y_pred: torch.Tensor,
+    quantile: float,
+) -> torch.Tensor:
+    """Compute the quantile loss for a single quantile level.
+
+    Args:
+        y_true: Ground truth tensor of shape (batch, horizon) or (batch,).
+        y_pred: Prediction tensor of same shape as y_true.
+        quantile: Quantile level in (0, 1).
+
+    Returns:
+        Scalar quantile loss tensor.
+    """
+    error = y_true - y_pred
+    loss = torch.maximum(
+        quantile * error,
+        (quantile - 1.0) * error,
+    )
+    return loss.mean()
+
+
+def _normalized_quantile_loss(
+    y_true: torch.Tensor,
+    y_pred: torch.Tensor,
+    quantile: float,
+) -> torch.Tensor:
+    """Compute the normalized quantile loss (q-Risk denominator).
+
+    Normalizes the quantile loss by the sum of absolute true values,
+    as defined in the TFT paper (Equation for q-Risk).
+
+    Args:
+        y_true: Ground truth tensor.
+        y_pred: Prediction tensor.
+        quantile: Quantile level in (0, 1).
+
+    Returns:
+        Normalized quantile loss scalar tensor.
+    """
+    ql = _quantile_loss(y_true, y_pred, quantile)
+    denominator = y_true.abs().sum()
+    # Avoid division by zero
+    denominator = torch.clamp(denominator, min=1e-8)
+    return ql / denominator
+
+
+def compute_metrics(
+    y_true: torch.Tensor,
+    y_pred: torch.Tensor,
+    quantiles: Optional[Tuple[float, ...]] = (0.5, 0.9),
+    config: Optional[Dict] = None,
+) -> Dict[str, float]:
+    """Compute evaluation metrics for TFT predictions.
+
+    Implements FR-08: Normalized quantile losses (P50 and P90 risk) and q-Risk.
+
+    Args:
+        y_true: Ground truth tensor of shape (batch, horizon) or (batch,).
+        y_pred: Prediction tensor of shape (batch, horizon, num_quantiles)
+            or (batch, num_quantiles). The last dimension must match
+            the number of quantiles provided.
+        quantiles: Tuple of quantile levels corresponding to the last
+            dimension of y_pred. Defaults to (0.5, 0.9).
+        config: Optional configuration dictionary. If provided, quantiles
+            can be overridden via config['inference']['quantiles'] if that
+            key exists. Kept for API compatibility.
+
+    Returns:
+        Dictionary containing:
+            - 'P50': Normalized quantile loss at quantile 0.5
+            - 'P90': Normalized quantile loss at quantile 0.9
+            - 'q_risk': Average of normalized quantile losses across
+              all provided quantiles (q-Risk metric from the paper).
+    """
+    # Allow config to override quantiles if the key exists (safe access)
+    if config is not None:
+        eval_quantiles = config.get('inference', {}).get('quantiles', quantiles)
+        if eval_quantiles is not None:
+            quantiles = tuple(eval_quantiles)
+
+    if y_true is None or y_pred is None:
+        raise ValueError("y_true and y_pred must not be None")
+
+    # Ensure tensors are float
+    y_true = y_true.float()
+    y_pred = y_pred.float()
+
+    # Handle shape: if y_pred has an extra dimension for quantiles
+    if y_pred.dim() == y_true.dim() + 1:
+        # y_pred shape: (batch, horizon, num_quantiles) or (batch, num_quantiles)
+        num_quantiles = y_pred.shape[-1]
+        if num_quantiles != len(quantiles):
+            raise ValueError(
+                f"Number of quantiles in y_pred ({num_quantiles}) does not match "
+                f"provided quantiles ({len(quantiles)})"
+            )
+        # Expand y_true to match y_pred shape for broadcasting
+        y_true_expanded = y_true.unsqueeze(-1).expand_as(y_pred)
+    elif y_pred.dim() == y_true.dim():
+        # Single quantile prediction
+        if len(quantiles) != 1:
+            raise ValueError(
+                f"y_pred has {y_pred.dim()} dims but {len(quantiles)} quantiles provided"
+            )
+        y_true_expanded = y_true
+        y_pred = y_pred.unsqueeze(-1)
+        y_true_expanded = y_true_expanded.unsqueeze(-1)
+    else:
+        raise ValueError(
+            f"y_pred dims ({y_pred.dim()}) must be either equal to y_true dims "
+            f"({y_true.dim()}) or one more (quantile dimension)"
+        )
+
+    # Compute normalized quantile losses for each quantile
+    normalized_losses = {}
+    for i, q in enumerate(quantiles):
+        q_pred = y_pred[..., i]
+        q_true = y_true_expanded[..., i]
+        norm_loss = _normalized_quantile_loss(q_true, q_pred, q)
+        normalized_losses[f"P{int(q * 100)}"] = norm_loss.item()
+
+    # q-Risk: average of normalized quantile losses across all quantiles
+    q_risk = torch.tensor(list(normalized_losses.values())).mean().item()
+
+    metrics = dict(normalized_losses)
+    metrics["q_risk"] = q_risk
+
+    return metrics
+
+
+def compute_metrics_numpy(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    quantiles: Tuple[float, ...] = (0.5, 0.9),
+) -> Dict[str, float]:
+    """NumPy wrapper for compute_metrics.
+
+    Convenience function for evaluation loops that use NumPy arrays.
+
+    Args:
+        y_true: Ground truth array.
+        y_pred: Prediction array.
+        quantiles: Quantile levels.
+
+    Returns:
+        Dictionary of metrics (same as compute_metrics).
+    """
+    y_true_t = torch.from_numpy(np.asarray(y_true, dtype=np.float32))
+    y_pred_t = torch.from_numpy(np.asarray(y_pred, dtype=np.float32))
+    return compute_metrics(y_true_t, y_pred_t, quantiles=quantiles)
+```

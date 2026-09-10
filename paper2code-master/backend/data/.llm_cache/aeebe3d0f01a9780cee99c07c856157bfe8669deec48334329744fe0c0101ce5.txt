@@ -1,0 +1,132 @@
+# Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms
+
+## 1. 项目简介
+
+本仓库围绕论文 **Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms** 提供实现与评估代码。项目基于 Python 标准库组织，不依赖 PyTorch 等深度学习训练框架，主要包含规则图程序、评估逻辑、指标计算和实验配置。
+
+任务类型：`other`  
+框架：Python 标准库  
+硬件：未检测到特定硬件要求，具体以 `config/config/config.yaml` 中的 `system.device` 配置为准。
+
+## 2. 目录结构
+
+```text
+.
+├── README.md
+├── main.py
+├── requirements.txt
+├── config
+│   └── config
+│       └── config.yaml
+├── evaluation
+│   └── evaluation
+│       └── evaluate.py
+├── models
+│   └── models
+│       ├── __init__.py
+│       ├── gp2_acyclicity_program.py
+│       ├── gp2_bellman_ford_program.py
+│       └── gp2_connectedness_program.py
+├── src
+│   └── src
+│       └── gp2compilerenhancementsandrootedgraphprograms.py
+└── utils
+    └── utils
+        └── metrics.py
+```
+
+## 3. 环境安装
+
+```bash
+pip install -r requirements.txt
+```
+
+建议使用 Python 3.8 及以上版本。若 `config['system']['device']` 需要指定设备，请根据本机环境修改配置。
+
+## 4. 配置说明
+
+所有配置位于 `config/config/config.yaml`。可用配置路径如下：
+
+- 项目元信息：
+  - `config['project']['name']`
+  - `config['project']['paper']`
+  - `config['project']['framework']`
+- 系统设置：
+  - `config['system']['device']`
+  - `config['system']['num_workers']`
+  - `config['system']['seed']`
+- 日志设置：
+  - `config['logging']['level']`
+  - `config['logging']['format']`
+  - `config['logging']['log_dir']`
+  - `config['logging']['console']`
+- 实验设置：
+  - `config['experiment']['runs']`
+  - `config['experiment.runs']`
+- 数据源与版本：
+  - `config['data_source']`
+  - `config['dataset_versions']`
+  - `config['version_selector']['config_key']`
+  - `config['version_selector']['default']`
+  - `config['version_selector']['values']`
+  - `config['version_selector']['note']`
+- 其他：
+  - `config['acquisition']`
+  - `config['algorithm_params']`
+
+训练相关超参数（优化器、学习率、batch_size、epochs、损失函数、调度器）在生成本说明文档时未提供。本项目任务类型为 `other`，可能不涉及标准神经网络训练。若配置文件中不存在这些键，请按照实际配置内容运行。
+
+## 5. 运行方法
+
+主入口为 `main.py`：
+
+```bash
+python main.py
+```
+
+如果需要单独运行评估逻辑：
+
+```bash
+python evaluation/evaluation/evaluate.py
+```
+
+实际调用顺序及参数以 `main.py` 中的逻辑为准。
+
+## 6. 复现步骤
+
+1. 安装依赖：
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. 检查并修改 `config/config/config.yaml`：
+
+   - 确认 `version_selector` 中选定的数据版本符合预期；
+   - 确认 `system` 下的设备、随机种子和 `num_workers` 配置；
+   - 确认 `logging` 的日志目录和输出级别。
+
+3. 运行主程序：
+
+   ```bash
+   python main.py
+   ```
+
+4. 查看日志输出或 `config['logging']['log_dir']` 指定的目录，确认运行过程。
+
+5. 如需定量评估，可运行：
+
+   ```bash
+   python evaluation/evaluation/evaluate.py
+   ```
+
+## 7. 指标与评估
+
+- `evaluation/evaluation/evaluate.py`：负责调用图程序并收集运行结果。
+- `utils/utils/metrics.py`：负责计算评估指标。
+
+评估结果和比较结论应由实际运行结果动态计算得出，不在文档或注释中预设任何程序优于另一程序。
+
+## 8. 论文信息
+
+**Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms**

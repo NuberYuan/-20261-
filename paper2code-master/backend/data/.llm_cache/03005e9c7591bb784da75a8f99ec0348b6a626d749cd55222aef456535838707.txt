@@ -1,0 +1,317 @@
+import sys
+import json
+import os
+import numpy as np
+import cv2
+
+
+DISPLAY_NAME_MAP = {
+    "cnn": "CNN",
+    "transformer": "Transformer",
+    "attention": "Attention",
+    "encoder": "Encoder",
+    "decoder": "Decoder",
+    "block": "Block",
+    "embedding": "Embedding",
+    "classifier": "Classifier",
+    "feature extractor": "Feature Extractor",
+    "alexnet": "AlexNet",
+    "resnet": "ResNet",
+    "vgg": "VGG",
+    "googlenet": "GoogLeNet",
+    "accuracy": "Accuracy",
+    "loss": "Loss",
+    "epoch": "Epoch",
+    "precision": "Precision",
+    "recall": "Recall",
+    "f1": "F1-score",
+    "f1-score": "F1-score",
+    "auc": "AUC",
+    "roc": "ROC",
+    "ap": "AP",
+    "map": "mAP",
+    "iou": "IoU",
+    "miou": "mIoU",
+    "psnr": "PSNR",
+    "ssim": "SSIM",
+    "mae": "MAE",
+    "rmse": "RMSE",
+}
+
+
+def load_image(image_path):
+    data = np.fromfile(image_path, dtype=np.uint8)
+    if data.size == 0:
+        raise ValueError("empty image data")
+    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("cannot decode image")
+    return img
+
+
+def get_ocr_text():
+    if len(sys.argv) > 2 and sys.argv[2].strip():
+        return sys.argv[2].strip()
+
+    if len(sys.argv) > 1:
+        txt_path = os.path.splitext(sys.argv[1])[0] + ".txt"
+        if os.path.exists(txt_path):
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    text = f.read().strip()
+                if text:
+                    return text
+            except Exception:
+                pass
+
+        ocr_txt_path = os.path.join(os.path.dirname(sys.argv[1]), "ocr.txt")
+        if os.path.exists(ocr_txt_path):
+            try:
+                with open(ocr_txt_path, "r", encoding="utf-8") as f:
+                    text = f.read().strip()
+                if text:
+                    return text
+            except Exception:
+                pass
+
+    return "Feaean"
+
+
+def compute_visual_info(img):
+    height, width = img.shape[:2]
+    aspect_ratio = float(width) / max(float(height), 1.0)
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    mean_brightness = float(np.mean(gray))
+    std_brightness = float(np.std(gray))
+    mean_saturation = float(np.mean(hsv[:, :, 1]))
+    mean_value = float(np.mean(hsv[:, :, 2]))
+
+    bgr = img.astype(np.int32)
+    white_mask = (
+        (bgr[:, :, 0] > 235)
+        & (bgr[:, :, 1] > 235)
+        & (bgr[:, :, 2] > 235)
+    )
+    white_ratio = float(np.mean(white_mask))
+
+    high_sat_ratio = float(np.mean(hsv[:, :, 1] > 80))
+
+    return {
+        "aspect_ratio": aspect_ratio,
+        "mean_brightness": mean_brightness,
+        "std_brightness": std_brightness,
+        "mean_saturation": mean_saturation,
+        "mean_value": mean_value,
+        "white_ratio": white_ratio,
+        "high_sat_ratio": high_sat_ratio,
+    }
+
+
+def extract_components(text, keywords):
+    text_lower = text.lower()
+    components = []
+    for key in keywords:
+        if key in text_lower:
+            component_name = DISPLAY_NAME_MAP.get(key, key.title())
+            if component_name not in components:
+                components.append(component_name)
+    return components
+
+
+def analyze(ocr_text, visual):
+    text_lower = ocr_text.lower()
+
+    experiment_keywords = [
+        "accuracy",
+        "loss",
+        "epoch",
+        "precision",
+        "recall",
+        "f1",
+        "f1-score",
+        "auc",
+        "roc",
+        "ap",
+        "map",
+        "iou",
+        "miou",
+        "psnr",
+        "ssim",
+        "mae",
+        "rmse",
+        "performance",
+        "comparison",
+        "experiment",
+        "result",
+        "curve",
+        "validation",
+        "training",
+        "test",
+    ]
+
+    architecture_keywords = [
+        "cnn",
+        "transformer",
+        "attention",
+        "encoder",
+        "decoder",
+        "block",
+        "embedding",
+        "classifier",
+        "feature extractor",
+        "alexnet",
+        "resnet",
+        "vgg",
+        "googlenet",
+        "convolution",
+        "pooling",
+        "fully connected",
+        "softmax",
+        "layer",
+        "module",
+        "network",
+        "backbone",
+        "head",
+        "neck",
+    ]
+
+    dataset_keywords = [
+        "sample",
+        "example",
+        "dataset",
+        "input image",
+        "input",
+        "label",
+        "class",
+        "instances",
+        "training set",
+        "test set",
+        "validation set",
+        "cifar",
+        "imagenet",
+        "mnist",
+    ]
+
+    has_experiment = any(keyword in text_lower for keyword in experiment_keywords)
+    has_architecture = any(keyword in text_lower for keyword in architecture_keywords)
+    has_dataset = any(keyword in text_lower for keyword in dataset_keywords)
+
+    if has_experiment:
+        model_keywords = [
+            "cnn",
+            "transformer",
+            "attention",
+            "alexnet",
+            "resnet",
+            "vgg",
+            "googlenet",
+            "encoder",
+            "decoder",
+            "classifier",
+        ]
+        metric_keywords = [
+            "accuracy",
+            "loss",
+            "epoch",
+            "precision",
+            "recall",
+            "f1",
+            "f1-score",
+            "auc",
+            "roc",
+            "ap",
+            "map",
+            "iou",
+            "miou",
+            "psnr",
+            "ssim",
+            "mae",
+            "rmse",
+        ]
+        components = extract_components(text_lower, model_keywords + metric_keywords)
+
+        return {
+            "type": "experiment_result",
+            "description": "展示实验性能对比或训练过程指标变化",
+            "important_components": components,
+            "code_relevant_information": "需要实现实验评估逻辑，包含指标计算和结果可视化",
+        }
+
+    if has_architecture:
+        components = extract_components(text_lower, architecture_keywords)
+
+        return {
+            "type": "architecture",
+            "description": "展示模型网络结构和数据流关系",
+            "important_components": components,
+            "code_relevant_information": "需要实现相关特征提取模块和网络连接关系",
+        }
+
+    if has_dataset:
+        components = extract_components(text_lower, dataset_keywords)
+
+        return {
+            "type": "dataset",
+            "description": "展示数据样本或输入示例",
+            "important_components": components,
+            "code_relevant_information": "需要准备相应数据加载和预处理代码",
+        }
+
+    if visual["white_ratio"] > 0.6 and visual["mean_saturation"] < 60:
+        if visual["aspect_ratio"] > 1.2:
+            return {
+                "type": "experiment_result",
+                "description": "基于视觉特征判断为实验结果对比图",
+                "important_components": [],
+                "code_relevant_information": "需要实现实验结果对比和指标评估代码",
+            }
+        return {
+            "type": "architecture",
+            "description": "基于视觉特征判断为模型结构图",
+            "important_components": [],
+            "code_relevant_information": "需要实现模型网络结构模块",
+        }
+
+    if visual["high_sat_ratio"] > 0.15:
+        return {
+            "type": "dataset",
+            "description": "基于视觉特征判断为数据样本展示",
+            "important_components": [],
+            "code_relevant_information": "需要准备数据加载与预处理模块",
+        }
+
+    return {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": "",
+    }
+
+
+def main():
+    try:
+        if len(sys.argv) < 2:
+            raise ValueError("missing image path argument")
+
+        image_path = sys.argv[1]
+        img = load_image(image_path)
+        ocr_text = get_ocr_text()
+        visual = compute_visual_info(img)
+        result = analyze(ocr_text, visual)
+
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception:
+        fallback = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": "",
+        }
+        print(json.dumps(fallback, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

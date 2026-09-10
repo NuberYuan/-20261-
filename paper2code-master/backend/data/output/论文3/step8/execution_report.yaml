@@ -1,0 +1,21 @@
+execution:
+  total: 4
+  planned: 4
+  success: 0
+  failed: 0
+  skipped: 4
+success: []
+failed: []
+skipped:
+- experiment_id: None_scratch_color_80
+  status: SKIP
+  reason: dataset_unavailable
+- experiment_id: None_scratch_color_80_1
+  status: SKIP
+  reason: dataset_unavailable
+- experiment_id: None_scratch_grayscale
+  status: SKIP
+  reason: dataset_unavailable
+- experiment_id: None_scratch_segmented
+  status: SKIP
+  reason: dataset_unresolved

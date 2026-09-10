@@ -1,0 +1,6 @@
+"""Model package initialization."""
+
+from .alexnet import Alexnet
+from .googlenet import Googlenet
+
+__all__ = ["Alexnet", "Googlenet"]

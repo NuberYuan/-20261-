@@ -1,0 +1,5 @@
+entrypoint:
+  type: python
+  script: main.py
+command:
+  template: python {script} --run {run_index} --config {config}

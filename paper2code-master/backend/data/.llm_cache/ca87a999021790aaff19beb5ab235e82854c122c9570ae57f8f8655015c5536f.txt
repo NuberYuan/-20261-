@@ -1,0 +1,129 @@
+# 基于 Transformer 辅助 Boosting 的可解释软件缺陷预测框架
+
+## 项目概述
+
+本项目实现了论文 **"An explainable AI framework for enhanced software defect prediction using transformer-assisted boosting"** 的完整代码框架。该框架结合 Transformer 架构与 Boosting 策略，用于软件缺陷预测任务，并提供了可解释性分析支持。
+
+## 项目结构
+
+```
+├── README.md
+├── main.py
+├── requirements.txt
+├── config/
+│   └── config/
+│       └── config.yaml
+├── data/
+│   └── data/
+│       └── dataset.py
+├── evaluation/
+│   └── evaluation/
+│       ├── compare.py
+│       └── evaluate.py
+├── models/
+│   └── models/
+│       ├── __init__.py
+│       └── transformer.py
+├── training/
+│   └── training/
+│       └── train.py
+└── utils/
+    └── utils/
+        └── metrics.py
+```
+
+## 环境要求
+
+- Python 3.8+
+- PyTorch 1.9+
+- 依赖包见 `requirements.txt`
+
+安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+## 配置说明
+
+所有配置项集中在 `config/config/config.yaml` 中，主要包括：
+
+- **数据配置** (`data`): 数据集路径、特征维度、归一化方式
+- **模型配置** (`model`): 架构选择、dropout 比例、类别数
+- **训练配置** (`training`): 优化器、学习率、batch size、epochs、调度器
+- **评估配置** (`evaluation`): 评估指标、比较策略
+- **日志配置** (`logging`): 日志目录、保存选项
+
+## 运行方法
+
+### 训练模型
+
+```bash
+python main.py --mode train
+```
+
+### 评估模型
+
+```bash
+python main.py --mode evaluate
+```
+
+### 模型比较
+
+```bash
+python main.py --mode compare
+```
+
+### 使用自定义配置
+
+```bash
+python main.py --config config/config/config.yaml
+```
+
+## 复现步骤
+
+1. **数据准备**：确保数据集路径正确配置在 `config['data.default.path']` 中。
+
+2. **配置检查**：根据实验需求调整 `config.yaml` 中的超参数。
+
+3. **训练模型**：运行训练命令，模型检查点将保存在 `config['checkpoint']` 指定的目录。
+
+4. **评估模型**：使用评估模式计算测试集上的各项指标。
+
+5. **结果比较**：通过比较模式分析不同模型配置的性能差异。
+
+## 关键实现细节
+
+### 模型架构
+
+- **Transformer 编码器**：用于提取软件缺陷特征中的深层语义信息
+- **Boosting 策略**：通过集成学习增强模型的泛化能力
+- **可解释性支持**：提供特征重要性分析接口
+
+### 训练策略
+
+- **优化器**：Adam
+- **损失函数**：二元交叉熵损失（Binary Cross-Entropy）
+- **学习率调度**：StepLR（step_size=94, gamma=0.2）
+- **训练轮数**：30 epochs
+
+### 评估指标
+
+支持多种评估指标，包括但不限于：
+- Accuracy
+- Precision
+- Recall
+- F1-Score
+- AUC-ROC
+
+## 注意事项
+
+1. **数据划分**：论文未使用独立验证集。本实现支持从训练集二次划分验证集，或直接使用测试集评估（注意：后者可能导致数据泄露，不推荐）。
+
+2. **结果解读**：模型间的性能比较应基于实际评估结果动态计算，避免预设结论。
+
+3. **可复现性**：通过设置随机种子（`config['system.seed']`）确保实验可复现。
+
+## 许可证
+
+本项目仅用于学术研究目的。

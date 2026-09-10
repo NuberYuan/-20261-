@@ -1,0 +1,479 @@
+```python
+"""Model evaluation and report generation utilities.
+
+This module provides functions to evaluate a trained model on a test dataset
+and generate comprehensive evaluation reports, including metrics computation,
+confusion matrix visualization, and metric bar charts.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import torch
+import torch.nn as nn
+import yaml
+
+# Optional matplotlib import - visualization is auxiliary
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+# Add project root to path
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.metrics import compute_metrics, compute_metrics_from_logits_batch
+
+
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the configuration file.
+
+    Returns:
+        Dictionary containing the configuration.
+    """
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        config_path,
+    )
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def _get_device(config: Optional[dict] = None) -> torch.device:
+    """Determine the computation device from config or auto-detect.
+
+    Args:
+        config: Optional configuration dictionary.
+
+    Returns:
+        torch.device: The device to use for computation.
+    """
+    if config is not None:
+        system_config = config.get("system", {})
+        device_str = system_config.get("device")
+        if device_str is not None and device_str != "null":
+            return torch.device(device_str)
+
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _load_model_for_evaluation(
+    model: nn.Module,
+    checkpoint_path: str,
+    device: torch.device,
+    config: Optional[dict] = None,
+) -> nn.Module:
+    """Load model weights from a checkpoint file.
+
+    Args:
+        model: The model instance to load weights into.
+        checkpoint_path: Path to the checkpoint file.
+        device: Device to load the model onto.
+        config: Optional configuration dictionary.
+
+    Returns:
+        nn.Module: The model with loaded weights.
+    """
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+
+    # Handle different checkpoint formats
+    if "model_state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
+    else:
+        model.load_state_dict(checkpoint)
+
+    model = model.to(device)
+    model.eval()
+    return model
+
+
+def evaluate_model(
+    model: nn.Module,
+    test_loader: torch.utils.data.DataLoader,
+    config: Optional[dict] = None,
+    device: Optional[torch.device] = None,
+    threshold: float = 0.5,
+    checkpoint_path: Optional[str] = None,
+) -> Dict[str, Union[float, np.ndarray, List[float], List[int]]]:
+    """Evaluate a trained model on a test dataset.
+
+    Args:
+        model: The trained model to evaluate.
+        test_loader: DataLoader for the test dataset.
+        config: Optional configuration dictionary. If None, loads from config/config.yaml.
+        device: Device to run evaluation on. If None, auto-detected.
+        threshold: Classification threshold for converting probabilities to labels.
+        checkpoint_path: Optional path to a checkpoint file to load model weights from.
+
+    Returns:
+        Dictionary containing evaluation metrics and predictions:
+            - accuracy: Overall accuracy
+            - precision: Precision score
+            - recall: Recall score
+            - f1: F1 score
+            - auc_roc: Area under ROC curve
+            - log_loss: Logarithmic loss
+            - confusion_matrix: 2x2 confusion matrix as numpy array
+            - y_true: Ground truth labels
+            - y_pred_proba: Predicted probabilities
+            - y_pred: Predicted binary labels
+    """
+    if config is None:
+        config = load_config()
+
+    # Set device
+    if device is None:
+        device = _get_device(config)
+    elif isinstance(device, str):
+        device = torch.device(device)
+
+    # Load checkpoint if provided
+    if checkpoint_path is not None:
+        model = _load_model_for_evaluation(model, checkpoint_path, device, config)
+
+    model = model.to(device)
+    model.eval()
+
+    # Collect predictions and ground truth
+    all_y_true: List[int] = []
+    all_y_pred_proba: List[float] = []
+    all_y_pred: List[int] = []
+
+    with torch.no_grad():
+        for features, labels in test_loader:
+            features = features.to(device)
+            labels = labels.to(device).float()
+
+            # Forward pass
+            outputs = model(features)
+            outputs = outputs.squeeze(1)
+
+            # Convert logits to probabilities
+            proba = torch.sigmoid(outputs)
+
+            # Convert probabilities to binary predictions
+            predicted = (proba > threshold).float()
+
+            # Collect results
+            all_y_true.extend(labels.detach().cpu().numpy().tolist())
+            all_y_pred_proba.extend(proba.detach().cpu().numpy().tolist())
+            all_y_pred.extend(predicted.detach().cpu().numpy().tolist())
+
+    # Convert to numpy arrays
+    y_true_np = np.array(all_y_true)
+    y_pred_proba_np = np.array(all_y_pred_proba)
+    y_pred_np = np.array(all_y_pred)
+
+    # Compute metrics
+    metrics = compute_metrics(
+        y_true=y_true_np,
+        y_pred_proba=y_pred_proba_np,
+        threshold=threshold,
+        config=config,
+    )
+
+    # Compute confusion matrix
+    confusion_matrix = np.zeros((2, 2), dtype=int)
+    for t, p in zip(y_true_np, y_pred_np):
+        confusion_matrix[int(t), int(p)] += 1
+
+    # Add additional information to metrics
+    metrics["confusion_matrix"] = confusion_matrix
+    metrics["y_true"] = y_true_np
+    metrics["y_pred_proba"] = y_pred_proba_np
+    metrics["y_pred"] = y_pred_np
+    metrics["threshold"] = threshold
+    metrics["num_samples"] = len(y_true_np)
+
+    return metrics
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Union[float, np.ndarray, List[float], List[int]]],
+    output_path: str,
+) -> Optional[str]:
+    """Generate a bar chart of key evaluation metrics.
+
+    Args:
+        metrics: Complete metrics dictionary containing accuracy, precision,
+            recall, and f1 scores.
+        output_path: Path to save the chart image.
+
+    Returns:
+        Path to the saved chart, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        return None
+
+    # Extract metrics for the bar chart
+    metric_names = ["accuracy", "precision", "recall", "f1"]
+    metric_values = [metrics.get(name, 0.0) for name in metric_names]
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Create bar chart
+    bars = ax.bar(metric_names, metric_values, color=["#2E86AB", "#A23B72", "#F18F01", "#C73E1D"])
+
+    # Add value labels on top of bars
+    for bar, value in zip(bars, metric_values):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 0.01,
+            f"{value:.4f}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
+
+    # Set labels and title
+    ax.set_xlabel("Metric", fontsize=12)
+    ax.set_ylabel("Score", fontsize=12)
+    ax.set_title("Model Evaluation Metrics", fontsize=14, fontweight="bold")
+    ax.set_ylim(0, 1.1)
+    ax.grid(axis="y", alpha=0.3)
+
+    # Save figure
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: np.ndarray,
+    output_path: str,
+) -> Optional[str]:
+    """Generate a confusion matrix visualization.
+
+    Args:
+        confusion_matrix: 2x2 confusion matrix as a numpy array.
+        output_path: Path to save the plot image.
+
+    Returns:
+        Path to the saved plot, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        return None
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(6, 5))
+
+    # Display confusion matrix as image
+    im = ax.imshow(confusion_matrix, interpolation="nearest", cmap="Blues")
+
+    # Add colorbar
+    plt.colorbar(im, ax=ax)
+
+    # Set tick labels
+    classes = ["Non-Defective", "Defective"]
+    ax.set_xticks([0, 1])
+    ax.set_yticks([0, 1])
+    ax.set_xticklabels(classes, fontsize=10)
+    ax.set_yticklabels(classes, fontsize=10)
+
+    # Add text annotations
+    thresh = confusion_matrix.max() / 2.0 if confusion_matrix.max() > 0 else 0.5
+    for i in range(confusion_matrix.shape[0]):
+        for j in range(confusion_matrix.shape[1]):
+            ax.text(
+                j,
+                i,
+                str(confusion_matrix[i, j]),
+                ha="center",
+                va="center",
+                color="white" if confusion_matrix[i, j] > thresh else "black",
+                fontsize=14,
+                fontweight="bold",
+            )
+
+    # Set labels and title
+    ax.set_xlabel("Predicted Label", fontsize=12)
+    ax.set_ylabel("True Label", fontsize=12)
+    ax.set_title("Confusion Matrix", fontsize=14, fontweight="bold")
+
+    # Save figure
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def generate_report(
+    metrics: Dict[str, Union[float, np.ndarray, List[float], List[int]]],
+    run_name: str,
+    output_dir: str,
+    config: Optional[dict] = None,
+) -> str:
+    """Generate a comprehensive evaluation report.
+
+    Args:
+        metrics: Dictionary containing evaluation metrics from evaluate_model.
+        run_name: Name of the experiment run.
+        output_dir: Directory to save the report and visualizations.
+        config: Optional configuration dictionary. If None, loads from config/config.yaml.
+
+    Returns:
+        Path to the generated report file.
+    """
+    if config is None:
+        config = load_config()
+
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Generate visualizations (if matplotlib is available)
+    chart_path = None
+    cm_path = None
+
+    if plt is not None:
+        # Generate metrics bar chart
+        chart_path = _generate_metrics_bar_chart(
+            metrics=metrics,
+            output_path=os.path.join(output_dir, f"{run_name}_metrics_bar_chart.png"),
+        )
+
+        # Generate confusion matrix plot
+        if "confusion_matrix" in metrics:
+            cm_path = _generate_confusion_matrix_plot(
+                confusion_matrix=metrics["confusion_matrix"],
+                output_path=os.path.join(output_dir, f"{run_name}_confusion_matrix.png"),
+            )
+
+    # Prepare report content
+    report_lines = []
+    report_lines.append("=" * 70)
+    report_lines.append(f"EVALUATION REPORT - {run_name}")
+    report_lines.append("=" * 70)
+    report_lines.append("")
+
+    # Project information
+    project_config = config.get("project", {})
+    report_lines.append(f"Project: {project_config.get('name', 'N/A')}")
+    report_lines.append(f"Framework: {project_config.get('framework', 'N/A')}")
+    report_lines.append("")
+
+    # Dataset information
+    data_config = config.get("data", {})
+    report_lines.append(f"Dataset Root: {data_config.get('root', 'N/A')}")
+    report_lines.append(f"Dataset Versions: {', '.join(data_config.get('versions', []))}")
+    report_lines.append("")
+
+    # Model information
+    model_config = config.get("model", {})
+    report_lines.append(f"Model Architecture: {', '.join(model_config.get('architectures', []))}")
+    report_lines.append(f"Number of Classes: {model_config.get('num_classes', 1)}")
+    report_lines.append(f"Dropout Ratio: {model_config.get('dropout_ratio', 0.5)}")
+    report_lines.append("")
+
+    # Training configuration
+    training_config = config.get("training", {})
+    report_lines.append("Training Configuration:")
+    report_lines.append(f"  Epochs: {training_config.get('epochs', 30)}")
+    report_lines.append(f"  Optimizer: {training_config.get('optimizer', {}).get('name', 'Adam')}")
+    report_lines.append(f"  Learning Rate: {training_config.get('optimizer', {}).get('lr', 0.001)}")
+    report_lines.append(f"  Loss Function: {training_config.get('loss_function', 'Binary Cross-Entropy')}")
+    scheduler_config = training_config.get("scheduler", {})
+    report_lines.append(
+        f"  Scheduler: {scheduler_config.get('name', 'StepLR')} "
+        f"(step_size={scheduler_config.get('step_size', 10)}, gamma={scheduler_config.get('gamma', 0.2)})"
+    )
+    report_lines.append("")
+
+    # Evaluation metrics
+    report_lines.append("=" * 70)
+    report_lines.append("EVALUATION METRICS")
+    report_lines.append("=" * 70)
+    report_lines.append("")
+
+    # Core metrics
+    report_lines.append(f"Number of Samples: {metrics.get('num_samples', 0)}")
+    report_lines.append(f"Classification Threshold: {metrics.get('threshold', 0.5)}")
+    report_lines.append("")
+    report_lines.append("Core Metrics:")
+    report_lines.append(f"  Accuracy:  {metrics.get('accuracy', 0.0):.4f}")
+    report_lines.append(f"  Precision: {metrics.get('precision', 0.0):.4f}")
+    report_lines.append(f"  Recall:    {metrics.get('recall', 0.0):.4f}")
+    report_lines.append(f"  F1 Score:  {metrics.get('f1', 0.0):.4f}")
+    report_lines.append(f"  AUC-ROC:   {metrics.get('auc_roc', 0.0):.4f}")
+    report_lines.append(f"  Log Loss:  {metrics.get('log_loss', 0.0):.4f}")
+    report_lines.append("")
+
+    # Confusion matrix
+    if "confusion_matrix" in metrics:
+        cm = metrics["confusion_matrix"]
+        report_lines.append("Confusion Matrix:")
+        report_lines.append("                Predicted")
+        report_lines.append("                Non-Defective  Defective")
+        report_lines.append(
+            f"True  Non-Defective     {cm[0, 0]:>6d}       {cm[0, 1]:>6d}"
+        )
+        report_lines.append(
+            f"      Defective         {cm[1, 0]:>6d}       {cm[1, 1]:>6d}"
+        )
+        report_lines.append("")
+
+    # Visualization paths
+    if chart_path is not None:
+        report_lines.append(f"Metrics Bar Chart: {chart_path}")
+    if cm_path is not None:
+        report_lines.append(f"Confusion Matrix Plot: {cm_path}")
+    report_lines.append("")
+
+    # Reproduction mode note
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+    report_lines.append(f"Reproduction Mode: {reproduction_mode}")
+    report_lines.append("")
+
+    # Checkpoint note
+    checkpoint_config = config.get("checkpoint", {})
+    checkpoint_note = checkpoint_config.get("note")
+    if checkpoint_note:
+        report_lines.append(f"Note: {checkpoint_note}")
+        report_lines.append("")
+
+    report_lines.append("=" * 70)
+    report_lines.append("END OF REPORT")
+    report_lines.append("=" * 70)
+
+    # Write report to file
+    report_path = os.path.join(output_dir, f"{run_name}_report.txt")
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(report_lines))
+
+    # Also save metrics as JSON for programmatic access
+    metrics_json_path = os.path.join(output_dir, f"{run_name}_metrics.json")
+    metrics_serializable = {}
+    for key, value in metrics.items():
+        if isinstance(value, np.ndarray):
+            metrics_serializable[key] = value.tolist()
+        elif isinstance(value, (np.integer, np.floating)):
+            metrics_serializable[key] = float(value)
+        else:
+            metrics_serializable[key] = value
+
+    with open(metrics_json_path, "w", encoding="utf-8") as f:
+        json.dump(metrics_serializable, f, indent=2)
+
+    return report_path
+```

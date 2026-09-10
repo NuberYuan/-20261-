@@ -1,0 +1,118 @@
+project:
+  name: self-rag
+  paper: "SELF-RAG: LEARNING TO RETRIEVE, GENERATE, AND CRITIQUE THROUGH SELF-REFLECTION"
+  framework: PyTorch
+
+data_source: external_dataset
+acquisition: local_path
+
+data:
+  root: ./data
+  versions:
+    - default
+  default:
+    status: resolved
+    path: ./data/default
+    description: "Default dataset version for SELF-RAG training and evaluation"
+  feature_dim: null
+  normalization: null
+
+split_strategy:
+  method: random_split
+  train_test_splits: null
+  seed: 42
+  default_train_ratio: 0.8
+  val_split_ratio: 0.2
+
+reproduction_mode: engineering
+
+model:
+  architectures:
+    - self-rag-7b
+    - self-rag-13b
+  num_classes: null
+  dropout_ratio: null
+  weight_init: null
+
+training_modes:
+  scratch:
+    description: "从头训练：所有层随机初始化"
+    pretrained: false
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+  transfer:
+    description: "迁移学习：加载ImageNet预训练权重，重置最后一层"
+    pretrained: true
+    pretrained_source: torchvision.models (ImageNet)
+    reset_layers:
+      - fc8 或 classifier (需根据模型确认)
+    freeze_backbone:
+      value: false
+      decision_type: engineering_decision
+      note: "⚠ 此项为纯工程决策（论文未提及），不是论文要求。默认不冻结（全量微调），因为目标域与 ImageNet 差异较大。两种策略可选：(a) 不冻结 (fine-tuning)：所有层参与训练，收敛慢但效果好 — 推荐；(b) 冻结 backbone：只训练重置的分类层，收敛快但可能欠拟合。代码 Agent 可自由选择，但需在 config.yaml 中显式标注。"
+      engineering_default: false
+    note: "论文两种模式的对比结果: SELF-RAG 7B: PopQA 54.9, TQA 66.4, Pub 72.4, ARC 67.3, Bio FS 81.2, ASQA em 30.0, rg 35.7, mau 74.3, prec 66.9, rec 67.8. SELF-RAG 13B: PopQA 55.8, TQA 69.3, Pub 74.5, ARC 73.1, Bio FS 80.2, ASQA em 31.7, rg 37.0, mau 71.6, prec 70.3, rec 71.3. Outperforms ChatGPT and retrieval-augmented Llama2-chat on open-domain QA, reasoning, and fact verification tasks."
+
+training:
+  batch_size: null
+  batch_size_note: "论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。"
+  epochs: 30
+  image_size: null
+  optimizer:
+    name: null
+    lr: null
+    momentum: null
+    weight_decay: null
+  scheduler:
+    name: "3524938"
+    step_size: "3524938"
+    gamma: 0.00018001800180018
+    note: "论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略。"
+  loss_function: "Standard next token objective (cross-entropy)"
+  dropout_ratio: null
+  early_stopping: null
+
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: null
+  save_optimizer_state: true
+  resume_from: null
+  note: "论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。"
+
+inference:
+  device: null
+  batch_size: null
+
+version_selector:
+  config_key: dataset_version
+  values:
+    - default
+  default: default
+  note: "非图像数据仅一个 default 版本"
+
+experiment:
+  runs:
+    - name: self-rag-7b-scratch
+      model: self-rag-7b
+      training_mode: scratch
+      data_source: external_dataset
+      acquisition: local_path
+    - name: self-rag-13b-scratch
+      model: self-rag-13b
+      training_mode: scratch
+      data_source: external_dataset
+      acquisition: local_path
+
+logging:
+  log_dir: ./logs
+  log_level: INFO
+  save_interval: 1
+
+system:
+  device: null
+  num_workers: 4
+  seed: 42

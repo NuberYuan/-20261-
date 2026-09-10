@@ -1,0 +1,235 @@
+```python
+import torch
+import torch.nn as nn
+import yaml
+from pathlib import Path
+
+
+class Lstm(nn.Module):
+    """
+    LSTM encoder-decoder for locality enhancement in the temporal fusion decoder.
+
+    The LSTM encoder processes past observed inputs, and the decoder processes
+    future known inputs. Static context vectors (cc, ch) initialize the cell
+    state and hidden state of the first LSTM.
+
+    Inputs:
+        - Static covariates (si)
+        - Past observed inputs (zi, t-k:t)
+        - Known future inputs (xi, t-k:t+tau)
+        - Target values (yi, t-k:t)
+
+    All inputs are transformed into dmodel-dimensional vectors.
+
+    Output:
+        - Quantile forecasts for tau_max horizons:
+          y_hat(q, t, tau) for q in {0.1, 0.5, 0.9} and tau in {1, ..., tau_max}
+    """
+
+    def __init__(self, config=None):
+        """
+        Initialize the LSTM model.
+
+        Args:
+            config (dict, optional): Configuration dictionary loaded from
+                config/config.yaml. If None, defaults are used.
+        """
+        super(Lstm, self).__init__()
+
+        # Load config if provided, otherwise use defaults
+        if config is None:
+            config = self._load_default_config()
+
+        # Extract model hyperparameters from config
+        # d_model: hidden dimension for all LSTM layers
+        # Default: 64 (reasonable for TFT-style models)
+        d_model = 64
+
+        # Number of LSTM layers
+        # Default: 1 (single layer encoder-decoder)
+        num_layers = 1
+
+        # Dropout ratio from config (default 0.1 if not specified)
+        dropout_ratio = 0.1
+        if config and 'model' in config and 'dropout_ratio' in config['model']:
+            dropout_list = config['model']['dropout_ratio']
+            if isinstance(dropout_list, list) and len(dropout_list) > 0:
+                dropout_ratio = dropout_list[0]
+
+        # Input feature dimensions
+        # These are set based on the TFT paper's input structure:
+        # - Static covariates (si): typically 1-5 features
+        # - Past observed inputs (zi): target + observed inputs
+        # - Known future inputs (xi): known inputs for future time steps
+        # - Target values (yi): the target time series
+
+        # Default input dimensions (can be overridden by config)
+        # static_dim: dimension of static covariates
+        static_dim = 1
+        # past_dim: dimension of past observed inputs (including target)
+        past_dim = 1
+        # known_dim: dimension of known future inputs
+        known_dim = 1
+
+        # Try to get feature_dim from config if available
+        if config and 'data' in config and 'feature_dim' in config['data']:
+            feature_dim = config['data']['feature_dim']
+            if feature_dim is not None:
+                # If feature_dim is specified, use it for input dimensions
+                past_dim = feature_dim
+                known_dim = feature_dim
+
+        # Quantile targets: {0.1, 0.5, 0.9}
+        self.quantiles = [0.1, 0.5, 0.9]
+        self.num_quantiles = len(self.quantiles)
+
+        # Prediction horizon (tau_max)
+        # Default: 1 (single-step prediction)
+        # In practice, this is set by the data loader
+        self.tau_max = 1
+
+        # Input projection layers to transform raw inputs to d_model dimensions
+        # Static covariates projection
+        self.static_proj = nn.Linear(static_dim, d_model)
+
+        # Past observed inputs projection (includes target values)
+        self.past_proj = nn.Linear(past_dim, d_model)
+
+        # Known future inputs projection
+        self.known_proj = nn.Linear(known_dim, d_model)
+
+        # LSTM Encoder: processes past observed inputs
+        self.encoder_lstm = nn.LSTM(
+            input_size=d_model,
+            hidden_size=d_model,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout_ratio if num_layers > 1 else 0.0
+        )
+
+        # LSTM Decoder: processes known future inputs
+        self.decoder_lstm = nn.LSTM(
+            input_size=d_model,
+            hidden_size=d_model,
+            num_layers=num_layers,
+            batch_first=True,
+            dropout=dropout_ratio if num_layers > 1 else 0.0
+        )
+
+        # Static context encoders to produce initial cell and hidden states
+        # cc: context vector for cell state
+        self.static_cc = nn.Linear(d_model, d_model)
+        # ch: context vector for hidden state
+        self.static_ch = nn.Linear(d_model, d_model)
+
+        # Output projection to quantile forecasts
+        self.output_proj = nn.Linear(d_model, self.num_quantiles)
+
+        # Dropout layer
+        self.dropout = nn.Dropout(dropout_ratio)
+
+        # Store dimensions for reference
+        self.d_model = d_model
+        self.num_layers = num_layers
+
+    def _load_default_config(self):
+        """
+        Load default configuration from config/config.yaml.
+
+        Returns:
+            dict: Configuration dictionary.
+        """
+        config_path = Path(__file__).parent.parent / 'config' / 'config.yaml'
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        return {}
+
+    def forward(self, static_inputs, past_inputs, known_future_inputs):
+        """
+        Forward pass of the LSTM model.
+
+        Args:
+            static_inputs (torch.Tensor): Static covariates.
+                Shape: (batch_size, static_dim)
+            past_inputs (torch.Tensor): Past observed inputs including target values.
+                Shape: (batch_size, encoder_length, past_dim)
+            known_future_inputs (torch.Tensor): Known future inputs.
+                Shape: (batch_size, decoder_length, known_dim)
+
+        Returns:
+            torch.Tensor: Quantile forecasts.
+                Shape: (batch_size, decoder_length, num_quantiles)
+        """
+        batch_size = past_inputs.size(0)
+        encoder_length = past_inputs.size(1)
+        decoder_length = known_future_inputs.size(1)
+
+        # Project inputs to d_model dimensions
+        # Static covariates: (batch_size, static_dim) -> (batch_size, d_model)
+        static_embed = self.static_proj(static_inputs)
+
+        # Past observed inputs: (batch_size, encoder_length, past_dim)
+        # -> (batch_size, encoder_length, d_model)
+        past_embed = self.past_proj(past_inputs)
+
+        # Known future inputs: (batch_size, decoder_length, known_dim)
+        # -> (batch_size, decoder_length, d_model)
+        known_embed = self.known_proj(known_future_inputs)
+
+        # Apply dropout to embeddings
+        static_embed = self.dropout(static_embed)
+        past_embed = self.dropout(past_embed)
+        known_embed = self.dropout(known_embed)
+
+        # Generate static context vectors for initializing LSTM states
+        # cc: context vector for cell state
+        cc = torch.tanh(self.static_cc(static_embed))
+        # ch: context vector for hidden state
+        ch = torch.tanh(self.static_ch(static_embed))
+
+        # Expand context vectors to match num_layers
+        # Shape: (num_layers, batch_size, d_model)
+        cc = cc.unsqueeze(0).expand(self.num_layers, -1, -1).contiguous()
+        ch = ch.unsqueeze(0).expand(self.num_layers, -1, -1).contiguous()
+
+        # Initialize encoder LSTM states with static context
+        encoder_state = (ch, cc)
+
+        # Encode past observed inputs
+        # past_embed: (batch_size, encoder_length, d_model)
+        # encoder_outputs: (batch_size, encoder_length, d_model)
+        # encoder_hidden: (num_layers, batch_size, d_model)
+        # encoder_cell: (num_layers, batch_size, d_model)
+        encoder_outputs, (encoder_hidden, encoder_cell) = self.encoder_lstm(
+            past_embed, encoder_state
+        )
+
+        # Use the last encoder hidden state as the initial decoder state
+        # This transfers information from past to future
+        decoder_state = (encoder_hidden, encoder_cell)
+
+        # Decode known future inputs
+        # known_embed: (batch_size, decoder_length, d_model)
+        # decoder_outputs: (batch_size, decoder_length, d_model)
+        decoder_outputs, _ = self.decoder_lstm(known_embed, decoder_state)
+
+        # Apply dropout to decoder outputs
+        decoder_outputs = self.dropout(decoder_outputs)
+
+        # Project to quantile forecasts
+        # decoder_outputs: (batch_size, decoder_length, d_model)
+        # -> (batch_size, decoder_length, num_quantiles)
+        quantile_outputs = self.output_proj(decoder_outputs)
+
+        return quantile_outputs
+
+    def get_quantiles(self):
+        """
+        Get the quantile levels used by the model.
+
+        Returns:
+            list: List of quantile levels.
+        """
+        return self.quantiles
+```

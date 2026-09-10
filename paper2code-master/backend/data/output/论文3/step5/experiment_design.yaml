@@ -1,0 +1,58 @@
+paper_name: 论文3
+pipeline:
+- Start with an encoder sub-network or backbone. Connect encoder and decoder through
+  nested dense skip pathways. Each skip pathway consists of a dense convolution block
+  whose number of convolution layers depends on the pyramid level. Nodes at level
+  j=0 receive only one input from the previous encoder layer; nodes at level j=1 receive
+  two inputs from the encoder sub-network at two consecutive levels; nodes at level
+  j>1 receive j+1 inputs from previous nodes in the same skip pathway and the upsampled
+  output from the lower skip pathway. Add deep supervision by appending a 1x1 convolution
+  layer followed by a sigmoid activation function to each target node {x0,j | j in
+  {1,2,3,4}}. Generate four full-resolution segmentation maps. In accurate mode average
+  outputs from all segmentation branches; in fast mode select only one segmentation
+  branch for pruned inference.
+experiments:
+- name: main_experiment
+  description: 'U-Net: 7.76M params, IoU 90.77 on cell nuclei, 30.08 on colon polyp,
+    76.62 on liver, 71.47 on lung nodule. Wide U-Net: 9.13M params, IoU 90.92 on cell
+    nuclei, 30.14 on colon polyp, 76.58 on liver, 73.38 on lung nodule. UNet++ without
+    deep supervision: 9.04M params, IoU 92.63 on cell nuclei, 33.45 on colon polyp,
+    79.70 on liver, 76.44 on lung nodule. UNet++ with deep supervision: 9.04M params,
+    IoU 92.52 on cell nuclei, 32.12 on colon polyp, 82.90 on liver, 77.21 on lung
+    nodule.'
+evaluation:
+  primary_metric: NOT_FOUND
+  secondary_metrics:
+  - Dice coefficient
+  - Intersection over Union (IoU)
+comparison:
+  baselines:
+  - U-Net
+  - wide U-Net
+  ablation_factors:
+  - 'Deep supervision ablation: UNet++ without deep supervision achieves average improvement
+    of 2.8 and 3.3 points in IoU over U-Net and wide U-Net; UNet++ with deep supervision
+    exhibits average improvemen'
+experiment_matrix:
+  dimensions:
+    architectures:
+    - UNet++
+    training_modes:
+    - Scratch
+    data_types:
+    - default
+    train_test_splits:
+    - NOT_FOUND
+  total_configurations: 1
+  known_best: NOT_FOUND
+  known_worst: NOT_FOUND
+  run_all: true
+  recommended_subset: []
+  note: 实验组合 ≤4，可全量跑。
+important_results: UNet++ with deep supervision achieved an average IoU gain of 3.9
+  and 3.4 points over U-Net and wide U-Net, respectively. UNet++ without deep supervision
+  achieved significant performance gain over both U-Net and wide U-Net, yielding average
+  improvement of 2.8 and 3.3 points in IoU. Deep supervision gave marked improvement
+  for liver and lung nodule segmentation, but improvement vanished for cell nuclei
+  and colon polyp segmentation. UNet++ L3 achieved on average 32.2% reduction in inference
+  time while degrading IoU by only 0.6 points.

@@ -1,0 +1,19 @@
+{
+  "table_id": "table_4",
+  "table_type": "other",
+  "caption_summary": "List of graph traversal operations with their time complexities.",
+  "extracted_data": {
+    "metrics": ["time complexity"],
+    "methods": ["firstInEdge(m)", "nextInEdge(m)", "firstOutEdge(m)", "nextOutEdge(m)", "firstLoop(m)", "nextLoop(m)"],
+    "best_result": null,
+    "key_values": [
+      {"label": "firstInEdge(m)", "value": "O(1)"},
+      {"label": "nextInEdge(m)", "value": "O(1)"},
+      {"label": "firstOutEdge(m)", "value": "O(1)"},
+      {"label": "nextOutEdge(m)", "value": "O(1)"},
+      {"label": "firstLoop(m)", "value": "O(1)"},
+      {"label": "nextLoop(m)", "value": "O(1)"}
+    ]
+  },
+  "table_summary": "This table enumerates six primitive graph traversal operations used in the paper's algorithms, each taking constant time O(1). The operations cover fetching the first and next in-edges, out-edges, and loop edges for a given node and mark. All operations are equally efficient, indicating that the underlying graph representation supports constant-time edge iteration."
+}

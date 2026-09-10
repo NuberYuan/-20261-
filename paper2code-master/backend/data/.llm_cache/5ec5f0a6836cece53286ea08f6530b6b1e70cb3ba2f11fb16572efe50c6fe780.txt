@@ -1,0 +1,249 @@
+import os
+import sys
+import json
+import numpy as np
+import cv2
+
+DEFAULT_OCR_TEXT = (
+    "1.0\n0.5\nTraining Mechanism\nFinetuning\nTrainFromScratch\n0.4\nEpochs"
+)
+
+ARCH_KEYWORDS = [
+    "cnn", "transformer", "attention", "encoder", "decoder",
+    "block", "embedding", "classifier", "feature extractor",
+    "alexnet", "resnet", "vgg", "googlenet"
+]
+
+EXP_KEYWORDS = [
+    "accuracy", "loss", "epoch", "precision", "recall", "f1",
+    "准确率", "损失", "性能变化", "实验曲线", "柱状比较",
+    "finetuning", "trainfromscratch", "training mechanism"
+]
+
+DATASET_KEYWORDS = [
+    "数据样本", "类别图片", "输入示例", "数据示例", "样本图像",
+    "dataset", "input example", "sample",
+    "mnist", "cifar", "imagenet", "voc", "coco"
+]
+
+
+def _add_unique(components, value):
+    if value and value not in components:
+        components.append(value)
+
+
+def load_image(image_path):
+    try:
+        data = np.fromfile(image_path, dtype=np.uint8)
+        if data.size == 0:
+            return None
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        return img
+    except Exception:
+        return None
+
+
+def get_visual_hint(img):
+    try:
+        if img is None:
+            return {}
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        saturation = hsv[:, :, 1]
+        value = hsv[:, :, 2]
+
+        white_mask = (saturation < 30) & (value > 230)
+        white_ratio = float(np.mean(white_mask))
+        mean_saturation = float(np.mean(saturation))
+
+        return {
+            "white_ratio": white_ratio,
+            "mean_saturation": mean_saturation
+        }
+    except Exception:
+        return {}
+
+
+def extract_architecture_components(ocr_lower):
+    components = []
+    mapping = [
+        ("transformer encoder", "Transformer Encoder"),
+        ("feature extractor", "Feature Extractor"),
+        ("alexnet", "AlexNet"),
+        ("resnet", "ResNet"),
+        ("vgg", "VGG"),
+        ("googlenet", "GoogLeNet"),
+        ("transformer", "Transformer"),
+        ("attention", "Attention Module"),
+        ("encoder", "Encoder"),
+        ("decoder", "Decoder"),
+        ("embedding", "Embedding"),
+        ("classifier", "Classifier"),
+        ("cnn", "CNN"),
+        ("block", "Block")
+    ]
+    for key, name in mapping:
+        if key in ocr_lower:
+            _add_unique(components, name)
+    return components
+
+
+def extract_experiment_components(ocr_lower):
+    components = []
+
+    models = [
+        ("alexnet", "AlexNet"),
+        ("resnet", "ResNet"),
+        ("vgg", "VGG"),
+        ("googlenet", "GoogLeNet"),
+        ("densenet", "DenseNet"),
+        ("mobilenet", "MobileNet"),
+        ("transformer", "Transformer"),
+        ("cnn", "CNN")
+    ]
+
+    metrics = [
+        ("accuracy", "Accuracy"),
+        ("loss", "Loss"),
+        ("precision", "Precision"),
+        ("recall", "Recall"),
+        ("f1-score", "F1-score"),
+        ("epoch", "Epoch")
+    ]
+
+    mechanisms = [
+        ("finetuning", "Finetuning"),
+        ("trainfromscratch", "TrainFromScratch"),
+        ("training mechanism", "Training Mechanism")
+    ]
+
+    for key, name in models:
+        if key in ocr_lower:
+            _add_unique(components, name)
+
+    for key, name in metrics:
+        if key in ocr_lower:
+            _add_unique(components, name)
+
+    for key, name in mechanisms:
+        if key in ocr_lower:
+            _add_unique(components, name)
+
+    return components
+
+
+def extract_dataset_components(ocr_lower):
+    components = []
+    mapping = [
+        ("mnist", "MNIST"),
+        ("cifar-10", "CIFAR-10"),
+        ("cifar10", "CIFAR-10"),
+        ("cifar", "CIFAR"),
+        ("imagenet", "ImageNet"),
+        ("voc", "PASCAL VOC"),
+        ("coco", "COCO")
+    ]
+    for key, name in mapping:
+        if key in ocr_lower:
+            _add_unique(components, name)
+    return components
+
+
+def classify(ocr_text, visual_hint):
+    try:
+        lower = ocr_text.lower()
+    except Exception:
+        lower = ""
+
+    has_arch = any(key in lower for key in ARCH_KEYWORDS)
+    has_exp = any(key in lower for key in EXP_KEYWORDS)
+    has_dataset = any(key in lower for key in DATASET_KEYWORDS)
+
+    if has_exp:
+        components = extract_experiment_components(lower)
+        if "finetuning" in lower or "trainfromscratch" in lower:
+            description = "展示不同训练机制在多个Epoch下的实验性能对比曲线"
+            code_relevant = "需要实现微调与从头训练两种训练策略的训练循环，并按Epoch记录性能指标以复现对比实验"
+        else:
+            description = "展示实验性能随训练过程的变化对比"
+            code_relevant = "需要实现训练循环并记录每个Epoch的准确率或损失等指标"
+        return {
+            "type": "experiment_result",
+            "description": description,
+            "important_components": components,
+            "code_relevant_information": code_relevant
+        }
+
+    if has_arch:
+        components = extract_architecture_components(lower)
+        return {
+            "type": "architecture",
+            "description": "展示模型网络结构和数据流关系",
+            "important_components": components,
+            "code_relevant_information": "需要实现图中所示网络模块及其连接关系"
+        }
+
+    if has_dataset:
+        components = extract_dataset_components(lower)
+        return {
+            "type": "dataset",
+            "description": "展示数据样本或类别示例",
+            "important_components": components,
+            "code_relevant_information": "需要准备或加载相应数据集并构建输入数据管道"
+        }
+
+    white_ratio = visual_hint.get("white_ratio", 1.0)
+    mean_saturation = visual_hint.get("mean_saturation", 0.0)
+
+    if white_ratio < 0.55 and mean_saturation > 55:
+        return {
+            "type": "dataset",
+            "description": "展示数据样本或类别示例",
+            "important_components": [],
+            "code_relevant_information": "需要准备或加载相应数据集并构建输入数据管道"
+        }
+
+    return {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+
+
+def emit_json(result):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+    try:
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception:
+        print(json.dumps(result, ensure_ascii=True))
+
+
+def main():
+    if len(sys.argv) < 2:
+        emit_json({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        })
+        return
+
+    image_path = sys.argv[1]
+
+    if len(sys.argv) >= 3 and sys.argv[2].strip():
+        ocr_text = sys.argv[2]
+    else:
+        ocr_text = os.environ.get("OCR_TEXT", DEFAULT_OCR_TEXT)
+
+    img = load_image(image_path)
+    visual_hint = get_visual_hint(img)
+    result = classify(ocr_text, visual_hint)
+    emit_json(result)
+
+
+if __name__ == "__main__":
+    main()

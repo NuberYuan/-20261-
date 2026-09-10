@@ -1,0 +1,211 @@
+# Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting
+
+This repository contains a PyTorch implementation of the **Temporal Fusion Transformer (TFT)** for interpretable multihorizon time series forecasting, based on the paper:
+
+> Lim, B., Arık, S. Ö., Loeff, N., & Pfister, T. (2021). *Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting*. International Journal of Forecasting, 37(4), 1748–1764.
+
+## Project Overview
+
+The Temporal Fusion Transformer is a novel attention-based architecture that combines high-performance multi-horizon forecasting with interpretable insights into temporal dynamics. This implementation provides:
+
+- **TFT model architecture** with variable selection networks, LSTM-based encoder-decoder, and interpretable multi-head attention
+- **Quantile regression** for probabilistic forecasting across multiple horizons
+- **Baseline models** (LSTM, Transformer) for comparative evaluation
+- **Comprehensive evaluation metrics** including P50/P90 quantile losses, RMSE, and MAE
+
+## Repository Structure
+
+```
+├── README.md
+├── main.py
+├── requirements.txt
+├── config/
+│   └── config/
+│       └── config.yaml
+├── data/
+│   └── data/
+│       └── dataset.py
+├── evaluation/
+│   └── evaluation/
+│       └── evaluate.py
+├── models/
+│   └── models/
+│       ├── __init__.py
+│       ├── lstm.py
+│       └── transformer.py
+├── training/
+│   └── training/
+│       └── train.py
+└── utils/
+    └── utils/
+        └── metrics.py
+```
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8+
+- NVIDIA GPU with CUDA support (tested on Tesla V100)
+- PyTorch 1.9+
+
+### Setup
+
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd <repository-directory>
+   ```
+
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+## Configuration
+
+All configuration parameters are managed through `config/config/config.yaml`. Key configuration sections include:
+
+### Data Configuration
+- `data.root`: Root directory for datasets
+- `data.default.path`: Path to the default dataset
+- `data.feature_dim`: Number of input features
+- `data.normalization`: Normalization method (e.g., standard, minmax)
+
+### Model Configuration
+- `model.architectures`: List of model architectures to train (e.g., `temporal_fusion_transformer`, `lstm`, `transformer`)
+- `model.dropout_ratio`: Dropout rate for regularization
+- `model.weight_init`: Weight initialization method
+
+### Training Configuration
+- `training.batch_size`: Batch size (supports 64, 128, 256)
+- `training.epochs`: Number of training epochs (default: 30)
+- `training.optimizer.name`: Optimizer choice
+- `training.optimizer.lr`: Learning rate (default: 0.01)
+- `training.loss_function`: Loss function (Quantile loss summed across all quantile outputs)
+- `training.scheduler`: Learning rate scheduler configuration
+
+### Split Strategy
+- `split_strategy.method`: Data splitting method
+- `split_strategy.default_train_ratio`: Default train/test ratio
+- `split_strategy.val_split_ratio`: Validation split ratio (engineering deviation, see below)
+
+## Usage
+
+### Training
+
+To train models with default configuration:
+
+```bash
+python main.py
+```
+
+To train specific architectures:
+
+```bash
+python main.py --architectures temporal_fusion_transformer lstm transformer
+```
+
+### Evaluation
+
+The evaluation module automatically runs after training and generates:
+- Quantile loss metrics (P50, P90)
+- RMSE and MAE
+- Prediction visualizations (if enabled)
+
+### Reproducing Paper Results
+
+To reproduce the paper's experimental setup:
+
+1. **Data Preparation**: Ensure the dataset is placed in the path specified by `data.default.path` in the config file.
+
+2. **Model Training**: Train all three architectures (TFT, LSTM, Transformer) with the same data split:
+   ```bash
+   python main.py --architectures temporal_fusion_transformer lstm transformer
+   ```
+
+3. **Evaluation**: The evaluation script computes metrics for all trained models and generates comparative results.
+
+## Engineering Deviations from the Paper
+
+### Validation Set Construction
+
+**Important**: The original paper uses only train/test splits without a separate validation set. This implementation introduces the following engineering deviation:
+
+- **Validation Split**: A validation set is created by further splitting the training set (80/20 ratio) to support early stopping and best model selection. This is an **engineering deviation** from the paper's protocol.
+
+- **Best Model Selection**: The `best_metric` is set to `val_accuracy` (or validation loss) for model checkpointing. This deviates from the paper's approach and is necessary for practical model selection.
+
+### Quantile Loss
+
+The loss function is the sum of quantile losses across all quantile outputs (typically P10, P50, P90), following the paper's specification. The implementation uses:
+- `quantiles = [0.1, 0.5, 0.9]` by default
+- Loss = Σ_quantile Σ_timestamp QuantileLoss(y_true, y_pred, quantile)
+
+## Model Architectures
+
+### Temporal Fusion Transformer (TFT)
+
+The TFT model includes:
+- **Variable Selection Networks** for static and temporal features
+- **Gated Residual Networks (GRN)** for non-linear processing
+- **LSTM Encoder-Decoder** for sequence processing
+- **Interpretable Multi-Head Attention** for long-term dependencies
+- **Quantile Output Layer** for probabilistic forecasts
+
+### Baseline Models
+
+- **LSTM**: Standard LSTM for time series forecasting
+- **Transformer**: Standard transformer encoder for time series forecasting
+
+## Evaluation Metrics
+
+The evaluation module computes:
+
+1. **Quantile Loss**: P50 and P90 losses as defined in the paper
+2. **RMSE**: Root Mean Square Error
+3. **MAE**: Mean Absolute Error
+4. **Comparative Analysis**: Dynamic comparison of model performances (computed from actual results, not hardcoded)
+
+## Results and Comparison
+
+Model performance comparisons are generated dynamically from evaluation results. The README does not pre-assert any model superiority; instead, users should refer to the evaluation outputs for empirical comparisons.
+
+## Logging and Checkpoints
+
+- **Log Directory**: `logging.log_dir` in config
+- **Checkpoints**: Saved according to `checkpoint` configuration
+  - Best model based on validation metric
+  - Final model after training completion
+  - Configurable save frequency
+
+## Requirements
+
+Key dependencies (see `requirements.txt` for full list):
+- PyTorch >= 1.9
+- NumPy
+- Pandas
+- PyYAML
+- Matplotlib (for visualization)
+- scikit-learn (for metrics)
+
+## License
+
+This project is for research and educational purposes.
+
+## Citation
+
+If you use this implementation in your research, please cite:
+
+```bibtex
+@article{lim2021temporal,
+  title={Temporal fusion transformers for interpretable multi-horizon time series forecasting},
+  author={Lim, Bryan and Ar{\i}k, Sercan {\"O} and Loeff, Nicolas and Pfister, Tomas},
+  journal={International Journal of Forecasting},
+  volume={37},
+  number={4},
+  pages={1748--1764},
+  year={2021},
+  publisher={Elsevier}
+}
+```

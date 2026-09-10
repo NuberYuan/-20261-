@@ -1,0 +1,200 @@
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+项目入口文件
+
+该文件作为项目的入口点，负责加载配置、调用算法模块并执行论文方法。
+由于论文未提供训练流程，本文件专注于算法执行与结果验证。
+"""
+
+import argparse
+import logging
+import sys
+from pathlib import Path
+from typing import Optional, Dict, Any
+
+import yaml
+
+# 将项目根目录添加到 sys.path，确保可以导入 src 模块
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.algorithm import Algorithm
+
+
+def load_config(config_path: str) -> Dict[str, Any]:
+    """
+    加载配置文件。
+
+    Args:
+        config_path: 配置文件路径。
+
+    Returns:
+        配置字典。
+
+    Raises:
+        FileNotFoundError: 如果配置文件不存在。
+    """
+    config_file = Path(config_path)
+    if not config_file.exists():
+        raise FileNotFoundError(f"配置文件不存在: {config_file}")
+
+    with open(config_file, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+
+def setup_logging(config: Dict[str, Any]) -> None:
+    """
+    根据配置设置日志系统。
+
+    Args:
+        config: 配置字典。
+    """
+    log_config = config.get("logging", {})
+    level_str = log_config.get("level", "INFO")
+    log_format = log_config.get(
+        "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    level = getattr(logging, level_str.upper(), logging.INFO)
+    logging.basicConfig(level=level, format=log_format, stream=sys.stdout)
+
+
+def parse_args() -> argparse.Namespace:
+    """
+    解析命令行参数。
+
+    Returns:
+        解析后的命令行参数。
+    """
+    parser = argparse.ArgumentParser(description="项目入口 - 执行论文方法")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/config.yaml",
+        help="配置文件路径 (默认: config/config.yaml)",
+    )
+    return parser.parse_args()
+
+
+def main(config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    项目主入口函数。
+
+    该函数负责加载配置、初始化算法实例并执行论文方法。
+
+    Args:
+        config: 配置字典。如果为 None，则从默认路径加载。
+
+    Returns:
+        包含算法执行结果的字典。
+    """
+    # 如果未提供配置，则从默认路径加载
+    if config is None:
+        config_path = Path(__file__).resolve().parent / "config" / "config.yaml"
+        if not config_path.exists():
+            # 如果默认配置文件不存在，使用最小配置
+            config = {
+                "project": {
+                    "name": "NOT_FOUND",
+                    "paper": "NOT_FOUND",
+                    "framework": "Python 标准库",
+                },
+                "experiment": {
+                    "runs": [
+                        {
+                            "name": "default",
+                            "data_source": "synthetic",
+                            "acquisition": "n/a",
+                        }
+                    ]
+                },
+                "logging": {
+                    "level": "INFO",
+                    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                },
+                "system": {"device": "cpu", "num_workers": 0, "seed": 42},
+                "data_source": "synthetic",
+                "acquisition": "n/a",
+                "dataset_version": "default",
+                "dataset_versions": ["default"],
+                "version_selector": {
+                    "config_key": "dataset_version",
+                    "values": ["default"],
+                    "default": "default",
+                },
+                "training": {
+                    "applies": False,
+                    "note": "论文无训练流程（无 optimizer/learning_rate/epoch/loss 信号）",
+                },
+            }
+        else:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+
+    # 设置日志系统
+    setup_logging(config)
+    logger = logging.getLogger(__name__)
+
+    # 记录配置信息
+    project_name = config.get("project", {}).get("name", "NOT_FOUND")
+    data_source = config.get("data_source", "synthetic")
+    dataset_version = config.get("dataset_version", "default")
+    logger.info("项目名称: %s", project_name)
+    logger.info("数据来源: %s", data_source)
+    logger.info("数据集版本: %s", dataset_version)
+
+    # 检查训练配置
+    training_config = config.get("training", {})
+    if training_config.get("applies", False):
+        logger.warning("训练配置已启用，但论文无训练流程，将忽略训练配置")
+    else:
+        logger.info("训练配置: %s", training_config.get("note", "无训练流程"))
+
+    # 初始化算法实例
+    logger.info("初始化算法实例...")
+    algorithm = Algorithm(config)
+
+    # 执行算法
+    logger.info("开始执行算法...")
+    result = algorithm.run(config=config)
+
+    # 记录执行结果
+    logger.info("算法执行完成")
+    logger.info("状态: %s", result.get("status", "unknown"))
+    logger.info("准确率: %.4f", result.get("accuracy", 0.0))
+    logger.info("特征选择比例: %.4f", result.get("selection_ratio", 0.0))
+    logger.info("验证通过: %s", result.get("validation_passed", False))
+
+    return result
+
+
+if __name__ == "__main__":
+    # 解析命令行参数
+    args = parse_args()
+
+    try:
+        # 加载配置文件
+        config = load_config(args.config)
+    except FileNotFoundError as e:
+        print(f"错误: {e}", file=sys.stderr)
+        print("使用默认配置继续执行...", file=sys.stderr)
+        config = None
+
+    # 执行主函数
+    result = main(config)
+
+    # 输出结果摘要
+    print("\n" + "=" * 60)
+    print("算法执行结果摘要")
+    print("=" * 60)
+    print(f"状态: {result.get('status', 'unknown')}")
+    print(f"准确率: {result.get('accuracy', 0.0):.4f}")
+    print(f"特征选择比例: {result.get('selection_ratio', 0.0):.4f}")
+    print(f"选中特征数: {result.get('n_selected', 0)}/{result.get('n_features', 0)}")
+    print(f"验证通过: {result.get('validation_passed', False)}")
+    print("=" * 60)
+```

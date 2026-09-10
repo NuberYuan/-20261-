@@ -1,0 +1,616 @@
+```python
+"""
+evaluation/evaluate.py
+
+Model evaluation and report generation for plant disease detection.
+
+This module implements:
+- evaluate_model: runs inference on a test DataLoader and computes the
+  evaluation metrics reported in the paper "Using Deep Learning for
+  Image-Based Plant Disease Detection": mean F1 score, mean precision,
+  mean recall, and overall accuracy.
+- generate_report: produces a text report (and optionally charts) for a
+  single evaluation run.
+
+The implementation follows the paper:
+  "Using Deep Learning for Image-Based Plant Disease Detection"
+  (Mohanty et al., 2016)
+
+Engineering deviations from the paper are explicitly marked.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import torch
+import torch.nn as nn
+import yaml
+from torch.utils.data import DataLoader
+
+# Local imports
+from utils.metrics import (
+    compute_metrics,
+    compute_metrics_from_logits,
+    compute_per_class_metrics,
+)
+
+logger = logging.getLogger(__name__)
+
+# Default config path relative to this file
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+
+# ---------------------------------------------------------------------------
+# Optional matplotlib import (visualization is auxiliary only)
+# ---------------------------------------------------------------------------
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+
+# ---------------------------------------------------------------------------
+# Config loading helper
+# ---------------------------------------------------------------------------
+
+def _load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load the YAML configuration file.
+
+    Args:
+        config_path: Path to the config YAML file. If None, uses the default
+            path relative to this file.
+
+    Returns:
+        Dict containing the parsed configuration.
+
+    Raises:
+        FileNotFoundError: If the config file does not exist.
+        yaml.YAMLError: If the config file is malformed.
+    """
+    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
+
+    with open(path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    if config is None:
+        raise ValueError(f"Config file is empty: {path}")
+
+    return config
+
+
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+
+@torch.no_grad()
+def evaluate_model(
+    model: nn.Module,
+    test_loader: DataLoader,
+    config: Optional[Dict[str, Any]] = None,
+    device: Optional[torch.device] = None,
+    num_classes: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Evaluate a trained model on a test DataLoader.
+
+    Runs inference over the entire test set and computes the evaluation
+    metrics reported in the paper: mean F1 score, mean precision, mean
+    recall, and overall accuracy. Also returns the confusion matrix and
+    per-class metrics for detailed analysis.
+
+    Args:
+        model: The trained model to evaluate.
+        test_loader: DataLoader for the test set.
+        config: Optional configuration dictionary. If None, loads from
+            default path.
+        device: Device to run evaluation on. If None, uses CUDA if available.
+        num_classes: Number of classes. If None, reads from config.
+
+    Returns:
+        Dict containing:
+            - 'mean_f1': Macro-averaged F1 score.
+            - 'mean_precision': Macro-averaged precision.
+            - 'mean_recall': Macro-averaged recall.
+            - 'overall_accuracy': Overall accuracy.
+            - 'confusion_matrix': Confusion matrix as a 2D numpy array.
+            - 'per_class_metrics': Dict mapping class index to metrics.
+            - 'total_samples': Number of evaluated samples.
+            - 'predictions': List of predicted class indices.
+            - 'ground_truth': List of ground truth class indices.
+
+    Raises:
+        ValueError: If the test_loader is empty.
+    """
+    if config is None:
+        config = _load_config()
+
+    # Resolve device
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info("Evaluating model on device: %s", device)
+
+    # Resolve number of classes
+    if num_classes is None:
+        num_classes = config.get("model", {}).get("num_classes", 38)
+
+    # Move model to device and set to eval mode
+    model = model.to(device)
+    model.eval()
+
+    all_logits: List[torch.Tensor] = []
+    all_labels: List[torch.Tensor] = []
+
+    for images, labels in test_loader:
+        images = images.to(device)
+        labels = labels.to(device)
+
+        # Forward pass
+        outputs = model(images)
+
+        # Handle GoogLeNet auxiliary outputs (if any)
+        if isinstance(outputs, (tuple, list)):
+            outputs = outputs[0]
+
+        all_logits.append(outputs.detach().cpu())
+        all_labels.append(labels.cpu())
+
+    if not all_logits:
+        raise ValueError("Test loader is empty - no samples to evaluate.")
+
+    # Concatenate all batches
+    logits = torch.cat(all_logits, dim=0)
+    y_true = torch.cat(all_labels, dim=0)
+
+    # Compute predictions
+    y_pred = torch.argmax(logits, dim=1)
+
+    # Compute metrics
+    metrics = compute_metrics_from_logits(
+        logits=logits,
+        y_true=y_true,
+        num_classes=num_classes,
+        config=config,
+    )
+
+    # Compute per-class metrics
+    per_class = compute_per_class_metrics(
+        y_true=y_true,
+        y_pred=y_pred,
+        num_classes=num_classes,
+        config=config,
+    )
+
+    # Compute confusion matrix
+    confusion_matrix = _compute_confusion_matrix(
+        y_true=y_true.numpy(),
+        y_pred=y_pred.numpy(),
+        num_classes=num_classes,
+    )
+
+    # Assemble result dict
+    result = {
+        "mean_f1": metrics["mean_f1"],
+        "mean_precision": metrics["mean_precision"],
+        "mean_recall": metrics["mean_recall"],
+        "overall_accuracy": metrics["overall_accuracy"],
+        "confusion_matrix": confusion_matrix,
+        "per_class_metrics": per_class,
+        "total_samples": int(y_true.shape[0]),
+        "predictions": y_pred.numpy().tolist(),
+        "ground_truth": y_true.numpy().tolist(),
+    }
+
+    logger.info(
+        "Evaluation complete: accuracy=%.4f, mean_f1=%.4f, "
+        "mean_precision=%.4f, mean_recall=%.4f (n=%d)",
+        result["overall_accuracy"],
+        result["mean_f1"],
+        result["mean_precision"],
+        result["mean_recall"],
+        result["total_samples"],
+    )
+
+    return result
+
+
+def _compute_confusion_matrix(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    num_classes: int,
+) -> np.ndarray:
+    """
+    Compute the confusion matrix.
+
+    Args:
+        y_true: Ground truth labels as a numpy array.
+        y_pred: Predicted labels as a numpy array.
+        num_classes: Number of classes.
+
+    Returns:
+        Confusion matrix as a 2D numpy array of shape (num_classes, num_classes).
+    """
+    confusion = np.zeros((num_classes, num_classes), dtype=np.int64)
+    for t, p in zip(y_true, y_pred):
+        t = int(t)
+        p = int(p)
+        if 0 <= t < num_classes and 0 <= p < num_classes:
+            confusion[t, p] += 1
+    return confusion
+
+
+# ---------------------------------------------------------------------------
+# Report generation
+# ---------------------------------------------------------------------------
+
+def generate_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    """
+    Generate a text report (and optionally charts) for a single evaluation run.
+
+    Args:
+        metrics: Metrics dict returned by evaluate_model.
+        run_name: Name of the run (e.g., "googlenet_transfer_color_80-20").
+        output_dir: Directory where the report and charts will be saved.
+        config: Optional configuration dictionary. If None, loads from
+            default path.
+
+    Returns:
+        Path to the generated report file (text format).
+    """
+    if config is None:
+        config = _load_config()
+
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Sanitize run_name for use in filenames
+    safe_run_name = run_name.replace("/", "_").replace("\\", "_")
+
+    # Generate text report
+    report_path = _generate_text_report(
+        metrics=metrics,
+        run_name=run_name,
+        output_dir=output_dir,
+        config=config,
+    )
+
+    # Generate charts (only if matplotlib is available)
+    if plt is not None:
+        _generate_metrics_bar_chart(
+            metrics=metrics,
+            run_name=safe_run_name,
+            output_dir=output_dir,
+        )
+        _generate_confusion_matrix_plot(
+            confusion_matrix=metrics.get("confusion_matrix"),
+            run_name=safe_run_name,
+            output_dir=output_dir,
+            config=config,
+        )
+    else:
+        logger.warning(
+            "matplotlib not available - skipping chart generation for run '%s'",
+            run_name,
+        )
+
+    return report_path
+
+
+def _generate_text_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+    config: Dict[str, Any],
+) -> str:
+    """
+    Generate a text report with evaluation metrics.
+
+    Args:
+        metrics: Metrics dict from evaluate_model.
+        run_name: Name of the run.
+        output_dir: Directory to save the report.
+        config: Configuration dictionary.
+
+    Returns:
+        Path to the generated report file.
+    """
+    report_lines: List[str] = []
+    report_lines.append("=" * 70)
+    report_lines.append("EVALUATION REPORT")
+    report_lines.append("=" * 70)
+    report_lines.append(f"Run: {run_name}")
+    report_lines.append("")
+
+    # Project info
+    project_cfg = config.get("project", {})
+    report_lines.append(f"Project: {project_cfg.get('name', 'N/A')}")
+    report_lines.append(f"Paper: {project_cfg.get('paper', 'N/A')}")
+    report_lines.append("")
+
+    # Reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+    report_lines.append(f"Reproduction mode: {reproduction_mode}")
+    report_lines.append("")
+
+    # Evaluation metrics
+    report_lines.append("-" * 70)
+    report_lines.append("EVALUATION METRICS")
+    report_lines.append("-" * 70)
+    report_lines.append(f"Overall accuracy:    {metrics.get('overall_accuracy', 0.0):.4f}")
+    report_lines.append(f"Mean F1 score:       {metrics.get('mean_f1', 0.0):.4f}")
+    report_lines.append(f"Mean precision:      {metrics.get('mean_precision', 0.0):.4f}")
+    report_lines.append(f"Mean recall:         {metrics.get('mean_recall', 0.0):.4f}")
+    report_lines.append(f"Total samples:       {metrics.get('total_samples', 0)}")
+    report_lines.append("")
+
+    # Per-class metrics (if available)
+    per_class = metrics.get("per_class_metrics")
+    if per_class:
+        report_lines.append("-" * 70)
+        report_lines.append("PER-CLASS METRICS")
+        report_lines.append("-" * 70)
+        report_lines.append(
+            f"{'Class':<10} {'Precision':<12} {'Recall':<12} {'F1':<12}"
+        )
+        report_lines.append("-" * 50)
+        for class_idx in sorted(per_class.keys(), key=lambda x: int(x)):
+            cm = per_class[class_idx]
+            report_lines.append(
+                f"{class_idx:<10} {cm['precision']:<12.4f} "
+                f"{cm['recall']:<12.4f} {cm['f1']:<12.4f}"
+            )
+        report_lines.append("")
+
+    # Paper comparison note
+    report_lines.append("-" * 70)
+    report_lines.append("PAPER COMPARISON NOTE")
+    report_lines.append("-" * 70)
+    report_lines.append(
+        "The paper reports best performance: GoogLeNet::TransferLearning::Color::80-20 "
+        "achieved mean F1 score 0.9934, overall accuracy 99.35%."
+    )
+    report_lines.append(
+        "Compare the metrics above with the paper's reported values. "
+        "Values within tolerance are considered consistent."
+    )
+    report_lines.append("")
+
+    # Engineering notes
+    report_lines.append("-" * 70)
+    report_lines.append("ENGINEERING NOTES")
+    report_lines.append("-" * 70)
+    report_lines.append(
+        "The paper uses only train/test split (no validation set). "
+        "Any validation-based model selection is an engineering deviation."
+    )
+    report_lines.append("")
+
+    report_lines.append("=" * 70)
+    report_lines.append("END OF REPORT")
+    report_lines.append("=" * 70)
+
+    report_text = "\n".join(report_lines)
+
+    # Save report
+    report_path = os.path.join(output_dir, f"{run_name}_report.txt")
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(report_text)
+
+    logger.info("Text report saved to %s", report_path)
+    return report_path
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+) -> Optional[str]:
+    """
+    Generate a bar chart of the main evaluation metrics.
+
+    Args:
+        metrics: Full metrics dict from evaluate_model. This function reads
+            'mean_f1', 'mean_precision', 'mean_recall', and
+            'overall_accuracy' from the dict.
+        run_name: Name of the run (sanitized for filenames).
+        output_dir: Directory to save the chart.
+
+    Returns:
+        Path to the saved chart, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        logger.warning("matplotlib not available - skipping metrics bar chart")
+        return None
+
+    # Extract metrics (all must be present)
+    metric_names = ["mean_f1", "mean_precision", "mean_recall", "overall_accuracy"]
+    metric_labels = ["Mean F1", "Mean Precision", "Mean Recall", "Overall Accuracy"]
+    values = [metrics.get(name, 0.0) for name in metric_names]
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.bar(metric_labels, values, color=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"])
+
+    # Add value labels on top of bars
+    for bar, val in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.01,
+            f"{val:.4f}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
+
+    ax.set_ylim(0, 1.1)
+    ax.set_ylabel("Score")
+    ax.set_title(f"Evaluation Metrics - {run_name}")
+    ax.grid(axis="y", alpha=0.3)
+
+    # Save figure
+    chart_path = os.path.join(output_dir, f"{run_name}_metrics.png")
+    fig.tight_layout()
+    fig.savefig(chart_path, dpi=150)
+    plt.close(fig)
+
+    logger.info("Metrics bar chart saved to %s", chart_path)
+    return chart_path
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: Optional[np.ndarray],
+    run_name: str,
+    output_dir: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """
+    Generate a confusion matrix heatmap plot.
+
+    Args:
+        confusion_matrix: 2D numpy array of shape (num_classes, num_classes).
+        run_name: Name of the run (sanitized for filenames).
+        output_dir: Directory to save the chart.
+        config: Optional configuration dictionary.
+
+    Returns:
+        Path to the saved chart, or None if matplotlib is unavailable or
+        confusion_matrix is None.
+    """
+    if plt is None:
+        logger.warning("matplotlib not available - skipping confusion matrix plot")
+        return None
+
+    if confusion_matrix is None:
+        logger.warning("confusion_matrix is None - skipping confusion matrix plot")
+        return None
+
+    confusion_matrix = np.asarray(confusion_matrix)
+    if confusion_matrix.ndim != 2:
+        logger.warning(
+            "confusion_matrix must be 2D, got %d dims - skipping plot",
+            confusion_matrix.ndim,
+        )
+        return None
+
+    num_classes = confusion_matrix.shape[0]
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 10))
+
+    # Plot heatmap
+    im = ax.imshow(confusion_matrix, cmap="Blues")
+
+    # Add colorbar
+    cbar = ax.figure.colorbar(im, ax=ax)
+    cbar.ax.set_ylabel("Count", rotation=-90, va="bottom")
+
+    # Configure axes
+    ax.set_xlabel("Predicted Label")
+    ax.set_ylabel("True Label")
+    ax.set_title(f"Confusion Matrix - {run_name}")
+
+    # Set tick labels
+    ax.set_xticks(np.arange(num_classes))
+    ax.set_yticks(np.arange(num_classes))
+    ax.set_xticklabels([str(i) for i in range(num_classes)])
+    ax.set_yticklabels([str(i) for i in range(num_classes)])
+
+    # Rotate tick labels
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
+    # Add text annotations (only if matrix is small enough)
+    if num_classes <= 20:
+        threshold = confusion_matrix.max() / 2.0 if confusion_matrix.max() > 0 else 0
+        for i in range(num_classes):
+            for j in range(num_classes):
+                val = confusion_matrix[i, j]
+                color = "white" if val > threshold else "black"
+                ax.text(j, i, str(val), ha="center", va="center", color=color, fontsize=8)
+
+    fig.tight_layout()
+
+    # Save figure
+    chart_path = os.path.join(output_dir, f"{run_name}_confusion_matrix.png")
+    fig.savefig(chart_path, dpi=150)
+    plt.close(fig)
+
+    logger.info("Confusion matrix plot saved to %s", chart_path)
+    return chart_path
+
+
+# ---------------------------------------------------------------------------
+# Utility functions
+# ---------------------------------------------------------------------------
+
+def save_metrics_json(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+) -> str:
+    """
+    Save evaluation metrics to a JSON file.
+
+    Args:
+        metrics: Metrics dict from evaluate_model.
+        run_name: Name of the run.
+        output_dir: Directory to save the JSON file.
+
+    Returns:
+        Path to the saved JSON file.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Convert numpy types to Python native types for JSON serialization
+    serializable_metrics: Dict[str, Any] = {}
+    for key, value in metrics.items():
+        if isinstance(value, np.ndarray):
+            serializable_metrics[key] = value.tolist()
+        elif isinstance(value, np.integer):
+            serializable_metrics[key] = int(value)
+        elif isinstance(value, np.floating):
+            serializable_metrics[key] = float(value)
+        else:
+            serializable_metrics[key] = value
+
+    json_path = os.path.join(output_dir, f"{run_name}_metrics.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(serializable_metrics, f, indent=2, default=str)
+
+    logger.info("Metrics JSON saved to %s", json_path)
+    return json_path
+
+
+def load_metrics_json(json_path: str) -> Dict[str, Any]:
+    """
+    Load evaluation metrics from a JSON file.
+
+    Args:
+        json_path: Path to the JSON file.
+
+    Returns:
+        Metrics dict.
+    """
+    with open(json_path, "r", encoding="utf-8") as f:
+        metrics = json.load(f)
+
+    # Convert confusion_matrix back to numpy array if present
+    if "confusion_matrix" in metrics:
+        metrics["confusion_matrix"] = np.asarray(metrics["confusion_matrix"])
+
+    return metrics
+```

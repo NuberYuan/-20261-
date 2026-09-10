@@ -1,0 +1,127 @@
+# Image-Based Plant Disease Detection
+
+基于 PyTorch 复现论文 *Using Deep Learning for Image-Based Plant Disease Detection* 的图像分类任务。
+
+- 任务：image_classification
+- 框架：PyTorch
+- 硬件：EPFL GPU cluster computing resources
+- 模型：AlexNet、GoogLeNet
+- 训练模式：`scratch` / `transfer`
+
+## Project Structure
+
+```text
+README.md
+main.py
+requirements.txt
+config/config/config.yaml
+data/data/dataset.py
+evaluation/evaluation/evaluate.py
+models/models/__init__.py
+models/models/alexnet.py
+models/models/googlenet.py
+training/training/train.py
+utils/utils/metrics.py
+```
+
+## Installation
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Configuration
+
+主配置文件位于 `config/config/config.yaml`。
+
+默认训练配置如下：
+
+| 配置项 | 默认值 |
+| --- | --- |
+| Optimizer | Stochastic Gradient Descent |
+| Learning rate | `0.005` |
+| Batch size | AlexNet: `100`, GoogLeNet: `24` |
+| Epochs | `30` |
+| Loss function | softmax cross-entropy |
+| Scheduler | StepLR, `step_size=10`, `gamma=0.1` |
+
+常用配置路径：
+
+- `data.root`：数据集根目录
+- `data.versions` / `dataset_versions`：数据集版本
+- `model.architectures`：模型架构，如 AlexNet、GoogLeNet
+- `model.num_classes`：分类类别数
+- `training.batch_size`：通用 batch size
+- `training.batch_size.AlexNet`：AlexNet 专用 batch size
+- `training.batch_size.GoogLeNet`：GoogLeNet 专用 batch size
+- `training.optimizer`：优化器配置
+- `training.scheduler`：学习率调度器配置
+- `training.epochs`：训练轮数
+- `system.device`：计算设备
+- `system.seed`：随机种子
+- `logging.log_dir`：日志输出目录
+
+## Data and Split Strategy
+
+论文采用 train/test 二路划分，没有独立验证集。
+
+如果代码中需要 `val_loader` 进行早停或最优模型选择，应从训练集中按 80/20 二次划分出验证集，并将该行为标记为工程偏离（engineering deviation from paper）。
+
+数据集加载逻辑位于 `data/data/dataset.py`。数据读取受以下配置控制：
+
+- `data.color`
+- `data.grayscale`
+- `data.segmented`
+- `data.image_size`
+- `data.normalize`
+- `data.mean`
+- `data.std`
+
+## Training Modes
+
+本项目使用 `training_mode` 枚举而不是单一的 `pretrained=True/False` 布尔值：
+
+- `scratch`：从随机初始化开始训练
+- `transfer`：使用预训练权重进行迁移学习
+
+两种模式的初始化、冻结和重置逻辑分别由以下配置管理：
+
+- `training_modes.scratch`
+- `training_modes.transfer`
+
+## Checkpointing and Model Selection
+
+论文没有独立验证集。若使用 `checkpoint.best_metric=val_accuracy`，则应明确这是工程偏离。
+
+严格复现论文时，不推荐使用 `test_accuracy` 进行模型选择，因为会导致数据泄露。
+
+Checkpoint 相关配置位于 `checkpoint` 路径下，包括：
+
+- `checkpoint.save_best`
+- `checkpoint.save_final`
+- `checkpoint.best_metric`
+- `checkpoint.best_mode`
+- `checkpoint.resume_from`
+- `checkpoint.save_frequency_epochs`
+
+## Running the Project
+
+训练、评估入口为 `main.py`：
+
+```bash
+python main.py
+```
+
+评估逻辑由 `evaluation/evaluation/evaluate.py` 提供，评估指标工具位于 `utils/utils/metrics.py`。
+
+## Reproduction Notes
+
+1. 准备环境并安装依赖。
+2. 配置 `config/config/config.yaml` 中的数据集路径、版本和训练参数。
+3. 选择模型架构和训练模式。
+4. 运行 `python main.py`。
+5. 训练完成后使用实际输出的指标进行模型比较。
+
+所有模型比较和结论必须由实际评估结果动态计算。不应在 README、报告或代码注释中预先写死“某个模型一致优于另一个模型”或“迁移学习总是优于从头训练”等结论。

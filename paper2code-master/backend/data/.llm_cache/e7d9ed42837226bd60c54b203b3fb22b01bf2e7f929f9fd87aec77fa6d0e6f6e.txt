@@ -1,0 +1,33 @@
+{
+  "table_id": "table_4",
+  "table_type": "ablation_study",
+  "caption_summary": "Ablation results showing task performance (percentage solved) under different test lengths, number of units, discount factors, Watkins Q(λ), and task penalty configurations.",
+  "extracted_data": {
+    "metrics": ["Copying", "Reverse", "Reverse (FF controller)", "Walk", "Walk (FF controller)", "2-row Addition", "3-row Addition", "3-row Addition (extra curriculum)", "Single Digit Multiplication"],
+    "methods": [
+      "Test length 100, #Units 600, γ 1, no Watkins Q(λ), no Task Penalty",
+      "Test length 100, #Units 400, γ 1, no Watkins Q(λ), no Task Penalty",
+      "Test length 100, #Units 200, γ 1, no Watkins Q(λ), no Task Penalty",
+      "Test length 100, #Units 200, γ 0.99, no Watkins Q(λ), no Task Penalty",
+      "Test length 100, #Units 200, γ 0.95, no Watkins Q(λ), no Task Penalty",
+      "Test length 100, #Units 200, γ D, no Watkins Q(λ), no Task Penalty",
+      "Test length 100, #Units 200, γ D, Watkins Q(λ), no Task Penalty",
+      "Test length 100, #Units 200, γ D, Watkins Q(λ), Task Penalty",
+      "Test length 1000, #Units 200, γ D, Watkins Q(λ), no Task Penalty",
+      "Test length 1000, #Units 200, γ D, Watkins Q(λ), Task Penalty"
+    ],
+    "best_result": {"method": "Test length 100, #Units 200, γ D, Watkins Q(λ), Task Penalty", "metric": "2-row Addition", "value": "100%"},
+    "key_values": [
+      {"label": "Copying", "value": "30%, 60%, 90%, 50%, 70%, 90%, 100%, 100%, 100%, 100%"},
+      {"label": "Reverse", "value": "0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%"},
+      {"label": "Reverse (FF controller)", "value": "0%, 0%, 0%, 0%, 0%, 0%, 100%, 90%, 100%, 90%"},
+      {"label": "Walk", "value": "0%, 0%, 0%, 0%, 0%, 0%, 10%, 90%, 10%, 80%"},
+      {"label": "Walk (FF controller)", "value": "0%, 0%, 0%, 0%, 0%, 0%, 100%, 100%, 100%, 100%"},
+      {"label": "2-row Addition", "value": "10%, 70%, 70%, 70%, 80%, 60%, 60%, 100%, 40%, 100%"},
+      {"label": "3-row Addition", "value": "0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%, 0%"},
+      {"label": "3-row Addition (extra curriculum)", "value": "0%, 50%, 80%, 40%, 50%, 50%, 80%, 80%, 10%, 60%"},
+      {"label": "Single Digit Multiplication", "value": "0%, 0%, 0%, 0%, 0%, 100%, 100%, 100%, 0%, 0%"}
+    ]
+  },
+  "table_summary": "This ablation table reports the percentage of tasks solved under varying configurations of test length, number of units, discount factor γ, Watkins Q(λ), and task penalty. The best overall performance is achieved with test length 100, 200 units, discount D, Watkins Q(λ) enabled, and task penalty enabled, where Copying, 2-row Addition, and Single Digit Multiplication all reach 100%. Reverse and 3-row Addition remain unsolved (0%) across all configurations, while Reverse and Walk improve substantially only when a feedforward (FF) controller is used."
+}

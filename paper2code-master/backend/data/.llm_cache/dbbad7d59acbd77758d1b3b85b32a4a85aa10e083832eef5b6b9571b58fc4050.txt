@@ -1,0 +1,154 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+
+def analyze_image(image_path):
+    try:
+        # 读取图片（支持中文路径）
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # 获取图片基本信息（仅用于辅助判断，不输出）
+        height, width = img.shape[:2]
+        
+        # OCR文字信息（由外部模块提供）
+        ocr_text = """Quantile Forecasts
+9t+1(0.1)   9t+1(0.5)   9t+1(0.9)
+Yt+r(0.1)  Yt+r(0.5)  yt+r(0.9)
+Add & Norm
+Gate
+Dense
+Residual
+Dropout
+Connection
+Temporal Fusion Decoder
+ELU
+External
+Primary
+Context
+Position-wise
+GRN
+Input
+(Optional)
+Feed-forward
+Temporal
+Gated Residual Network (GRN)
+Self-Attention
+Masked Interpretable Multi-head Attention
+(j) c(j)
+vxt &{
+j=1
+Static
+Variable
+Selection
+Enrichment"""
+        
+        # 判断图片类型
+        # 检查是否包含architecture关键词
+        architecture_keywords = [
+            "CNN", "Transformer", "Attention", "Encoder", "Decoder",
+            "Block", "Embedding", "Classifier", "Feature Extractor",
+            "AlexNet", "ResNet", "VGG", "GoogLeNet"
+        ]
+        
+        # 检查是否包含experiment_result关键词
+        experiment_keywords = [
+            "Accuracy", "Loss", "Epoch", "Precision", "Recall", "F1",
+            "曲线", "柱状", "性能"
+        ]
+        
+        # 检查是否包含dataset关键词
+        dataset_keywords = ["样本", "类别", "输入示例"]
+        
+        # 判断类型
+        is_architecture = any(kw.lower() in ocr_text.lower() for kw in architecture_keywords)
+        is_experiment = any(kw.lower() in ocr_text.lower() for kw in experiment_keywords)
+        is_dataset = any(kw.lower() in ocr_text.lower() for kw in dataset_keywords)
+        
+        # 根据优先级判断
+        if is_experiment:
+            img_type = "experiment_result"
+        elif is_architecture:
+            img_type = "architecture"
+        elif is_dataset:
+            img_type = "dataset"
+        else:
+            img_type = "other"
+        
+        # 提取重要组件
+        important_components = []
+        code_relevant_info = ""
+        
+        if img_type == "architecture":
+            # 从OCR文本中提取模型组件
+            components_found = []
+            if "Temporal Fusion Decoder" in ocr_text:
+                components_found.append("Temporal Fusion Decoder")
+            if "Gated Residual Network" in ocr_text or "GRN" in ocr_text:
+                components_found.append("Gated Residual Network (GRN)")
+            if "Masked Interpretable Multi-head Attention" in ocr_text:
+                components_found.append("Masked Interpretable Multi-head Attention")
+            if "Self-Attention" in ocr_text:
+                components_found.append("Self-Attention")
+            if "Variable Selection" in ocr_text:
+                components_found.append("Variable Selection")
+            if "Static Enrichment" in ocr_text:
+                components_found.append("Static Enrichment")
+            
+            important_components = components_found
+            description = "展示模型网络结构和数据流关系"
+            code_relevant_info = "需要实现Temporal Fusion Decoder架构，包括GRN、多头注意力机制和变量选择模块"
+            
+        elif img_type == "experiment_result":
+            description = "展示实验结果对比或性能指标"
+            code_relevant_info = "需要实现模型评估和结果可视化功能"
+            
+        elif img_type == "dataset":
+            description = "展示数据集样本或输入示例"
+            code_relevant_info = "需要实现数据加载和预处理功能"
+            
+        else:
+            description = "无法确定图片类型"
+            code_relevant_info = ""
+        
+        # 构建输出JSON
+        result = {
+            "type": img_type,
+            "description": description,
+            "important_components": important_components,
+            "code_relevant_information": code_relevant_info
+        }
+        
+        return result
+        
+    except Exception as e:
+        # 任何异常都返回默认结果
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    # 获取图片路径
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+    else:
+        image_path = r"C:\Users\肖俊晨\Documents\GitHub\paper2code\backend\data\output\论文5\step1\images\image_2.png"
+    
+    # 分析图片
+    result = analyze_image(image_path)
+    
+    # 输出JSON
+    print(json.dumps(result, ensure_ascii=False))
+```

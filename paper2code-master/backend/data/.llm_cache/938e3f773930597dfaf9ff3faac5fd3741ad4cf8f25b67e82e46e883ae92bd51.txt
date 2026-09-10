@@ -1,0 +1,114 @@
+project:
+  name: rag_time_series_prediction
+  paper: "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks"
+  framework: PyTorch
+
+data_source: external_dataset
+acquisition: local_path
+
+data:
+  root: ./data
+  versions: [default]
+  default:
+    status: resolved
+    path: ./data/default
+    description: "Default time series dataset"
+  feature_dim: null
+  normalization: minmax
+  preprocessing:
+    sequence_length: null
+    horizon: null
+
+split_strategy:
+  method: random_split
+  train_test_splits: null
+  seed: 42
+  default_train_ratio: 0.8
+  val_split_ratio: 0.2
+  leaf_mapping_constraint: NOT_FOUND
+  note: "论文仅使用 train/test 二路划分，无独立验证集。val_split_ratio=0.2 为工程偏离，从训练集中二次划分验证集。"
+
+reproduction_mode: engineering
+
+model:
+  architectures:
+    - rag_sequence
+  num_classes: null
+  dropout_ratio: null
+  weight_init: kaiming_normal
+
+training_modes:
+  scratch:
+    description: "从头训练：所有层随机初始化"
+    pretrained: false
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+  transfer:
+    description: "迁移学习：加载预训练权重，重置最后一层"
+    pretrained: true
+    pretrained_source: null
+    reset_layers: []
+    freeze_backbone:
+      value: false
+      decision_type: engineering_decision
+      note: "此项为纯工程决策（论文未提及），默认不冻结（全量微调）。"
+      engineering_default: false
+
+training:
+  epochs: 30
+  optimizer:
+    name: Adam
+    lr: null
+    momentum: null
+    weight_decay: null
+  scheduler:
+    name: StepLR
+    step_size: 66
+    gamma: 0.5
+    note: "论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略。"
+  loss_function: "负边际对数似然（negative marginal log-likelihood）"
+  early_stopping: null
+  batch_size: null
+  batch_size_note: "论文未显式指定 batch_size。"
+
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: null
+  save_optimizer_state: true
+  resume_from: null
+  note: "论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。"
+
+inference:
+  device: cuda
+  batch_size: null
+
+version_selector:
+  config_key: dataset_version
+  values: [default]
+  default: default
+  note: "非图像数据仅一个 default 版本"
+
+experiment:
+  runs:
+    - name: scratch_run
+      training_mode: scratch
+      data_source: external_dataset
+      acquisition: local_path
+    - name: transfer_run
+      training_mode: transfer
+      data_source: external_dataset
+      acquisition: local_path
+
+logging:
+  log_dir: ./logs
+  log_level: INFO
+  save_metrics: true
+
+system:
+  device: cuda
+  num_workers: 4
+  seed: 42

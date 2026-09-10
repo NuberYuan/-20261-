@@ -1,0 +1,670 @@
+```python
+import os
+import json
+import random
+import logging
+from typing import Dict, List, Optional, Tuple, Any, Union
+
+import torch
+from torch.utils.data import Dataset, random_split, Subset
+import yaml
+
+logger = logging.getLogger(__name__)
+
+
+class HumanEvalMBPPDevEvalBigCodeBenchDataset(Dataset):
+    """
+    Dataset class for loading and preprocessing HumanEval+, MBPP+, DevEval, and BigCodeBench datasets.
+    
+    This dataset supports loading multiple code generation benchmarks and applies
+    preprocessing steps including ground-truth-guided next-token prediction for
+    threshold learning, semantic similarity verification using SBERT, and balanced
+    sampling.
+    """
+    
+    def __init__(
+        self,
+        version: str = 'default',
+        config: Optional[Dict[str, Any]] = None,
+        split: str = 'train',
+        seed: int = 42,
+        max_length: int = 512,
+        threshold: float = 0.5,
+        balance_dataset: bool = True,
+        use_sbert: bool = True,
+        sbert_model_name: str = 'all-MiniLM-L6-v2',
+        cache_dir: Optional[str] = None,
+    ):
+        """
+        Initialize the dataset.
+        
+        Args:
+            version: Dataset version (default: 'default')
+            config: Configuration dictionary loaded from config.yaml
+            split: Data split - 'train', 'val', or 'test'
+            seed: Random seed for reproducibility
+            max_length: Maximum sequence length for tokenization
+            threshold: Similarity threshold for semantic verification
+            balance_dataset: Whether to balance positive/negative samples
+            use_sbert: Whether to use SBERT for semantic similarity verification
+            sbert_model_name: SBERT model name
+            cache_dir: Directory to cache processed data
+        """
+        super().__init__()
+        
+        self.version = version
+        self.config = config if config is not None else {}
+        self.split = split
+        self.seed = seed
+        self.max_length = max_length
+        self.threshold = threshold
+        self.balance_dataset = balance_dataset
+        self.use_sbert = use_sbert
+        self.sbert_model_name = sbert_model_name
+        self.cache_dir = cache_dir
+        
+        # Set random seed
+        random.seed(seed)
+        torch.manual_seed(seed)
+        
+        # Initialize data containers
+        self.data: List[Dict[str, Any]] = []
+        self.labels: List[int] = []
+        self.input_ids: List[torch.Tensor] = []
+        self.attention_masks: List[torch.Tensor] = []
+        
+        # Load and preprocess data
+        self._load_data()
+        self.preprocess_data()
+        
+        # Split dataset if needed
+        if split in ['train', 'val']:
+            self._apply_split()
+    
+    def _load_data(self) -> None:
+        """
+        Load data from local paths or generate synthetic data for testing.
+        
+        The actual data loading depends on the data source configuration.
+        For HumanEval: 164 problems
+        For BigCodeBench: approximately 100K-160K positive samples and 16K-23K negative samples
+        """
+        data_root = None
+        if self.config:
+            data_config = self.config.get('data', {})
+            data_root = data_config.get('root', None)
+            default_config = data_config.get('default', {})
+            if default_config:
+                data_root = default_config.get('path', data_root)
+        
+        if data_root and os.path.exists(data_root):
+            self._load_from_files(data_root)
+        else:
+            logger.warning(f"Data root '{data_root}' not found or not provided. Using synthetic data for testing.")
+            self._load_synthetic_data()
+    
+    def _load_from_files(self, data_root: str) -> None:
+        """
+        Load data from files in the specified root directory.
+        
+        Expected structure:
+        - humaneval.json
+        - mbpp.json
+        - deveval.json
+        - bigcodebench.json
+        """
+        # Load HumanEval
+        humaneval_path = os.path.join(data_root, 'humaneval.json')
+        if os.path.exists(humaneval_path):
+            with open(humaneval_path, 'r', encoding='utf-8') as f:
+                humaneval_data = json.load(f)
+            for item in humaneval_data:
+                self.data.append({
+                    'dataset': 'humaneval',
+                    'prompt': item.get('prompt', ''),
+                    'completion': item.get('completion', ''),
+                    'test': item.get('test', ''),
+                    'entry_point': item.get('entry_point', ''),
+                })
+                self.labels.append(1)  # HumanEval problems are positive samples
+        
+        # Load MBPP
+        mbpp_path = os.path.join(data_root, 'mbpp.json')
+        if os.path.exists(mbpp_path):
+            with open(mbpp_path, 'r', encoding='utf-8') as f:
+                mbpp_data = json.load(f)
+            for item in mbpp_data:
+                self.data.append({
+                    'dataset': 'mbpp',
+                    'prompt': item.get('prompt', ''),
+                    'completion': item.get('completion', ''),
+                    'test': item.get('test', ''),
+                    'entry_point': item.get('entry_point', ''),
+                })
+                self.labels.append(1)
+        
+        # Load DevEval
+        deveval_path = os.path.join(data_root, 'deveval.json')
+        if os.path.exists(deveval_path):
+            with open(deveval_path, 'r', encoding='utf-8') as f:
+                deveval_data = json.load(f)
+            for item in deveval_data:
+                self.data.append({
+                    'dataset': 'deveval',
+                    'prompt': item.get('prompt', ''),
+                    'completion': item.get('completion', ''),
+                    'test': item.get('test', ''),
+                    'entry_point': item.get('entry_point', ''),
+                })
+                self.labels.append(1)
+        
+        # Load BigCodeBench
+        bigcodebench_path = os.path.join(data_root, 'bigcodebench.json')
+        if os.path.exists(bigcodebench_path):
+            with open(bigcodebench_path, 'r', encoding='utf-8') as f:
+                bigcodebench_data = json.load(f)
+            for item in bigcodebench_data:
+                self.data.append({
+                    'dataset': 'bigcodebench',
+                    'prompt': item.get('prompt', ''),
+                    'completion': item.get('completion', ''),
+                    'test': item.get('test', ''),
+                    'entry_point': item.get('entry_point', ''),
+                })
+                # BigCodeBench has both positive and negative samples
+                label = item.get('label', 1)
+                self.labels.append(label)
+        
+        logger.info(f"Loaded {len(self.data)} samples from files")
+    
+    def _load_synthetic_data(self) -> None:
+        """
+        Generate synthetic data for testing when no real data is available.
+        
+        HumanEval: 164 problems
+        BigCodeBench: ~100K positive and ~20K negative samples (synthetic)
+        """
+        # Generate synthetic HumanEval data (164 problems)
+        for i in range(164):
+            self.data.append({
+                'dataset': 'humaneval',
+                'prompt': f"def solve_problem_{i}():\n    \"\"\"Solve problem {i}\"\"\"\n    pass",
+                'completion': f"def solve_problem_{i}():\n    return {i}",
+                'test': f"assert solve_problem_{i}() == {i}",
+                'entry_point': f"solve_problem_{i}",
+            })
+            self.labels.append(1)
+        
+        # Generate synthetic MBPP data (974 problems)
+        for i in range(974):
+            self.data.append({
+                'dataset': 'mbpp',
+                'prompt': f"def mbpp_problem_{i}():\n    \"\"\"MBPP problem {i}\"\"\"\n    pass",
+                'completion': f"def mbpp_problem_{i}():\n    return {i}",
+                'test': f"assert mbpp_problem_{i}() == {i}",
+                'entry_point': f"mbpp_problem_{i}",
+            })
+            self.labels.append(1)
+        
+        # Generate synthetic DevEval data (1000 problems)
+        for i in range(1000):
+            self.data.append({
+                'dataset': 'deveval',
+                'prompt': f"def deveval_problem_{i}():\n    \"\"\"DevEval problem {i}\"\"\"\n    pass",
+                'completion': f"def deveval_problem_{i}():\n    return {i}",
+                'test': f"assert deveval_problem_{i}() == {i}",
+                'entry_point': f"deveval_problem_{i}",
+            })
+            self.labels.append(1)
+        
+        # Generate synthetic BigCodeBench data
+        # ~100K positive samples and ~20K negative samples
+        num_positive = 100000
+        num_negative = 20000
+        
+        for i in range(num_positive):
+            self.data.append({
+                'dataset': 'bigcodebench',
+                'prompt': f"def bigcodebench_positive_{i}():\n    \"\"\"BigCodeBench positive {i}\"\"\"\n    pass",
+                'completion': f"def bigcodebench_positive_{i}():\n    return {i}",
+                'test': f"assert bigcodebench_positive_{i}() == {i}",
+                'entry_point': f"bigcodebench_positive_{i}",
+            })
+            self.labels.append(1)
+        
+        for i in range(num_negative):
+            self.data.append({
+                'dataset': 'bigcodebench',
+                'prompt': f"def bigcodebench_negative_{i}():\n    \"\"\"BigCodeBench negative {i}\"\"\"\n    pass",
+                'completion': f"def bigcodebench_negative_{i}():\n    return {i}",
+                'test': f"assert bigcodebench_negative_{i}() == {i}",
+                'entry_point': f"bigcodebench_negative_{i}",
+            })
+            self.labels.append(0)
+        
+        logger.info(f"Generated {len(self.data)} synthetic samples")
+    
+    def preprocess_data(self) -> None:
+        """
+        Preprocess the loaded data according to the paper's requirements.
+        
+        Steps:
+        1. Ground-truth-guided next-token prediction on BigCodeBench for threshold learning
+        2. Semantic similarity verification using SBERT to mitigate data contamination
+        3. Balanced dataset by randomly downsampling positive samples to match negative samples
+        """
+        logger.info("Starting data preprocessing...")
+        
+        # Step 1: Ground-truth-guided next-token prediction for BigCodeBench
+        self._ground_truth_guided_prediction()
+        
+        # Step 2: Semantic similarity verification using SBERT
+        if self.use_sbert:
+            self._semantic_similarity_verification()
+        
+        # Step 3: Balance dataset
+        if self.balance_dataset:
+            self._balance_dataset()
+        
+        # Tokenize and encode the data
+        self._encode_data()
+        
+        logger.info(f"Preprocessing complete. Total samples: {len(self.data)}")
+    
+    def _ground_truth_guided_prediction(self) -> None:
+        """
+        Apply ground-truth-guided next-token prediction on BigCodeBench data.
+        
+        This step computes the next-token prediction accuracy using ground truth
+        completions to establish thresholds for distinguishing positive from negative samples.
+        """
+        bigcodebench_indices = [i for i, item in enumerate(self.data) if item['dataset'] == 'bigcodebench']
+        
+        if not bigcodebench_indices:
+            logger.warning("No BigCodeBench data found for ground-truth-guided prediction")
+            return
+        
+        logger.info(f"Applying ground-truth-guided next-token prediction on {len(bigcodebench_indices)} BigCodeBench samples")
+        
+        # For each BigCodeBench sample, compute a confidence score based on
+        # how well the model's predictions align with ground truth
+        for idx in bigcodebench_indices:
+            item = self.data[idx]
+            prompt = item['prompt']
+            completion = item['completion']
+            
+            # Compute a simple confidence score based on completion length and content
+            # In a real implementation, this would use the actual model's predictions
+            confidence_score = self._compute_confidence_score(prompt, completion)
+            item['confidence_score'] = confidence_score
+            
+            # Apply threshold to determine label
+            if confidence_score >= self.threshold:
+                item['predicted_label'] = 1
+            else:
+                item['predicted_label'] = 0
+    
+    def _compute_confidence_score(self, prompt: str, completion: str) -> float:
+        """
+        Compute a confidence score for a given prompt-completion pair.
+        
+        This is a simplified version. In practice, this would use the actual model's
+        next-token prediction probabilities.
+        """
+        # Simple heuristic: longer completions with more structure get higher scores
+        score = 0.0
+        
+        # Length-based scoring
+        completion_length = len(completion.split())
+        if completion_length > 10:
+            score += 0.3
+        elif completion_length > 5:
+            score += 0.2
+        else:
+            score += 0.1
+        
+        # Structure-based scoring
+        if 'def ' in completion:
+            score += 0.2
+        if 'return' in completion:
+            score += 0.2
+        if 'import' in completion:
+            score += 0.1
+        
+        # Content similarity (simplified)
+        prompt_words = set(prompt.lower().split())
+        completion_words = set(completion.lower().split())
+        if prompt_words and completion_words:
+            overlap = len(prompt_words.intersection(completion_words)) / len(prompt_words)
+            score += overlap * 0.2
+        
+        return min(score, 1.0)
+    
+    def _semantic_similarity_verification(self) -> None:
+        """
+        Apply semantic similarity verification using SBERT to mitigate data contamination.
+        
+        This step verifies that the generated code is semantically similar to the
+        expected solution, helping to filter out contaminated or irrelevant samples.
+        """
+        logger.info("Applying semantic similarity verification using SBERT")
+        
+        try:
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer(self.sbert_model_name)
+            
+            for item in self.data:
+                prompt = item['prompt']
+                completion = item['completion']
+                
+                # Encode prompt and completion
+                prompt_embedding = model.encode(prompt, convert_to_tensor=True)
+                completion_embedding = model.encode(completion, convert_to_tensor=True)
+                
+                # Compute cosine similarity
+                similarity = torch.nn.functional.cosine_similarity(
+                    prompt_embedding.unsqueeze(0),
+                    completion_embedding.unsqueeze(0)
+                ).item()
+                
+                item['semantic_similarity'] = similarity
+                
+                # Update label based on similarity threshold
+                if similarity < self.threshold:
+                    item['contamination_flag'] = True
+                else:
+                    item['contamination_flag'] = False
+                    
+        except ImportError:
+            logger.warning("sentence-transformers not installed. Skipping SBERT verification.")
+            for item in self.data:
+                item['semantic_similarity'] = 0.5
+                item['contamination_flag'] = False
+    
+    def _balance_dataset(self) -> None:
+        """
+        Balance the dataset by randomly downsampling positive samples to match
+        the number of negative samples.
+        """
+        positive_indices = [i for i, label in enumerate(self.labels) if label == 1]
+        negative_indices = [i for i, label in enumerate(self.labels) if label == 0]
+        
+        if not negative_indices:
+            logger.warning("No negative samples found. Dataset remains unbalanced.")
+            return
+        
+        num_negative = len(negative_indices)
+        num_positive = len(positive_indices)
+        
+        if num_positive > num_negative:
+            # Downsample positive samples
+            random.seed(self.seed)
+            sampled_positive = random.sample(positive_indices, num_negative)
+            
+            # Keep only balanced samples
+            keep_indices = set(sampled_positive + negative_indices)
+            self.data = [self.data[i] for i in range(len(self.data)) if i in keep_indices]
+            self.labels = [self.labels[i] for i in range(len(self.labels)) if i in keep_indices]
+            
+            logger.info(f"Balanced dataset: {len(self.data)} samples ({num_negative} positive, {num_negative} negative)")
+        else:
+            logger.info(f"Dataset already balanced or has more negative samples: {num_positive} positive, {num_negative} negative")
+    
+    def _encode_data(self) -> None:
+        """
+        Encode the text data into token IDs and attention masks.
+        
+        This is a simplified encoding using a basic tokenizer.
+        In practice, this would use the actual model's tokenizer.
+        """
+        logger.info("Encoding data...")
+        
+        # Simple character-level tokenization for demonstration
+        # In practice, use the model's tokenizer
+        vocab_size = 1000
+        
+        for item in self.data:
+            text = item['prompt'] + ' ' + item['completion']
+            
+            # Simple tokenization: split by whitespace and hash to get token IDs
+            tokens = text.split()[:self.max_length]
+            token_ids = []
+            for token in tokens:
+                # Simple hash-based tokenization
+                token_id = hash(token) % (vocab_size - 1) + 1  # Reserve 0 for padding
+                token_ids.append(token_id)
+            
+            # Pad or truncate to max_length
+            if len(token_ids) < self.max_length:
+                padding = [0] * (self.max_length - len(token_ids))
+                token_ids = token_ids + padding
+            else:
+                token_ids = token_ids[:self.max_length]
+            
+            # Create attention mask (1 for real tokens, 0 for padding)
+            attention_mask = [1 if token_id != 0 else 0 for token_id in token_ids]
+            
+            self.input_ids.append(torch.tensor(token_ids, dtype=torch.long))
+            self.attention_masks.append(torch.tensor(attention_mask, dtype=torch.long))
+    
+    def _apply_split(self) -> None:
+        """
+        Apply train/validation split to the dataset.
+        """
+        if self.split == 'train':
+            # For training, use the full dataset (the split will be handled by the dataloader)
+            return
+        
+        # For validation, create a subset
+        dataset_size = len(self.data)
+        val_size = int(dataset_size * 0.2)
+        train_size = dataset_size - val_size
+        
+        # Use the same seed for reproducibility
+        generator = torch.Generator().manual_seed(self.seed)
+        train_indices, val_indices = random_split(
+            range(dataset_size), 
+            [train_size, val_size],
+            generator=generator
+        )
+        
+        if self.split == 'val':
+            indices = list(val_indices)
+        else:
+            indices = list(train_indices)
+        
+        # Filter data based on split
+        self.data = [self.data[i] for i in indices]
+        self.labels = [self.labels[i] for i in indices]
+        self.input_ids = [self.input_ids[i] for i in indices]
+        self.attention_masks = [self.attention_masks[i] for i in indices]
+        
+        logger.info(f"Split '{self.split}': {len(self.data)} samples")
+    
+    def split_dataset(
+        self,
+        train_ratio: float = 0.8,
+        val_ratio: float = 0.2,
+        seed: Optional[int] = None
+    ) -> Tuple[Subset, Subset]:
+        """
+        Split the dataset into training and validation subsets.
+        
+        Args:
+            train_ratio: Ratio of training data (default: 0.8)
+            val_ratio: Ratio of validation data (default: 0.2)
+            seed: Random seed for reproducibility
+            
+        Returns:
+            Tuple of (train_subset, val_subset)
+        """
+        if seed is None:
+            seed = self.seed
+        
+        dataset_size = len(self.data)
+        val_size = int(dataset_size * val_ratio)
+        train_size = dataset_size - val_size
+        
+        generator = torch.Generator().manual_seed(seed)
+        train_subset, val_subset = random_split(
+            self,
+            [train_size, val_size],
+            generator=generator
+        )
+        
+        logger.info(f"Dataset split: {train_size} training samples, {val_size} validation samples")
+        
+        return train_subset, val_subset
+    
+    def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
+        return len(self.data)
+    
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        """
+        Get a sample from the dataset.
+        
+        Args:
+            idx: Index of the sample
+            
+        Returns:
+            Dictionary containing input_ids, attention_mask, and label
+        """
+        if idx < 0 or idx >= len(self.data):
+            raise IndexError(f"Index {idx} out of range for dataset of size {len(self.data)}")
+        
+        sample = {
+            'input_ids': self.input_ids[idx],
+            'attention_mask': self.attention_masks[idx],
+            'label': torch.tensor(self.labels[idx], dtype=torch.float32),
+        }
+        
+        # Add additional metadata if available
+        if 'confidence_score' in self.data[idx]:
+            sample['confidence_score'] = torch.tensor(
+                self.data[idx]['confidence_score'], dtype=torch.float32
+            )
+        
+        if 'semantic_similarity' in self.data[idx]:
+            sample['semantic_similarity'] = torch.tensor(
+                self.data[idx]['semantic_similarity'], dtype=torch.float32
+            )
+        
+        return sample
+
+
+def get_dataloaders(
+    config: Optional[Dict[str, Any]] = None,
+    version: str = 'default',
+    batch_size: int = 32,
+    num_workers: int = 4,
+    shuffle: bool = True,
+    seed: int = 42,
+) -> Dict[str, Any]:
+    """
+    Create dataloaders for training and validation.
+    
+    Args:
+        config: Configuration dictionary
+        version: Dataset version (default: 'default')
+        batch_size: Batch size for dataloaders
+        num_workers: Number of workers for data loading
+        shuffle: Whether to shuffle training data
+        seed: Random seed
+        
+    Returns:
+        Dictionary containing train_loader, val_loader, and dataset
+    """
+    if config is None:
+        config = {}
+    
+    # Create dataset
+    dataset = HumanEvalMBPPDevEvalBigCodeBenchDataset(
+        version=version,
+        config=config,
+        split='train',
+        seed=seed,
+    )
+    
+    # Split dataset
+    train_ratio = config.get('split_strategy', {}).get('default_train_ratio', 0.8)
+    val_ratio = config.get('split_strategy', {}).get('val_split_ratio', 0.2)
+    
+    train_subset, val_subset = dataset.split_dataset(
+        train_ratio=train_ratio,
+        val_ratio=val_ratio,
+        seed=seed,
+    )
+    
+    # Create dataloaders
+    train_loader = torch.utils.data.DataLoader(
+        train_subset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+    
+    val_loader = torch.utils.data.DataLoader(
+        val_subset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+    
+    return {
+        'train_loader': train_loader,
+        'val_loader': val_loader,
+        'dataset': dataset,
+    }
+
+
+def load_config(config_path: str = 'config/config.yaml') -> Dict[str, Any]:
+    """
+    Load configuration from YAML file.
+    
+    Args:
+        config_path: Path to the configuration file
+        
+    Returns:
+        Configuration dictionary
+    """
+    if not os.path.exists(config_path):
+        logger.warning(f"Config file '{config_path}' not found. Using empty config.")
+        return {}
+    
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    
+    return config if config is not None else {}
+
+
+if __name__ == '__main__':
+    # Basic test when run directly
+    logging.basicConfig(level=logging.INFO)
+    
+    # Load config
+    config = load_config()
+    
+    # Create dataset
+    dataset = HumanEvalMBPPDevEvalBigCodeBenchDataset(
+        version='default',
+        config=config,
+        split='train',
+    )
+    
+    logger.info(f"Dataset size: {len(dataset)}")
+    
+    # Test getitem
+    sample = dataset[0]
+    logger.info(f"Sample keys: {list(sample.keys())}")
+    logger.info(f"Input IDs shape: {sample['input_ids'].shape}")
+    logger.info(f"Attention mask shape: {sample['attention_mask'].shape}")
+    logger.info(f"Label: {sample['label']}")
+    
+    # Test dataloaders
+    dataloaders = get_dataloaders(config=config, version='default', batch_size=32)
+    logger.info(f"Train loader size: {len(dataloaders['train_loader'])}")
+    logger.info(f"Val loader size: {len(dataloaders['val_loader'])}")
+```

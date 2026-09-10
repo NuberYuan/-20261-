@@ -1,0 +1,5 @@
+{
+  "data_source": "external_dataset",
+  "acquisition": "local_path",
+  "data_source_note": "论文明确使用 HumanEval+, MBPP+, DevEval, BigCodeBench 等公开代码生成基准数据集，需要用户提供本地路径。"
+}

@@ -1,0 +1,4 @@
+{
+  "experiment_matrix.known_best": "Gemini 3.1 Pro和GPT-5 Mini在真实数据上达到46.7%的召回率；在合成数据上，GPT-5检测到70.0%的不一致",
+  "experiment_matrix.known_worst": "NOT_FOUND"
+}

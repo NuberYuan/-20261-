@@ -1,0 +1,62 @@
+paper_name: 论文5
+pipeline:
+- Input static metadata, past-observed inputs and future-known inputs. Apply variable
+  selection to static, past and future inputs. Encode static covariates into context
+  vectors cs, ce, cc, ch. Process selected temporal features with LSTM encoder-decoder
+  locality enhancement. Apply static enrichment, temporal self-attention and positionwise
+  feedforward layers. Generate quantile forecasts via linear transformation. Train
+  by jointly minimizing quantile loss across all quantiles and horizons.
+experiments:
+- name: main_experiment
+  description: NOT_FOUND
+evaluation:
+  primary_metric: NOT_FOUND
+  secondary_metrics:
+  - q-Risk
+  - P50 risk
+  - P90 risk
+  - normalized quantile losses
+comparison:
+  baselines:
+  - DeepAR
+  - Deep State-Space Models
+  - ConvTrans
+  - MQRNN
+  ablation_factors: []
+experiment_matrix:
+  dimensions:
+    architectures:
+    - Temporal Fusion Transformer
+    - Gated Residual Network
+    - Interpretable Multi-Head Attention
+    - LSTM encoder-decoder
+    training_modes:
+    - Scratch
+    data_types:
+    - default
+    train_test_splits:
+    - 2014-01
+    - 2014-09
+    - 2008-06
+    - 2015-01
+    - 2015-12
+    - 2000-01
+    - 2019-06
+    - 2016-2017
+  total_configurations: 32
+  known_best: NOT_FOUND
+  known_worst: NOT_FOUND
+  run_all: false
+  recommended_subset:
+  - Temporal Fusion Transformer::Scratch::default::2014-01
+  - Gated Residual Network::Scratch::default::2014-01
+  note: 共 32 个实验组合。90%+ 场景下只需跑推荐子集确认趋势，CI/CD 中跑全部组合验证稳定性。
+important_results: 'TFT demonstrates significant performance improvements over existing
+  benchmarks on a variety of real-world datasets. For the Electricity dataset, the
+  optimal TFT model trains in slightly over 6 hours on an NVIDIA Tesla V100 GPU, each
+  epoch being roughly 52 mins, and batched inference on the entire validation dataset
+  of 50,000 samples takes 8 minutes. TFT enables three interpretability use cases:
+  identifying globally important variables, persistent temporal patterns, and significant
+  events. Variable importance results include Electricity static ID 1.000, past power
+  usage 0.342/0.359/0.366, future hour-of-day 0.718/0.738/0.739; Traffic past occupancy
+  0.471/0.473/0.483; Volatility past realized volatility 0.620/0.647/0.714.'

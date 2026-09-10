@@ -1,0 +1,17 @@
+{
+  "table_id": "table_6",
+  "table_type": "other",
+  "caption_summary": "Definitions of evaluation criteria for retrieval-on-demand generation, including Retrieve, Relevant, Supported, and Useful.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Retrieval-on-demand (Retrieve)", "value": "Given an input and previous-step generation (if applicable),"},
+      {"label": "Relevant", "value": ""},
+      {"label": "Supported", "value": ""},
+      {"label": "Useful", "value": ""}
+    ]
+  },
+  "table_summary": "This table lists the evaluation criteria used for retrieval-on-demand generation tasks. It defines four key concepts: Retrieve, Relevant, Supported, and Useful, which are likely used to assess the quality of generated responses that involve retrieval. The table appears to be a rubric or definition list rather than a results table."
+}

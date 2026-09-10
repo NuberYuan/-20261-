@@ -1,0 +1,28 @@
+paper_name: 论文3
+framework:
+  recommended: PyTorch
+  candidates:
+  - PyTorch
+  source: 复现代码统一使用 PyTorch；论文原文框架见 programming_framework_mentioned
+programming_framework_mentioned: NOT_FOUND
+model_backbone:
+  names:
+  - UNet++
+  source: 论文提到
+architecture_details:
+  note: NOT_FOUND
+training:
+  optimizer:
+    type: Adam
+  loss:
+    type: binary cross-entropy + dice coefficient
+  scheduler:
+    type: NOT_FOUND
+pretrained_weights:
+  used: false
+  source: NOT_FOUND
+special_modules: Nested dense skip pathways with dense convolution blocks; deep supervision
+  with multiple segmentation heads; model pruning enabled by selecting segmentation
+  branches.
+hardware:
+  mentioned: one NVIDIA TITAN X (Pascal) with 12 GB memory

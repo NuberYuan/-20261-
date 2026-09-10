@@ -1,0 +1,148 @@
+{
+  "title": "Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms",
+  "research_problem": "The paper addresses the challenge that rule-based graph programs generally do not achieve the asymptotic runtime efficiency of imperative graph algorithms because graph matching is expensive; previous GP 2 implementations required bounded node degree and, for some algorithms, connected input graphs.",
+  "motivation": "The primary obstacle is the cost of graph matching: matching a rule left-hand graph L in a host graph G generally requires time |G|^|L|, so standard linear-time imperative graph algorithms may become nonlinear when recast as rule-based programs. The authors aim to lift previous constraints on bounded node degree and connectivity so rule-based programs can match imperative time complexity.",
+  "main_contribution": "The paper enhances the GP 2 compiler graph data structure by storing nodes in separate linked lists based on marks and giving each node a two-dimensional array of linked lists for incident edges by mark and orientation. It presents three case studies with correctness and time-complexity proofs plus runtime experiments: connectedness checking in linear time on arbitrary input graphs with arbitrary node degrees, acyclicity checking in linear time on arbitrary input graphs, and Bellman-Ford single-source shortest paths in O(nm) on arbitrary input graphs, matching imperative Bellman-Ford.",
+  "methodology": {
+    "method_name": "GP 2 compiler enhancements and rooted graph programs",
+    "core_idea": "Improve the generated graph data structure so matching can directly access nodes and edges with required marks and orientations in constant time. Nodes are stored in separate linked lists by mark, and each node has a 5x3 array of linked lists for incident edges classified by mark and orientation, enabling constant-time lookup or absence detection.",
+    "pipeline": "GP 2 programs are compiled to C code by the new GP 2-to-C compiler. GCC transforms the C code into platform-dependent binaries executed by the runtime system. The runtime reads and parses the input host graph. Matching uses constant-time operations for nodes, roots, marks, degrees, sources, targets, and mark/orientation-specific edge lists. The paper then presents three case studies: connectedness in linear time, acyclicity in linear time, and Bellman-Ford in O(nm).",
+    "model": "GP 2 connectedness program, GP 2 acyclicity program, GP 2 Bellman-Ford program",
+    "model_architecture": {
+      "input": "Host graphs over labels with directed labelled nodes and edges; input graphs may be disconnected and have arbitrary node degrees; Bellman-Ford inputs have integer edge weights.",
+      "output": "Output host graph, or failure if the program fails or the input violates the checked property.",
+      "feature_extraction": "NOT_FOUND",
+      "classification": "NOT_FOUND",
+      "pretrained_model": "NOT_FOUND",
+      "special_modules": "Nodes are stored in separate linked lists based on marks (red, green, blue, grey, unmarked). Each node has a two-dimensional array of linked lists storing all incident edges based on marks (red, green, blue, dashed, unmarked) and orientation (incoming, outgoing, loop), totalling 15 cells.",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "NOT_FOUND",
+      "lstm": "NOT_FOUND"
+    }
+  },
+  "dataset": {
+    "dataset_name": "NOT_FOUND",
+    "dataset_source": "NOT_FOUND",
+    "dataset_size": "NOT_FOUND",
+    "number_of_classes": "NOT_FOUND",
+    "data_type": "Host graphs for connectedness, acyclicity, and Bellman-Ford runtime experiments on various graph classes; Figure 36 uses rooted cycle graphs of negative total weight.",
+    "train_test_split": "NOT_FOUND",
+    "preprocessing": "The input host graph is read and parsed from disk by the runtime system; no training/test split is reported."
+  },
+  "implementation_details": {
+    "programming_framework": "GP 2-to-C compiler, GCC, C runtime system",
+    "optimizer": "NOT_FOUND",
+    "learning_rate": "NOT_FOUND",
+    "batch_size": "NOT_FOUND",
+    "epoch": "NOT_FOUND",
+    "loss_function": "NOT_FOUND",
+    "hardware": "NOT_FOUND",
+    "training_strategy": "NOT_FOUND"
+  },
+  "experiment": {
+    "evaluation_metrics": "Time complexity, correctness proofs, runtime measurements",
+    "baseline_methods": "2020 GP 2 compiler, previous bounded-degree GP 2 programs, imperative Bellman-Ford algorithm",
+    "comparison_results": "The connectedness program runs in linear time on possibly disconnected input graphs with arbitrary node degrees, removing the previous bounded-degree constraint. The acyclicity program runs in linear time on possibly disconnected input graphs with arbitrary node degrees. The Bellman-Ford program runs in O(nm) on arbitrary input graphs, matching the time complexity of imperative Bellman-Ford implementations. Runtime experiments on various graph classes support the complexity claims.",
+    "ablation_study": "NOT_FOUND",
+    "important_results": "First two programs run in linear time on possibly disconnected input graphs with arbitrary node degrees. The Bellman-Ford program runs in O(nm) on arbitrary input graphs, where n is the number of nodes and m is the number of edges. To the best of the authors' knowledge, this is the first rule-based shortest-path implementation matching the complexity of an imperative Bellman-Ford algorithm."
+  },
+  "reproduction_requirements": {
+    "required_modules": [
+      "GP 2 compiler new version available at https://github.com/UoYCSplasma/GP2",
+      "GCC",
+      "GP 2 runtime system"
+    ],
+    "important_parameters": {
+      "node_mark_lists": "red, green, blue, grey, unmarked",
+      "edge_mark_lists": "red, green, blue, dashed, unmarked",
+      "edge_orientation_lists": "incoming, outgoing, loop",
+      "edge_array_cells": "15",
+      "connectedness_time_complexity": "linear",
+      "acyclicity_time_complexity": "linear",
+      "bellman_ford_time_complexity": "O(nm)"
+    },
+    "possible_difficulties": [
+      "Achieving constant-time graph matching without bounded node degree",
+      "Writing programs that exploit mark-separated node and edge lists",
+      "Avoiding compiler backtracking in program execution to maintain fast runtimes",
+      "Finding matches with correct marks and orientations without scanning incompatible edges"
+    ]
+  },
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "workflow",
+      "description": "GP 2 computational model: a GP 2 program transforms an input graph into an output graph."
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "other",
+      "description": "GP 2 label subtype hierarchy including list, atom, int, string, and char."
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "other",
+      "description": "Abstract syntax of GP 2 programs from Prog to ProcCall."
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "workflow",
+      "description": "GP 2 execution pipeline: GP 2 code is compiled to C by the GP 2-to-C compiler, then transformed by GCC into a binary, executed by the runtime system, and produces output."
+    },
+    {
+      "figure_number": "Figure 5",
+      "type": "other",
+      "description": "GP 2 program transitiveclosure with the link rule and condition not edge(1,3)."
+    },
+    {
+      "figure_number": "Figure 6",
+      "type": "other",
+      "description": "Updated complexity assumptions on elementary operations generated by the compiler; grey rows indicate updated procedures."
+    },
+    {
+      "figure_number": "Figure 7",
+      "type": "other",
+      "description": "The old program isconnected with rules init, forward, back, and match, and main command try init then (DFS!; Check)."
+    },
+    {
+      "figure_number": "Figure 8",
+      "type": "other",
+      "description": "Execution of isconnected on a star graph with 8 edges, showing matching attempts for the forward rule with fd and bk labels."
+    },
+    {
+      "figure_number": "Figure 9",
+      "type": "other",
+      "description": "Two-dimensional array of linked lists of edges with five mark rows and three orientation columns: incoming, outgoing, and loop."
+    },
+    {
+      "figure_number": "Figure 36",
+      "type": "experiment_result",
+      "description": "Measured performance of the program bellmanford on rooted cycle graphs of negative total weight.",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "NOT_FOUND",
+      "conclusion": "Measured performance of bellmanford on rooted cycle graphs of negative total weight."
+    },
+    {
+      "figure_number": "Figure 37",
+      "type": "other",
+      "description": "Abstract syntax of host graph labels."
+    },
+    {
+      "figure_number": "Figure 38",
+      "type": "other",
+      "description": "Abstract syntax of rule graph labels."
+    },
+    {
+      "figure_number": "Figure 39",
+      "type": "other",
+      "description": "Abstract syntax of application conditions."
+    }
+  ]
+}

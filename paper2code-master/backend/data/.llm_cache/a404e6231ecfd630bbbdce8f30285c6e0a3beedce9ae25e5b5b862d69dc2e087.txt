@@ -1,0 +1,444 @@
+import argparse
+import json
+import random
+import sys
+import traceback
+from pathlib import Path
+
+import numpy as np
+import torch
+import yaml
+
+from data.dataset import get_dataloaders
+from evaluation.evaluate import evaluate_model, generate_report
+from training.train import initialize_model, train_model
+
+
+def _load_config_yaml(config_path):
+    """Load YAML config with explicit UTF-8 encoding."""
+    config_path = Path(config_path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    if not isinstance(config, dict):
+        raise ValueError(f"Config file did not parse to a dict: {config_path}")
+
+    return config
+
+
+def _normalize_model_name(model_name):
+    """Return the canonical model name used in config keys."""
+    if not model_name:
+        return "AlexNet"
+
+    normalized = str(model_name).lower()
+    if "alex" in normalized:
+        return "AlexNet"
+    if "goog" in normalized:
+        return "GoogLeNet"
+    return str(model_name)
+
+
+def _sanitize_name(name):
+    """Convert a run name to a filesystem-safe identifier."""
+    cleaned = "".join(
+        ch if ch.isalnum() or ch in "_-" else "_" for ch in str(name)
+    ).strip("_")
+    return cleaned or "run"
+
+
+def _resolve_root_dir(data_cfg, version):
+    """Resolve dataset root path from config safely."""
+    root_dir = data_cfg.get("root")
+    version_cfg = data_cfg.get(version, {})
+    if not isinstance(version_cfg, dict):
+        version_cfg = {}
+
+    if root_dir is None:
+        root_dir = version_cfg.get("path")
+
+    return root_dir
+
+
+def _serializable_metrics(metrics):
+    """Convert metrics dict to JSON-serializable form, excluding raw label arrays."""
+    serializable = {}
+    if not isinstance(metrics, dict):
+        return serializable
+
+    for key, value in metrics.items():
+        if key in ("true_labels", "pred_labels"):
+            continue
+
+        if isinstance(value, np.ndarray):
+            serializable[key] = value.tolist()
+        elif isinstance(value, (np.integer, np.floating)):
+            serializable[key] = value.item()
+        else:
+            serializable[key] = value
+
+    return serializable
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description=(
+            "Plant Disease Detection project entrypoint: "
+            "load data, train models, and generate evaluation reports."
+        )
+    )
+    parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help="Run only experiment.runs[index] (0-based). If omitted, run all runs.",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/config.yaml",
+        help="Path to YAML config file. Default: config/config.yaml",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        cfg = _load_config_yaml(args.config)
+    except Exception as exc:
+        print(f"Failed to load config: {exc}")
+        sys.exit(1)
+
+    runs = cfg.get("experiment", {}).get("runs", [])
+    if not isinstance(runs, list):
+        runs = []
+
+    if args.run is not None:
+        if args.run < 0 or args.run >= len(runs):
+            print(
+                f"Requested run index {args.run} is out of range "
+                f"(0..{len(runs) - 1})."
+            )
+            sys.exit(1)
+        selected_runs = [(args.run, runs[args.run])]
+    else:
+        selected_runs = list(enumerate(runs))
+
+    system_cfg = cfg.get("system", {}) or {}
+    training_cfg = cfg.get("training", {}) or {}
+    split_cfg = cfg.get("split_strategy", {}) or {}
+    checkpoint_cfg = cfg.get("checkpoint", {}) or {}
+    model_cfg = cfg.get("model", {}) or {}
+    reproduction_mode = cfg.get("reproduction_mode", "engineering")
+
+    seed = int(system_cfg.get("seed", 42))
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    device = system_cfg.get("device", "cuda")
+    if device == "cuda" and not torch.cuda.is_available():
+        print("CUDA requested but not available; falling back to CPU.")
+        device = "cpu"
+
+    num_workers = int(system_cfg.get("num_workers", 0))
+
+    output_dir = Path("reports")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    checkpoints_root = Path("checkpoints")
+    checkpoints_root.mkdir(parents=True, exist_ok=True)
+
+    summary_lines = []
+    summary_lines.append("Experiment Summary")
+    summary_lines.append("=================")
+    summary_lines.append(
+        f"Project: {cfg.get('project', {}).get('name', 'Plant Disease Detection')}"
+    )
+    summary_lines.append("")
+
+    success_count = 0
+    skipped_count = 0
+    failed_count = 0
+
+    optimizer_cfg = training_cfg.get("optimizer", {}) or {}
+    scheduler_cfg = training_cfg.get("scheduler", {}) or {}
+
+    num_epochs = int(training_cfg.get("epochs", 30))
+    learning_rate = float(optimizer_cfg.get("lr", 0.005))
+    momentum = float(optimizer_cfg.get("momentum", 0.9))
+    weight_decay = float(optimizer_cfg.get("weight_decay", 0.0005))
+    step_size = int(scheduler_cfg.get("step_size", 10))
+    gamma = float(scheduler_cfg.get("gamma", 0.1))
+
+    batch_size_cfg = training_cfg.get("batch_size", {})
+    if not isinstance(batch_size_cfg, dict):
+        batch_size_fallback = int(batch_size_cfg)
+    else:
+        batch_size_fallback = 32
+
+    save_best = bool(checkpoint_cfg.get("save_best", True))
+    save_final = bool(checkpoint_cfg.get("save_final", True))
+    save_optimizer_state = bool(checkpoint_cfg.get("save_optimizer_state", True))
+
+    default_train_ratio = float(split_cfg.get("default_train_ratio", 0.8))
+    default_val_ratio = float(split_cfg.get("val_split_ratio", 0.2))
+    default_num_classes = int(model_cfg.get("num_classes", 38))
+
+    for run_index, run_cfg in selected_runs:
+        original_run_name = run_cfg.get("name", f"run_{run_index}")
+        safe_run_name = _sanitize_name(original_run_name)
+
+        print(f"\n===== Processing run: {original_run_name} =====")
+
+        model_name_raw = run_cfg.get("model", "AlexNet")
+        model_name = _normalize_model_name(model_name_raw)
+        training_mode = str(run_cfg.get("training_mode", "scratch")).lower()
+        version = run_cfg.get(
+            "dataset_version",
+            cfg.get("version_selector", {}).get("default", "color"),
+        )
+
+        data_cfg = cfg.get("data", {}) or {}
+        version_cfg = data_cfg.get(version, {})
+        if not isinstance(version_cfg, dict):
+            version_cfg = {}
+
+        version_status = version_cfg.get("status")
+        if version_status == "unresolved":
+            reason = version_cfg.get(
+                "reason",
+                f"Dataset version {version} is marked unresolved in config.",
+            )
+            print(f"[{original_run_name}] Skipped: {reason}")
+            summary_lines.append(
+                f"[{original_run_name}] SKIPPED: dataset version "
+                f"{version} is unresolved."
+            )
+            skipped_count += 1
+            continue
+
+        root_dir = _resolve_root_dir(data_cfg, version)
+        if root_dir is None:
+            print(
+                f"[{original_run_name}] Skipped: data.root for version "
+                f"{version} is not configured."
+            )
+            summary_lines.append(
+                f"[{original_run_name}] SKIPPED: data.root is not configured "
+                f"for dataset version {version}."
+            )
+            skipped_count += 1
+            continue
+
+        root_path = Path(root_dir)
+        if not root_path.exists():
+            print(
+                f"[{original_run_name}] Skipped: data path does not exist: "
+                f"{root_path}"
+            )
+            summary_lines.append(
+                f"[{original_run_name}] SKIPPED: data path does not exist: "
+                f"{root_path}"
+            )
+            skipped_count += 1
+            continue
+
+        train_ratio = float(
+            run_cfg.get("train_ratio", default_train_ratio)
+        )
+
+        if reproduction_mode == "strict":
+            val_split_ratio = 0.0
+        else:
+            val_split_ratio = float(
+                run_cfg.get("val_split_ratio", default_val_ratio)
+            )
+
+        if isinstance(batch_size_cfg, dict):
+            batch_size = int(batch_size_cfg.get(model_name, batch_size_fallback))
+        else:
+            batch_size = int(batch_size_fallback)
+
+        pin_memory = device == "cuda"
+
+        run_checkpoint_dir = checkpoints_root / safe_run_name
+
+        try:
+            loaders = get_dataloaders(
+                config=cfg,
+                version=version,
+                root_dir=root_dir,
+                train_ratio=train_ratio,
+                val_split_ratio=val_split_ratio,
+                batch_size=batch_size,
+                num_workers=num_workers,
+                pin_memory=pin_memory,
+                seed=seed,
+                train_shuffle=True,
+            )
+
+            train_loader = loaders.get("train_loader")
+            val_loader = loaders.get("val_loader")
+            test_loader = loaders.get("test_loader")
+
+            if train_loader is None or len(train_loader.dataset) == 0:
+                raise ValueError("Training split is empty; cannot train.")
+
+            if test_loader is None or len(test_loader.dataset) == 0:
+                raise ValueError("Test split is empty; cannot evaluate.")
+
+            train_size = len(train_loader.dataset)
+            val_size = len(val_loader.dataset) if val_loader is not None else 0
+            test_size = len(test_loader.dataset)
+
+            print(
+                f"[{original_run_name}] Split sizes - "
+                f"train: {train_size}, val: {val_size}, test: {test_size}"
+            )
+
+            num_classes = int(loaders.get("num_classes", default_num_classes))
+
+            model = initialize_model(
+                model_name=model_name,
+                training_mode=training_mode,
+                config=cfg,
+                num_classes=num_classes,
+            )
+
+            trained_model, history = train_model(
+                model,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                test_loader=test_loader,
+                model_name=model_name,
+                training_mode=training_mode,
+                config=cfg,
+                checkpoint_dir=run_checkpoint_dir,
+                device=device,
+                num_epochs=num_epochs,
+                learning_rate=learning_rate,
+                momentum=momentum,
+                weight_decay=weight_decay,
+                step_size=step_size,
+                gamma=gamma,
+                save_best=save_best,
+                save_final=save_final,
+                save_optimizer_state=save_optimizer_state,
+                seed=seed,
+            )
+
+            eval_model = trained_model
+            best_path = run_checkpoint_dir / f"{model_name}_{training_mode}_best.pth"
+            if best_path.exists():
+                try:
+                    eval_model = initialize_model(
+                        model_name=model_name,
+                        training_mode=training_mode,
+                        config=cfg,
+                        num_classes=num_classes,
+                    )
+                    checkpoint = torch.load(best_path, map_location=device)
+                    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+                        eval_model.load_state_dict(checkpoint["model_state_dict"])
+                    else:
+                        eval_model.load_state_dict(checkpoint)
+
+                    print(
+                        f"[{original_run_name}] Loaded best checkpoint for evaluation: "
+                        f"{best_path}"
+                    )
+                except Exception as load_exc:
+                    print(
+                        f"[{original_run_name}] Could not load best checkpoint "
+                        f"({load_exc}); evaluating final weights instead."
+                    )
+                    eval_model = trained_model
+            else:
+                print(
+                    f"[{original_run_name}] No best checkpoint found; "
+                    f"evaluating final weights."
+                )
+
+            metrics = evaluate_model(
+                model=eval_model,
+                test_loader=test_loader,
+                device=device,
+                config=cfg,
+                threshold=0.5,
+                batch_size=batch_size,
+            )
+
+            report_path = generate_report(
+                metrics,
+                safe_run_name,
+                output_dir,
+                cfg,
+            )
+
+            mean_f1 = float(metrics.get("mean_f1_score", 0.0))
+            mean_precision = float(metrics.get("mean_precision", 0.0))
+            mean_recall = float(metrics.get("mean_recall", 0.0))
+            overall_accuracy = float(metrics.get("overall_accuracy", 0.0))
+
+            print(
+                f"[{original_run_name}] Mean F1: {mean_f1:.6f}, "
+                f"Mean Precision: {mean_precision:.6f}, "
+                f"Mean Recall: {mean_recall:.6f}, "
+                f"Overall Accuracy: {overall_accuracy:.6f}"
+            )
+            print(f"[{original_run_name}] Report: {report_path}")
+
+            logging_cfg = cfg.get("logging", {}) or {}
+            if bool(logging_cfg.get("save_metrics", False)):
+                metrics_path = output_dir / f"{safe_run_name}_metrics.json"
+                with open(metrics_path, "w", encoding="utf-8") as metrics_f:
+                    json.dump(
+                        _serializable_metrics(metrics),
+                        metrics_f,
+                        indent=2,
+                        ensure_ascii=False,
+                    )
+                print(f"[{original_run_name}] Metrics JSON: {metrics_path}")
+
+            summary_lines.append(
+                f"[{original_run_name}] SUCCESS - "
+                f"Mean F1: {mean_f1:.6f}, "
+                f"Mean Precision: {mean_precision:.6f}, "
+                f"Mean Recall: {mean_recall:.6f}, "
+                f"Overall Accuracy: {overall_accuracy:.6f}"
+            )
+            success_count += 1
+
+        except Exception as exc:
+            print(f"[{original_run_name}] Failed: {exc}")
+            traceback.print_exc()
+            summary_lines.append(
+                f"[{original_run_name}] FAILED: "
+                f"{str(exc).replace(chr(10), ' ')}"
+            )
+            failed_count += 1
+
+    summary_lines.append("")
+    summary_lines.append(f"Total selected runs: {len(selected_runs)}")
+    summary_lines.append(f"Successful: {success_count}")
+    summary_lines.append(f"Skipped: {skipped_count}")
+    summary_lines.append(f"Failed: {failed_count}")
+    summary_lines.append("")
+    summary_lines.append(
+        "Paper reference: best reported PlantVillage result achieved "
+        "mean F1 score 0.9934 and overall accuracy 99.35%."
+    )
+
+    summary_path = output_dir / "summary_report.txt"
+    with open(summary_path, "w", encoding="utf-8") as summary_f:
+        summary_f.write("\n".join(summary_lines) + "\n")
+
+    print(f"\nSummary report written to {summary_path}")
+
+
+if __name__ == "__main__":
+    main()

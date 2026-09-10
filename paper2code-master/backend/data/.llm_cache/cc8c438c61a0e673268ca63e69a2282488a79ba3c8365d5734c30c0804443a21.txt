@@ -1,0 +1,14 @@
+{
+  "table_id": "table_9",
+  "table_type": "other",
+  "caption_summary": "A table with a single row containing the word 'Retrieve' and a column header 'Retrieve', likely indicating a retrieval step or placeholder.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Row 1, Column 1", "value": "Retrieve"}
+    ]
+  },
+  "table_summary": "The table appears to be a placeholder or a minimal representation of a retrieval step, containing only the word 'Retrieve' in a single cell. No numerical data or experimental results are present. It may be part of a larger figure or a formatting artifact from the paper."
+}

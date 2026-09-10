@@ -1,0 +1,105 @@
+```json
+{
+  "code_requirements": {
+    "data/dataset.py": {
+      "description": "Dataset class for loading PlantVillage leaf images, supporting color, grayscale, and segmented versions. Images are resized to 256x256 pixels and converted to tensors with optional normalization.",
+      "class": "PlantVillageDataset",
+      "parent_class": "torch.utils.data.Dataset",
+      "methods": [
+        "__init__",
+        "__len__",
+        "__getitem__"
+      ],
+      "functions": [
+        "load_data",
+        "preprocess"
+      ],
+      "pseudocode": "class PlantVillageDataset(Dataset):\n    def __init__(self, data_dir, version='color', transform=None, train_split=0.8, split='train'):\n        # Load file paths and labels from data_dir\n        # version: 'color', 'grayscale', or 'segmented'\n        # Apply train/test split (e.g., 80-20)\n        # Store transform\n    \n    def __len__(self):\n        return len(self.file_paths)\n    \n    def __getitem__(self, idx):\n        # Load image from file path\n        # Resize to 256x256\n        # Convert to grayscale or segmented if specified\n        # Apply transform (ToTensor, normalization)\n        # Return image tensor and label"
+    },
+    "models/alexnet.py": {
+      "description": "AlexNet model adapted for 38-class plant disease classification. Architecture: 5 convolutional layers (conv1-conv5), followed by 3 fully connected layers (fc6-fc8). conv1 and conv2 are followed by normalization and pooling; conv5 is followed by pooling. fc8 has 38 outputs. ReLU activation on first 7 layers, dropout (ratio 0.5) on fc6 and fc7. Supports both training from scratch and transfer learning with ImageNet pretrained weights.",
+      "class": "Alexnet",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward"
+      ],
+      "functions": [],
+      "pseudocode": "class Alexnet(nn.Module):\n    def __init__(self, num_classes=38, pretrained=False):\n        # Define conv1-conv5 with ReLU, normalization, pooling as per paper\n        # Define fc6, fc7 with ReLU and dropout(0.5)\n        # Define fc8 with num_classes outputs\n        # If pretrained, load ImageNet weights and reset fc8\n    \n    def forward(self, x):\n        # Apply conv layers, pooling, normalization\n        # Flatten and apply fully connected layers\n        # Return logits"
+    },
+    "models/googlenet.py": {
+      "description": "GoogLeNet model adapted for 38-class plant disease classification. Architecture: 22 layers with 9 inception modules, each using parallel 1x1, 3x3, 5x5 convolutions and max-pooling with 1x1 convolutions for dimensionality reduction. Supports transfer learning by resetting the final loss/classifier layers.",
+      "class": "Googlenet",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__",
+        "forward"
+      ],
+      "functions": [
+        "inception_module"
+      ],
+      "pseudocode": "class Googlenet(nn.Module):\n    def __init__(self, num_classes=38, pretrained=False):\n        # Define stem layers\n        # Define 9 inception modules\n        # Define classifier (average pooling, dropout, fc)\n        # If pretrained, load ImageNet weights and reset classifier\n    \n    def inception_module(self, x, ...):\n        # Parallel 1x1, 3x3, 5x5 convs and max-pooling\n        # Concatenate outputs\n    \n    def forward(self, x):\n        # Apply stem, inception modules, classifier\n        # Return logits"
+    },
+    "training/train.py": {
+      "description": "Training loop for the plant disease classification models. Supports both AlexNet and GoogLeNet, training from scratch or transfer learning. Uses SGD optimizer with learning rate 0.005, momentum 0.9, weight decay 0.0005, StepLR scheduler (step_size=10, gamma=0.1), and cross-entropy loss. Batch size is 24 for GoogLeNet and 100 for AlexNet. Trains for 30 epochs.",
+      "functions": [
+        "train_epoch",
+        "validate",
+        "main"
+      ],
+      "uses": [
+        "models.alexnet",
+        "models.googlenet",
+        "data.dataset",
+        "utils.metrics"
+      ],
+      "pseudocode": "def train_epoch(model, dataloader, optimizer, criterion, device):\n    # Set model to train mode\n    # Iterate over batches\n    # Forward pass, compute loss, backward pass, optimizer step\n    # Return average loss and accuracy\n\ndef validate(model, dataloader, criterion, device):\n    # Set model to eval mode\n    # Iterate over batches, compute loss and predictions\n    # Return average loss, accuracy, precision, recall, F1\n\ndef main(config):\n    # Load config (model_name, version, split, pretrained, etc.)\n    # Create datasets and dataloaders\n    # Initialize model (Alexnet or Googlenet)\n    # Define optimizer (SGD, lr=0.005, momentum=0.9, weight_decay=0.0005)\n    # Define scheduler (StepLR, step_size=10, gamma=0.1)\n    # Define criterion (CrossEntropyLoss)\n    # For each epoch:\n    #   train_epoch\n    #   validate\n    #   scheduler.step()\n    # Save best model checkpoint"
+    },
+    "evaluation/evaluate.py": {
+      "description": "Evaluation script for the trained model on the test set. Computes overall accuracy, mean precision, mean recall, and mean F1 score. Also supports evaluation on real-world images if provided.",
+      "functions": [
+        "evaluate_model",
+        "main"
+      ],
+      "uses": [
+        "models.*",
+        "data.dataset",
+        "utils.metrics"
+      ],
+      "pseudocode": "def evaluate_model(model, dataloader, device):\n    # Set model to eval mode\n    # Collect all predictions and ground truth\n    # Compute accuracy, precision, recall, F1 using utils.metrics\n    # Return metrics\n\ndef main(config):\n    # Load config\n    # Load test dataset\n    # Load trained model checkpoint\n    # Evaluate and print metrics"
+    },
+    "utils/metrics.py": {
+      "description": "Utility functions for computing evaluation metrics: overall accuracy, mean precision, mean recall, and mean F1 score.",
+      "functions": [
+        "compute_accuracy",
+        "compute_precision_recall_f1"
+      ],
+      "pseudocode": "def compute_accuracy(y_true, y_pred):\n    # Return overall accuracy\n\ndef compute_precision_recall_f1(y_true, y_pred):\n    # Compute per-class precision, recall, F1\n    # Return mean precision, mean recall, mean F1"
+    },
+    "config/config.yaml": {
+      "description": "YAML configuration file containing all hyperparameters and settings for training and evaluation.",
+      "pseudocode": "model:\n  name: googlenet  # or alexnet\n  pretrained: true\n  num_classes: 38\n\ndata:\n  data_dir: /path/to/plantvillage\n  version: color  # color, grayscale, segmented\n  train_split: 0.8\n  batch_size: 24  # 24 for GoogLeNet, 100 for AlexNet\n  num_workers: 4\n\ntraining:\n  epochs: 30\n  optimizer: SGD\n  learning_rate: 0.005\n  momentum: 0.9\n  weight_decay: 0.0005\n  scheduler:\n    name: StepLR\n    step_size: 10\n    gamma: 0.1\n\nevaluation:\n  checkpoint_path: /path/to/checkpoint.pth"
+    },
+    "main.py": {
+      "description": "Main entry point for the project. Parses command-line arguments, loads configuration, and orchestrates training and evaluation.",
+      "functions": [
+        "main"
+      ],
+      "uses": [
+        "training.train",
+        "evaluation.evaluate",
+        "config.config"
+      ],
+      "pseudocode": "def main():\n    # Parse command-line arguments (e.g., --config, --mode train/evaluate)\n    # Load config from YAML\n    # If mode == 'train': call training.train.main(config)\n    # If mode == 'evaluate': call evaluation.evaluate.main(config)"
+    },
+    "README.md": {
+      "description": "Project documentation with setup instructions, dataset download links, usage examples, and reproduction notes.",
+      "pseudocode": "# Plant Disease Detection with Deep Learning\n\n## Overview\nReproduction of the paper 'Using Deep Learning for Image-Based Plant Disease Detection'.\n\n## Setup\n1. Install dependencies: pip install -r requirements.txt\n2. Download PlantVillage dataset from https://github.com/spMohanty/PlantVillage-Dataset\n3. Configure config/config.yaml\n\n## Usage\n- Train: python main.py --mode train --config config/config.yaml\n- Evaluate: python main.py --mode evaluate --config config/config.yaml\n\n## Results\nExpected accuracy: ~99.35% on PlantVillage test set (GoogLeNet, transfer learning, color, 80-20 split).\n\n## Notes\n- Segmentation preprocessing script not provided in the paper.\n- Real-world image evaluation may yield lower accuracy (~31.4%)."
+    },
+    "requirements.txt": {
+      "description": "Python dependencies required for the project.",
+      "pseudocode": "torch>=1.9.0\ntorchvision>=0.10.0\nnumpy>=1.21.0\npyyaml>=5.4.0\nscikit-learn>=0.24.0\npillow>=8.3.0\nopencv-python>=4.5.0"
+    }
+  }
+}
+```

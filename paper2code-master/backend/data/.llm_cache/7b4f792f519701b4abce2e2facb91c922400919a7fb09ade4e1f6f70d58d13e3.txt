@@ -1,0 +1,310 @@
+```python
+import math
+import random
+from typing import Dict, List, Optional, Tuple
+
+import torch
+from torch.utils.data import DataLoader, Dataset, random_split
+
+import yaml
+import os
+
+
+class SyntheticArithmeticTasksDataset(Dataset):
+    """
+    Synthetic dataset for arithmetic tasks (addition, subtraction, multiplication).
+
+    Generates sequences of digits representing arithmetic operations. The input
+    is a grid with numbers right-aligned. The read head starts at the last digit
+    of the top number (upper-right corner).
+
+    The dataset supports a curriculum: sequences start at complexity 6 and
+    increase by 4 once 100% accuracy is achieved on held-out examples of the
+    current length. Test instances are of length 100 and 1000 digits.
+
+    This is a synthetic dataset; no external files are read.
+    """
+
+    def __init__(
+        self,
+        num_samples: int = 1000,
+        complexity: int = 6,
+        operation: str = "addition",
+        seed: Optional[int] = None,
+        config: Optional[dict] = None,
+    ):
+        """
+        Initialize the synthetic arithmetic dataset.
+
+        Args:
+            num_samples: Number of samples to generate.
+            complexity: Initial complexity (number of digits per operand).
+            operation: Type of arithmetic operation ('addition', 'subtraction', 'multiplication').
+            seed: Random seed for reproducibility.
+            config: Configuration dictionary (optional, for compatibility).
+        """
+        self.num_samples = num_samples
+        self.complexity = complexity
+        self.operation = operation
+        self.seed = seed
+
+        if seed is not None:
+            random.seed(seed)
+            torch.manual_seed(seed)
+
+        # Generate the dataset
+        self.samples = self._generate_samples()
+
+    def _generate_samples(self) -> List[Dict[str, torch.Tensor]]:
+        """
+        Generate synthetic arithmetic samples.
+
+        Each sample contains:
+            - input_grid: Tensor of shape (num_rows, max_len) with digit values (0-9)
+            - target: Tensor of shape (max_len,) with the result digits
+            - input_mask: Tensor of shape (num_rows, max_len) indicating valid positions
+            - target_mask: Tensor of shape (max_len,) indicating valid target positions
+
+        The input grid has numbers right-aligned. The read head starts at the
+        last digit of the top number (upper-right corner).
+        """
+        samples = []
+        max_len = self.complexity * 2 + 2  # Enough for the result
+
+        for _ in range(self.num_samples):
+            # Generate two random numbers with the given complexity
+            num1 = random.randint(10 ** (self.complexity - 1), 10**self.complexity - 1)
+            num2 = random.randint(10 ** (self.complexity - 1), 10**self.complexity - 1)
+
+            # Compute the result
+            if self.operation == "addition":
+                result = num1 + num2
+            elif self.operation == "subtraction":
+                result = num1 - num2
+            elif self.operation == "multiplication":
+                result = num1 * num2
+            else:
+                raise ValueError(f"Unknown operation: {self.operation}")
+
+            # Convert to digit strings
+            str1 = str(num1)
+            str2 = str(num2)
+            str_result = str(result)
+
+            # Pad with leading zeros to the right-aligned grid
+            # The grid has 3 rows: top number, bottom number, result
+            num_rows = 3
+            grid = torch.zeros(num_rows, max_len, dtype=torch.long)
+            mask = torch.zeros(num_rows, max_len, dtype=torch.bool)
+
+            # Place numbers right-aligned
+            for row, s in enumerate([str1, str2, str_result]):
+                start_idx = max_len - len(s)
+                for i, ch in enumerate(s):
+                    grid[row, start_idx + i] = int(ch)
+                    mask[row, start_idx + i] = True
+
+            # Target is the result row (last row)
+            target = grid[2].clone()
+            target_mask = mask[2].clone()
+
+            samples.append(
+                {
+                    "input_grid": grid,
+                    "target": target,
+                    "input_mask": mask,
+                    "target_mask": target_mask,
+                }
+            )
+
+        return samples
+
+    def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        """
+        Get a sample by index.
+
+        Args:
+            idx: Index of the sample.
+
+        Returns:
+            Dictionary containing input_grid, target, input_mask, target_mask.
+        """
+        return self.samples[idx]
+
+
+def get_dataloaders(
+    config: Optional[dict] = None,
+    version: str = "default",
+    batch_size: int = 20,
+    seed: Optional[int] = None,
+) -> Dict[str, DataLoader]:
+    """
+    Create train, validation, and test dataloaders for the synthetic arithmetic task.
+
+    Args:
+        config: Configuration dictionary (optional).
+        version: Dataset version (ignored for synthetic data, kept for interface compatibility).
+        batch_size: Batch size for the dataloaders.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        Dictionary with 'train', 'val', and 'test' DataLoader objects.
+    """
+    if config is None:
+        config = {}
+
+    # Extract configuration values with safe defaults
+    if seed is None:
+        seed = config.get("system", {}).get("seed", 42)
+
+    # Get training configuration
+    training_config = config.get("training", {})
+    if batch_size is None:
+        batch_size = training_config.get("batch_size", {}).get("default", 20)
+
+    # Get split strategy
+    split_config = config.get("split_strategy", {})
+    train_ratio = split_config.get("default_train_ratio", 0.8)
+    val_ratio = split_config.get("val_split_ratio", 0.2)
+
+    # Curriculum parameters
+    # Start with complexity 6, increase by 4
+    initial_complexity = 6
+    complexity_step = 4
+
+    # Generate datasets for different complexities
+    # For training, use a curriculum: start with complexity 6
+    # For validation, use the same complexity as training
+    # For test, use complexity 100 and 1000 (as per paper)
+
+    # Training dataset with initial complexity
+    train_dataset = SyntheticArithmeticTasksDataset(
+        num_samples=1000,
+        complexity=initial_complexity,
+        operation="addition",
+        seed=seed,
+        config=config,
+    )
+
+    # Validation dataset (same complexity as training)
+    val_dataset = SyntheticArithmeticTasksDataset(
+        num_samples=200,
+        complexity=initial_complexity,
+        operation="addition",
+        seed=seed + 1,
+        config=config,
+    )
+
+    # Test datasets with complexity 100 and 1000
+    test_dataset_100 = SyntheticArithmeticTasksDataset(
+        num_samples=100,
+        complexity=100,
+        operation="addition",
+        seed=seed + 2,
+        config=config,
+    )
+
+    test_dataset_1000 = SyntheticArithmeticTasksDataset(
+        num_samples=100,
+        complexity=1000,
+        operation="addition",
+        seed=seed + 3,
+        config=config,
+    )
+
+    # Combine test datasets
+    # Note: We keep them separate for evaluation at different complexities
+    # but combine them into a single test loader for simplicity
+    test_samples = test_dataset_100.samples + test_dataset_1000.samples
+    combined_test_dataset = SyntheticArithmeticTasksDataset(
+        num_samples=len(test_samples),
+        complexity=100,
+        operation="addition",
+        seed=seed + 4,
+        config=config,
+    )
+    combined_test_dataset.samples = test_samples
+
+    # Create dataloaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=config.get("system", {}).get("num_workers", 0),
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=config.get("system", {}).get("num_workers", 0),
+    )
+
+    test_loader = DataLoader(
+        combined_test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=config.get("system", {}).get("num_workers", 0),
+    )
+
+    return {
+        "train": train_loader,
+        "val": val_loader,
+        "test": test_loader,
+    }
+
+
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """
+    Load configuration from a YAML file.
+
+    Args:
+        config_path: Path to the configuration file.
+
+    Returns:
+        Configuration dictionary.
+    """
+    if not os.path.exists(config_path):
+        return {}
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config if config is not None else {}
+
+
+if __name__ == "__main__":
+    # Basic test when run directly
+    config = load_config()
+
+    # Test dataset creation
+    dataset = SyntheticArithmeticTasksDataset(
+        num_samples=10,
+        complexity=6,
+        operation="addition",
+        seed=42,
+        config=config,
+    )
+
+    print(f"Dataset size: {len(dataset)}")
+    sample = dataset[0]
+    print(f"Input grid shape: {sample['input_grid'].shape}")
+    print(f"Target shape: {sample['target'].shape}")
+    print(f"Input mask shape: {sample['input_mask'].shape}")
+    print(f"Target mask shape: {sample['target_mask'].shape}")
+
+    # Test dataloaders
+    dataloaders = get_dataloaders(config=config, batch_size=20, seed=42)
+    print(f"Train batches: {len(dataloaders['train'])}")
+    print(f"Val batches: {len(dataloaders['val'])}")
+    print(f"Test batches: {len(dataloaders['test'])}")
+
+    # Test a batch
+    batch = next(iter(dataloaders["train"]))
+    print(f"Batch input_grid shape: {batch['input_grid'].shape}")
+    print(f"Batch target shape: {batch['target'].shape}")
+```

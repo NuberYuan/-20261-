@@ -1,0 +1,81 @@
+paper_name: 论文5
+parameter_provenance:
+  paper_confirmed:
+  - batch_size
+  - batch_size_note
+  - learning_rate
+  - loss_function
+  inferred_from_paper:
+  - scheduler_name
+  - scheduler_step_size
+  - scheduler_gamma
+  - dropout_ratio
+  - image_size
+  engineering_default:
+  - checkpoint.save_best
+  - checkpoint.best_metric
+  - checkpoint.save_final
+  - checkpoint.save_optimizer_state
+  - inference.device
+  NOT_FOUND_in_paper:
+  - early_stopping
+  - checkpoint.save_frequency_epochs
+  - inference.batch_size
+  - freeze_backbone
+  note: 'paper_confirmed: 值直接来自论文 implementation_details；inferred_from_paper: 从论文描述推断但非逐字引用；engineering_default:
+    我们选择的工程实践值；NOT_FOUND_in_paper: 论文未提供，需自行决定'
+training_modes:
+  scratch:
+    description: 从头训练：所有层随机初始化
+    pretrained: false
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+training:
+  batch_size: 64 (Electricity), 128 (Traffic), 128 (Retail), 64 (Volatility)
+  batch_size_note: 论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。
+  epochs: '30'
+  image_size: NOT_FOUND
+  optimizer:
+    name: NOT_FOUND
+    lr: '0.01'
+    momentum: NOT_FOUND
+    weight_decay: NOT_FOUND
+  scheduler:
+    name: NOT_FOUND
+    step_size: NOT_FOUND
+    gamma: NOT_FOUND
+    note: 论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略。
+  loss_function: 'Quantile loss: QL(y, yhat, q) = q(y-yhat)_+ + (1-q)(yhat-y)_+, summed
+    across all quantile outputs q in {0.1, 0.5, 0.9} and horizons tau=1,...,tau_max,
+    divided by M*tau_max. Test q-Risk = 2 * sum_{yt in Omega_tilde} sum_{tau=1}^{tau_max}
+    QL(yt, yhat(q,t-tau,tau),q) / sum_{tau=1}^{tau_max}|yt|.'
+  dropout_ratio: 0.1 (Electricity), 0.3 (Traffic), 0.1 (Retail), 0.3 (Volatility)
+  early_stopping: NOT_FOUND
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: NOT_FOUND
+  save_optimizer_state: true
+  resume_from: NOT_FOUND
+  note: 论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。
+train_test_splits:
+- 20.14
+- 20.14
+- 20.08
+- 20.15
+- 20.15
+inference:
+  device: cuda
+  batch_size: NOT_FOUND
+reproducibility_notes:
+- Full benchmark result tables and ablation study details are not included in the
+  provided excerpt
+- Programming framework and optimizer are not explicitly specified in the provided
+  excerpt
+- Multiple datasets require different optimal hyperparameters
+- Quantile loss and q-Risk evaluation need careful implementation
+- Variable selection and interpretable multi-head attention require reproducing complex
+  gating and attention mechanics

@@ -1,0 +1,385 @@
+```python
+import os
+import random
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import yaml
+import torch
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset, Subset
+from torchvision import transforms as T
+
+
+def load_config(config_path: str) -> Dict[str, Any]:
+    """Load YAML configuration with explicit UTF-8 encoding."""
+    with open(config_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+class JointTransform:
+    """Jointly transform image and mask while keeping spatial augmentations consistent.
+
+    This callable is used by TransformSubset. Training augmentations are applied only
+    when ``train=True``.
+    """
+
+    def __init__(self, version: str = "color", train: bool = False):
+        self.version = version
+        self.train = train
+        self.to_tensor = T.ToTensor()
+        self.normalize = T.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        self.hflip_prob = 0.5
+
+    def __call__(self, image: Image.Image, mask: Image.Image) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Prepare image according to dataset version
+        if self.version == "grayscale":
+            image = T.Grayscale(num_output_channels=1)(image)
+            image = self.to_tensor(image)
+            image = image.repeat(3, 1, 1)
+        else:
+            # color and any other version (segmented would have been rejected earlier)
+            image = self.to_tensor(image)
+
+        # Prepare mask: single-channel float tensor binarized to {0,1}
+        if mask.mode != "L":
+            mask = mask.convert("L")
+        mask = self.to_tensor(mask)
+        mask = (mask > 0.5).float()
+
+        # Random horizontal flip applied identically to image and mask
+        if self.train and torch.rand(1).item() < self.hflip_prob:
+            image = torch.flip(image, dims=[2])
+            mask = torch.flip(mask, dims=[2])
+
+        image = self.normalize(image)
+        return image, mask
+
+
+class TransformSubset(Dataset):
+    """Lightweight wrapper around a Subset that applies a transform on __getitem__.
+
+    This avoids modifying the shared underlying Dataset object. Training and
+    validation/test subsets can therefore use different transforms without side effects.
+    """
+
+    def __init__(self, subset: Subset, transform: Callable):
+        self.subset = subset
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.subset)
+
+    def __getitem__(self, idx: int):
+        image, mask = self.subset[idx]
+        if self.transform is not None:
+            image, mask = self.transform(image, mask)
+        return image, mask
+
+
+def pad_collate(batch: List[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Pad images and masks to the maximum spatial size in the batch.
+
+    This ensures tensors can be stacked even when input images have different
+    spatial dimensions. Images are padded with zeros (common for medical images).
+    """
+    images = [item[0] for item in batch]
+    masks = [item[1] for item in batch]
+
+    max_h = max(img.shape[1] for img in images)
+    max_w = max(img.shape[2] for img in images)
+
+    padded_images = []
+    padded_masks = []
+    for img, mask in zip(images, masks):
+        img_pad = torch.zeros((img.shape[0], max_h, max_w), dtype=img.dtype)
+        img_pad[:, : img.shape[1], : img.shape[2]] = img
+        padded_images.append(img_pad)
+
+        mask_pad = torch.zeros((mask.shape[0], max_h, max_w), dtype=mask.dtype)
+        mask_pad[:, : mask.shape[1], : mask.shape[2]] = mask
+        padded_masks.append(mask_pad)
+
+    return torch.stack(padded_images, dim=0), torch.stack(padded_masks, dim=0)
+
+
+class CellNucleiColonPolypLiverLungNoduleDataset(Dataset):
+    """Dataset for cell nuclei, colon polyp, liver, and lung nodule image segmentation.
+
+    Expected directory structure under ``data.root_dir``::
+
+        root_dir/
+            cell_nuclei/
+                images/
+                masks/
+            colon_polyp/
+                images/
+                masks/
+            liver/
+                images/
+                masks/
+            lung_nodule/
+                images/
+                masks/
+
+    Other common folder names (``image``, ``img``, ``inputs``, ``input`` for images;
+    ``mask``, ``labels``, ``label``, ``gt``, ``ground_truth`` for masks) are also
+    recognized. Images and masks are matched by file stem.
+    """
+
+    DATASET_SUBDIRS = ["cell_nuclei", "colon_polyp", "liver", "lung_nodule"]
+    IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"]
+    IMAGE_DIR_CANDIDATES = ["images", "image", "img", "inputs", "input", "imgs"]
+    MASK_DIR_CANDIDATES = ["masks", "mask", "labels", "label", "gt", "ground_truth", "groundtruth", "annotations"]
+    EXPECTED_COUNTS = {
+        "cell_nuclei": 670,
+        "colon_polyp": 7379,
+        "liver": 331,
+        "lung_nodule": 1012,
+    }
+
+    def __init__(
+        self,
+        root_dir: Optional[str] = None,
+        version: str = "color",
+        transform: Optional[Callable] = None,
+        config: Optional[Dict[str, Any]] = None,
+    ):
+        self.version = version
+        self.transform = transform
+        self.samples: List[Tuple[str, str]] = []
+        self.config = config
+
+        if config is None:
+            # Try to load default config for basic no-argument instantiation.
+            config_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "config", "config.yaml")
+            )
+            try:
+                config = load_config(config_path)
+            except Exception:
+                config = None
+
+        if config is None:
+            # No configuration available: create empty dataset. This keeps
+            # no-argument basic tests from crashing.
+            self.root_dir = None
+            return
+
+        self.config = config
+        data_cfg = config.get("data", {})
+        version_cfg = data_cfg.get(version, {})
+
+        # Strictly reject unresolved dataset versions. This is required
+        # especially for 'segmented' whose preprocessing parameters are NOT_FOUND.
+        if version_cfg.get("status") == "unresolved":
+            reason = version_cfg.get(
+                "reason", f"Dataset version '{version}' is unresolved and cannot be used."
+            )
+            raise NotImplementedError(reason)
+
+        if root_dir is None:
+            root_dir = data_cfg.get("root_dir")
+        if root_dir is None or not os.path.isdir(root_dir):
+            raise ValueError(
+                f"Invalid root_dir: {root_dir!r}. Please set data.root_dir in config.yaml."
+            )
+
+        self.root_dir = root_dir
+        self._load_samples()
+
+    def _load_samples(self) -> None:
+        """Scan dataset subdirectories and collect (image_path, mask_path) pairs."""
+        samples: List[Tuple[str, str]] = []
+        per_subdir_counts: Dict[str, int] = {}
+
+        for subdir in self.DATASET_SUBDIRS:
+            subdir_path = os.path.join(self.root_dir, subdir)
+            if not os.path.isdir(subdir_path):
+                continue
+
+            image_dir = self._find_dir(subdir_path, self.IMAGE_DIR_CANDIDATES)
+            mask_dir = self._find_dir(subdir_path, self.MASK_DIR_CANDIDATES)
+
+            # Fallback: use the subdir itself if no dedicated folder exists.
+            if image_dir is None:
+                image_dir = subdir_path
+            if mask_dir is None:
+                mask_dir = subdir_path
+
+            image_files = sorted(
+                f for f in os.listdir(image_dir)
+                if os.path.splitext(f)[1].lower() in self.IMAGE_EXTS
+            )
+            mask_files = {
+                os.path.splitext(f)[0]: os.path.join(mask_dir, f)
+                for f in os.listdir(mask_dir)
+                if os.path.splitext(f)[1].lower() in self.IMAGE_EXTS
+            }
+
+            subdir_samples = 0
+            for img_file in image_files:
+                stem = os.path.splitext(img_file)[0]
+                if stem in mask_files:
+                    samples.append((os.path.join(image_dir, img_file), mask_files[stem]))
+                    subdir_samples += 1
+
+            per_subdir_counts[subdir] = subdir_samples
+
+        self.samples = samples
+
+        # Warn if loaded counts differ from expected dataset sizes.
+        for subdir, expected in self.EXPECTED_COUNTS.items():
+            actual = per_subdir_counts.get(subdir, 0)
+            if actual != expected:
+                print(
+                    f"Warning: dataset '{subdir}' contains {actual} matched samples; "
+                    f"expected {expected} according to FR-01."
+                )
+
+    @staticmethod
+    def _find_dir(parent: str, candidates: List[str]) -> Optional[str]:
+        for candidate in candidates:
+            path = os.path.join(parent, candidate)
+            if os.path.isdir(path):
+                return path
+        return None
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> Tuple[Image.Image, Image.Image]:
+        img_path, mask_path = self.samples[idx]
+        # PIL images are returned as RGB for image and L for mask.
+        image = Image.open(img_path).convert("RGB")
+        mask = Image.open(mask_path).convert("L")
+        return image, mask
+
+    def preprocess_image(self, image: Image.Image, train: bool = False) -> torch.Tensor:
+        """Apply version-specific preprocessing to a single PIL image.
+
+        A dummy mask is used internally because JointTransform expects both image
+        and mask. This method is mainly provided for API completeness and debugging.
+        """
+        transform = JointTransform(version=self.version, train=train)
+        dummy_mask = Image.new("L", image.size, 0)
+        image_tensor, _ = transform(image, dummy_mask)
+        return image_tensor
+
+    def split_dataset(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        val_split_ratio: Optional[float] = None,
+        test_split_ratio: Optional[float] = None,
+        seed: Optional[int] = None,
+    ) -> Tuple[TransformSubset, TransformSubset, TransformSubset]:
+        """Split the dataset into train, validation, and test subsets.
+
+        The split uses ``split_strategy`` from config. The returned subsets are
+        wrapped in TransformSubset with training/evaluation transforms, so the
+        underlying dataset is never modified.
+        """
+        if config is None:
+            config = self.config or {}
+
+        split_cfg = config.get("split_strategy", {})
+
+        if seed is None:
+            seed = split_cfg.get("seed", 42)
+        if val_split_ratio is None:
+            val_split_ratio = split_cfg.get("val_split_ratio", 0.2)
+        if test_split_ratio is None:
+            train_test_splits = split_cfg.get("train_test_splits", [0.8, 0.2])
+            test_split_ratio = train_test_splits[1] if len(train_test_splits) >= 2 else 0.2
+
+        total = len(self)
+        indices = list(range(total))
+        rng = random.Random(seed)
+        rng.shuffle(indices)
+
+        train_val_ratio = 1.0 - test_split_ratio
+        train_val_size = int(train_val_ratio * total)
+        train_val_indices = indices[:train_val_size]
+        test_indices = indices[train_val_size:]
+
+        rng.shuffle(train_val_indices)
+        val_size = int(val_split_ratio * len(train_val_indices))
+        val_indices = train_val_indices[:val_size]
+        train_indices = train_val_indices[val_size:]
+
+        train_subset = Subset(self, train_indices)
+        val_subset = Subset(self, val_indices)
+        test_subset = Subset(self, test_indices)
+
+        train_ds = TransformSubset(train_subset, JointTransform(version=self.version, train=True))
+        eval_transform = JointTransform(version=self.version, train=False)
+        val_ds = TransformSubset(val_subset, eval_transform)
+        test_ds = TransformSubset(test_subset, eval_transform)
+
+        return train_ds, val_ds, test_ds
+
+
+def get_dataloaders(
+    config: Optional[Dict[str, Any]] = None,
+    version: str = "color",
+    batch_size: Optional[int] = None,
+    num_workers: Optional[int] = None,
+    root_dir: Optional[str] = None,
+    shuffle_train: bool = True,
+    collate_fn: Optional[Callable] = None,
+) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    """Create train/validation/test dataloaders for the specified dataset version.
+
+    The dataset version is passed directly to the dataset class; it is never
+    inferred from ``config['data']`` so different experiment versions stay distinct.
+    """
+    if config is None:
+        config_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "config", "config.yaml")
+        )
+        try:
+            config = load_config(config_path)
+        except Exception:
+            config = {}
+    elif isinstance(config, str):
+        config = load_config(config)
+
+    if batch_size is None:
+        batch_size = config.get("training", {}).get("batch_size", 16)
+    if num_workers is None:
+        num_workers = config.get("system", {}).get("num_workers", 4)
+
+    dataset = CellNucleiColonPolypLiverLungNoduleDataset(
+        root_dir=root_dir,
+        version=version,
+        config=config,
+    )
+
+    train_ds, val_ds, test_ds = dataset.split_dataset(config=config)
+
+    if collate_fn is None:
+        collate_fn = pad_collate
+
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=batch_size,
+        shuffle=shuffle_train,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+    )
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+    )
+    test_loader = DataLoader(
+        test_ds,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+    )
+
+    return train_loader, val_loader, test_loader
+```

@@ -1,0 +1,70 @@
+import numpy as np
+import torch
+
+
+def compute_metrics(preds, targets, threshold=0.5, eps=1e-7):
+    """
+    Compute IoU and Dice coefficient for binary segmentation.
+
+    Args:
+        preds (torch.Tensor or np.ndarray): Model predictions (logits or probabilities).
+            Shape: (N, C, H, W) or (N, H, W) or (H, W).
+        targets (torch.Tensor or np.ndarray): Ground truth masks.
+            Shape: (N, C, H, W) or (N, H, W) or (H, W).
+        threshold (float): Threshold to binarize predictions. Default: 0.5.
+        eps (float): Small epsilon to avoid division by zero. Default: 1e-7.
+
+    Returns:
+        dict: Dictionary containing 'iou' and 'dice' metrics.
+    """
+    # Convert to numpy for easy manipulation
+    if isinstance(preds, torch.Tensor):
+        preds = preds.detach().cpu().numpy()
+    if isinstance(targets, torch.Tensor):
+        targets = targets.detach().cpu().numpy()
+
+    # Ensure arrays are at least 2D
+    preds = np.asarray(preds)
+    targets = np.asarray(targets)
+
+    # If predictions have channel dimension, take the channel with highest probability
+    if preds.ndim == 4:
+        # Shape: (N, C, H, W) -> take argmax over channel dim
+        preds = np.argmax(preds, axis=1)
+        targets = np.argmax(targets, axis=1) if targets.ndim == 4 else targets
+    elif preds.ndim == 3:
+        # Shape: (N, H, W) or (C, H, W)
+        if preds.shape[0] == 1:
+            preds = preds[0]
+            targets = targets[0] if targets.ndim == 3 else targets
+        else:
+            # Assume (N, H, W) -> keep as is
+            pass
+    elif preds.ndim == 2:
+        # Single image (H, W)
+        pass
+    else:
+        raise ValueError(f"Unsupported prediction shape: {preds.shape}")
+
+    # Flatten to 1D for metric computation
+    preds_flat = preds.reshape(-1)
+    targets_flat = targets.reshape(-1)
+
+    # Binarize predictions
+    preds_bin = (preds_flat >= threshold).astype(np.uint8)
+    targets_bin = (targets_flat >= threshold).astype(np.uint8)
+
+    # Compute intersection and union
+    intersection = np.sum(preds_bin * targets_bin)
+    union = np.sum(preds_bin) + np.sum(targets_bin) - intersection
+
+    # IoU
+    iou = (intersection + eps) / (union + eps)
+
+    # Dice coefficient
+    dice = (2.0 * intersection + eps) / (np.sum(preds_bin) + np.sum(targets_bin) + eps)
+
+    return {
+        'iou': float(iou),
+        'dice': float(dice)
+    }

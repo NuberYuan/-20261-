@@ -1,0 +1,1010 @@
+{
+    "paragraphs": [
+        {
+            "id": 1,
+            "block_id": 0,
+            "page": 1,
+            "bbox": [
+                165.71499633789062,
+                114.58596801757812,
+                449.72662353515625,
+                128.93215942382812
+            ],
+            "type": "unknown",
+            "text": "UNet++: A Nested U-Net Architecture"
+        },
+        {
+            "id": 2,
+            "block_id": 1,
+            "page": 1,
+            "bbox": [
+                192.80499267578125,
+                132.51895141601562,
+                422.6310119628906,
+                146.86514282226562
+            ],
+            "type": "unknown",
+            "text": "for Medical Image Segmentation"
+        },
+        {
+            "id": 3,
+            "block_id": 2,
+            "page": 1,
+            "bbox": [
+                200.08099365234375,
+                170.57688903808594,
+                415.3230285644531,
+                180.53948974609375
+            ],
+            "type": "unknown",
+            "text": "Zongwei Zhou, Md Mahfuzur Rahman Siddiquee,"
+        },
+        {
+            "id": 4,
+            "block_id": 3,
+            "page": 1,
+            "bbox": [
+                224.7659912109375,
+                182.5328826904297,
+                390.6233215332031,
+                192.4954833984375
+            ],
+            "type": "unknown",
+            "text": "Nima Tajbakhsh, and Jianming Liang"
+        },
+        {
+            "id": 5,
+            "block_id": 4,
+            "page": 1,
+            "bbox": [
+                187.74197387695312,
+                204.1914520263672,
+                427.6148986816406,
+                224.5475616455078
+            ],
+            "type": "unknown",
+            "text": "Arizona State University\n{zongweiz,mrahmans,ntajbakh,jianming.liang}@asu.edu"
+        },
+        {
+            "id": 6,
+            "block_id": 5,
+            "page": 1,
+            "bbox": [
+                163.1109619140625,
+                254.58641052246094,
+                452.3042907714844,
+                416.97662353515625
+            ],
+            "type": "unknown",
+            "text": "Abstract. In this paper, we present UNet++, a new, more powerful ar-\nchitecture for medical image segmentation. Our architecture is essentially\na deeply-supervised encoder-decoder network where the encoder and de-\ncoder sub-networks are connected through a series of nested, dense skip\npathways. The re-designed skip pathways aim at reducing the semantic\ngap between the feature maps of the encoder and decoder sub-networks.\nWe argue that the optimizer would deal with an easier learning task when\nthe feature maps from the decoder and encoder networks are semantically\nsimilar. We have evaluated UNet++ in comparison with U-Net and wide\nU-Net architectures across multiple medical image segmentation tasks:\nnodule segmentation in the low-dose CT scans of chest, nuclei segmen-\ntation in the microscopy images, liver segmentation in abdominal CT\nscans, and polyp segmentation in colonoscopy videos. Our experiments\ndemonstrate that UNet++ with deep supervision achieves an average\nIoU gain of 3.9 and 3.4 points over U-Net and wide U-Net, respectively."
+        },
+        {
+            "id": 7,
+            "block_id": 6,
+            "page": 1,
+            "bbox": [
+                134.76495361328125,
+                438.8833923339844,
+                228.99581909179688,
+                450.8385925292969
+            ],
+            "type": "unknown",
+            "text": "1\nIntroduction"
+        },
+        {
+            "id": 8,
+            "block_id": 7,
+            "page": 1,
+            "bbox": [
+                134.76495361328125,
+                463.8536682128906,
+                480.64642333984375,
+                617.2781982421875
+            ],
+            "type": "unknown",
+            "text": "The state-of-the-art models for image segmentation are variants of the encoder-\ndecoder architecture like U-Net [9] and fully convolutional network (FCN) [8].\nThese encoder-decoder networks used for segmentation share a key similarity:\nskip connections, which combine deep, semantic, coarse-grained feature maps\nfrom the decoder sub-network with shallow, low-level, ﬁne-grained feature maps\nfrom the encoder sub-network. The skip connections have proved eﬀective in\nrecovering ﬁne-grained details of the target objects; generating segmentation\nmasks with ﬁne details even on complex background. Skip connections is also\nfundamental to the success of instance-level segmentation models such as Mask-\nRCNN, which enables the segmentation of occluded objects. Arguably, image\nsegmentation in natural images has reached a satisfactory level of performance,\nbut do these models meet the strict segmentation requirements of medical im-\nages?"
+        },
+        {
+            "id": 9,
+            "block_id": 8,
+            "page": 1,
+            "bbox": [
+                134.76495361328125,
+                619.2705688476562,
+                480.6165771484375,
+                665.0982055664062
+            ],
+            "type": "unknown",
+            "text": "Segmenting lesions or abnormalities in medical images demands a higher level\nof accuracy than what is desired in natural images. While a precise segmentation\nmask may not be critical in natural images, even marginal segmentation errors in\nmedical images can lead to poor user experience in clinical settings. For instance,"
+        },
+        {
+            "id": 10,
+            "block_id": 9,
+            "page": 1,
+            "bbox": [
+                10.940000534057617,
+                217.79998779296875,
+                37.619998931884766,
+                560.0
+            ],
+            "type": "unknown",
+            "text": "arXiv:1807.10165v1 [cs.CV] 18 Jul 2018"
+        },
+        {
+            "id": 11,
+            "block_id": 0,
+            "page": 2,
+            "bbox": [
+                134.76499938964844,
+                92.88749694824219,
+                225.65133666992188,
+                101.85389709472656
+            ],
+            "type": "unknown",
+            "text": "2\nZ. Zhou, et al."
+        },
+        {
+            "id": 12,
+            "block_id": 1,
+            "page": 2,
+            "bbox": [
+                134.76499938964844,
+                118.01194763183594,
+                480.6565856933594,
+                223.61663818359375
+            ],
+            "type": "unknown",
+            "text": "the subtle spiculation patterns around a nodule may indicate nodule malignancy;\nand therefore, their exclusion from the segmentation masks would lower the\ncredibility of the model from the clinical perspective. Furthermore, inaccurate\nsegmentation may also lead to a major change in the subsequent computer-\ngenerated diagnosis. For example, an erroneous measurement of nodule growth\nin longitudinal studies can result in the assignment of an incorrect Lung-RADS\ncategory to a screening patient. It is therefore desired to devise more eﬀective\nimage segmentation architectures that can eﬀectively recover the ﬁne details of\nthe target objects in medical images."
+        },
+        {
+            "id": 13,
+            "block_id": 2,
+            "page": 2,
+            "bbox": [
+                134.76499938964844,
+                225.8690643310547,
+                480.6466369628906,
+                379.2935791015625
+            ],
+            "type": "unknown",
+            "text": "To address the need for more accurate segmentation in medical images, we\npresent UNet++, a new segmentation architecture based on nested and dense\nskip connections. The underlying hypothesis behind our architecture is that the\nmodel can more eﬀectively capture ﬁne-grained details of the foreground ob-\njects when high-resolution feature maps from the encoder network are gradually\nenriched prior to fusion with the corresponding semantically rich feature maps\nfrom the decoder network. We argue that the network would deal with an easier\nlearning task when the feature maps from the decoder and encoder networks are\nsemantically similar. This is in contrast to the plain skip connections commonly\nused in U-Net, which directly fast-forward high-resolution feature maps from the\nencoder to the decoder network, resulting in the fusion of semantically dissim-\nilar feature maps. According to our experiments, the suggested architecture is\neﬀective, yielding signiﬁcant performance gain over U-Net and wide U-Net."
+        },
+        {
+            "id": 14,
+            "block_id": 3,
+            "page": 2,
+            "bbox": [
+                134.76499938964844,
+                400.95770263671875,
+                236.81454467773438,
+                412.91290283203125
+            ],
+            "type": "unknown",
+            "text": "2\nRelated Work"
+        },
+        {
+            "id": 15,
+            "block_id": 4,
+            "page": 2,
+            "bbox": [
+                134.76498413085938,
+                427.7279968261719,
+                480.6445617675781,
+                593.1074829101562
+            ],
+            "type": "unknown",
+            "text": "Long et al. [8] ﬁrst introduced fully convolutional networks (FCN), while U-\nNet was introduced by Ronneberger et al. [9]. They both share a key idea: skip\nconnections. In FCN, up-sampled feature maps are summed with feature maps\nskipped from the encoder, while U-Net concatenates them and add convolutions\nand non-linearities between each up-sampling step. The skip connections have\nshown to help recover the full spatial resolution at the network output, mak-\ning fully convolutional methods suitable for semantic segmentation. Inspired\nby DenseNet architecture [5], Li et al. [7] proposed H-denseunet for liver and\nliver tumor segmentation. In the same spirit, Drozdzalet al. [2] systematically\ninvestigated the importance of skip connections, and introduced short skip con-\nnections within the encoder. Despite the minor diﬀerences between the above\narchitectures, they all tend to fuse semantically dissimilar feature maps from\nthe encoder and decoder sub-networks, which, according to our experiments,\ncan degrade segmentation performance."
+        },
+        {
+            "id": 16,
+            "block_id": 5,
+            "page": 2,
+            "bbox": [
+                134.76498413085938,
+                595.3609008789062,
+                480.6265869140625,
+                665.0994873046875
+            ],
+            "type": "unknown",
+            "text": "The other two recent related works are GridNet [3] and Mask-RCNN [4].\nGridNet is an encoder-decoder architecture wherein the feature maps are wired in\na grid fashion, generalizing several classical segmentation architectures. GridNet,\nhowever, lacks up-sampling layers between skip connections; and thus, it does not\nrepresent UNet++. Mask-RCNN is perhaps the most important meta framework\nfor object detection, classiﬁcation and segmentation. We would like to note that"
+        },
+        {
+            "id": 17,
+            "block_id": 0,
+            "page": 3,
+            "bbox": [
+                287.7019958496094,
+                92.88749694824219,
+                480.6229553222656,
+                101.85389709472656
+            ],
+            "type": "unknown",
+            "text": "UNet++: A Nested U-Net Architecture\n3"
+        },
+        {
+            "id": 18,
+            "block_id": 1,
+            "page": 3,
+            "bbox": [
+                134.76499938964844,
+                349.4669189453125,
+                480.64666748046875,
+                467.0263977050781
+            ],
+            "type": "unknown",
+            "text": "Fig. 1: (a) UNet++ consists of an encoder and decoder that are connected\nthrough a series of nested dense convolutional blocks. The main idea behind\nUNet++ is to bridge the semantic gap between the feature maps of the encoder\nand decoder prior to fusion. For example, the semantic gap between (X0,0,X1,3)\nis bridged using a dense convolution block with three convolution layers. In the\ngraphical abstract, black indicates the original U-Net, green and blue show dense\nconvolution blocks on the skip pathways, and red indicates deep supervision.\nRed, green, and blue components distinguish UNet++ from U-Net. (b) Detailed\nanalysis of the ﬁrst skip pathway of UNet++. (c) UNet++ can be pruned at\ninference time, if trained with deep supervision."
+        },
+        {
+            "id": 19,
+            "block_id": 2,
+            "page": 3,
+            "bbox": [
+                134.76504516601562,
+                495.02581787109375,
+                480.6168212890625,
+                552.808349609375
+            ],
+            "type": "unknown",
+            "text": "UNet++ can be readily deployed as the backbone architecture in Mask-RCNN\nby simply replacing the plain skip connections with the suggested nested dense\nskip pathways. Due to limited space, we were not able to include results of\nMask RCNN with UNet++ as the backbone architecture; however, the interested\nreaders can refer to the supplementary material for further details."
+        },
+        {
+            "id": 20,
+            "block_id": 3,
+            "page": 3,
+            "bbox": [
+                134.76504516601562,
+                577.5084838867188,
+                404.5700378417969,
+                589.4636840820312
+            ],
+            "type": "unknown",
+            "text": "3\nProposed Network Architecture: UNet++"
+        },
+        {
+            "id": 21,
+            "block_id": 4,
+            "page": 3,
+            "bbox": [
+                134.76504516601562,
+                607.3157958984375,
+                480.6267395019531,
+                665.098388671875
+            ],
+            "type": "unknown",
+            "text": "Fig. 1a shows a high-level overview of the suggested architecture. As seen,\nUNet++ starts with an encoder sub-network or backbone followed by a decoder\nsub-network. What distinguishes UNet++ from U-Net (the black components in\nFig. 1a) is the re-designed skip pathways (shown in green and blue) that connect\nthe two sub-networks and the use of deep supervision (shown red)."
+        },
+        {
+            "id": 22,
+            "block_id": 0,
+            "page": 4,
+            "bbox": [
+                134.76499938964844,
+                92.88749694824219,
+                225.65133666992188,
+                101.85389709472656
+            ],
+            "type": "unknown",
+            "text": "4\nZ. Zhou, et al."
+        },
+        {
+            "id": 23,
+            "block_id": 1,
+            "page": 4,
+            "bbox": [
+                134.76499938964844,
+                118.01194763183594,
+                295.521484375,
+                127.97454833984375
+            ],
+            "type": "unknown",
+            "text": "3.1\nRe-designed skip pathways"
+        },
+        {
+            "id": 24,
+            "block_id": 2,
+            "page": 4,
+            "bbox": [
+                134.76498413085938,
+                138.18394470214844,
+                480.6465148925781,
+                291.6086730957031
+            ],
+            "type": "unknown",
+            "text": "Re-designed skip pathways transform the connectivity of the encoder and de-\ncoder sub-networks. In U-Net, the feature maps of the encoder are directly re-\nceived in the decoder; however, in UNet++, they undergo a dense convolution\nblock whose number of convolution layers depends on the pyramid level. For\nexample, the skip pathway between nodes X0,0 and X1,3 consists of a dense\nconvolution block with three convolution layers where each convolution layer\nis preceded by a concatenation layer that fuses the output from the previous\nconvolution layer of the same dense block with the corresponding up-sampled\noutput of the lower dense block. Essentially, the dense convolution block brings\nthe semantic level of the encoder feature maps closer to that of the feature maps\nawaiting in the decoder. The hypothesis is that the optimizer would face an\neasier optimization problem when the received encoder feature maps and the\ncorresponding decoder feature maps are semantically similar."
+        },
+        {
+            "id": 25,
+            "block_id": 3,
+            "page": 4,
+            "bbox": [
+                134.76495361328125,
+                290.03509521484375,
+                480.6365051269531,
+                339.4786376953125
+            ],
+            "type": "unknown",
+            "text": "Formally, we formulate the skip pathway as follows: let xi,j denote the output\nof node Xi,j where i indexes the down-sampling layer along the encoder and j\nindexes the convolution layer of the dense block along the skip pathway. The\nstack of feature maps represented by xi,j is computed as"
+        },
+        {
+            "id": 26,
+            "block_id": 4,
+            "page": 4,
+            "bbox": [
+                206.73594665527344,
+                357.1820373535156,
+                232.33084106445312,
+                371.25762939453125
+            ],
+            "type": "unknown",
+            "text": "xi,j ="
+        },
+        {
+            "id": 27,
+            "block_id": 5,
+            "page": 4,
+            "bbox": [
+                235.095947265625,
+                351.4224548339844,
+                243.1258087158203,
+                361.3850402832031
+            ],
+            "type": "unknown",
+            "text": "("
+        },
+        {
+            "id": 28,
+            "block_id": 6,
+            "page": 4,
+            "bbox": [
+                243.1219482421875,
+                352.5779113769531,
+                251.54034423828125,
+                362.5404968261719
+            ],
+            "type": "unknown",
+            "text": "H"
+        },
+        {
+            "id": 29,
+            "block_id": 7,
+            "page": 4,
+            "bbox": [
+                253.2919464111328,
+                351.80145263671875,
+                257.8548278808594,
+                361.7640380859375
+            ],
+            "type": "unknown",
+            "text": "\u0000"
+        },
+        {
+            "id": 30,
+            "block_id": 8,
+            "page": 4,
+            "bbox": [
+                257.8579406738281,
+                351.3374938964844,
+                287.69580078125,
+                362.66961669921875
+            ],
+            "type": "unknown",
+            "text": "xi−1,j\u0001"
+        },
+        {
+            "id": 31,
+            "block_id": 9,
+            "page": 4,
+            "bbox": [
+                289.35894775390625,
+                352.70703125,
+                407.4287414550781,
+                362.66961669921875
+            ],
+            "type": "unknown",
+            "text": ",\nj = 0"
+        },
+        {
+            "id": 32,
+            "block_id": 10,
+            "page": 4,
+            "bbox": [
+                243.1219482421875,
+                368.3388977050781,
+                251.54034423828125,
+                378.3014831542969
+            ],
+            "type": "unknown",
+            "text": "H"
+        },
+        {
+            "id": 33,
+            "block_id": 11,
+            "page": 4,
+            "bbox": [
+                253.2919464111328,
+                364.57342529296875,
+                268.10137939453125,
+                377.5250244140625
+            ],
+            "type": "unknown",
+            "text": "\u0010h\u0002"
+        },
+        {
+            "id": 34,
+            "block_id": 12,
+            "page": 4,
+            "bbox": [
+                268.09796142578125,
+                364.7084655761719,
+                301.9310302734375,
+                378.43060302734375
+            ],
+            "type": "unknown",
+            "text": "xi,k\u0003j−1"
+        },
+        {
+            "id": 35,
+            "block_id": 13,
+            "page": 4,
+            "bbox": [
+                288.0289611816406,
+                367.0984802246094,
+                359.4424133300781,
+                382.41558837890625
+            ],
+            "type": "unknown",
+            "text": "k=0 , U(xi+1,j−1)"
+        },
+        {
+            "id": 36,
+            "block_id": 14,
+            "page": 4,
+            "bbox": [
+                359.4409484863281,
+                364.57342529296875,
+                370.0909729003906,
+                374.5360107421875
+            ],
+            "type": "unknown",
+            "text": "i\u0011"
+        },
+        {
+            "id": 37,
+            "block_id": 15,
+            "page": 4,
+            "bbox": [
+                371.7559509277344,
+                361.2950134277344,
+                480.5931701660156,
+                378.43060302734375
+            ],
+            "type": "unknown",
+            "text": ",\nj > 0\n(1)"
+        },
+        {
+            "id": 38,
+            "block_id": 16,
+            "page": 4,
+            "bbox": [
+                134.76495361328125,
+                389.4578857421875,
+                480.6564636230469,
+                519.1014404296875
+            ],
+            "type": "unknown",
+            "text": "where function H(·) is a convolution operation followed by an activation func-\ntion, U(·) denotes an up-sampling layer, and [ ] denotes the concatenation layer.\nBasically, nodes at level j = 0 receive only one input from the previous layer\nof the encoder; nodes at level j = 1 receive two inputs, both from the encoder\nsub-network but at two consecutive levels; and nodes at level j > 1 receive j + 1\ninputs, of which j inputs are the outputs of the previous j nodes in the same\nskip pathway and the last input is the up-sampled output from the lower skip\npathway. The reason that all prior feature maps accumulate and arrive at the\ncurrent node is because we make use of a dense convolution block along each\nskip pathway. Fig. 1b further clariﬁes Eq. 1 by showing how the feature maps\ntravel through the top skip pathway of UNet++."
+        },
+        {
+            "id": 39,
+            "block_id": 17,
+            "page": 4,
+            "bbox": [
+                134.76495361328125,
+                539.2738647460938,
+                246.89405822753906,
+                549.2364501953125
+            ],
+            "type": "unknown",
+            "text": "3.2\nDeep supervision"
+        },
+        {
+            "id": 40,
+            "block_id": 18,
+            "page": 4,
+            "bbox": [
+                134.76495361328125,
+                559.4458618164062,
+                480.6265563964844,
+                641.1394653320312
+            ],
+            "type": "unknown",
+            "text": "We propose to use deep supervision [6] in UNet++, enabling the model to op-\nerate in two modes: 1) accurate mode wherein the outputs from all segmenta-\ntion branches are averaged; 2) fast mode wherein the ﬁnal segmentation map\nis selected from only one of the segmentation branches, the choice of which de-\ntermines the extent of model pruning and speed gain. Fig. 1c shows how the\nchoice of segmentation branch in fast mode results in architectures of varying\ncomplexity."
+        },
+        {
+            "id": 41,
+            "block_id": 19,
+            "page": 4,
+            "bbox": [
+                134.76495361328125,
+                643.1808471679688,
+                480.62664794921875,
+                665.0984497070312
+            ],
+            "type": "unknown",
+            "text": "Owing to the nested skip pathways, UNet++ generates full resolution feature\nmaps at multiple semantic levels, {x0,j, j ∈{1, 2, 3, 4}}, which are amenable to"
+        },
+        {
+            "id": 42,
+            "block_id": 0,
+            "page": 5,
+            "bbox": [
+                287.7019958496094,
+                92.88749694824219,
+                480.6229553222656,
+                101.85389709472656
+            ],
+            "type": "unknown",
+            "text": "UNet++: A Nested U-Net Architecture\n5"
+        },
+        {
+            "id": 43,
+            "block_id": 1,
+            "page": 5,
+            "bbox": [
+                140.14601135253906,
+                126.38090515136719,
+                475.7513122558594,
+                192.01588439941406
+            ],
+            "type": "unknown",
+            "text": "Table 1: The image segmentation datasets used in our experiments.\nDataset\nImages\nInput Size\nModality\nProvider\ncell nuclei\n670\n96×96\nmicroscopy\nData Science Bowl 2018\ncolon polyp\n7,379\n224×224\nRGB video\nASU-Mayo [10,11]\nliver\n331\n512×512\nCT\nMICCAI 2018 LiTS Challenge\nlung nodule\n1,012\n64×64×64\nCT\nLIDC-IDRI [1]"
+        },
+        {
+            "id": 44,
+            "block_id": 2,
+            "page": 5,
+            "bbox": [
+                143.28799438476562,
+                215.44590759277344,
+                473.4996337890625,
+                236.8468780517578
+            ],
+            "type": "unknown",
+            "text": "Table 2: Number of convolutional kernels in U-Net and wide U-Net.\nencoder / decoder\nX0,0/X0,4\nX1,0/X1,3\nX2,0/X2,2\nX3,0/X3,1\nX4,0/X4,0"
+        },
+        {
+            "id": 45,
+            "block_id": 3,
+            "page": 5,
+            "bbox": [
+                156.625,
+                239.2384490966797,
+                461.6463928222656,
+                259.163818359375
+            ],
+            "type": "unknown",
+            "text": "U-Net\n32\n64\n128\n256\n512\nwide U-Net\n35\n70\n140\n280\n560"
+        },
+        {
+            "id": 46,
+            "block_id": 4,
+            "page": 5,
+            "bbox": [
+                134.76499938964844,
+                284.14892578125,
+                480.64654541015625,
+                318.021484375
+            ],
+            "type": "unknown",
+            "text": "deep supervision. We have added a combination of binary cross-entropy and dice\ncoeﬃcient as the loss function to each of the above four semantic levels, which\nis described as:"
+        },
+        {
+            "id": 47,
+            "block_id": 5,
+            "page": 5,
+            "bbox": [
+                203.3000030517578,
+                332.48590087890625,
+                265.9472961425781,
+                349.1884765625
+            ],
+            "type": "unknown",
+            "text": "L(Y, ˆY ) = −1"
+        },
+        {
+            "id": 48,
+            "block_id": 6,
+            "page": 5,
+            "bbox": [
+                258.9110107421875,
+                346.0599365234375,
+                266.9209289550781,
+                356.02252197265625
+            ],
+            "type": "unknown",
+            "text": "N"
+        },
+        {
+            "id": 49,
+            "block_id": 7,
+            "page": 5,
+            "bbox": [
+                270.8580322265625,
+                329.1077575683594,
+                285.2539978027344,
+                346.886962890625
+            ],
+            "type": "unknown",
+            "text": "N\nX"
+        },
+        {
+            "id": 50,
+            "block_id": 8,
+            "page": 5,
+            "bbox": [
+                271.2580261230469,
+                353.5447692871094,
+                284.85211181640625,
+                360.5185852050781
+            ],
+            "type": "unknown",
+            "text": "b=1"
+        },
+        {
+            "id": 51,
+            "block_id": 10,
+            "page": 5,
+            "bbox": [
+                295.9909973144531,
+                329.9679260253906,
+                402.4717712402344,
+                359.02349853515625
+            ],
+            "type": "unknown",
+            "text": "1\n2 · Yb · log ˆYb + 2 · Yb · ˆYb\nYb + ˆYb"
+        },
+        {
+            "id": 52,
+            "block_id": 11,
+            "page": 5,
+            "bbox": [
+                404.16900634765625,
+                329.3523254394531,
+                412.05938720703125,
+                339.3149108886719
+            ],
+            "type": "unknown",
+            "text": "!"
+        },
+        {
+            "id": 53,
+            "block_id": 12,
+            "page": 5,
+            "bbox": [
+                467.86102294921875,
+                339.22589111328125,
+                480.5932312011719,
+                349.1884765625
+            ],
+            "type": "unknown",
+            "text": "(2)"
+        },
+        {
+            "id": 54,
+            "block_id": 13,
+            "page": 5,
+            "bbox": [
+                134.7650146484375,
+                364.8998718261719,
+                480.6559143066406,
+                389.3364562988281
+            ],
+            "type": "unknown",
+            "text": "where ˆYb and Yb denote the ﬂatten predicted probabilities and the ﬂatten ground\ntruths of bth image respectively, and N indicates the batch size."
+        },
+        {
+            "id": 55,
+            "block_id": 14,
+            "page": 5,
+            "bbox": [
+                134.76502990722656,
+                391.328857421875,
+                480.6565856933594,
+                473.0223693847656
+            ],
+            "type": "unknown",
+            "text": "In summary, as depicted in Fig. 1a, UNet++ diﬀers from the original U-Net\nin three ways: 1) having convolution layers on skip pathways (shown in green),\nwhich bridges the semantic gap between encoder and decoder feature maps; 2)\nhaving dense skip connections on skip pathways (shown in blue), which improves\ngradient ﬂow; and 3) having deep supervision (shown in red), which as will be\nshown in Section 4 enables model pruning and improves or in the worst case\nachieves comparable performance to using only one loss layer."
+        },
+        {
+            "id": 56,
+            "block_id": 15,
+            "page": 5,
+            "bbox": [
+                134.76502990722656,
+                491.7875061035156,
+                229.07957458496094,
+                503.7427062988281
+            ],
+            "type": "unknown",
+            "text": "4\nExperiments"
+        },
+        {
+            "id": 57,
+            "block_id": 16,
+            "page": 5,
+            "bbox": [
+                134.76502990722656,
+                515.6587524414062,
+                480.63671875,
+                561.4873657226562
+            ],
+            "type": "unknown",
+            "text": "Datasets: As shown in Table 1, we use four medical imaging datasets for model\nevaluation, covering lesions/organs from diﬀerent medical imaging modalities.\nFor further details about datasets and the corresponding data pre-processing,\nwe refer the readers to the supplementary material."
+        },
+        {
+            "id": 58,
+            "block_id": 17,
+            "page": 5,
+            "bbox": [
+                134.7650146484375,
+                567.4647827148438,
+                480.6267395019531,
+                637.203369140625
+            ],
+            "type": "unknown",
+            "text": "Baseline models: For comparison, we used the original U-Net and a customized\nwide U-Net architecture. We chose U-Net because it is a common performance\nbaseline for image segmentation. We also designed a wide U-Net with similar\nnumber of parameters as our suggested architecture. This was to ensure that\nthe performance gain yielded by our architecture is not simply due to increased\nnumber of parameters. Table 2 details the U-Net and wide U-Net architecture."
+        },
+        {
+            "id": 59,
+            "block_id": 18,
+            "page": 5,
+            "bbox": [
+                134.7650146484375,
+                643.1807861328125,
+                480.594482421875,
+                665.098388671875
+            ],
+            "type": "unknown",
+            "text": "Implementation details: We monitored the Dice coeﬃcient and Intersection\nover Union (IoU), and used early-stop mechanism on the validation set. We also"
+        },
+        {
+            "id": 60,
+            "block_id": 0,
+            "page": 6,
+            "bbox": [
+                134.76499938964844,
+                92.88749694824219,
+                225.65133666992188,
+                101.85389709472656
+            ],
+            "type": "unknown",
+            "text": "6\nZ. Zhou, et al."
+        },
+        {
+            "id": 61,
+            "block_id": 1,
+            "page": 6,
+            "bbox": [
+                134.76499938964844,
+                338.1539306640625,
+                480.636474609375,
+                372.0274963378906
+            ],
+            "type": "unknown",
+            "text": "Fig. 2: Qualitative comparison between U-Net, wide U-Net, and UNet++, show-\ning segmentation results for polyp, liver, and cell nuclei datasets (2D-only for a\ndistinct visualization)."
+        },
+        {
+            "id": 62,
+            "block_id": 2,
+            "page": 6,
+            "bbox": [
+                134.76490783691406,
+                399.4919128417969,
+                480.63653564453125,
+                505.0964050292969
+            ],
+            "type": "unknown",
+            "text": "used Adam optimizer with a learning rate of 3e-4. Architecture details for U-\nNet and wide U-Net are shown in Table 2. UNet++ is constructed from the\noriginal U-Net architecture. All convolutional layers along a skip pathway (Xi,j)\nuse k kernels of size 3×3 (or 3×3×3 for 3D lung nodule segmentation) where\nk = 32 × 2i. To enable deep supervision, a 1×1 convolutional layer followed by\na sigmoid activation function was appended to each of the target nodes: {x0,j |\nj ∈{1, 2, 3, 4}}. As a result, UNet++ generates four segmentation maps given an\ninput image, which will be further averaged to generate the ﬁnal segmentation\nmap. More details can be founded at github.com/Nested-UNet."
+        },
+        {
+            "id": 63,
+            "block_id": 3,
+            "page": 6,
+            "bbox": [
+                134.76490783691406,
+                511.673828125,
+                480.6465148925781,
+                665.098388671875
+            ],
+            "type": "unknown",
+            "text": "Results: Table 3 compares U-Net, wide U-Net, and UNet++ in terms of the\nnumber parameters and segmentation accuracy for the tasks of lung nodule\nsegmentation, colon polyp segmentation, liver segmentation, and cell nuclei seg-\nmentation. As seen, wide U-Net consistently outperforms U-Net except for liver\nsegmentation where the two architectures perform comparably. This improve-\nment is attributed to the larger number of parameters in wide U-Net. UNet++\nwithout deep supervision achieves a signiﬁcant performance gain over both U-\nNet and wide U-Net, yielding average improvement of 2.8 and 3.3 points in\nIoU. UNet++ with deep supervision exhibits average improvement of 0.6 points\nover UNet++ without deep supervision. Speciﬁcally, the use of deep supervi-\nsion leads to marked improvement for liver and lung nodule segmentation, but\nsuch improvement vanishes for cell nuclei and colon polyp segmentation. This\nis because polyps and liver appear at varying scales in video frames and CT"
+        },
+        {
+            "id": 64,
+            "block_id": 0,
+            "page": 7,
+            "bbox": [
+                287.7019958496094,
+                92.88749694824219,
+                480.6229553222656,
+                101.85389709472656
+            ],
+            "type": "unknown",
+            "text": "UNet++: A Nested U-Net Architecture\n7"
+        },
+        {
+            "id": 65,
+            "block_id": 1,
+            "page": 7,
+            "bbox": [
+                135.04798889160156,
+                126.38090515136719,
+                480.3218994140625,
+                148.29852294921875
+            ],
+            "type": "unknown",
+            "text": "Table 3: Segmentation results (IoU: %) for U-Net, wide U-Net and our suggested\narchitecture UNet++ with and without deep supervision (DS)."
+        },
+        {
+            "id": 66,
+            "block_id": 2,
+            "page": 7,
+            "bbox": [
+                141.20599365234375,
+                152.9624481201172,
+                476.69635009765625,
+                217.12184143066406
+            ],
+            "type": "unknown",
+            "text": "Architecture\nParams\nDataset\ncell nuclei\ncolon polyp\nliver\nlung nodule\nU-Net [9]\n7.76M\n90.77\n30.08\n76.62\n71.47\nWide U-Net\n9.13M\n90.92\n30.14\n76.58\n73.38\nUNet++ w/o DS\n9.04M\n92.63\n33.45\n79.70\n76.44\nUNet++ w/ DS\n9.04M\n92.52\n32.12\n82.90\n77.21"
+        },
+        {
+            "id": 67,
+            "block_id": 3,
+            "page": 7,
+            "bbox": [
+                134.76499938964844,
+                378.33892822265625,
+                480.63671875,
+                424.16748046875
+            ],
+            "type": "unknown",
+            "text": "Fig. 3: Complexity, speed, and accuracy of UNet++ after pruning on (a) cell\nnuclei, (b) colon polyp, (c) liver, and (d) lung nodule segmentation tasks respec-\ntively. The inference time is the time taken to process 10k test images using one\nNVIDIA TITAN X (Pascal) with 12 GB memory."
+        },
+        {
+            "id": 68,
+            "block_id": 4,
+            "page": 7,
+            "bbox": [
+                134.76499938964844,
+                450.6568908691406,
+                480.6067199707031,
+                484.5294494628906
+            ],
+            "type": "unknown",
+            "text": "slices; and thus, a multi-scale approach using all segmentation branches (deep\nsupervision) is essential for accurate segmentation. Fig. 2 shows a qualitative\ncomparison between the results of U-Net, wide U-Net, and UNet++."
+        },
+        {
+            "id": 69,
+            "block_id": 5,
+            "page": 7,
+            "bbox": [
+                134.76498413085938,
+                490.619873046875,
+                480.6365051269531,
+                560.3583984375
+            ],
+            "type": "unknown",
+            "text": "Model pruning: Fig. 3 shows segmentation performance of UNet++ after ap-\nplying diﬀerent levels of pruning. We use UNet++ Li to denote UNet++ pruned\nat level i (see Fig. 1c for further details). As seen, UNet++ L3 achieves on av-\nerage 32.2% reduction in inference time while degrading IoU by only 0.6 points.\nMore aggressive pruning further reduces the inference time but at the cost of\nsigniﬁcant accuracy degradation."
+        },
+        {
+            "id": 70,
+            "block_id": 6,
+            "page": 7,
+            "bbox": [
+                134.76498413085938,
+                581.2835693359375,
+                219.3121337890625,
+                593.23876953125
+            ],
+            "type": "unknown",
+            "text": "5\nConclusion"
+        },
+        {
+            "id": 71,
+            "block_id": 7,
+            "page": 7,
+            "bbox": [
+                134.76498413085938,
+                607.3158569335938,
+                480.63653564453125,
+                665.0984497070312
+            ],
+            "type": "unknown",
+            "text": "To address the need for more accurate medical image segmentation, we pro-\nposed UNet++. The suggested architecture takes advantage of re-designed skip\npathways and deep supervision. The re-designed skip pathways aim at reducing\nthe semantic gap between the feature maps of the encoder and decoder sub-\nnetworks, resulting in a possibly simpler optimization problem for the optimizer"
+        },
+        {
+            "id": 72,
+            "block_id": 0,
+            "page": 8,
+            "bbox": [
+                134.76499938964844,
+                92.88749694824219,
+                225.65133666992188,
+                101.85389709472656
+            ],
+            "type": "unknown",
+            "text": "8\nZ. Zhou, et al."
+        },
+        {
+            "id": 73,
+            "block_id": 1,
+            "page": 8,
+            "bbox": [
+                134.76499938964844,
+                118.01194763183594,
+                480.6268310546875,
+                199.70562744140625
+            ],
+            "type": "unknown",
+            "text": "to solve. Deep supervision also enables more accurate segmentation particularly\nfor lesions that appear at multiple scales such as polyps in colonoscopy videos.\nWe evaluated UNet++ using four medical imaging datasets covering lung nodule\nsegmentation, colon polyp segmentation, cell nuclei segmentation, and liver seg-\nmentation. Our experiments demonstrated that UNet++ with deep supervision\nachieved an average IoU gain of 3.9 and 3.4 points over U-Net and wide U-Net,\nrespectively."
+        },
+        {
+            "id": 74,
+            "block_id": 2,
+            "page": 8,
+            "bbox": [
+                134.76499938964844,
+                216.5360565185547,
+                480.6565246582031,
+                262.36468505859375
+            ],
+            "type": "unknown",
+            "text": "Acknowledgments This research has been supported partially by NIH under\nAward Number R01HL128785, by ASU and Mayo Clinic through a Seed Grant\nand an Innovation Grant. The content is solely the responsibility of the authors\nand does not necessarily represent the oﬃcial views of NIH."
+        },
+        {
+            "id": 75,
+            "block_id": 3,
+            "page": 8,
+            "bbox": [
+                134.76499938964844,
+                279.6308288574219,
+                197.6971435546875,
+                291.5860290527344
+            ],
+            "type": "unknown",
+            "text": "References"
+        },
+        {
+            "id": 76,
+            "block_id": 4,
+            "page": 8,
+            "bbox": [
+                134.76402282714844,
+                301.01165771484375,
+                480.7048645019531,
+                664.8810424804688
+            ],
+            "type": "unknown",
+            "text": "1. S. G. Armato, G. McLennan, L. Bidaut, M. F. McNitt-Gray, C. R. Meyer, A. P.\nReeves, B. Zhao, D. R. Aberle, C. I. Henschke, E. A. Hoﬀman, et al. The lung\nimage database consortium (lidc) and image database resource initiative (idri):\na completed reference database of lung nodules on ct scans.\nMedical physics,\n38(2):915–931, 2011.\n2. M. Drozdzal, E. Vorontsov, G. Chartrand, S. Kadoury, and C. Pal. The importance\nof skip connections in biomedical image segmentation. In Deep Learning and Data\nLabeling for Medical Applications, pages 179–187. Springer, 2016.\n3. D. Fourure, R. Emonet, E. Fromont, D. Muselet, A. Tremeau, and C. Wolf.\nResidual conv-deconv grid network for semantic segmentation.\narXiv preprint\narXiv:1707.07958, 2017.\n4. K. He, G. Gkioxari, P. Doll´ar, and R. Girshick. Mask r-cnn. In Computer Vision\n(ICCV), 2017 IEEE International Conference on, pages 2980–2988. IEEE, 2017.\n5. G. Huang, Z. Liu, K. Q. Weinberger, and L. van der Maaten. Densely connected\nconvolutional networks. In Proceedings of the IEEE conference on computer vision\nand pattern recognition, volume 1, page 3, 2017.\n6. C.-Y. Lee, S. Xie, P. Gallagher, Z. Zhang, and Z. Tu. Deeply-supervised nets. In\nArtiﬁcial Intelligence and Statistics, pages 562–570, 2015.\n7. X. Li, H. Chen, X. Qi, Q. Dou, C.-W. Fu, and P. A. Heng. H-denseunet: Hybrid\ndensely connected unet for liver and liver tumor segmentation from ct volumes.\narXiv preprint arXiv:1709.07330, 2017.\n8. J. Long, E. Shelhamer, and T. Darrell. Fully convolutional networks for seman-\ntic segmentation. In Proceedings of the IEEE conference on computer vision and\npattern recognition, pages 3431–3440, 2015.\n9. O. Ronneberger, P. Fischer, and T. Brox.\nU-net: Convolutional networks for\nbiomedical image segmentation.\nIn International Conference on Medical image\ncomputing and computer-assisted intervention, pages 234–241. Springer, 2015.\n10. N. Tajbakhsh, J. Y. Shin, S. R. Gurudu, R. T. Hurst, C. B. Kendall, M. B. Gotway,\nand J. Liang.\nConvolutional neural networks for medical image analysis: Full\ntraining or ﬁne tuning? IEEE transactions on medical imaging, 35(5):1299–1312,\n2016.\n11. Z. Zhou, J. Shin, L. Zhang, S. Gurudu, M. Gotway, and J. Liang. Fine-tuning\nconvolutional neural networks for biomedical image analysis: actively and incre-\nmentally. In IEEE conference on computer vision and pattern recognition (CVPR),\npages 7340–7351, 2017."
+        }
+    ],
+    "images": [
+        {
+            "id": "image_1",
+            "page": 3,
+            "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文3\\step1\\images\\image_1.png"
+        },
+        {
+            "id": "image_2",
+            "page": 6,
+            "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文3\\step1\\images\\image_2.png"
+        },
+        {
+            "id": "image_3",
+            "page": 7,
+            "path": "D:\\applications\\paper2code-master\\paper2code-master\\backend\\data\\output\\论文3\\step1\\images\\image_3.png"
+        }
+    ],
+    "tables": []
+}

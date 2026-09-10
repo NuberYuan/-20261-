@@ -1,0 +1,4 @@
+{
+  "models[0].architecture.param_count": "approximately 60 million parameters",
+  "models[1].architecture.final_classifier": "loss/classifier layers reset for transfer learning"
+}

@@ -1,0 +1,5 @@
+{
+  "data_source": "external_dataset",
+  "acquisition": "local_path",
+  "data_source_note": "论文明确使用NASA MDP和Code4Code两个真实公开数据集，需用户自行获取本地数据。"
+}

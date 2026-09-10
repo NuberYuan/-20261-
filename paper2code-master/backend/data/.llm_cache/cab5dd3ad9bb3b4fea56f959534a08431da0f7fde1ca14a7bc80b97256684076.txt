@@ -1,0 +1,188 @@
+import os
+import sys
+import json
+import re
+import numpy as np
+import cv2
+
+DEFAULT_OCR_TEXT = """1.0
+Dataset Type
+0.5
+Color
+GrayScale
+Segmented
+0.4
+Epochs"""
+
+ARCH_KEYWORDS = [
+    "cnn", "transformer", "attention", "encoder", "decoder", "block",
+    "embedding", "classifier", "feature extractor", "alexnet", "resnet",
+    "vgg", "googlenet"
+]
+
+EXP_KEYWORDS = [
+    "accuracy", "loss", "epoch", "precision", "recall", "f1",
+    "performance", "comparison", "experiment result", "validation"
+]
+
+DATASET_KEYWORDS = [
+    "dataset", "sample", "example", "input image", "class", "category",
+    "training data", "test data"
+]
+
+MODEL_COMPONENTS = [
+    "AlexNet", "ResNet", "VGG", "GoogLeNet", "CNN", "Transformer",
+    "Attention", "Encoder", "Decoder", "Embedding", "Classifier",
+    "Feature Extractor"
+]
+
+FALLBACK = {
+    "type": "other",
+    "description": "无法确定图片类型",
+    "important_components": [],
+    "code_relevant_information": ""
+}
+
+
+def get_ocr_text():
+    if len(sys.argv) > 2:
+        value = sys.argv[2]
+        try:
+            if os.path.exists(value):
+                with open(value, "r", encoding="utf-8") as f:
+                    return f.read()
+        except Exception:
+            pass
+        return value
+    return DEFAULT_OCR_TEXT
+
+
+def match_keywords(text, keywords):
+    lower = text.lower()
+    for keyword in keywords:
+        if keyword in lower:
+            return True
+    return False
+
+
+def extract_components(text, image_type):
+    lower = text.lower()
+    components = []
+    seen = set()
+
+    def add(name):
+        if name not in seen:
+            seen.add(name)
+            components.append(name)
+
+    for name in MODEL_COMPONENTS:
+        if name.lower() in lower:
+            add(name)
+
+    if image_type == "experiment_result":
+        if "f1-score" in lower:
+            add("F1-score")
+        elif re.search(r'\bf1\b', lower):
+            add("F1")
+        for name in ["Accuracy", "Loss", "Precision", "Recall"]:
+            if name.lower() in lower:
+                add(name)
+        if "epochs" in lower:
+            add("Epochs")
+        elif "epoch" in lower:
+            add("Epoch")
+    return components
+
+
+def get_visual_info(img):
+    if img is None:
+        return None
+    try:
+        h, w = img.shape[:2]
+        if h == 0 or w == 0:
+            return None
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        saturation = float(np.mean(hsv[:, :, 1]))
+        b, g, r = cv2.split(img)
+        color_std = float(np.mean([np.std(b), np.std(g), np.std(r)]))
+        small = cv2.resize(img, (64, 64), interpolation=cv2.INTER_AREA)
+        pixels = small.reshape(-1, 3)
+        unique_ratio = float(np.unique(pixels, axis=0).shape[0] / pixels.shape[0])
+        aspect_ratio = w / h
+        return {
+            "aspect_ratio": aspect_ratio,
+            "saturation": saturation,
+            "color_std": color_std,
+            "unique_ratio": unique_ratio
+        }
+    except Exception:
+        return None
+
+
+def classify(ocr_text, img):
+    if match_keywords(ocr_text, EXP_KEYWORDS):
+        return "experiment_result"
+    if match_keywords(ocr_text, ARCH_KEYWORDS):
+        return "architecture"
+    if match_keywords(ocr_text, DATASET_KEYWORDS):
+        return "dataset"
+
+    info = get_visual_info(img)
+    if info is not None:
+        if info["unique_ratio"] > 0.45 and info["saturation"] > 35 and 0.75 <= info["aspect_ratio"] <= 1.35:
+            return "dataset"
+        if info["saturation"] < 20 and info["unique_ratio"] < 0.15:
+            return "other"
+    return "other"
+
+
+def build_result(image_type, ocr_text):
+    components = extract_components(ocr_text, image_type)
+
+    if image_type == "experiment_result":
+        description = "展示实验曲线或性能指标随训练轮次的变化情况"
+        code_info = "需要实现模型训练与评估流程，记录准确率、损失等指标以便绘制类似实验曲线"
+    elif image_type == "architecture":
+        description = "展示模型网络结构和数据流关系"
+        code_info = "需要实现相应的神经网络组件并搭建模型结构"
+    elif image_type == "dataset":
+        description = "展示数据样本、类别示例或输入图像"
+        code_info = "需要实现数据加载与预处理模块"
+    else:
+        description = "无法确定图片类型"
+        code_info = ""
+
+    return {
+        "type": image_type,
+        "description": description,
+        "important_components": components,
+        "code_relevant_information": code_info
+    }
+
+
+def main():
+    try:
+        if len(sys.argv) < 2:
+            print(json.dumps(FALLBACK, ensure_ascii=False))
+            return
+
+        image_path = sys.argv[1]
+        ocr_text = get_ocr_text()
+
+        img = None
+        try:
+            data = np.fromfile(image_path, dtype=np.uint8)
+            if data.size > 0:
+                img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        except Exception:
+            img = None
+
+        image_type = classify(ocr_text, img)
+        result = build_result(image_type, ocr_text)
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception:
+        print(json.dumps(FALLBACK, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

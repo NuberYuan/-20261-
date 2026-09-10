@@ -1,0 +1,16 @@
+{
+  "table_id": "table_1",
+  "table_type": "other",
+  "caption_summary": "A schematic diagram showing the interfaces of a neural controller, including input, output, and memory interfaces.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Input Interface", "value": "Controller Input"},
+      {"label": "Output Interface", "value": "Controller Output"},
+      {"label": "Memory Interface", "value": "State Controller Future"}
+    ]
+  },
+  "table_summary": "This table appears to be a textual representation of a diagram illustrating the architecture of a neural network controller, specifically highlighting three interfaces: input, output, and memory. It shows the flow of data from the controller input through the controller to the output, with a memory interface for state and future information. No numerical data or experimental results are present."
+}

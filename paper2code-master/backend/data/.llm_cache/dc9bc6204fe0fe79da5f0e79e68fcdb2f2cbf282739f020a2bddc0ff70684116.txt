@@ -1,0 +1,47 @@
+{
+  "table_id": "table_11",
+  "table_type": "comparison",
+  "caption_summary": "Comparison of learned vs. fixed entropy thresholds on HumanEval+ (Pass@1) across multiple models.",
+  "extracted_data": {
+    "metrics": ["Pass@1"],
+    "methods": ["Fixed", "Learned", "Delta"],
+    "best_result": {
+      "method": "Learned",
+      "metric": "Pass@1",
+      "value": 87.20
+    },
+    "key_values": [
+      {"label": "Fixed DS-1.3B", "value": "63.41%"},
+      {"label": "Fixed DS-6.7B", "value": "73.17%"},
+      {"label": "Fixed ST-3B", "value": "50.00%"},
+      {"label": "Fixed QW2.5-1.5B", "value": "65.85%"},
+      {"label": "Fixed QW2.5-7B", "value": "85.98%"},
+      {"label": "Fixed QW3-0.6B", "value": "21.34%"},
+      {"label": "Fixed QW3-1.7B", "value": "41.46%"},
+      {"label": "Fixed QW3-4B", "value": "51.22%"},
+      {"label": "Fixed QW3-8B", "value": "61.59%"},
+      {"label": "Fixed AVG", "value": "57.11%"},
+      {"label": "Learned DS-1.3B", "value": "65.24%"},
+      {"label": "Learned DS-6.7B", "value": "73.78%"},
+      {"label": "Learned ST-3B", "value": "50.61%"},
+      {"label": "Learned QW2.5-1.5B", "value": "67.07%"},
+      {"label": "Learned QW2.5-7B", "value": "87.20%"},
+      {"label": "Learned QW3-0.6B", "value": "22.56%"},
+      {"label": "Learned QW3-1.7B", "value": "44.51%"},
+      {"label": "Learned QW3-4B", "value": "56.10%"},
+      {"label": "Learned QW3-8B", "value": "62.80%"},
+      {"label": "Learned AVG", "value": "58.87%"},
+      {"label": "Delta DS-1.3B", "value": "+1.83%"},
+      {"label": "Delta DS-6.7B", "value": "+0.61%"},
+      {"label": "Delta ST-3B", "value": "+0.61%"},
+      {"label": "Delta QW2.5-1.5B", "value": "+1.22%"},
+      {"label": "Delta QW2.5-7B", "value": "+1.22%"},
+      {"label": "Delta QW3-0.6B", "value": "+1.22%"},
+      {"label": "Delta QW3-1.7B", "value": "+3.05%"},
+      {"label": "Delta QW3-4B", "value": "+4.88%"},
+      {"label": "Delta QW3-8B", "value": "+1.21%"},
+      {"label": "Delta AVG", "value": "+1.76%"}
+    ]
+  },
+  "table_summary": "This table compares the performance of a learned entropy threshold against a fixed threshold (set to 1.2) on the HumanEval+ benchmark, measured by Pass@1 across nine different model variants. The learned threshold consistently outperforms the fixed threshold across all models, with improvements ranging from +0.61% to +4.88%. On average, the learned threshold yields a +1.76% improvement over the fixed threshold, demonstrating its effectiveness."
+}

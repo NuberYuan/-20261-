@@ -1,0 +1,114 @@
+# Learning Simple Algorithms from Examples — Time Series Prediction
+
+本项目复现论文 **LEARNING SIMPLE ALGORITHMS FROM EXAMPLES** 中的 time series prediction 任务，使用 PyTorch 实现基于 LSTM 的序列模型，结合监督式符号预测损失与 Q-learning 动作学习损失进行联合训练。
+
+## 项目结构
+
+```
+.
+├── README.md
+├── main.py
+├── requirements.txt
+├── config/
+│   └── config/
+│       └── config.yaml
+├── data/
+│   └── data/
+│       └── dataset.py
+├── evaluation/
+│   └── evaluation/
+│       └── evaluate.py
+├── models/
+│   └── models/
+│       ├── __init__.py
+│       └── lstm.py
+├── training/
+│   └── training/
+│       └── train.py
+└── utils/
+    └── utils/
+        └── metrics.py
+```
+
+## 环境要求
+
+- Python 3.8+
+- PyTorch 1.10+
+- NumPy
+- PyYAML
+
+安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+## 配置说明
+
+训练超参数位于 `config/config/config.yaml`，主要包括：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `learning_rate` | 0.1 | 优化器学习率 |
+| `batch_size` | 20 | 训练批次大小 |
+| `epochs` | 30 | 训练轮数 |
+| `scheduler.step_size` | 0 | StepLR 调度器步长 |
+| `scheduler.gamma` | 2.0 | StepLR 调度器衰减因子 |
+
+损失函数由两部分组成：
+
+- **符号预测损失**：Cross-entropy loss，用于监督式符号预测。
+- **动作学习损失**：Q-learning loss，带惩罚项（penalty term），用于动作选择策略学习。
+
+## 运行方法
+
+在项目根目录下执行：
+
+```bash
+python main.py
+```
+
+程序将自动完成以下流程：
+
+1. 加载并预处理数据集（`data/data/dataset.py`）。
+2. 构建 LSTM 模型（`models/models/lstm.py`）。
+3. 执行训练循环（`training/training/train.py`）。
+4. 在测试集上评估模型（`evaluation/evaluation/evaluate.py`）。
+5. 输出评估指标（`utils/utils/metrics.py`）。
+
+## 数据划分说明
+
+论文仅使用 train/test 二路划分，无独立验证集。本项目遵循论文设定，默认不引入验证集。
+
+> **工程偏离说明（Engineering Deviation from Paper）**：若在训练过程中需要验证集用于早停（early stopping）或最优模型选择，应从训练集中按 80/20 比例二次划分出验证集。该做法属于工程偏离，并非论文原始设定。是否启用该偏离由配置文件或代码中的相关开关控制。
+
+## 复现步骤
+
+1. 安装依赖：
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. 检查并调整配置文件 `config/config/config.yaml` 中的超参数。
+
+3. 运行训练与评估：
+
+   ```bash
+   python main.py
+   ```
+
+4. 查看终端输出的训练日志与测试集评估指标。
+
+## 评估指标
+
+评估阶段使用 `utils/utils/metrics.py` 中定义的指标，包括但不限于：
+
+- 符号预测准确率（accuracy）
+- 序列级完全匹配率（exact match）
+- 其他任务相关指标
+
+## 注意事项
+
+- 论文中的关键发现（如某模型优于另一模型、迁移学习优于从头训练等）属于论文结论。本代码库从实际评估结果动态计算比较，不在文档或注释中预设任何结论性措辞。
+- 若需严格复现论文，请勿直接使用测试集进行模型选择，以避免数据泄露。推荐做法是从训练集二次划分验证集，或直接使用测试集评估最终模型（不推荐用于模型选择）。

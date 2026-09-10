@@ -1,0 +1,12 @@
+paper_name: plant
+paper_type: model_proposing
+task: image_classification
+input: Images resized to 256x256 pixels.
+output: 38 class labels, each representing a crop-disease pair.
+num_classes: 38 classes (14 crop species and 26 diseases, or absence thereof)
+reproduction_targets:
+- 实现论文提出的模型架构
+- 复现训练流程
+- 复现评估指标计算
+- 验证与论文结果的一致性
+is_trainable: true

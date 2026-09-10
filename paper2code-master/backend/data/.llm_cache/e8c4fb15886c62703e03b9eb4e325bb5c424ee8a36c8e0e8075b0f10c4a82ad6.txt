@@ -1,0 +1,32 @@
+project:
+  name: rule_based_graph_programs
+  paper: RULE-BASED GRAPH PROGRAMS MATCHING THE TIME COMPLEXITY OF IMPERATIVE ALGORITHMS
+  framework: Python 标准库
+
+experiment:
+  runs:
+    - id: run_1
+      data_source: synthetic
+      acquisition: n/a
+      dataset_version: default
+      algorithm:
+        graph_program_mode: rule_based
+        rule_set: default_rules
+        complexity_target: imperative_equivalent
+        evaluation_metric: time_complexity
+      logging:
+        log_level: INFO
+        log_file: logs/run_1.log
+
+logging:
+  log_level: INFO
+  log_dir: logs
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+system:
+  device: cpu
+  num_workers: 1
+  seed: 42
+
+data_source: synthetic
+acquisition: n/a

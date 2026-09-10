@@ -1,0 +1,14 @@
+{
+  "table_id": "table_12",
+  "table_type": "other",
+  "caption_summary": "A table showing correlation coefficients (r = 0.94) between GPT-OS and other models (GPT-5, Gemini, Nemotron, Qwen, Mistral, DeepSeek) across some evaluation dimension.",
+  "extracted_data": {
+    "metrics": ["correlation coefficient"],
+    "methods": ["GPT-OS", "GPT-5", "Gemini", "Nemotron", "Qwen", "Mistral", "DeepSeek"],
+    "best_result": null,
+    "key_values": [
+      {"label": "correlation (GPT-OS vs all)", "value": "0.94"}
+    ]
+  },
+  "table_summary": "The table appears to report a correlation coefficient of 0.94 between GPT-OS and a set of other language models (GPT-5, Gemini, Nemotron, Qwen, Mistral, DeepSeek). The exact nature of the correlation (e.g., scores, rankings) is unclear due to truncated content. The high correlation suggests strong agreement between GPT-OS and the other models on the measured dimension."
+}

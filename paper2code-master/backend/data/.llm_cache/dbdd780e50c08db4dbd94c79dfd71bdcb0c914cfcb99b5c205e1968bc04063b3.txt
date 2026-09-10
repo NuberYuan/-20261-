@@ -1,0 +1,607 @@
+```python
+import os
+import random
+import logging
+from typing import Callable, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import torch
+from PIL import Image
+from torch.utils.data import Dataset, Subset
+from torchvision import transforms
+
+logger = logging.getLogger(__name__)
+
+
+class PlantVillageDataset(Dataset):
+    """
+    PlantVillage dataset loader supporting color, grayscale, and segmented versions.
+
+    The dataset contains 54,306 images of plant leaves across 38 classes.
+    Images are loaded from local paths and preprocessed according to the
+    specified version (color, grayscale, or segmented).
+    """
+
+    def __init__(
+        self,
+        root_dir: str,
+        version: str = "color",
+        transform: Optional[Callable] = None,
+        config: Optional[dict] = None,
+        image_size: int = 256,
+        mean: Optional[List[float]] = None,
+        std: Optional[List[float]] = None,
+        normalize: bool = True,
+    ):
+        """
+        Initialize the PlantVillage dataset.
+
+        Args:
+            root_dir: Root directory containing the dataset images.
+            version: Dataset version - 'color', 'grayscale', or 'segmented'.
+            transform: Optional transform to apply to images.
+            config: Configuration dictionary (optional).
+            image_size: Target image size (default: 256).
+            mean: Normalization mean values.
+            std: Normalization std values.
+            normalize: Whether to apply normalization.
+        """
+        self.root_dir = root_dir
+        self.version = version
+        self.transform = transform
+        self.config = config or {}
+        self.image_size = image_size
+        self.mean = mean if mean is not None else [0.485, 0.456, 0.406]
+        self.std = std if std is not None else [0.229, 0.224, 0.225]
+        self.normalize = normalize
+
+        # Validate version
+        valid_versions = ["color", "grayscale", "segmented"]
+        if version not in valid_versions:
+            raise ValueError(
+                f"Invalid version '{version}'. Must be one of {valid_versions}"
+            )
+
+        # Check if version is resolved in config
+        if config is not None:
+            version_status = config.get("data", {}).get(version, {}).get("status", "resolved")
+            if version_status == "unresolved":
+                raise NotImplementedError(
+                    f"Dataset version '{version}' is marked as unresolved in config. "
+                    f"Reason: The paper does not provide complete implementation details "
+                    f"for the {version} preprocessing pipeline."
+                )
+
+        # Build image path list and labels
+        self.image_paths: List[str] = []
+        self.labels: List[int] = []
+        self.class_names: List[str] = []
+        self.object_ids: List[str] = []
+
+        self._load_dataset()
+
+        # Build class to index mapping
+        self.class_to_idx: Dict[str, int] = {
+            cls: idx for idx, cls in enumerate(self.class_names)
+        }
+
+        # Build object id to index mapping (for leaf-based splitting)
+        self.object_to_indices: Dict[str, List[int]] = {}
+        for idx, obj_id in enumerate(self.object_ids):
+            if obj_id not in self.object_to_indices:
+                self.object_to_indices[obj_id] = []
+            self.object_to_indices[obj_id].append(idx)
+
+    def _load_dataset(self) -> None:
+        """
+        Load dataset by scanning the root directory structure.
+
+        Expected structure:
+            root_dir/
+                class_name_1/
+                    image1.jpg
+                    image2.jpg
+                    ...
+                class_name_2/
+                    ...
+        """
+        if not os.path.isdir(self.root_dir):
+            raise FileNotFoundError(
+                f"Dataset root directory not found: {self.root_dir}"
+            )
+
+        class_dirs = sorted(
+            [d for d in os.listdir(self.root_dir) if os.path.isdir(os.path.join(self.root_dir, d))]
+        )
+
+        if not class_dirs:
+            raise ValueError(f"No class directories found in {self.root_dir}")
+
+        for class_idx, class_name in enumerate(class_dirs):
+            class_dir = os.path.join(self.root_dir, class_name)
+            image_files = sorted(
+                [
+                    f
+                    for f in os.listdir(class_dir)
+                    if f.lower().endswith((".jpg", ".jpeg", ".png", ".bmp", ".tiff"))
+                ]
+            )
+
+            for img_file in image_files:
+                img_path = os.path.join(class_dir, img_file)
+                self.image_paths.append(img_path)
+                self.labels.append(class_idx)
+                self.class_names.append(class_name)
+
+                # Extract object id from filename (assuming format like 'leaf123_image1.jpg')
+                # Fallback to filename without extension if no pattern matches
+                stem = os.path.splitext(img_file)[0]
+                parts = stem.split("_")
+                if len(parts) >= 2:
+                    obj_id = parts[0]
+                else:
+                    obj_id = stem
+                self.object_ids.append(obj_id)
+
+        logger.info(
+            f"Loaded {len(self.image_paths)} images from {len(class_dirs)} classes "
+            f"from {self.root_dir}"
+        )
+
+    def __len__(self) -> int:
+        """Return the number of images in the dataset."""
+        return len(self.image_paths)
+
+    def __getitem__(self, idx: int) -> Tuple[Image.Image, int]:
+        """
+        Get image and label at the given index.
+
+        Args:
+            idx: Index of the sample.
+
+        Returns:
+            Tuple of (PIL Image, label).
+        """
+        img_path = self.image_paths[idx]
+        label = self.labels[idx]
+
+        try:
+            image = Image.open(img_path).convert("RGB")
+        except Exception as e:
+            logger.error(f"Failed to load image {img_path}: {e}")
+            # Return a black image as fallback
+            image = Image.new("RGB", (self.image_size, self.image_size), (0, 0, 0))
+
+        if self.transform is not None:
+            image = self.transform(image)
+
+        return image, label
+
+    def preprocess_image(self, image: Image.Image) -> torch.Tensor:
+        """
+        Preprocess a single image according to the dataset version.
+
+        Args:
+            image: PIL Image to preprocess.
+
+        Returns:
+            Preprocessed image tensor.
+        """
+        transform = self._get_preprocess_transform()
+        return transform(image)
+
+    def _get_preprocess_transform(self) -> Callable:
+        """
+        Build the preprocessing transform for the current version.
+
+        Returns:
+            A callable transform.
+        """
+        transform_list = []
+
+        # Resize
+        transform_list.append(transforms.Resize((self.image_size, self.image_size)))
+
+        # Version-specific processing
+        if self.version == "grayscale":
+            transform_list.append(transforms.Grayscale(num_output_channels=1))
+            transform_list.append(transforms.ToTensor())
+            # Repeat single channel to 3 channels
+            transform_list.append(lambda x: x.repeat(3, 1, 1))
+        else:
+            # color and segmented use RGB
+            transform_list.append(transforms.ToTensor())
+
+        # Normalization
+        if self.normalize:
+            transform_list.append(
+                transforms.Normalize(mean=self.mean, std=self.std)
+            )
+
+        return transforms.Compose(transform_list)
+
+    def get_transform(self, train: bool = True) -> Callable:
+        """
+        Get the transform for training or evaluation.
+
+        Args:
+            train: Whether to include training augmentations.
+
+        Returns:
+            A callable transform.
+        """
+        transform_list = []
+
+        # Resize
+        transform_list.append(transforms.Resize((self.image_size, self.image_size)))
+
+        # Training augmentations
+        if train:
+            transform_list.append(transforms.RandomHorizontalFlip(p=0.5))
+
+        # Version-specific processing
+        if self.version == "grayscale":
+            transform_list.append(transforms.Grayscale(num_output_channels=1))
+            transform_list.append(transforms.ToTensor())
+            transform_list.append(lambda x: x.repeat(3, 1, 1))
+        else:
+            transform_list.append(transforms.ToTensor())
+
+        # Normalization
+        if self.normalize:
+            transform_list.append(
+                transforms.Normalize(mean=self.mean, std=self.std)
+            )
+
+        return transforms.Compose(transform_list)
+
+    def split_dataset(
+        self,
+        train_ratio: float = 0.8,
+        val_ratio: Optional[float] = None,
+        seed: int = 42,
+    ) -> Tuple[List[int], List[int], List[int]]:
+        """
+        Split dataset indices into train, validation, and test sets.
+
+        The split respects leaf-based grouping: images of the same leaf
+        (identified by object_id) are kept in the same set.
+
+        Args:
+            train_ratio: Proportion of data for training (default: 0.8).
+            val_ratio: Proportion of training data for validation (default: None).
+            seed: Random seed for reproducibility.
+
+        Returns:
+            Tuple of (train_indices, val_indices, test_indices).
+        """
+        rng = random.Random(seed)
+
+        # Get unique object ids
+        object_ids = list(self.object_to_indices.keys())
+        rng.shuffle(object_ids)
+
+        # Split objects into train and test
+        n_train_objects = int(len(object_ids) * train_ratio)
+        train_objects = object_ids[:n_train_objects]
+        test_objects = object_ids[n_train_objects:]
+
+        # Collect indices
+        train_indices = []
+        for obj_id in train_objects:
+            train_indices.extend(self.object_to_indices[obj_id])
+
+        test_indices = []
+        for obj_id in test_objects:
+            test_indices.extend(self.object_to_indices[obj_id])
+
+        # Sort indices for consistency
+        train_indices.sort()
+        test_indices.sort()
+
+        # Create validation split from training data if requested
+        val_indices = []
+        if val_ratio is not None and val_ratio > 0:
+            # Group training indices by object
+            train_object_to_indices: Dict[str, List[int]] = {}
+            for idx in train_indices:
+                obj_id = self.object_ids[idx]
+                if obj_id not in train_object_to_indices:
+                    train_object_to_indices[obj_id] = []
+                train_object_to_indices[obj_id].append(idx)
+
+            # Shuffle training objects
+            train_object_ids = list(train_object_to_indices.keys())
+            rng.shuffle(train_object_ids)
+
+            # Greedily assign objects to validation until ratio is met
+            n_val_target = int(len(train_indices) * val_ratio)
+            n_val_current = 0
+            val_indices = []
+
+            for obj_id in train_object_ids:
+                if n_val_current >= n_val_target:
+                    break
+                obj_indices = train_object_to_indices[obj_id]
+                val_indices.extend(obj_indices)
+                n_val_current += len(obj_indices)
+
+            # Remove validation indices from training
+            val_set = set(val_indices)
+            train_indices = [idx for idx in train_indices if idx not in val_set]
+
+            val_indices.sort()
+            train_indices.sort()
+
+        return train_indices, val_indices, test_indices
+
+
+class TransformSubset(Dataset):
+    """
+    A wrapper around Subset that applies a transform to each sample.
+
+    This is used to apply different transforms to train/val/test splits
+    without modifying the shared underlying dataset.
+    """
+
+    def __init__(self, subset: Subset, transform: Optional[Callable] = None):
+        """
+        Initialize the TransformSubset.
+
+        Args:
+            subset: The underlying Subset.
+            transform: Transform to apply to each sample.
+        """
+        self.subset = subset
+        self.transform = transform
+
+    def __len__(self) -> int:
+        """Return the number of samples."""
+        return len(self.subset)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
+        """
+        Get a sample with the transform applied.
+
+        Args:
+            idx: Index of the sample.
+
+        Returns:
+            Tuple of (transformed image tensor, label).
+        """
+        image, label = self.subset[idx]
+        if self.transform is not None:
+            image = self.transform(image)
+        return image, label
+
+
+def get_transform(
+    version: str = "color",
+    train: bool = True,
+    image_size: int = 256,
+    mean: Optional[List[float]] = None,
+    std: Optional[List[float]] = None,
+    normalize: bool = True,
+) -> Callable:
+    """
+    Get the appropriate transform for the given version and mode.
+
+    Args:
+        version: Dataset version ('color', 'grayscale', 'segmented').
+        train: Whether this is for training (includes augmentation).
+        image_size: Target image size.
+        mean: Normalization mean.
+        std: Normalization std.
+        normalize: Whether to normalize.
+
+    Returns:
+        A callable transform.
+    """
+    mean = mean if mean is not None else [0.485, 0.456, 0.406]
+    std = std if std is not None else [0.229, 0.224, 0.225]
+
+    transform_list = []
+
+    # Resize
+    transform_list.append(transforms.Resize((image_size, image_size)))
+
+    # Training augmentation
+    if train:
+        transform_list.append(transforms.RandomHorizontalFlip(p=0.5))
+
+    # Version-specific processing
+    if version == "grayscale":
+        transform_list.append(transforms.Grayscale(num_output_channels=1))
+        transform_list.append(transforms.ToTensor())
+        transform_list.append(lambda x: x.repeat(3, 1, 1))
+    else:
+        transform_list.append(transforms.ToTensor())
+
+    # Normalization
+    if normalize:
+        transform_list.append(transforms.Normalize(mean=mean, std=std))
+
+    return transforms.Compose(transform_list)
+
+
+def split_by_object(
+    indices: List[int],
+    object_ids: List[str],
+    val_ratio: float,
+    seed: int = 42,
+) -> Tuple[List[int], List[int]]:
+    """
+    Split indices into validation and remaining training indices by object grouping.
+
+    Ensures that images of the same object (leaf) are kept in the same set.
+
+    Args:
+        indices: List of dataset indices.
+        object_ids: Object id for each dataset index.
+        val_ratio: Proportion of indices to assign to validation.
+        seed: Random seed.
+
+    Returns:
+        Tuple of (val_indices, remaining_train_indices).
+    """
+    rng = random.Random(seed)
+
+    # Group indices by object
+    object_to_indices: Dict[str, List[int]] = {}
+    for idx in indices:
+        obj_id = object_ids[idx]
+        if obj_id not in object_to_indices:
+            object_to_indices[obj_id] = []
+        object_to_indices[obj_id].append(idx)
+
+    # Shuffle object ids
+    object_id_list = list(object_to_indices.keys())
+    rng.shuffle(object_id_list)
+
+    # Greedily assign objects to validation
+    n_val_target = int(len(indices) * val_ratio)
+    n_val_current = 0
+    val_indices = []
+
+    for obj_id in object_id_list:
+        if n_val_current >= n_val_target:
+            break
+        obj_indices = object_to_indices[obj_id]
+        val_indices.extend(obj_indices)
+        n_val_current += len(obj_indices)
+
+    # Remaining indices go to training
+    val_set = set(val_indices)
+    train_indices = [idx for idx in indices if idx not in val_set]
+
+    val_indices.sort()
+    train_indices.sort()
+
+    return val_indices, train_indices
+
+
+def get_dataloaders(
+    config: Optional[dict] = None,
+    version: str = "color",
+    train_ratio: float = 0.8,
+    batch_size: int = 32,
+    num_workers: int = 4,
+    seed: int = 42,
+    val_split_ratio: Optional[float] = None,
+) -> Dict[str, torch.utils.data.DataLoader]:
+    """
+    Create train, validation, and test dataloaders.
+
+    Args:
+        config: Configuration dictionary.
+        version: Dataset version ('color', 'grayscale', 'segmented').
+        train_ratio: Proportion of data for training.
+        batch_size: Batch size for dataloaders.
+        num_workers: Number of worker processes.
+        seed: Random seed.
+        val_split_ratio: Proportion of training data to use for validation.
+
+    Returns:
+        Dictionary with 'train', 'val', and 'test' dataloaders.
+    """
+    config = config or {}
+
+    # Get data configuration
+    data_config = config.get("data", {})
+    root_dir = data_config.get("root", "/work/plant_disease_detection/data")
+
+    # Get version-specific path
+    version_path = data_config.get(version, {}).get("path")
+    if version_path is None:
+        version_path = os.path.join(root_dir, version)
+
+    image_size = data_config.get("image_size", 256)
+    mean = data_config.get("mean", [0.485, 0.456, 0.406])
+    std = data_config.get("std", [0.229, 0.224, 0.225])
+    normalize = data_config.get("normalize", True)
+
+    # Check version status
+    version_status = data_config.get(version, {}).get("status", "resolved")
+    if version_status == "unresolved":
+        raise NotImplementedError(
+            f"Dataset version '{version}' is marked as unresolved in config. "
+            f"The paper does not provide complete implementation details for this version."
+        )
+
+    # Create dataset
+    dataset = PlantVillageDataset(
+        root_dir=version_path,
+        version=version,
+        config=config,
+        image_size=image_size,
+        mean=mean,
+        std=std,
+        normalize=normalize,
+    )
+
+    # Split dataset
+    train_indices, val_indices, test_indices = dataset.split_dataset(
+        train_ratio=train_ratio,
+        val_ratio=val_split_ratio,
+        seed=seed,
+    )
+
+    # Create subsets
+    train_subset = Subset(dataset, train_indices)
+    val_subset = Subset(dataset, val_indices) if val_indices else None
+    test_subset = Subset(dataset, test_indices)
+
+    # Create transforms
+    train_transform = get_transform(
+        version=version,
+        train=True,
+        image_size=image_size,
+        mean=mean,
+        std=std,
+        normalize=normalize,
+    )
+    eval_transform = get_transform(
+        version=version,
+        train=False,
+        image_size=image_size,
+        mean=mean,
+        std=std,
+        normalize=normalize,
+    )
+
+    # Wrap subsets with transforms
+    train_dataset = TransformSubset(train_subset, train_transform)
+    test_dataset = TransformSubset(test_subset, eval_transform)
+
+    # Create dataloaders
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+    dataloaders = {"train": train_loader, "test": test_loader}
+
+    if val_subset is not None:
+        val_dataset = TransformSubset(val_subset, eval_transform)
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+        dataloaders["val"] = val_loader
+
+    return dataloaders
+```

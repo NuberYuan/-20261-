@@ -1,0 +1,11 @@
+Based on the table analyses, the key experimental findings are as follows:
+
+1. **AdaDec consistently outperforms baseline methods**: Across nine LLMs and three code generation benchmarks (HumanEval+, MBPP+, and DevEval), AdaDec achieves the highest average Pass@1 improvements over Greedy decoding, with gains of +3.59, +7.61, and +4.53 respectively.
+
+2. **AdaDec surpasses AdapT and Beam Search**: While Beam Search (B=3) also improves over Greedy, AdaDec achieves higher average improvements than both Beam Search and AdapT, particularly on MBPP+ and DevEval.
+
+3. **Entropy threshold analysis**: The relationship between entropy thresholds and decoding steps varies across models, with the percentage of decoding steps changing non-linearly as the threshold increases from 0.6 to 1.4.
+
+4. **Model ranking sensitivity**: Average model rankings shift depending on the entropy threshold, indicating that the optimal threshold for uncertainty-based decoding is model-dependent.
+
+5. **Drift detection statistics**: The paper reports statistics on non-drift steps and drift points (with a mean value), suggesting that logic drifts in code generation are identifiable and quantifiable, though specific numerical values were not fully extracted.

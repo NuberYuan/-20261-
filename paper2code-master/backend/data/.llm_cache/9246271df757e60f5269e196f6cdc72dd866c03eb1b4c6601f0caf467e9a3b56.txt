@@ -1,0 +1,7 @@
+{
+  "programming_framework_mentioned": "NOT_FOUND",
+  "architecture_details.note": "NOT_FOUND",
+  "training.optimizer.type": "NOT_FOUND",
+  "training.scheduler.type": "NOT_FOUND",
+  "hardware.mentioned": "NOT_FOUND"
+}

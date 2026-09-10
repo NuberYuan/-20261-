@@ -1,0 +1,16 @@
+{
+  "table_id": "table_4",
+  "table_type": "other",
+  "caption_summary": "A table with only zero values and no descriptive labels, likely a placeholder or empty data structure.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Item 0", "value": "0"},
+      {"label": "Item 0", "value": "0"},
+      {"label": "Item 0", "value": "0"}
+    ]
+  },
+  "table_summary": "The table contains three rows, each with a single value of 0 and no accompanying labels or headers. It appears to be an empty or placeholder table with no meaningful experimental data, ablation results, or comparisons. The content is insufficient to infer any research findings or conclusions."
+}

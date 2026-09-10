@@ -1,0 +1,622 @@
+import copy
+import warnings
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision.models as tv_models
+from torch.utils.data import DataLoader
+
+from data.dataset import get_dataloaders, load_config
+from models.alexnet import Alexnet
+from models.googlenet import Googlenet
+
+__all__ = ["initialize_model", "train_model", "save_model"]
+
+
+def _normalize_model_name(model_name: str) -> str:
+    """Return the canonical model name used in config keys."""
+    if model_name is None:
+        return "AlexNet"
+    lowered = model_name.lower()
+    if "alex" in lowered:
+        return "AlexNet"
+    if "goog" in lowered:
+        return "GoogLeNet"
+    return model_name
+
+
+def _get_model_class(model_name: str):
+    """Return the local torchvision-based model class."""
+    canonical = _normalize_model_name(model_name)
+    if canonical == "AlexNet":
+        return Alexnet
+    if canonical == "GoogLeNet":
+        return Googlenet
+    raise ValueError(f"Unsupported model_name {model_name!r}")
+
+
+def _init_weights(module: nn.Module) -> None:
+    """Kaiming/Xavier-style random initialization for trainable layers.
+
+    This mirrors the paper's Kaiming initialization requirement for scratch
+    training and is also used to reset classifier layers in transfer mode.
+    """
+    if isinstance(module, (nn.Conv2d, nn.Linear)):
+        nn.init.kaiming_normal_(module.weight, mode="fan_out", nonlinearity="relu")
+        if module.bias is not None:
+            nn.init.constant_(module.bias, 0)
+    elif isinstance(module, nn.BatchNorm2d):
+        nn.init.constant_(module.weight, 1)
+        nn.init.constant_(module.bias, 0)
+
+
+def _get_module_by_name(model: nn.Module, name: str) -> nn.Module:
+    """Resolve a dotted module path such as ``classifier.6`` or ``aux1.fc2``."""
+    module = model
+    for part in name.split("."):
+        if part.isdigit():
+            module = module[int(part)]
+        else:
+            module = getattr(module, part)
+    return module
+
+
+def _get_reset_prefixes(config: Dict[str, Any]) -> list:
+    """Extract actual state-dict key prefixes from transfer reset_layers descriptions."""
+    transfer_cfg = config.get("training_modes", {}).get("transfer", {})
+    reset_layers = transfer_cfg.get("reset_layers", [])
+    if not isinstance(reset_layers, (list, tuple)):
+        return []
+
+    prefixes = []
+    for desc in reset_layers:
+        if not isinstance(desc, str):
+            continue
+        desc = desc.strip()
+        if not desc:
+            continue
+        # Descriptions look like: "fc (主分类器, out_features=38)"
+        token = desc.split()[0] if " " in desc else desc
+        token = token.split("(")[0].strip()
+        if token:
+            prefixes.append(token)
+    return list(dict.fromkeys(prefixes))
+
+
+def _load_torchvision_pretrained_state_dict(model_name: str) -> Dict[str, torch.Tensor]:
+    """Load ImageNet-pretrained weights from torchvision for the requested model."""
+    canonical = _normalize_model_name(model_name)
+    try:
+        if canonical == "AlexNet":
+            from torchvision.models import AlexNet_Weights
+
+            weights = AlexNet_Weights.IMAGENET1K_V1
+            model = tv_models.alexnet(weights=weights)
+        elif canonical == "GoogLeNet":
+            from torchvision.models import GoogLeNet_Weights
+
+            weights = GoogLeNet_Weights.IMAGENET1K_V1
+            model = tv_models.googlenet(weights=weights)
+        else:
+            raise ValueError(f"Unsupported model_name {model_name!r}")
+    except ImportError:
+        # Fallback for older torchvision versions that only support pretrained=True.
+        if canonical == "AlexNet":
+            model = tv_models.alexnet(pretrained=True)
+        elif canonical == "GoogLeNet":
+            model = tv_models.googlenet(pretrained=True)
+        else:
+            raise ValueError(f"Unsupported model_name {model_name!r}")
+
+    return model.state_dict()
+
+
+def initialize_model(
+    model_name: str = "AlexNet",
+    training_mode: str = "scratch",
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+    num_classes: Optional[int] = None,
+) -> nn.Module:
+    """Initialize a model for scratch or transfer training.
+
+    Parameters
+    ----------
+    model_name:
+        One of ``"AlexNet"`` or ``"GoogLeNet"`` (case-insensitive).
+    training_mode:
+        Either ``"scratch"`` for random Kaiming initialization or
+        ``"transfer"`` for ImageNet-pretrained weights with reset final layers.
+    config:
+        Optional path to config/config.yaml, a loaded config dict, or ``None``
+        to load the project default.
+    num_classes:
+        Optional override for the number of output classes. If ``None``, the
+        value is read from ``config['model']['num_classes']``.
+
+    Returns
+    -------
+    nn.Module
+        The initialized model.
+    """
+    cfg = load_config(config)
+
+    # If num_classes is explicitly provided, place it into a config copy so the
+    # local model classes read a consistent value through their config logic.
+    if num_classes is not None:
+        cfg = copy.deepcopy(cfg)
+        cfg.setdefault("model", {})
+        cfg["model"]["num_classes"] = int(num_classes)
+
+    model_class = _get_model_class(model_name)
+    model = model_class(config=cfg)
+
+    canonical_mode = training_mode.lower()
+    if canonical_mode == "scratch":
+        # All layers are re-initialized with Kaiming normal. No pretrained
+        # statistics are ever used.
+        model.apply(_init_weights)
+    elif canonical_mode == "transfer":
+        pretrained_dict = _load_torchvision_pretrained_state_dict(model_name)
+        reset_prefixes = _get_reset_prefixes(cfg)
+
+        # Remove category-related layers from the pretrained state dict. The
+        # local model class is structurally identical to torchvision, so only
+        # the shapes of these reset layers differ.
+        for key in list(pretrained_dict.keys()):
+            for prefix in reset_prefixes:
+                if key == prefix or key.startswith(prefix + "."):
+                    pretrained_dict.pop(key, None)
+                    break
+
+        # Verify that every unexpectedly missing key is exactly one of the
+        # reset layers.  Anything else would mean a silent architecture
+        # mismatch.
+        model_keys = set(model.state_dict().keys())
+        pretrained_keys = set(pretrained_dict.keys())
+        missing_keys = sorted(model_keys - pretrained_keys)
+
+        expected_missing = []
+        for key in model_keys:
+            for prefix in reset_prefixes:
+                if key == prefix or key.startswith(prefix + "."):
+                    expected_missing.append(key)
+                    break
+        expected_missing = sorted(set(expected_missing))
+
+        if missing_keys != expected_missing:
+            warnings.warn(
+                "Unexpected missing keys during transfer loading. "
+                f"Expected missing: {expected_missing}, "
+                f"actually missing: {missing_keys}. "
+                "Some non-classifier weights were not loaded.",
+                stacklevel=2,
+            )
+
+        # Load all remaining pretrained weights. The reset layers stay at their
+        # random initialization from model construction.
+        incompatible_keys = model.load_state_dict(pretrained_dict, strict=False)
+        if incompatible_keys.missing_keys and sorted(incompatible_keys.missing_keys) != expected_missing:
+            warnings.warn(
+                f"Unexpected missing keys reported by load_state_dict: "
+                f"{incompatible_keys.missing_keys}",
+                stacklevel=2,
+            )
+
+        # Explicitly randomize the final classification layers after loading,
+        # so transfer mode guarantees random last-layer initialization.
+        for prefix in reset_prefixes:
+            try:
+                module = _get_module_by_name(model, prefix)
+                module.apply(_init_weights)
+            except (AttributeError, KeyError, IndexError):
+                # Not every prefix exists in every architecture (e.g.,
+                # AlexNet has no aux1/aux2).  That is expected.
+                pass
+    else:
+        raise ValueError(
+            f"Unknown training_mode {training_mode!r}. "
+            "Expected 'scratch' or 'transfer'."
+        )
+
+    return model
+
+
+def save_model(
+    model: Union[nn.Module, Dict[str, torch.Tensor]],
+    path: Union[str, Path],
+    optimizer: Optional[optim.Optimizer] = None,
+    optimizer_state_dict: Optional[Dict[str, torch.Tensor]] = None,
+    epoch: Optional[int] = None,
+    model_name: Optional[str] = None,
+    training_mode: Optional[str] = None,
+    val_loss: Optional[float] = None,
+    val_acc: Optional[float] = None,
+    train_loss: Optional[float] = None,
+    train_acc: Optional[float] = None,
+    **extra: Any,
+) -> Path:
+    """Save a model checkpoint to disk.
+
+    ``model`` may be either a ``torch.nn.Module`` (from which state_dict is
+    extracted) or an already-extracted state_dict mapping.  Optimizer state is
+    saved when provided.
+
+    Returns the path where the checkpoint was written.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    checkpoint: Dict[str, Any] = {}
+    if isinstance(model, dict):
+        checkpoint["model_state_dict"] = model
+    else:
+        checkpoint["model_state_dict"] = model.state_dict()
+
+    if optimizer is not None:
+        checkpoint["optimizer_state_dict"] = optimizer.state_dict()
+    elif optimizer_state_dict is not None:
+        checkpoint["optimizer_state_dict"] = optimizer_state_dict
+
+    if epoch is not None:
+        checkpoint["epoch"] = int(epoch)
+    if model_name is not None:
+        checkpoint["model_name"] = model_name
+    if training_mode is not None:
+        checkpoint["training_mode"] = training_mode
+    if val_loss is not None:
+        checkpoint["val_loss"] = float(val_loss)
+    if val_acc is not None:
+        checkpoint["val_acc"] = float(val_acc)
+    if train_loss is not None:
+        checkpoint["train_loss"] = float(train_loss)
+    if train_acc is not None:
+        checkpoint["train_acc"] = float(train_acc)
+
+    for key, value in extra.items():
+        if key not in checkpoint:
+            checkpoint[key] = value
+
+    torch.save(checkpoint, path)
+    return path
+
+
+def _build_dataloaders_from_config(
+    config: Dict[str, Any],
+    run_cfg: Dict[str, Any],
+    model_name: str,
+    num_workers: int = 0,
+    device: str = "cpu",
+) -> Dict[str, Any]:
+    """Build train/val/test dataloaders using the given experiment run config."""
+    version = run_cfg.get(
+        "dataset_version",
+        config.get("version_selector", {}).get("default", "color"),
+    )
+
+    split_cfg = config.get("split_strategy", {})
+    train_ratio = float(run_cfg.get("train_ratio", split_cfg.get("default_train_ratio", 0.8)))
+
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+    if reproduction_mode == "strict":
+        # Strict mode: paper-style train/test only, no validation split.
+        val_split_ratio = 0.0
+    else:
+        # Engineering mode: carve a validation set from training data.
+        val_split_ratio = float(run_cfg.get("val_split_ratio", split_cfg.get("val_split_ratio", 0.2)))
+
+    batch_size_cfg = config.get("training", {}).get("batch_size", {})
+    if isinstance(batch_size_cfg, dict):
+        batch_size = int(batch_size_cfg.get(model_name, 32))
+    else:
+        batch_size = int(batch_size_cfg)
+
+    seed = int(split_cfg.get("seed", 42))
+    pin_memory = device == "cuda"
+
+    loaders = get_dataloaders(
+        config=config,
+        version=version,
+        root_dir=config.get("data", {}).get("root"),
+        train_ratio=train_ratio,
+        val_split_ratio=val_split_ratio,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        seed=seed,
+        train_shuffle=True,
+    )
+    return loaders
+
+
+def train_model(
+    model: nn.Module,
+    train_loader: Optional[DataLoader] = None,
+    val_loader: Optional[DataLoader] = None,
+    test_loader: Optional[DataLoader] = None,
+    model_name: Optional[str] = None,
+    training_mode: Optional[str] = None,
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+    checkpoint_dir: Optional[Union[str, Path]] = None,
+    device: Optional[str] = None,
+    num_epochs: Optional[int] = None,
+    learning_rate: Optional[float] = None,
+    momentum: Optional[float] = None,
+    weight_decay: Optional[float] = None,
+    step_size: Optional[int] = None,
+    gamma: Optional[float] = None,
+    save_best: Optional[bool] = None,
+    save_final: Optional[bool] = None,
+    save_optimizer_state: Optional[bool] = None,
+    seed: Optional[int] = None,
+) -> tuple:
+    """Train a model using SGD with StepLR and cross-entropy loss.
+
+    If ``train_loader`` is not provided, dataloaders are constructed from
+    ``config['experiment']['runs'][0]``.  The function automatically respects
+    ``config['reproduction_mode']``:
+
+    - ``"engineering"``: trains with a validation split and selects the best
+      checkpoint by ``val_accuracy`` (or configured ``best_metric``).
+    - ``"strict"``: trains without validation and saves only the final model.
+
+    Returns a tuple ``(model, history)``.
+    """
+    cfg = load_config(config)
+
+    if model_name is None:
+        # Infer from class name when not explicitly supplied.
+        class_name = model.__class__.__name__
+        model_name = _normalize_model_name(class_name)
+    model_name = _normalize_model_name(model_name)
+
+    if training_mode is None:
+        training_mode = "scratch"
+    training_mode = training_mode.lower()
+
+    # ------------------------ Configuration parsing ------------------------
+    training_cfg = cfg.get("training", {})
+    checkpoint_cfg = cfg.get("checkpoint", {})
+    system_cfg = cfg.get("system", {})
+
+    if num_epochs is None:
+        num_epochs = int(training_cfg.get("epochs", 30))
+
+    optimizer_cfg = training_cfg.get("optimizer", {})
+    scheduler_cfg = training_cfg.get("scheduler", {})
+
+    if learning_rate is None:
+        learning_rate = float(optimizer_cfg.get("lr", 0.005))
+    if momentum is None:
+        momentum = float(optimizer_cfg.get("momentum", 0.9))
+    if weight_decay is None:
+        weight_decay = float(optimizer_cfg.get("weight_decay", 0.0005))
+    if step_size is None:
+        step_size = int(scheduler_cfg.get("step_size", 10))
+    if gamma is None:
+        gamma = float(scheduler_cfg.get("gamma", 0.1))
+
+    reproduction_mode = cfg.get("reproduction_mode", "engineering")
+
+    if device is None:
+        device = system_cfg.get("device", "cuda")
+    if device == "cuda" and not torch.cuda.is_available():
+        device = "cpu"
+        warnings.warn("CUDA requested but not available; falling back to CPU.", stacklevel=2)
+
+    # ------------------------ DataLoader handling ------------------------
+    if train_loader is None:
+        runs = cfg.get("experiment", {}).get("runs", [])
+        if runs:
+            run_cfg = runs[0]
+        else:
+            run_cfg = {}
+
+        loaders = _build_dataloaders_from_config(
+            config=cfg,
+            run_cfg=run_cfg,
+            model_name=model_name,
+            num_workers=int(system_cfg.get("num_workers", 0)),
+            device=device,
+        )
+        train_loader = loaders["train_loader"]
+        if val_loader is None:
+            val_loader = loaders.get("val_loader")
+        if test_loader is None:
+            test_loader = loaders.get("test_loader")
+
+    if train_loader is None:
+        raise ValueError(
+            "train_loader must be provided or configurable through "
+            "config['experiment']['runs']."
+        )
+
+    # Strict reproduction mode never uses validation, even if a loader was
+    # externally supplied.
+    if reproduction_mode == "strict":
+        val_loader = None
+
+    # ------------------------ Checkpointing ------------------------
+    if checkpoint_dir is None:
+        checkpoint_dir = Path("checkpoints")
+    checkpoint_dir = Path(checkpoint_dir)
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    if save_best is None:
+        save_best = bool(checkpoint_cfg.get("save_best", True))
+    if save_final is None:
+        save_final = bool(checkpoint_cfg.get("save_final", True))
+    if save_optimizer_state is None:
+        save_optimizer_state = bool(checkpoint_cfg.get("save_optimizer_state", True))
+
+    best_metric = checkpoint_cfg.get("best_metric", "val_accuracy")
+    best_mode = checkpoint_cfg.get("best_mode", "max")
+
+    # ------------------------ Model, optimizer, loss ------------------------
+    model.to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(
+        model.parameters(),
+        lr=learning_rate,
+        momentum=momentum,
+        weight_decay=weight_decay,
+    )
+    scheduler = optim.lr_scheduler.StepLR(
+        optimizer,
+        step_size=step_size,
+        gamma=gamma,
+    )
+
+    # ------------------------ Training state ------------------------
+    best_value = -float("inf") if best_mode == "max" else float("inf")
+    best_state_dict = None
+    best_optimizer_state_dict = None
+    best_epoch = None
+    best_val_loss = None
+    best_val_acc = None
+
+    history = {
+        "train_loss": [],
+        "train_acc": [],
+        "val_loss": [],
+        "val_acc": [],
+    }
+
+    # ------------------------ Epoch loop ------------------------
+    for epoch in range(num_epochs):
+        model.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+
+        for images, labels in train_loader:
+            images = images.to(device)
+            labels = labels.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(images)
+
+            # GoogLeNet returns an InceptionOutputs namedtuple with .logits;
+            # AlexNet returns a plain tensor.  Handle both transparently.
+            if hasattr(outputs, "logits"):
+                logits = outputs.logits
+            elif isinstance(outputs, tuple):
+                logits = outputs[0]
+            else:
+                logits = outputs
+
+            loss = criterion(logits, labels)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item() * images.size(0)
+            _, predicted = torch.max(logits, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+        train_loss = running_loss / total if total > 0 else 0.0
+        train_acc = correct / total if total > 0 else 0.0
+
+        # Validation is optional and guarded exactly as required.
+        val_loss = None
+        val_acc = None
+        if val_loader is not None:
+            model.eval()
+            val_running_loss = 0.0
+            val_correct = 0
+            val_total = 0
+
+            with torch.no_grad():
+                for images, labels in val_loader:
+                    images = images.to(device)
+                    labels = labels.to(device)
+
+                    outputs = model(images)
+                    if hasattr(outputs, "logits"):
+                        logits = outputs.logits
+                    elif isinstance(outputs, tuple):
+                        logits = outputs[0]
+                    else:
+                        logits = outputs
+
+                    loss = criterion(logits, labels)
+                    val_running_loss += loss.item() * images.size(0)
+                    _, predicted = torch.max(logits, 1)
+                    val_total += labels.size(0)
+                    val_correct += (predicted == labels).sum().item()
+
+            val_loss = val_running_loss / val_total if val_total > 0 else 0.0
+            val_acc = val_correct / val_total if val_total > 0 else 0.0
+
+            # Best-model selection based on configured metric/mode.
+            current_metric = val_loss if best_metric == "val_loss" else val_acc
+            if best_mode == "min":
+                is_best = current_metric < best_value
+            else:  # max
+                is_best = current_metric > best_value
+
+            if is_best:
+                best_value = current_metric
+                best_state_dict = copy.deepcopy(model.state_dict())
+                if save_optimizer_state:
+                    best_optimizer_state_dict = copy.deepcopy(optimizer.state_dict())
+                best_epoch = epoch + 1
+                best_val_loss = val_loss
+                best_val_acc = val_acc
+
+        scheduler.step()
+
+        history["train_loss"].append(train_loss)
+        history["train_acc"].append(train_acc)
+        if val_loader is not None:
+            history["val_loss"].append(val_loss)
+            history["val_acc"].append(val_acc)
+
+        print(
+            f"Epoch {epoch + 1}/{num_epochs} - "
+            f"train_loss: {train_loss:.4f}, train_acc: {train_acc:.4f}",
+            end="",
+        )
+        if val_loader is not None:
+            print(
+                f", val_loss: {val_loss:.4f}, val_acc: {val_acc:.4f}",
+                end="",
+            )
+        print()
+
+    # ------------------------ Save best and final ------------------------
+    if save_best and best_state_dict is not None:
+        best_path = checkpoint_dir / f"{model_name}_{training_mode}_best.pth"
+        save_model(
+            best_state_dict,
+            best_path,
+            optimizer_state_dict=best_optimizer_state_dict,
+            epoch=best_epoch,
+            model_name=model_name,
+            training_mode=training_mode,
+            val_loss=best_val_loss,
+            val_acc=best_val_acc,
+            train_loss=history["train_loss"][-1] if history["train_loss"] else None,
+            train_acc=history["train_acc"][-1] if history["train_acc"] else None,
+        )
+
+    if save_final:
+        final_path = checkpoint_dir / f"{model_name}_{training_mode}_final.pth"
+        save_model(
+            model.state_dict(),
+            final_path,
+            optimizer_state_dict=copy.deepcopy(optimizer.state_dict())
+            if save_optimizer_state
+            else None,
+            epoch=num_epochs,
+            model_name=model_name,
+            training_mode=training_mode,
+            val_loss=val_loss if val_loader is not None else None,
+            val_acc=val_acc if val_loader is not None else None,
+            train_loss=history["train_loss"][-1] if history["train_loss"] else None,
+            train_acc=history["train_acc"][-1] if history["train_acc"] else None,
+        )
+
+    return model, history

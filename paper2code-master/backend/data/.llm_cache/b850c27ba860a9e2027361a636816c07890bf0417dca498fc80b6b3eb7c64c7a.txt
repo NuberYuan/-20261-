@@ -1,0 +1,93 @@
+# 项目说明文档
+
+## 项目概述
+
+本项目是一个基于 Python 标准库实现的实验性项目，用于探索和验证相关算法在不同数据集版本上的表现。项目通过统一的配置管理（YAML）和模块化设计，支持多版本数据集的对比实验。
+
+## 项目结构
+
+```
+.
+├── README.md
+├── main.py
+├── requirements.txt
+├── config/
+│   └── config/
+│       └── config.yaml
+└── src/
+    └── src/
+        └── algorithm.py
+```
+
+## 环境要求
+
+- Python 3.8+
+- 依赖包见 `requirements.txt`
+
+## 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+## 配置说明
+
+所有实验配置均通过 `config/config/config.yaml` 文件管理，主要配置项包括：
+
+| 配置路径 | 说明 |
+|---------|------|
+| `project` | 项目名称、框架、论文信息 |
+| `system` | 设备、随机种子、工作进程数 |
+| `data_source` | 数据来源 |
+| `dataset_version` / `dataset_versions` | 数据集版本选择 |
+| `version_selector` | 版本选择策略（配置键、默认值、可选值） |
+| `acquisition` | 数据获取相关配置 |
+| `training` | 训练相关配置（是否启用、备注） |
+| `experiment` / `experiment.runs` | 实验运行次数 |
+| `logging` | 日志格式与级别 |
+
+## 运行方法
+
+### 基本运行
+
+```bash
+python main.py
+```
+
+### 指定数据集版本
+
+通过修改 `config/config/config.yaml` 中的 `dataset_version` 或 `version_selector` 配置项来选择不同的数据集版本。
+
+## 复现步骤
+
+1. 安装依赖：
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. 检查配置文件 `config/config/config.yaml`，确认以下关键配置：
+   - `system.seed`：随机种子
+   - `system.device`：计算设备
+   - `dataset_version`：目标数据集版本
+   - `experiment.runs`：实验重复次数
+
+3. 运行主程序：
+
+   ```bash
+   python main.py
+   ```
+
+4. 查看日志输出，日志格式和级别可通过 `logging.format` 和 `logging.level` 配置。
+
+## 实验说明
+
+- 项目支持通过 `dataset_versions` 配置多个数据集版本，并通过 `version_selector` 动态选择。
+- 实验重复次数由 `experiment.runs` 控制，每次运行使用相同的随机种子以保证可复现性。
+- 训练功能可通过 `training.applies` 开关控制，`training.note` 可用于记录训练备注。
+
+## 注意事项
+
+- 请勿修改 `config/config/config.yaml` 中未列出的配置路径。
+- 运行前请确保数据源（`data_source`）可用。
+- 不同数据集版本的结果差异需通过实际运行对比得出，具体结论以实验输出为准。

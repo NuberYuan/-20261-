@@ -1,0 +1,16 @@
+{
+  "table_id": "table_9",
+  "table_type": "other",
+  "caption_summary": "A list of items with brief descriptions, likely from a related work or methodology section.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": ["HumanEval+ [23]", "Greedy Decoding [30]"],
+    "best_result": null,
+    "key_values": [
+      {"label": "HumanEval+ [23]", "value": "An extended version of HumanEval[3] with test cases increased by a"},
+      {"label": "Greedy Decoding [30]", "value": "Selects the highest-probability token at each step; computationally"},
+      {"label": ".2", "value": "Incomplete value, likely a fragment of a number or metric"}
+    ]
+  },
+  "table_summary": "This table appears to be a bulleted list of items with descriptions, possibly from a related work or background section. It includes references to HumanEval+ (an extended benchmark) and Greedy Decoding (a decoding strategy), but the content is truncated and lacks complete numerical data or structured comparisons. The table type is classified as 'other' due to its incomplete and non-standard format."
+}

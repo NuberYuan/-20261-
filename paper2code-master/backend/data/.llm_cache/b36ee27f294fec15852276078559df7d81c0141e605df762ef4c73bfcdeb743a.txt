@@ -1,0 +1,674 @@
+```python
+import os
+import sys
+import time
+import copy
+import logging
+import argparse
+from pathlib import Path
+from typing import Dict, Optional, Tuple, Any, Union
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, Subset, random_split
+import yaml
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders, ElectricityTrafficRetailVolatilityDataset, create_secondary_validation_split
+from models.lstm import Lstm
+from models.transformer import Transformer
+
+
+def setup_logging(log_dir: str = "./logs", log_level: str = "INFO") -> logging.Logger:
+    """Setup logging configuration."""
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "training.log")
+
+    logger = logging.getLogger("tft_training")
+    logger.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+    # File handler
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(getattr(logging, log_level.upper(), logging.INFO))
+
+    # Formatter
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+
+    # Add handlers if not already present
+    if not logger.handlers:
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+
+    return logger
+
+
+def load_config(config_path: str = None) -> Dict[str, Any]:
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path: Path to config file. If None, use default path.
+
+    Returns:
+        Configuration dictionary.
+    """
+    if config_path is None:
+        config_path = os.path.join(PROJECT_ROOT, "config", "config.yaml")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+
+def initialize_model(
+    config: Optional[Dict[str, Any]] = None,
+    model_name: str = "temporal_fusion_transformer",
+    device: Optional[torch.device] = None,
+) -> nn.Module:
+    """
+    Initialize model from scratch with random initialization.
+
+    Args:
+        config: Configuration dictionary. If None, load from config.yaml.
+        model_name: Name of the model architecture.
+        device: Device to place model on.
+
+    Returns:
+        Initialized model.
+    """
+    if config is None:
+        config = load_config()
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Initialize model based on architecture name
+    if model_name == "temporal_fusion_transformer" or model_name == "transformer":
+        model = Transformer(config=config)
+    elif model_name == "lstm":
+        model = Lstm(config=config)
+    else:
+        raise ValueError(f"Unknown model architecture: {model_name}")
+
+    # Apply weight initialization from config
+    weight_init = config.get("model", {}).get("weight_init", "kaiming_normal")
+
+    if weight_init == "kaiming_normal":
+        # Apply kaiming_normal initialization to all linear layers
+        for module in model.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight, mode="fan_in", nonlinearity="relu")
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.constant_(module.weight, 1)
+                nn.init.constant_(module.bias, 0)
+
+    # Move model to device
+    model = model.to(device)
+
+    return model
+
+
+def quantile_loss(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    quantiles: list = [0.1, 0.5, 0.9],
+) -> torch.Tensor:
+    """
+    Compute Quantile loss summed across all quantile outputs.
+
+    Args:
+        predictions: Model predictions of shape (batch, horizon, num_quantiles)
+        targets: Target values of shape (batch, horizon) or (batch, horizon, 1)
+        quantiles: List of quantile levels
+
+    Returns:
+        Scalar quantile loss
+    """
+    # Ensure targets have correct shape
+    if targets.dim() == 2:
+        targets = targets.unsqueeze(-1)  # (batch, horizon, 1)
+    elif targets.dim() == 3 and targets.size(-1) == 1:
+        pass  # Already correct shape
+    else:
+        raise ValueError(f"Unexpected targets shape: {targets.shape}")
+
+    # Expand targets to match predictions shape
+    targets_expanded = targets.expand_as(predictions)  # (batch, horizon, num_quantiles)
+
+    # Compute quantile loss for each quantile
+    losses = []
+    for i, q in enumerate(quantiles):
+        # Get predictions for this quantile
+        pred_q = predictions[..., i]  # (batch, horizon)
+        target_q = targets_expanded[..., i]  # (batch, horizon)
+
+        # Compute quantile loss
+        errors = target_q - pred_q
+        loss_q = torch.max(q * errors, (q - 1) * errors)
+        losses.append(loss_q)
+
+    # Sum across all quantiles
+    total_loss = torch.stack(losses, dim=-1).sum(dim=-1)  # (batch, horizon)
+
+    # Mean over batch and horizon
+    return total_loss.mean()
+
+
+def train_one_epoch(
+    model: nn.Module,
+    train_loader: DataLoader,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+    quantiles: list = [0.1, 0.5, 0.9],
+) -> float:
+    """
+    Train the model for one epoch.
+
+    Args:
+        model: The model to train
+        train_loader: DataLoader for training data
+        optimizer: Optimizer
+        device: Device to use
+        quantiles: List of quantile levels
+
+    Returns:
+        Average training loss for the epoch
+    """
+    model.train()
+    total_loss = 0.0
+    num_batches = 0
+
+    for batch in train_loader:
+        # Move batch to device
+        features = batch["features"].to(device)
+        targets = batch["targets"].to(device)
+        entity_ids = batch["entity_ids"].to(device)
+        time_indices = batch["time_indices"].to(device)
+
+        # Prepare inputs for model
+        # For TFT, we use features as past targets and known inputs
+        # This is a simplified version - in practice, you'd need proper time series formatting
+        batch_size = features.size(0)
+
+        # Use features as past targets (simplified)
+        past_targets = features.unsqueeze(-1)  # (batch, seq_len, 1)
+
+        # Static covariates (simplified - use entity_ids as static features)
+        static_covariates = entity_ids.float().unsqueeze(-1).unsqueeze(-1)  # (batch, 1, 1)
+
+        # Known future inputs (simplified - use last feature as known input)
+        known_future_inputs = features[:, -1:, :].unsqueeze(-1)  # (batch, 1, 1)
+
+        # Forward pass
+        optimizer.zero_grad()
+        predictions = model(
+            past_targets=past_targets,
+            static_covariates=static_covariates,
+            known_future_inputs=known_future_inputs,
+        )
+
+        # Compute loss
+        # Targets shape: (batch, horizon) - use last target as prediction target
+        target_values = targets.unsqueeze(-1)  # (batch, 1, 1)
+
+        # Expand predictions to match target shape if needed
+        if predictions.size(1) > 1:
+            # Use first prediction horizon
+            predictions = predictions[:, :1, :]
+
+        loss = quantile_loss(predictions, target_values, quantiles)
+
+        # Backward pass
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+        num_batches += 1
+
+    return total_loss / max(num_batches, 1)
+
+
+def validate(
+    model: nn.Module,
+    val_loader: DataLoader,
+    device: torch.device,
+    quantiles: list = [0.1, 0.5, 0.9],
+) -> Tuple[float, float]:
+    """
+    Validate the model.
+
+    Args:
+        model: The model to validate
+        val_loader: DataLoader for validation data
+        device: Device to use
+        quantiles: List of quantile levels
+
+    Returns:
+        Tuple of (validation loss, validation accuracy)
+    """
+    model.eval()
+    total_loss = 0.0
+    num_batches = 0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for batch in val_loader:
+            # Move batch to device
+            features = batch["features"].to(device)
+            targets = batch["targets"].to(device)
+            entity_ids = batch["entity_ids"].to(device)
+            time_indices = batch["time_indices"].to(device)
+
+            # Prepare inputs for model
+            batch_size = features.size(0)
+            past_targets = features.unsqueeze(-1)  # (batch, seq_len, 1)
+            static_covariates = entity_ids.float().unsqueeze(-1).unsqueeze(-1)  # (batch, 1, 1)
+            known_future_inputs = features[:, -1:, :].unsqueeze(-1)  # (batch, 1, 1)
+
+            # Forward pass
+            predictions = model(
+                past_targets=past_targets,
+                static_covariates=static_covariates,
+                known_future_inputs=known_future_inputs,
+            )
+
+            # Compute loss
+            target_values = targets.unsqueeze(-1)  # (batch, 1, 1)
+            if predictions.size(1) > 1:
+                predictions = predictions[:, :1, :]
+
+            loss = quantile_loss(predictions, target_values, quantiles)
+            total_loss += loss.item()
+            num_batches += 1
+
+            # Compute accuracy (using median prediction)
+            median_pred = predictions[..., 1]  # (batch, 1)
+            target_vals = target_values.squeeze(-1)  # (batch, 1)
+
+            # For regression, accuracy is not well-defined.
+            # Use a simple threshold-based accuracy for demonstration.
+            # In practice, you'd use a proper metric like MSE or MAE.
+            threshold = 0.1
+            diff = torch.abs(median_pred - target_vals)
+            correct += (diff < threshold).sum().item()
+            total += target_vals.numel()
+
+    avg_loss = total_loss / max(num_batches, 1)
+    accuracy = correct / max(total, 1)
+
+    return avg_loss, accuracy
+
+
+def train_model(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: Optional[DataLoader],
+    config: Dict[str, Any],
+    device: torch.device,
+    logger: logging.Logger,
+    run_name: str = "tft",
+) -> Dict[str, Any]:
+    """
+    Train the model.
+
+    Args:
+        model: The model to train
+        train_loader: DataLoader for training data
+        val_loader: DataLoader for validation data (can be None)
+        config: Configuration dictionary
+        device: Device to use
+        logger: Logger instance
+        run_name: Name of the run for checkpointing
+
+    Returns:
+        Dictionary containing training history
+    """
+    # Extract training config
+    training_cfg = config.get("training", {})
+    epochs = int(training_cfg.get("epochs", 30))
+    lr = float(training_cfg.get("optimizer", {}).get("lr", 0.01))
+
+    # Setup optimizer
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+
+    # Setup scheduler (StepLR as common strategy)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
+
+    # Quantiles for loss
+    quantiles = [0.1, 0.5, 0.9]
+
+    # Checkpoint config
+    checkpoint_cfg = config.get("checkpoint", {})
+    save_best = checkpoint_cfg.get("save_best", True)
+    best_metric = checkpoint_cfg.get("best_metric", "val_accuracy")
+    best_mode = checkpoint_cfg.get("best_mode", "max")
+    save_final = checkpoint_cfg.get("save_final", True)
+    save_optimizer_state = checkpoint_cfg.get("save_optimizer_state", True)
+
+    # Create checkpoint directory
+    checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints", run_name)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Training history
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+        "val_accuracy": [],
+        "epoch": [],
+    }
+
+    # Best model tracking
+    best_model_state = None
+    best_metric_value = float("-inf") if best_mode == "max" else float("inf")
+
+    # Training loop
+    for epoch in range(epochs):
+        epoch_start_time = time.time()
+
+        # Train one epoch
+        train_loss = train_one_epoch(
+            model=model,
+            train_loader=train_loader,
+            optimizer=optimizer,
+            device=device,
+            quantiles=quantiles,
+        )
+
+        # Validate if val_loader is provided
+        val_loss = None
+        val_accuracy = None
+        if val_loader is not None:
+            val_loss, val_accuracy = validate(
+                model=model,
+                val_loader=val_loader,
+                device=device,
+                quantiles=quantiles,
+            )
+
+        # Step scheduler
+        scheduler.step()
+
+        # Log progress
+        epoch_time = time.time() - epoch_start_time
+        log_msg = f"Epoch {epoch + 1}/{epochs} - Time: {epoch_time:.2f}s - Train Loss: {train_loss:.6f}"
+        if val_loss is not None:
+            log_msg += f" - Val Loss: {val_loss:.6f} - Val Acc: {val_accuracy:.4f}"
+        logger.info(log_msg)
+
+        # Update history
+        history["train_loss"].append(train_loss)
+        history["epoch"].append(epoch + 1)
+        if val_loss is not None:
+            history["val_loss"].append(val_loss)
+            history["val_accuracy"].append(val_accuracy)
+
+        # Save best model
+        if save_best and val_loader is not None and val_accuracy is not None:
+            current_metric = val_accuracy if best_metric == "val_accuracy" else val_loss
+            if best_mode == "max":
+                is_best = current_metric > best_metric_value
+            else:
+                is_best = current_metric < best_metric_value
+
+            if is_best:
+                best_metric_value = current_metric
+                best_model_state = copy.deepcopy(model.state_dict())
+
+                # Save best checkpoint
+                checkpoint_path = os.path.join(checkpoint_dir, "best_model.pt")
+                checkpoint = {
+                    "epoch": epoch + 1,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict() if save_optimizer_state else None,
+                    "best_metric": best_metric_value,
+                    "config": config,
+                }
+                torch.save(checkpoint, checkpoint_path)
+                logger.info(f"  Saved best model to {checkpoint_path} (metric: {best_metric_value:.4f})")
+
+    # Save final model
+    if save_final:
+        final_checkpoint_path = os.path.join(checkpoint_dir, "final_model.pt")
+        checkpoint = {
+            "epoch": epochs,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict() if save_optimizer_state else None,
+            "config": config,
+        }
+        torch.save(checkpoint, final_checkpoint_path)
+        logger.info(f"Saved final model to {final_checkpoint_path}")
+
+    # If best model was saved, restore it for return
+    if best_model_state is not None:
+        model.load_state_dict(best_model_state)
+        logger.info(f"Restored best model with {best_metric}: {best_metric_value:.4f}")
+
+    return history
+
+
+def save_model(
+    model: nn.Module,
+    config: Dict[str, Any],
+    path: Optional[str] = None,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    epoch: Optional[int] = None,
+    metric_value: Optional[float] = None,
+) -> str:
+    """
+    Save model checkpoint.
+
+    Args:
+        model: The model to save
+        config: Configuration dictionary
+        path: Path to save checkpoint. If None, use default path.
+        optimizer: Optional optimizer state to save
+        epoch: Current epoch number
+        metric_value: Best metric value
+
+    Returns:
+        Path where checkpoint was saved
+    """
+    if path is None:
+        checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        path = os.path.join(checkpoint_dir, "model_checkpoint.pt")
+
+    # Create checkpoint dictionary
+    checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "config": config,
+    }
+
+    if optimizer is not None:
+        checkpoint["optimizer_state_dict"] = optimizer.state_dict()
+
+    if epoch is not None:
+        checkpoint["epoch"] = epoch
+
+    if metric_value is not None:
+        checkpoint["metric_value"] = metric_value
+
+    # Save checkpoint
+    torch.save(checkpoint, path)
+
+    return path
+
+
+def main():
+    """Main training function."""
+    parser = argparse.ArgumentParser(description="Train Temporal Fusion Transformer")
+    parser.add_argument("--config", type=str, default=None, help="Path to config file")
+    parser.add_argument("--dataset", type=str, default="electricity", help="Dataset name")
+    parser.add_argument("--batch_size", type=int, default=None, help="Batch size (overrides config)")
+    parser.add_argument("--epochs", type=int, default=None, help="Number of epochs (overrides config)")
+    parser.add_argument("--run_name", type=str, default="tft", help="Run name for checkpointing")
+    args = parser.parse_args()
+
+    # Load config
+    config = load_config(args.config)
+
+    # Setup logging
+    log_dir = config.get("logging", {}).get("log_dir", "./logs")
+    log_level = config.get("logging", {}).get("log_level", "INFO")
+    logger = setup_logging(log_dir, log_level)
+
+    # Determine device
+    device_name = config.get("system", {}).get("device", "cuda")
+    device = torch.device(device_name if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
+
+    # Get dataset version from experiment config
+    dataset_version = "default"
+    runs = config.get("experiment", {}).get("runs", [])
+    for run in runs:
+        if run.get("dataset") == args.dataset:
+            dataset_version = run.get("dataset_version", "default")
+            break
+
+    # Get batch size from config or args
+    batch_size = args.batch_size
+    if batch_size is None:
+        batch_sizes = config.get("training", {}).get("batch_size", {}).get("temporal_fusion_transformer", [64])
+        if isinstance(batch_sizes, list):
+            batch_size = batch_sizes[0]
+        else:
+            batch_size = 64
+
+    # Get epochs from config or args
+    epochs = args.epochs
+    if epochs is None:
+        epochs = int(config.get("training", {}).get("epochs", 30))
+
+    # Get num_workers from config
+    num_workers = config.get("system", {}).get("num_workers", 4)
+
+    # Get seed from config
+    seed = config.get("system", {}).get("seed", 42)
+
+    # Set random seeds
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # Create dataloaders
+    logger.info(f"Creating dataloaders for dataset: {args.dataset}")
+    dataloaders = get_dataloaders(
+        dataset_name=args.dataset,
+        version=dataset_version,
+        config=config,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        seed=seed,
+    )
+
+    train_loader = dataloaders["train_loader"]
+    val_loader = dataloaders["val_loader"]
+    test_loader = dataloaders["test_loader"]
+
+    # Check reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # For engineering mode, create secondary validation split from training set
+    if reproduction_mode == "engineering":
+        logger.info("Engineering mode: Creating secondary validation split from training set")
+        val_split_ratio = config.get("split_strategy", {}).get("val_split_ratio", 0.2)
+
+        # Create secondary validation split
+        train_dataset = train_loader.dataset
+        train_subset, val_subset = create_secondary_validation_split(
+            train_dataset,
+            val_ratio=val_split_ratio,
+            seed=seed,
+        )
+
+        # Create new dataloaders
+        train_loader = DataLoader(
+            train_subset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
+        val_loader = DataLoader(
+            val_subset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
+        logger.info(f"Train samples: {len(train_subset)}, Val samples: {len(val_subset)}")
+    else:
+        logger.info("Strict mode: No validation split, using train/test only")
+        val_loader = None
+
+    # Initialize model
+    logger.info("Initializing model from scratch")
+    model = initialize_model(
+        config=config,
+        model_name="temporal_fusion_transformer",
+        device=device,
+    )
+
+    # Log model info
+    num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"Model initialized with {num_params:,} trainable parameters")
+
+    # Train model
+    logger.info(f"Starting training for {epochs} epochs with batch_size={batch_size}")
+    history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        config=config,
+        device=device,
+        logger=logger,
+        run_name=args.run_name,
+    )
+
+    # Evaluate on test set
+    logger.info("Evaluating on test set")
+    test_loss, test_accuracy = validate(
+        model=model,
+        val_loader=test_loader,
+        device=device,
+    )
+    logger.info(f"Test Loss: {test_loss:.6f}, Test Accuracy: {test_accuracy:.4f}")
+
+    # Save final model
+    checkpoint_dir = os.path.join(PROJECT_ROOT, "checkpoints", args.run_name)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    final_path = os.path.join(checkpoint_dir, "final_model.pt")
+    save_model(
+        model=model,
+        config=config,
+        path=final_path,
+        epoch=epochs,
+        metric_value=test_loss,
+    )
+    logger.info(f"Final model saved to {final_path}")
+
+    logger.info("Training completed successfully")
+
+
+if __name__ == "__main__":
+    main()
+```

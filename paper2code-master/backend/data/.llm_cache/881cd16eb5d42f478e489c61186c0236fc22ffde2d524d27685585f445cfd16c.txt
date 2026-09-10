@@ -1,0 +1,188 @@
+```python
+"""Evaluation metrics for the AdaDec framework.
+
+This module implements the Pass@1 metric used to evaluate the quality of
+code generation on the test set. The metric measures the proportion of
+generated code samples that pass all provided unit tests.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+
+def compute_metrics(
+    predictions: Optional[List[Any]] = None,
+    references: Optional[List[Any]] = None,
+    config: Optional[Dict[str, Any]] = None,
+    threshold: float = 0.5,
+    batch_size: int = 32,
+) -> Dict[str, float]:
+    """Compute evaluation metrics for code generation.
+
+    This function computes the Pass@1 metric, which measures the proportion
+    of generated code samples that pass all provided unit tests. A sample is
+    considered to have passed if its associated test result score meets or
+    exceeds the specified threshold.
+
+    Args:
+        predictions: List of generated code samples or test result scores.
+            If None, a default empty list is used.
+        references: List of reference test results or ground truth labels.
+            If None, a default empty list is used.
+        config: Optional configuration dictionary. If provided, the threshold
+            and batch size may be overridden from the configuration.
+        threshold: Score threshold above which a sample is considered to have
+            passed. Defaults to 0.5.
+        batch_size: Batch size for processing. Defaults to 32.
+
+    Returns:
+        Dictionary containing the computed metrics. The key 'pass@1' holds
+        the Pass@1 value as a float in the range [0.0, 1.0].
+    """
+    if predictions is None:
+        predictions = []
+    if references is None:
+        references = []
+
+    # Allow configuration to override default parameters
+    if config is not None:
+        inference_cfg = config.get("inference", {})
+        if isinstance(inference_cfg, dict):
+            threshold = inference_cfg.get("threshold", threshold)
+            batch_size = inference_cfg.get("batch_size", batch_size)
+
+    # Ensure threshold is a valid float
+    try:
+        threshold = float(threshold)
+    except (TypeError, ValueError):
+        logger.warning("Invalid threshold value %s, using default 0.5", threshold)
+        threshold = 0.5
+
+    # Ensure batch_size is a positive integer
+    try:
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        logger.warning("Invalid batch_size value %s, using default 32", batch_size)
+        batch_size = 32
+
+    # If no predictions are provided, return a default Pass@1 of 0.0
+    if len(predictions) == 0:
+        logger.warning("No predictions provided, returning Pass@1 = 0.0")
+        return {"pass@1": 0.0}
+
+    # If references are provided, use them to determine pass/fail.
+    # Otherwise, assume predictions are already binary scores.
+    if len(references) > 0:
+        if len(predictions) != len(references):
+            logger.warning(
+                "Predictions length (%d) does not match references length (%d). "
+                "Truncating to the shorter length.",
+                len(predictions),
+                len(references),
+            )
+            min_len = min(len(predictions), len(references))
+            predictions = predictions[:min_len]
+            references = references[:min_len]
+
+        # Convert predictions and references to numeric scores
+        pred_scores = _to_float_scores(predictions)
+        ref_scores = _to_float_scores(references)
+
+        # A sample passes if the prediction score meets or exceeds the threshold
+        # AND the reference score is positive (indicating a valid test case).
+        passed = 0
+        total = 0
+        for pred_score, ref_score in zip(pred_scores, ref_scores):
+            if ref_score > 0.0:
+                total += 1
+                if pred_score >= threshold:
+                    passed += 1
+    else:
+        # No references: treat predictions as binary pass/fail scores
+        pred_scores = _to_float_scores(predictions)
+        passed = sum(1 for score in pred_scores if score >= threshold)
+        total = len(pred_scores)
+
+    if total == 0:
+        logger.warning("No valid test cases found, returning Pass@1 = 0.0")
+        return {"pass@1": 0.0}
+
+    pass_at_1 = passed / total
+    logger.info("Computed Pass@1 = %.4f (%d/%d)", pass_at_1, passed, total)
+
+    return {"pass@1": float(pass_at_1)}
+
+
+def _to_float_scores(values: List[Any]) -> List[float]:
+    """Convert a list of values to float scores.
+
+    Handles various input types:
+    - Numeric values (int, float) are converted directly.
+    - Boolean values are converted to 1.0 (True) or 0.0 (False).
+    - String values are parsed as floats if possible, otherwise 0.0.
+    - Lists/tuples are reduced to their first element if numeric.
+    - Dictionaries are checked for common score keys.
+
+    Args:
+        values: List of raw values to convert.
+
+    Returns:
+        List of float scores.
+    """
+    scores: List[float] = []
+    for value in values:
+        score = _to_float_score(value)
+        scores.append(score)
+    return scores
+
+
+def _to_float_score(value: Any) -> float:
+    """Convert a single value to a float score.
+
+    Args:
+        value: The value to convert.
+
+    Returns:
+        Float representation of the value.
+    """
+    if value is None:
+        return 0.0
+
+    if isinstance(value, bool):
+        return 1.0 if value else 0.0
+
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except (ValueError, AttributeError):
+            return 0.0
+
+    if isinstance(value, (list, tuple)):
+        if len(value) > 0:
+            return _to_float_score(value[0])
+        return 0.0
+
+    if isinstance(value, dict):
+        # Check common score keys
+        for key in ("score", "pass", "passed", "result", "success"):
+            if key in value:
+                return _to_float_score(value[key])
+        return 0.0
+
+    # Fallback: try to convert via float()
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+```

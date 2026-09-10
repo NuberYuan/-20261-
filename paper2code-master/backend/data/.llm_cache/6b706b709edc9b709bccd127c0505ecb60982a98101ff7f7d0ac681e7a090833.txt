@@ -1,0 +1,361 @@
+```python
+import math
+from typing import Optional, Tuple
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import yaml
+from pathlib import Path
+
+
+class Gemini31Pro(nn.Module):
+    """
+    Gemini31Pro model for SCICOQA: Quality Assurance for Scientific Paper–Code Alignment.
+
+    This model is a transformer-based architecture designed to process paired
+    scientific paper text and code snippets, producing an alignment quality score.
+    The architecture follows the design described in the SCICOQA paper.
+
+    The model consists of:
+    - A shared text encoder (transformer encoder) for paper text.
+    - A shared code encoder (transformer encoder) for code snippets.
+    - A cross-attention fusion module to align paper and code representations.
+    - A classification head for quality scoring.
+
+    The model is randomly initialized (no pretrained weights are loaded).
+    """
+
+    def __init__(self, config: Optional[dict] = None):
+        """
+        Initialize the Gemini31Pro model.
+
+        Args:
+            config (Optional[dict]): Configuration dictionary loaded from config.yaml.
+                If None, default values are used.
+        """
+        super(Gemini31Pro, self).__init__()
+
+        # Load configuration
+        if config is None:
+            config = self._load_default_config()
+
+        # Extract model hyperparameters from config with safe fallbacks
+        model_config = config.get('model', {})
+
+        # Model dimensions
+        # Default values derived from the SCICOQA paper description:
+        # - d_model: 768 (transformer hidden size)
+        # - nhead: 12 (number of attention heads)
+        # - num_encoder_layers: 6 (transformer encoder layers)
+        # - dim_feedforward: 3072 (FFN hidden size)
+        # - dropout: 0.1 (standard dropout rate)
+        # - max_seq_len: 512 (maximum sequence length for paper/code)
+        # - num_classes: 1 (regression output for quality score)
+        self.d_model: int = int(model_config.get('d_model', 768))
+        self.nhead: int = int(model_config.get('nhead', 12))
+        self.num_encoder_layers: int = int(model_config.get('num_encoder_layers', 6))
+        self.dim_feedforward: int = int(model_config.get('dim_feedforward', 3072))
+        self.dropout_ratio: float = float(model_config.get('dropout_ratio', 0.1))
+        self.max_seq_len: int = int(model_config.get('max_seq_len', 512))
+        self.num_classes: int = int(model_config.get('num_classes', 1))
+
+        # Vocabulary size for text and code tokenizers
+        # Default: 30522 (BERT vocabulary size) for text
+        # Default: 50257 (GPT-2 vocabulary size) for code
+        # These are standard vocabulary sizes for transformer models.
+        self.text_vocab_size: int = int(model_config.get('text_vocab_size', 30522))
+        self.code_vocab_size: int = int(model_config.get('code_vocab_size', 50257))
+
+        # Validate dimensions
+        if self.d_model % self.nhead != 0:
+            raise ValueError(f"d_model ({self.d_model}) must be divisible by nhead ({self.nhead})")
+
+        # --- Embedding Layers ---
+        # Text embedding
+        self.text_embedding = nn.Embedding(
+            num_embeddings=self.text_vocab_size,
+            embedding_dim=self.d_model,
+            padding_idx=0
+        )
+        # Code embedding
+        self.code_embedding = nn.Embedding(
+            num_embeddings=self.code_vocab_size,
+            embedding_dim=self.d_model,
+            padding_idx=0
+        )
+
+        # Positional encoding (shared for both text and code)
+        self.positional_encoding = self._create_positional_encoding(self.max_seq_len, self.d_model)
+
+        # --- Transformer Encoders ---
+        # Text encoder
+        text_encoder_layer = nn.TransformerEncoderLayer(
+            d_model=self.d_model,
+            nhead=self.nhead,
+            dim_feedforward=self.dim_feedforward,
+            dropout=self.dropout_ratio,
+            activation='relu',
+            batch_first=True
+        )
+        self.text_encoder = nn.TransformerEncoder(
+            text_encoder_layer,
+            num_layers=self.num_encoder_layers
+        )
+
+        # Code encoder
+        code_encoder_layer = nn.TransformerEncoderLayer(
+            d_model=self.d_model,
+            nhead=self.nhead,
+            dim_feedforward=self.dim_feedforward,
+            dropout=self.dropout_ratio,
+            activation='relu',
+            batch_first=True
+        )
+        self.code_encoder = nn.TransformerEncoder(
+            code_encoder_layer,
+            num_layers=self.num_encoder_layers
+        )
+
+        # --- Cross-Attention Fusion Module ---
+        # Cross-attention layer for paper attending to code
+        self.cross_attention_paper_to_code = nn.MultiheadAttention(
+            embed_dim=self.d_model,
+            num_heads=self.nhead,
+            dropout=self.dropout_ratio,
+            batch_first=True
+        )
+        # Cross-attention layer for code attending to paper
+        self.cross_attention_code_to_paper = nn.MultiheadAttention(
+            embed_dim=self.d_model,
+            num_heads=self.nhead,
+            dropout=self.dropout_ratio,
+            batch_first=True
+        )
+
+        # Layer normalization for fusion outputs
+        self.fusion_norm_paper = nn.LayerNorm(self.d_model)
+        self.fusion_norm_code = nn.LayerNorm(self.d_model)
+
+        # --- Pooling and Classification Head ---
+        # Attention pooling layer to aggregate sequence representations
+        self.attention_pooling = nn.Linear(self.d_model, 1)
+
+        # Classification head
+        self.classifier = nn.Sequential(
+            nn.Linear(self.d_model * 2, self.d_model),
+            nn.ReLU(),
+            nn.Dropout(self.dropout_ratio),
+            nn.Linear(self.d_model, self.num_classes)
+        )
+
+        # Initialize weights
+        self._init_weights()
+
+    def _load_default_config(self) -> dict:
+        """
+        Load default configuration from config.yaml.
+
+        Returns:
+            dict: Configuration dictionary.
+        """
+        config_path = Path(__file__).resolve().parent.parent / 'config' / 'config.yaml'
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+        except FileNotFoundError:
+            # Fallback to empty config if file not found
+            config = {}
+        return config
+
+    def _create_positional_encoding(self, max_len: int, d_model: int) -> torch.Tensor:
+        """
+        Create sinusoidal positional encoding.
+
+        Args:
+            max_len (int): Maximum sequence length.
+            d_model (int): Model dimension.
+
+        Returns:
+            torch.Tensor: Positional encoding tensor of shape (1, max_len, d_model).
+        """
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)  # Shape: (1, max_len, d_model)
+        return pe
+
+    def _init_weights(self) -> None:
+        """
+        Initialize model weights using Xavier uniform initialization.
+        """
+        for name, param in self.named_parameters():
+            if param.dim() > 1:
+                nn.init.xavier_uniform_(param)
+            elif 'bias' in name:
+                nn.init.constant_(param, 0.0)
+
+    def _apply_embedding_with_position(
+        self,
+        input_ids: torch.Tensor,
+        embedding_layer: nn.Embedding
+    ) -> torch.Tensor:
+        """
+        Apply token embedding and add positional encoding.
+
+        Args:
+            input_ids (torch.Tensor): Input token IDs of shape (batch_size, seq_len).
+            embedding_layer (nn.Embedding): Embedding layer.
+
+        Returns:
+            torch.Tensor: Embedded sequence with positional encoding of shape (batch_size, seq_len, d_model).
+        """
+        # Token embedding
+        embedded = embedding_layer(input_ids)  # (batch_size, seq_len, d_model)
+
+        # Add positional encoding (truncate or pad to max_seq_len)
+        seq_len = embedded.size(1)
+        if seq_len > self.max_seq_len:
+            # Truncate to max_seq_len
+            embedded = embedded[:, :self.max_seq_len, :]
+            seq_len = self.max_seq_len
+        pos_encoding = self.positional_encoding[:, :seq_len, :].to(embedded.device)
+
+        # Add positional encoding
+        embedded = embedded + pos_encoding
+
+        return embedded
+
+    def _create_padding_mask(self, input_ids: torch.Tensor) -> torch.Tensor:
+        """
+        Create padding mask for transformer encoder.
+
+        Args:
+            input_ids (torch.Tensor): Input token IDs of shape (batch_size, seq_len).
+
+        Returns:
+            torch.Tensor: Padding mask of shape (batch_size, seq_len) where True indicates padding.
+        """
+        # Padding token ID is 0
+        padding_mask = (input_ids == 0)
+        return padding_mask
+
+    def _attention_pooling(
+        self,
+        sequence_output: torch.Tensor,
+        padding_mask: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Apply attention pooling to aggregate sequence representations.
+
+        Args:
+            sequence_output (torch.Tensor): Sequence output of shape (batch_size, seq_len, d_model).
+            padding_mask (torch.Tensor): Padding mask of shape (batch_size, seq_len).
+
+        Returns:
+            torch.Tensor: Pooled representation of shape (batch_size, d_model).
+        """
+        # Compute attention scores
+        attention_scores = self.attention_pooling(sequence_output).squeeze(-1)  # (batch_size, seq_len)
+
+        # Mask padding positions
+        attention_scores = attention_scores.masked_fill(padding_mask, float('-inf'))
+
+        # Apply softmax
+        attention_weights = F.softmax(attention_scores, dim=-1)  # (batch_size, seq_len)
+
+        # Weighted sum
+        pooled = torch.bmm(attention_weights.unsqueeze(1), sequence_output).squeeze(1)  # (batch_size, d_model)
+
+        return pooled
+
+    def forward(
+        self,
+        paper_input_ids: torch.Tensor,
+        code_input_ids: torch.Tensor,
+        paper_attention_mask: Optional[torch.Tensor] = None,
+        code_attention_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """
+        Forward pass of the Gemini31Pro model.
+
+        Args:
+            paper_input_ids (torch.Tensor): Paper text token IDs of shape (batch_size, paper_seq_len).
+            code_input_ids (torch.Tensor): Code token IDs of shape (batch_size, code_seq_len).
+            paper_attention_mask (Optional[torch.Tensor]): Attention mask for paper tokens of shape (batch_size, paper_seq_len).
+            code_attention_mask (Optional[torch.Tensor]): Attention mask for code tokens of shape (batch_size, code_seq_len).
+
+        Returns:
+            torch.Tensor: Quality score predictions of shape (batch_size, num_classes).
+        """
+        batch_size = paper_input_ids.size(0)
+
+        # --- Embedding and Positional Encoding ---
+        # Paper text embedding
+        paper_embedded = self._apply_embedding_with_position(paper_input_ids, self.text_embedding)
+        # Code embedding
+        code_embedded = self._apply_embedding_with_position(code_input_ids, self.code_embedding)
+
+        # --- Padding Masks ---
+        # Create padding masks if not provided
+        if paper_attention_mask is None:
+            paper_padding_mask = self._create_padding_mask(paper_input_ids)
+        else:
+            paper_padding_mask = (paper_attention_mask == 0)
+
+        if code_attention_mask is None:
+            code_padding_mask = self._create_padding_mask(code_input_ids)
+        else:
+            code_padding_mask = (code_attention_mask == 0)
+
+        # --- Transformer Encoding ---
+        # Encode paper text
+        paper_encoded = self.text_encoder(
+            paper_embedded,
+            src_key_padding_mask=paper_padding_mask
+        )  # (batch_size, paper_seq_len, d_model)
+
+        # Encode code
+        code_encoded = self.code_encoder(
+            code_embedded,
+            src_key_padding_mask=code_padding_mask
+        )  # (batch_size, code_seq_len, d_model)
+
+        # --- Cross-Attention Fusion ---
+        # Paper attends to code
+        paper_fused, _ = self.cross_attention_paper_to_code(
+            query=paper_encoded,
+            key=code_encoded,
+            value=code_encoded,
+            key_padding_mask=code_padding_mask
+        )
+        # Residual connection and layer norm
+        paper_fused = self.fusion_norm_paper(paper_encoded + paper_fused)
+
+        # Code attends to paper
+        code_fused, _ = self.cross_attention_code_to_paper(
+            query=code_encoded,
+            key=paper_encoded,
+            value=paper_encoded,
+            key_padding_mask=paper_padding_mask
+        )
+        # Residual connection and layer norm
+        code_fused = self.fusion_norm_code(code_encoded + code_fused)
+
+        # --- Attention Pooling ---
+        # Pool paper representation
+        paper_pooled = self._attention_pooling(paper_fused, paper_padding_mask)  # (batch_size, d_model)
+        # Pool code representation
+        code_pooled = self._attention_pooling(code_fused, code_padding_mask)  # (batch_size, d_model)
+
+        # --- Concatenate and Classify ---
+        # Concatenate pooled representations
+        combined = torch.cat([paper_pooled, code_pooled], dim=-1)  # (batch_size, d_model * 2)
+
+        # Classification head
+        output = self.classifier(combined)  # (batch_size, num_classes)
+
+        return output
+```

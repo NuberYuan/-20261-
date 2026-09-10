@@ -1,0 +1,51 @@
+# Node
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 虚拟环境
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志
+logs/
+*.log
+
+# 敏感文件
+.env
+*.secret
+
+# AI 生成的代码 (Step3)
+paper2code-master/backend/code/step3/generated/generated_figure_code_*.py
+
+# Step4 输出
+paper2code-master/backend/data/output/*/step4/*.yaml
+paper2code-master/backend/data/output/step4/
+
+# 提取的图片
+paper2code-master/backend/data/output/*/images/
+paper2code-master/backend/data/output/images/
+
+# 大文件
+paper2code-master/backend/data/input/*.pdf
+paper2code-master/backend/data/output/*/images/*.png
+
+# OS
+.DS_Store
+Thumbs.db

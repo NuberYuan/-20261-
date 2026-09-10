@@ -1,0 +1,488 @@
+```python
+import torch
+import torch.nn as nn
+import yaml
+import os
+from typing import Optional, Dict, Any
+
+
+class DeepSeekCoder13B67BInstruct(nn.Module):
+    """
+    DeepSeek-Coder-1.3B/6.7B-Instruct model structure.
+
+    This class defines a randomly initialized transformer-based decoder-only
+    language model architecture inspired by the DeepSeek-Coder series.
+    It is designed to accept preprocessed input token sequences and output
+    logits over a fixed vocabulary.
+
+    The architecture follows a standard decoder-only transformer with:
+      - Token embedding layer
+      - Positional embedding layer (learned)
+      - Multiple decoder layers (self-attention + feed-forward)
+      - Final layer normalization
+      - Output projection head
+
+    Note:
+        This implementation is for structural definition only. No pretrained
+        weights are loaded. Weight initialization is handled externally in
+        training/train.py via the initialize_model function.
+    """
+
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        vocab_size: int = 32256,
+        hidden_size: int = 2048,
+        num_hidden_layers: int = 24,
+        num_attention_heads: int = 32,
+        intermediate_size: int = 5504,
+        max_position_embeddings: int = 16384,
+        dropout_ratio: float = 0.0,
+        layer_norm_eps: float = 1e-5,
+        pad_token_id: int = 0,
+        bos_token_id: int = 1,
+        eos_token_id: int = 2,
+    ) -> None:
+        """
+        Initialize the DeepSeekCoder13B67BInstruct model.
+
+        Args:
+            config: Optional configuration dictionary loaded from config.yaml.
+                If provided, overrides default hyperparameters.
+            vocab_size: Size of the vocabulary. Defaults to 32256 which is
+                the vocabulary size used in DeepSeek-Coder models.
+            hidden_size: Hidden dimension size of the transformer layers.
+            num_hidden_layers: Number of transformer decoder layers.
+            num_attention_heads: Number of attention heads.
+            intermediate_size: Intermediate size of the feed-forward network.
+            max_position_embeddings: Maximum sequence length for positional embeddings.
+            dropout_ratio: Dropout probability. If None in config, defaults to 0.0.
+            layer_norm_eps: Epsilon for layer normalization.
+            pad_token_id: Token ID for padding.
+            bos_token_id: Token ID for beginning of sequence.
+            eos_token_id: Token ID for end of sequence.
+        """
+        super(DeepSeekCoder13B67BInstruct, self).__init__()
+
+        # Load config if provided
+        if config is not None:
+            model_config = config.get('model', {})
+            training_config = config.get('training', {})
+
+            # Extract hyperparameters from config with safe defaults
+            # Note: config may have null values for these fields
+            # We use the provided defaults as fallback since the paper
+            # does not specify exact values for these architectural choices.
+            dropout_from_config = model_config.get('dropout_ratio', None)
+            if dropout_from_config is not None:
+                dropout_ratio = float(dropout_from_config)
+
+            # The paper does not specify a vocabulary size explicitly.
+            # DeepSeek-Coder models use a vocabulary of 32256 tokens.
+            # This is a reasonable default for code generation tasks.
+            # If config provides num_classes, we use it as vocab_size fallback.
+            num_classes_from_config = model_config.get('num_classes', None)
+            if num_classes_from_config is not None:
+                vocab_size = int(num_classes_from_config)
+
+        # Store configuration
+        self.vocab_size = vocab_size
+        self.hidden_size = hidden_size
+        self.num_hidden_layers = num_hidden_layers
+        self.num_attention_heads = num_attention_heads
+        self.intermediate_size = intermediate_size
+        self.max_position_embeddings = max_position_embeddings
+        self.dropout_ratio = dropout_ratio
+        self.layer_norm_eps = layer_norm_eps
+        self.pad_token_id = pad_token_id
+        self.bos_token_id = bos_token_id
+        self.eos_token_id = eos_token_id
+
+        # Validate dimensions
+        if hidden_size % num_attention_heads != 0:
+            raise ValueError(
+                f"hidden_size ({hidden_size}) must be divisible by "
+                f"num_attention_heads ({num_attention_heads})"
+            )
+
+        self.head_dim = hidden_size // num_attention_heads
+
+        # Token embedding layer
+        self.embed_tokens = nn.Embedding(
+            num_embeddings=vocab_size,
+            embedding_dim=hidden_size,
+            padding_idx=pad_token_id,
+        )
+
+        # Positional embedding layer (learned)
+        self.embed_positions = nn.Embedding(
+            num_embeddings=max_position_embeddings,
+            embedding_dim=hidden_size,
+        )
+
+        # Dropout layer
+        self.dropout = nn.Dropout(p=dropout_ratio)
+
+        # Transformer decoder layers
+        self.layers = nn.ModuleList(
+            [
+                self._build_decoder_layer()
+                for _ in range(num_hidden_layers)
+            ]
+        )
+
+        # Final layer normalization
+        self.ln_f = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
+
+        # Output projection head
+        self.lm_head = nn.Linear(hidden_size, vocab_size, bias=False)
+
+        # Tie weights between embedding and output projection
+        self.lm_head.weight = self.embed_tokens.weight
+
+        # Initialize weights
+        self._init_weights()
+
+    def _build_decoder_layer(self) -> nn.Module:
+        """
+        Build a single transformer decoder layer.
+
+        Returns:
+            A decoder layer module containing self-attention and feed-forward network.
+        """
+        return nn.ModuleDict(
+            {
+                "self_attn": nn.ModuleDict(
+                    {
+                        "q_proj": nn.Linear(self.hidden_size, self.hidden_size, bias=False),
+                        "k_proj": nn.Linear(self.hidden_size, self.hidden_size, bias=False),
+                        "v_proj": nn.Linear(self.hidden_size, self.hidden_size, bias=False),
+                        "out_proj": nn.Linear(self.hidden_size, self.hidden_size, bias=False),
+                    }
+                ),
+                "mlp": nn.ModuleDict(
+                    {
+                        "gate_proj": nn.Linear(self.hidden_size, self.intermediate_size, bias=False),
+                        "up_proj": nn.Linear(self.hidden_size, self.intermediate_size, bias=False),
+                        "down_proj": nn.Linear(self.intermediate_size, self.hidden_size, bias=False),
+                    }
+                ),
+                "input_layernorm": nn.LayerNorm(self.hidden_size, eps=self.layer_norm_eps),
+                "post_attention_layernorm": nn.LayerNorm(self.hidden_size, eps=self.layer_norm_eps),
+            }
+        )
+
+    def _init_weights(self) -> None:
+        """
+        Initialize model weights using normal distribution.
+        This is a standard initialization scheme for transformer models.
+        """
+        for name, param in self.named_parameters():
+            if param.dim() > 1:
+                # Use normal initialization for weight matrices
+                nn.init.normal_(param, mean=0.0, std=0.02)
+            elif "bias" in name:
+                # Zero initialization for biases
+                nn.init.zeros_(param)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the DeepSeekCoder13B67BInstruct model.
+
+        Args:
+            input_ids: Input token IDs of shape (batch_size, sequence_length).
+            attention_mask: Optional attention mask of shape (batch_size, sequence_length).
+                Values of 1 indicate positions to attend to, 0 indicate masked positions.
+            position_ids: Optional position IDs of shape (batch_size, sequence_length).
+                If not provided, positions are computed automatically.
+
+        Returns:
+            A dictionary containing:
+                - "logits": Output logits of shape (batch_size, sequence_length, vocab_size)
+                - "hidden_states": Final hidden states of shape (batch_size, sequence_length, hidden_size)
+        """
+        batch_size, seq_length = input_ids.shape
+
+        # Validate input
+        if seq_length > self.max_position_embeddings:
+            raise ValueError(
+                f"Sequence length ({seq_length}) exceeds maximum position embeddings "
+                f"({self.max_position_embeddings})"
+            )
+
+        # Create position IDs if not provided
+        if position_ids is None:
+            position_ids = torch.arange(
+                seq_length, dtype=torch.long, device=input_ids.device
+            )
+            position_ids = position_ids.unsqueeze(0).expand(batch_size, -1)
+
+        # Clamp position IDs to valid range
+        position_ids = torch.clamp(position_ids, 0, self.max_position_embeddings - 1)
+
+        # Token embeddings
+        hidden_states = self.embed_tokens(input_ids)
+
+        # Positional embeddings
+        position_embeddings = self.embed_positions(position_ids)
+        hidden_states = hidden_states + position_embeddings
+
+        # Apply dropout
+        hidden_states = self.dropout(hidden_states)
+
+        # Create causal attention mask if not provided
+        if attention_mask is None:
+            # Create causal mask: upper triangular matrix with -inf
+            causal_mask = torch.triu(
+                torch.ones(
+                    (seq_length, seq_length),
+                    dtype=torch.bool,
+                    device=input_ids.device,
+                ),
+                diagonal=1,
+            )
+            attention_mask = torch.zeros(
+                (batch_size, seq_length, seq_length),
+                dtype=torch.float32,
+                device=input_ids.device,
+            )
+            attention_mask.masked_fill_(causal_mask.unsqueeze(0), float("-inf"))
+        else:
+            # Convert attention mask to float and expand to 3D
+            # attention_mask shape: (batch_size, seq_length)
+            # We need to create a 3D mask for attention
+            attention_mask = attention_mask.float()
+            attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+            attention_mask = attention_mask.expand(
+                batch_size, 1, seq_length, seq_length
+            )
+            attention_mask = attention_mask.reshape(
+                batch_size, seq_length, seq_length
+            )
+            # Invert mask: 1 -> 0, 0 -> -inf
+            attention_mask = (1.0 - attention_mask) * float("-inf")
+
+        # Process through decoder layers
+        for layer in self.layers:
+            # Self-attention with residual connection
+            residual = hidden_states
+
+            # Layer normalization
+            hidden_states_norm = layer["input_layernorm"](hidden_states)
+
+            # Self-attention
+            attn_output = self._self_attention_with_layer(
+                hidden_states_norm,
+                attention_mask,
+                layer,
+            )
+
+            # Residual connection
+            hidden_states = residual + attn_output
+
+            # Feed-forward network with residual connection
+            residual = hidden_states
+
+            # Layer normalization
+            hidden_states_norm = layer["post_attention_layernorm"](hidden_states)
+
+            # Feed-forward network (SwiGLU activation)
+            ff_output = self._feed_forward(hidden_states_norm, layer)
+
+            # Residual connection
+            hidden_states = residual + ff_output
+
+        # Final layer normalization
+        hidden_states = self.ln_f(hidden_states)
+
+        # Output projection
+        logits = self.lm_head(hidden_states)
+
+        return {
+            "logits": logits,
+            "hidden_states": hidden_states,
+        }
+
+    def _self_attention_with_layer(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: torch.Tensor,
+        layer: nn.ModuleDict,
+    ) -> torch.Tensor:
+        """
+        Perform multi-head self-attention with a specific layer.
+
+        Args:
+            hidden_states: Input hidden states of shape (batch_size, seq_length, hidden_size).
+            attention_mask: Attention mask of shape (batch_size, seq_length, seq_length).
+            layer: The decoder layer module containing attention projections.
+
+        Returns:
+            Attention output of shape (batch_size, seq_length, hidden_size).
+        """
+        batch_size, seq_length, _ = hidden_states.shape
+
+        # Project queries, keys, and values
+        q = layer["self_attn"]["q_proj"](hidden_states)
+        k = layer["self_attn"]["k_proj"](hidden_states)
+        v = layer["self_attn"]["v_proj"](hidden_states)
+
+        # Reshape to (batch_size, num_heads, seq_length, head_dim)
+        q = q.view(batch_size, seq_length, self.num_attention_heads, self.head_dim)
+        k = k.view(batch_size, seq_length, self.num_attention_heads, self.head_dim)
+        v = v.view(batch_size, seq_length, self.num_attention_heads, self.head_dim)
+
+        # Transpose to (batch_size, num_heads, seq_length, head_dim)
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+
+        # Compute attention scores
+        attention_scores = torch.matmul(q, k.transpose(-2, -1))
+        attention_scores = attention_scores / (self.head_dim ** 0.5)
+
+        # Apply attention mask
+        if attention_mask is not None:
+            attention_scores = attention_scores + attention_mask.unsqueeze(1)
+
+        # Apply softmax
+        attention_probs = torch.softmax(attention_scores, dim=-1)
+
+        # Apply dropout to attention probabilities
+        attention_probs = self.dropout(attention_probs)
+
+        # Compute attention output
+        context = torch.matmul(attention_probs, v)
+
+        # Reshape back to (batch_size, seq_length, hidden_size)
+        context = context.transpose(1, 2).contiguous()
+        context = context.view(batch_size, seq_length, self.hidden_size)
+
+        # Output projection
+        output = layer["self_attn"]["out_proj"](context)
+
+        return output
+
+    def _feed_forward(
+        self,
+        hidden_states: torch.Tensor,
+        layer: nn.ModuleDict,
+    ) -> torch.Tensor:
+        """
+        Perform feed-forward network with SwiGLU activation.
+
+        Args:
+            hidden_states: Input hidden states of shape (batch_size, seq_length, hidden_size).
+            layer: The decoder layer module containing MLP projections.
+
+        Returns:
+            Feed-forward output of shape (batch_size, seq_length, hidden_size).
+        """
+        # SwiGLU activation: down_proj(gate_proj(x) * silu(up_proj(x)))
+        gate = layer["mlp"]["gate_proj"](hidden_states)
+        up = layer["mlp"]["up_proj"](hidden_states)
+
+        # SiLU activation (also known as Swish)
+        gate_activated = torch.nn.functional.silu(gate)
+
+        # Element-wise multiplication
+        intermediate = gate_activated * up
+
+        # Down projection
+        output = layer["mlp"]["down_proj"](intermediate)
+
+        return output
+
+
+def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the configuration file.
+
+    Returns:
+        Configuration dictionary.
+    """
+    if not os.path.exists(config_path):
+        return {}
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config if config is not None else {}
+
+
+def create_model(
+    config: Optional[Dict[str, Any]] = None,
+    vocab_size: int = 32256,
+    hidden_size: int = 2048,
+    num_hidden_layers: int = 24,
+    num_attention_heads: int = 32,
+    intermediate_size: int = 5504,
+    max_position_embeddings: int = 16384,
+) -> DeepSeekCoder13B67BInstruct:
+    """
+    Create a DeepSeekCoder13B67BInstruct model instance.
+
+    Args:
+        config: Optional configuration dictionary.
+        vocab_size: Vocabulary size.
+        hidden_size: Hidden dimension size.
+        num_hidden_layers: Number of decoder layers.
+        num_attention_heads: Number of attention heads.
+        intermediate_size: Intermediate size of feed-forward network.
+        max_position_embeddings: Maximum sequence length.
+
+    Returns:
+        An initialized DeepSeekCoder13B67BInstruct model.
+    """
+    return DeepSeekCoder13B67BInstruct(
+        config=config,
+        vocab_size=vocab_size,
+        hidden_size=hidden_size,
+        num_hidden_layers=num_hidden_layers,
+        num_attention_heads=num_attention_heads,
+        intermediate_size=intermediate_size,
+        max_position_embeddings=max_position_embeddings,
+    )
+
+
+if __name__ == "__main__":
+    # Basic test to verify model can be instantiated and forward pass works
+    config = load_config()
+
+    # Create model with default parameters
+    model = create_model(config=config)
+
+    # Print model summary
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Total parameters: {total_params:,}")
+
+    # Test forward pass
+    batch_size = 1
+    seq_length = 16
+    input_ids = torch.randint(0, model.vocab_size, (batch_size, seq_length))
+
+    # Test with default settings
+    output = model(input_ids)
+    print(f"Output logits shape: {output['logits'].shape}")
+    print(f"Output hidden states shape: {output['hidden_states'].shape}")
+
+    # Test with attention mask
+    attention_mask = torch.ones(batch_size, seq_length, dtype=torch.long)
+    output = model(input_ids, attention_mask=attention_mask)
+    print(f"Output with attention mask - logits shape: {output['logits'].shape}")
+
+    # Test with position IDs
+    position_ids = torch.arange(seq_length).unsqueeze(0).expand(batch_size, -1)
+    output = model(input_ids, position_ids=position_ids)
+    print(f"Output with position IDs - logits shape: {output['logits'].shape}")
+
+    print("Model test completed successfully.")
+```

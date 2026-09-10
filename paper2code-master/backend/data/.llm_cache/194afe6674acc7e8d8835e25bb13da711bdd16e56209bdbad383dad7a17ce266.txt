@@ -1,0 +1,5 @@
+{
+  "models[0].architecture.param_count": "about 60 million",
+  "models[1].architecture.param_count": "about 5 million",
+  "models[1].architecture.final_classifier": "loss3/classifier"
+}

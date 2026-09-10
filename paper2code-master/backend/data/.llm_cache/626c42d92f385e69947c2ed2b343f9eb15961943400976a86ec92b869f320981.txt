@@ -1,0 +1,8 @@
+{
+  "architecture_details.note": "NOT_FOUND",
+  "training.optimizer.type": "NOT_FOUND",
+  "training.loss.type": "NOT_FOUND",
+  "training.scheduler.type": "NOT_FOUND",
+  "pretrained_weights.source": "NOT_FOUND",
+  "hardware.mentioned": "NOT_FOUND"
+}

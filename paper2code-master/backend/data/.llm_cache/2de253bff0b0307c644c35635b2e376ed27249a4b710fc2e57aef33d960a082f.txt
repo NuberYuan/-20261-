@@ -1,0 +1,139 @@
+# UNet++: A Nested U-Net Architecture for Medical Image Segmentation
+
+本项目基于 PyTorch 实现 UNet++，用于医学图像相关任务的训练与评估。本仓库按照项目实际结构组织代码，包含模型定义、数据加载、训练、评估与指标计算模块。
+
+> 说明：本文档不预设任何模型性能结论。所有模型对比结果均需以实际评估脚本输出为准。
+
+## 环境要求
+
+- Python 3.8+
+- PyTorch
+- 其他依赖见 `requirements.txt`
+- 硬件：1 × NVIDIA TITAN X (Pascal) 12GB
+
+安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+## 项目结构
+
+```text
+.
+├── README.md
+├── main.py
+├── requirements.txt
+├── config
+│   └── config
+│       └── config.yaml
+├── data
+│   └── data
+│       └── dataset.py
+├── evaluation
+│   └── evaluation
+│       ├── compare.py
+│       └── evaluate.py
+├── models
+│   └── models
+│       ├── __init__.py
+│       └── u_net.py
+├── training
+│   └── training
+│       └── train.py
+└── utils
+    └── utils
+        └── metrics.py
+```
+
+### 文件说明
+
+- `main.py`：项目入口，用于启动训练与评估流程。
+- `requirements.txt`：项目依赖列表。
+- `config/config/config.yaml`：训练、数据与模型配置文件。
+- `data/data/dataset.py`：数据加载与预处理逻辑。
+- `evaluation/evaluation/evaluate.py`：评估脚本。
+- `evaluation/evaluation/compare.py`：模型对比脚本。
+- `models/models/u_net.py`：UNet++ 模型定义。
+- `models/models/__init__.py`：模型模块初始化文件。
+- `training/training/train.py`：训练循环与验证逻辑。
+- `utils/utils/metrics.py`：评估指标，如 Dice 系数等。
+
+## 训练配置
+
+| 配置项 | 值 |
+|---|---|
+| 优化器 | Adam |
+| 学习率 | 4 |
+| batch size | 未指定（NOT_FOUND） |
+| epochs | 30 |
+| 损失函数 | Binary Cross-Entropy + Dice Coefficient |
+| 调度器 | 未指定（NOT_FOUND） |
+| step_size | NOT_FOUND |
+| gamma | NOT_FOUND |
+| 硬件 | 1 × NVIDIA TITAN X (Pascal) 12GB |
+
+## 运行方法
+
+### 1. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. 配置
+
+根据实际数据路径和训练需求，修改 `config/config/config.yaml` 中的相关配置。
+
+### 3. 训练
+
+运行入口脚本：
+
+```bash
+python main.py
+```
+
+训练过程中会按配置进行模型训练与验证。
+
+### 4. 评估
+
+如需单独运行评估脚本：
+
+```bash
+python evaluation/evaluation/evaluate.py
+```
+
+### 5. 模型对比
+
+如需比较不同模型或实验记录：
+
+```bash
+python evaluation/evaluation/compare.py
+```
+
+## 复现步骤
+
+1. **安装依赖**：执行 `pip install -r requirements.txt`。
+2. **准备数据**：按照 `data/data/dataset.py` 中的定义准备数据，确保数据路径与 `config/config/config.yaml` 一致。
+3. **划分验证集**：
+   - 论文没有独立验证集。
+   - 为了严格复现，应从训练集中二次划分验证集。
+   - 建议按样本或患者维度划分，避免同一样本同时出现在训练集和验证集中。
+   - 不要直接使用测试集进行模型选择，以免造成数据泄露。
+4. **检查配置**：确认 `config/config/config.yaml` 中的超参数与数据路径正确。
+5. **训练模型**：运行 `python main.py`。
+6. **选择 checkpoint**：
+   - 使用验证集上的指标进行模型选择。
+   - 可选择的指标包括准确率、Dice 系数等，具体以 `utils/utils/metrics.py` 中的实现为准。
+   - 不建议将 `best_metric` 直接设置为 `val_accuracy`，除非该项目已从训练集中划分出独立验证集。
+7. **评估模型**：
+   - 在测试集上运行评估脚本，得到最终指标。
+   - 所有性能结论应从实际评估结果中动态计算得到。
+8. **比较实验**：使用 `compare.py` 对不同实验或模型输出进行对比分析。
+
+## 注意事项
+
+- 本文档不包含关于模型优劣的写死结论，实验结论必须由实际评估结果得出。
+- 学习率为 4，数值较大；如训练不稳定，可在 `config/config/config.yaml` 中调整。
+- 当前 `batch size` 未指定，请根据实际显存与数据加载情况在配置中设置。
+- 论文无独立验证集，因此验证集划分方式会直接影响 checkpoint 选择结果，应明确记录并保持一致。

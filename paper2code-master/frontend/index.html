@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>论文复现验证系统 - 纸上得来终觉浅</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            padding: 24px;
+            font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+            background: #f0f4f8;
+            color:#6e8dbe
+        }
+        .app-container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .app-header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #fff;
+            padding: 28px 36px;
+            border-radius: 16px;
+            margin-bottom: 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
+        }
+
+        /*头部*/
+        .app-header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .app-header h1 small {
+            font-weight: 400;
+            font-size: 16px;
+            color: #668bbe;
+            margin-left: 14px;
+        }
+         .header-status {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            font-size: 14px;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #d490c0;
+            margin-right: 6px;
+            animation: pulse-dot 1.8s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+        .header-status .badge {
+            background: rgba(255,255,255,0.12);
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+
+        /*主布局*/
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /*卡片通用*/
+        .card {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 24px 28px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e9edf2;
+            transition: box-shadow 0.2s;
+        }
+        .card:hover {
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #0f172a;
+        }
+        .card-title .step-tag {
+            background: #dbeafe;
+            color: #8398cf;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 12px;
+            border-radius: 20px;
+            letter-spacing: 0.3px;
+        }
+
+        /*输入区域*/
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .input-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+        .input-row label {
+            font-weight: 500;
+            font-size: 14px;
+            min-width: 70px;
+            color: #475569;
+        }
+
+        .input-row input[type="text"],
+        .input-row input[type="file"] {
+            flex: 1;
+            min-width: 180px;
+            padding: 10px 14px;
+            border: 1.5px solid #d1d9e6;
+            border-radius: 10px;
+            font-size: 14px;
+            background: #fafcff;
+            transition: border 0.2s;
+        }
+        .input-row input[type="text"]:focus,
+        .input-row input[type="file"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-primary {
+            background: #1e293b;
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: #0f172a;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+        }
+
+        .btn-success {
+            background: #16a34a;
+            color: #fff;
+        }
+        .btn-success:hover {
+            background: #15803d;
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+        }
+
+        .btn-info {
+            background: #0891b2;
+            color: #fff;
+        }
+        .btn-info:hover {
+            background: #0e7490;
+            box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #1e293b;
+            border: 1.5px solid #d1d9e6;
+        }
+        .btn-outline:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+            color: #fff;
+        }
+        .btn-danger:hover {
+            background: #b91c1c;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+        }
+
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 13px;
+        }
+
+        /*论文处理步骤指示器 - 完整8步*/
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            padding: 12px 0 4px 0;
+        }
+        .step-pill {
+            background: #e9edf2;
+            color: #475569;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        .step-pill.active {
+            background: #1e293b;
+            color: #fff;
+        }
+        .step-pill.done {
+            background: #bbf7d0;
+            color: #166534;
+        }
+        .step-pill.failed {
+            background: #fecaca;
+            color: #991b1b;
+        }
+        .step-arrow {
+            color: #94a3b8;
+            font-weight: 300;
+            font-size: 11px;
+        }
+
+        /*列表区域*/
+        .result-area {
+            min-height: 320px;
+            max-height: 600px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .result-area::-webkit-scrollbar {
+            width: 5px;
+        }
+        .result-area::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        .result-area::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        .item-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 16px 18px;
+            margin-bottom: 14px;
+            border-left: 4px solid #3b82f6;
+            transition: background 0.15s;
+        }
+        .item-card:hover {
+            background: #f1f5f9;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .item-id {
+            font-weight: 600;
+            color: #0f172a;
+            font-size: 14px;
+        }
+        .item-id span {
+            color: #64748b;
+            font-weight: 400;
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .item-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin: 6px 0 4px 0;
+            color: #0f172a;
+        }
+        .item-meta {
+            font-size: 13px;
+            color: #475569;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 4px;
+        }
+        .item-meta .tag {
+            background: #e9edf2;
+            padding: 0 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #334155;
+        }
+
+        /*步骤进度条*/
+        .step-progress {
+            display: flex;
+            gap: 4px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        .step-progress-item {
+            flex: 1;
+            min-width: 60px;
+            height: 8px;
+            border-radius: 4px;
+            background: #e9edf2;
+            transition: all 0.3s;
+        }
+        .step-progress-item.done {
+            background: #16a34a;
+        }
+        .step-progress-item.active {
+            background: #3b82f6;
+            animation: pulse-bar 1s ease-in-out infinite;
+        }
+        .step-progress-item.failed {
+            background: #dc2626;
+            animation: none;
+        }
+        @keyframes pulse-bar {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .item-detail-toggle {
+            margin-top: 10px;
+            background: none;
+            border: none;
+            color: #3b82f6;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 0;
+        }
+        .item-detail-toggle:hover {
+            text-decoration: underline;
+        }
+
+        .item-detail-json {
+            display: none;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 14px 16px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-family: "JetBrains Mono", "Consolas", monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 400px;
+            overflow: auto;
+            margin-top: 10px;
+            line-height: 1.6;
+        }
+        .item-detail-json.open {
+            display: block;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #94a3b8;
+            padding: 50px 20px;
+            font-size: 15px;
+        }
+        .empty-state .icon {
+            font-size: 40px;
+            display: block;
+            margin-bottom: 12px;
+        }
+
+        /*统计条*/
+        .stats-bar {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            padding: 12px 0 6px 0;
+            font-size: 14px;
+            color: #475569;
+            border-top: 1px solid #e9edf2;
+            margin-top: 16px;
+        }
+        .stats-bar strong {
+            color: #0f172a;
+        }
+        
+        /*修复统计栏对齐*/
+        .stats-bar span {
+            display: inline-flex;
+            align-items: center;
+            min-width: 120px;
+        }
+
+        /*日志区（右侧辅助）*/
+        .log-area {
+            background: #0f172a;
+            color: #cbd5e1;
+            border-radius: 12px;
+            padding: 16px 20px;
+            font-family: "JetBrains Mono", "Consolas", monospace;
+            font-size: 13px;
+            max-height: 180px;
+            overflow-y: auto;
+            line-height: 1.7;
+            margin-top: 18px;
+        }
+        .log-area .log-time {
+            color: #64748b;
+            margin-right: 12px;
+        }
+        .log-area .log-info {
+            color: #60a5fa;
+        }
+        .log-area .log-success {
+            color: #4ade80;
+        }
+        .log-area .log-error {
+            color: #f87171;
+        }
+
+        /*响应式微调*/
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .app-header { padding: 18px 20px; flex-direction: column; align-items: flex-start; }
+            .app-header h1 { font-size: 20px; }
+            .app-header h1 small { display: block; margin-left: 0; margin-top: 4px; }
+            .card { padding: 18px 16px; }
+            .input-row { flex-direction: column; align-items: stretch; }
+            .input-row label { min-width: auto; }
+        }
+
+        /* ★ 输出面板样式 */
+        .output-tabs {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+            margin-bottom: 16px;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0;
+        }
+        .output-tab {
+            background: none;
+            border: none;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            color: #64748b;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        .output-tab:hover {
+            color: #1e293b;
+        }
+        .output-tab.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+            font-weight: 600;
+        }
+        .output-content {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 50vh;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+        .output-content h4 {
+            font-size: 14px;
+            color: #1e293b;
+            margin: 12px 0 6px 0;
+            font-family: inherit;
+        }
+        .output-content h4:first-child { margin-top: 0; }
+        .output-content .dep-item {
+            display: inline-block;
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 2px 10px;
+            border-radius: 12px;
+            margin: 3px 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- ===== HEADER ===== -->
+    <header class="app-header">
+        <h1>
+            📄 论文复现验证系统
+            <small>纸上得来终觉浅 · 基于 CodeArts 代码智能体</small>
+        </h1>
+        <div class="header-status">
+            <span><span class="status-dot"></span> 系统运行中</span>
+            <span class="badge">🔬 实验阶段 v1.0</span>
+            <span class="badge">📊 已处理 <span id="paper-count-badge">0</span> 篇</span>
+        </div>
+    </header>
+
+    <!-- ===== MAIN GRID ===== -->
+    <div class="main-grid">
+
+        <!-- ===== LEFT: 输入 & 控制 ===== -->
+        <div class="card">
+            <div class="card-title">
+                🧪 论文处理控制台
+                <span class="step-tag">Step 1 – 8</span>
+            </div>
+
+            <div class="input-group">
+
+                <!-- DeepSeek API Key -->
+                <div class="input-row">
+                    <label>🔑 API Key</label>
+                    <input type="text" id="apikey-input" placeholder="DeepSeek API Key（留空使用默认）" style="flex:1;" />
+                    <button class="btn btn-secondary" id="apikey-save-btn" style="padding: 6px 12px; font-size: 13px; margin-left: 8px;">保存</button>
+                </div>
+                <div style="font-size: 12px; color: #888; margin-bottom: 8px; padding-left: 60px;">
+                    ℹ️ 本项目使用 DeepSeek-V4-Pro (deepseek-v4-pro)。前往 <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a> 获取 Key。
+                </div>
+
+                <!-- 文件上传 -->
+                <div class="input-row">
+                    <label>📎 PDF</label>
+                    <input type="file" id="file-input" accept=".pdf" />
+                </div>
+
+                <!-- 操作按钮 - 合并为一个上传按钮 -->
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="upload-btn" style="padding: 12px 32px; font-size: 15px;">
+                        📤 上传
+                    </button>
+                </div>
+
+                <!-- 步骤指示器（动态更新 - 完整8步） -->
+                <div class="step-indicator" id="step-indicator">
+                    <span class="step-pill" data-step="step1">1 PDF→JSON</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="step2_1">2.1 清洗</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="step2_2">2.2 修复</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="step2_3">2.3 结构</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="step3">3 提取</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="step4">4 需求</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="step5">5 设计</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="step6">6 整合</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="step7">7 代码</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="step8">8 执行</span>
+                    <span class="step-arrow">→</span>
+                    <span class="step-pill" data-step="completed">✓ 完成</span>
+                </div>
+
+                <!-- 处理进度条 -->
+                <div id="progress-container" style="display:none; margin-top:12px;">
+                    <div style="display:flex; justify-content:space-between; font-size:13px; color:#475569; margin-bottom:4px;">
+                        <span id="progress-label">处理中...</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div style="background:#e9edf2; border-radius:8px; height:8px; overflow:hidden;">
+                        <div id="progress-bar" style="background:linear-gradient(90deg,#3b82f6,#16a34a); height:100%; width:0%; border-radius:8px; transition: width 0.5s;"></div>
+                    </div>
+                </div>
+
+                <!-- 小提示 -->
+                <div style="font-size:13px; color:#64748b; background:#f1f5f9; padding:10px 14px; border-radius:10px; margin-top:6px;">
+                    💡 点击"上传"按钮，上传PDF后系统将自动执行 Step1-8 完整流水线
+                </div>
+            </div>
+
+            <!-- 日志输出 -->
+            <div class="log-area" id="log-box">
+                <div><span class="log-time">[系统]</span> <span class="log-info">就绪，等待论文输入...</span></div>
+            </div>
+        </div>
+
+        <!-- ===== RIGHT: 列表展示 ===== -->
+        <div class="card">
+            <div class="card-title">
+                📋 论文列表
+                <span class="step-tag" id="list-count">0 篇</span>
+                <span style="margin-left:auto; font-size:13px; font-weight:400; color:#64748b;">
+                    <button class="btn btn-danger btn-sm" id="clear-all-btn" style="padding:4px 14px;">🗑 清空</button>
+                </span>
+            </div>
+
+            <div class="result-area" id="result-box">
+                <div class="empty-state">
+                    <span class="icon">📭</span>
+                    暂无论文记录<br />
+                    上传 PDF 或添加文本，系统将自动解析
+                </div>
+            </div>
+
+            <!-- 统计 - 已修复对齐 -->
+            <div class="stats-bar">
+                <span>📄 总条目：<strong id="stat-total">0</strong></span>
+                <span>📎 含附件：<strong id="stat-with-file">0</strong></span>
+                <span>✅ 已完成：<strong id="stat-parsed">0</strong></span>
+                <span>❌ 失败：<strong id="stat-failed">0</strong></span>
+            </div>
+        </div>
+
+    </div>
+    <!-- end main-grid -->
+
+    <!-- ★ 输出面板 -->
+    <div class="card" id="outputPanel" style="display:none; margin-top:24px;">
+        <div class="card-title" style="justify-content:space-between; align-items:center;">
+            <span id="outputPanelTitle">📊 输出</span>
+        </div>
+        <div class="output-tabs">
+            <div style="display:flex; gap:4px;">
+                <button class="output-tab active" onclick="switchOutputTab('config', this)">⚙️ 实验配置</button>
+                <button class="output-tab" onclick="switchOutputTab('deps', this)">📦 依赖</button>
+                <button class="output-tab" onclick="switchOutputTab('result', this)">🧪 运行结果</button>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="exportPaperOutput()">⬇️ 导出</button>
+        </div>
+        <div id="outputContent" class="output-content">加载中...</div>
+    </div>
+
+</div>
+
+<script>
+    // ======================== 前端逻辑 - 对接新后端 API ========================
+
+    const baseUrl = "http://localhost:3000";
+
+    // DOM 引用
+    const apikeyInput = document.getElementById('apikey-input');
+    const apikeySaveBtn = document.getElementById('apikey-save-btn');
+    const fileInput = document.getElementById('file-input');
+    const uploadBtn = document.getElementById('upload-btn');
+    const resultBox = document.getElementById('result-box');
+    const logBox = document.getElementById('log-box');
+    const clearAllBtn = document.getElementById('clear-all-btn');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const progressLabel = document.getElementById('progress-label');
+    const progressPercent = document.getElementById('progress-percent');
+
+    const statTotal = document.getElementById('stat-total');
+    const statWithFile = document.getElementById('stat-with-file');
+    const statParsed = document.getElementById('stat-parsed');
+    const statFailed = document.getElementById('stat-failed');
+    const listCount = document.getElementById('list-count');
+    const paperCountBadge = document.getElementById('paper-count-badge');
+
+    // 轮询定时器
+    let pollingTimer = null;
+    let processingId = null;
+
+    // 步骤顺序映射
+    const STEP_ORDER = {
+        'step1': 0, 'step2_1': 1, 'step2_2': 2, 'step2_3': 3,
+        'step3': 4, 'step4': 5, 'step5': 6, 'step6': 7,
+        'step7': 8, 'step8': 9, 'completed': 10
+    };
+
+    // ======================== 日志工具 ========================
+    function addLog(message, type = 'info') {
+        const time = new Date().toLocaleTimeString();
+        const cls = type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : 'log-info';
+        const entry = document.createElement('div');
+        entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="${cls}">${message}</span>`;
+        logBox.appendChild(entry);
+        logBox.scrollTop = logBox.scrollHeight;
+        while (logBox.children.length > 100) {
+            logBox.removeChild(logBox.firstChild);
+        }
+    }
+
+    // ======================== 步骤指示器更新 ========================
+    function updateStepIndicator(currentStep, isFailed = false) {
+        const steps = document.querySelectorAll('#step-indicator .step-pill');
+        
+        steps.forEach(pill => {
+            pill.classList.remove('active', 'done', 'failed');
+        });
+
+        const currentIdx = STEP_ORDER[currentStep] !== undefined ? STEP_ORDER[currentStep] : -1;
+        
+        if (currentIdx >= 0) {
+            for (let i = 0; i < currentIdx; i++) {
+                if (steps[i]) steps[i].classList.add('done');
+            }
+            if (steps[currentIdx]) {
+                steps[currentIdx].classList.add(isFailed ? 'failed' : 'active');
+            }
+        }
+
+        if (currentStep === 'completed' && !isFailed) {
+            steps.forEach(p => { p.classList.remove('active'); p.classList.add('done'); });
+        }
+    }
+
+    function resetProgressBar() {
+        progressBar.style.background = 'linear-gradient(90deg,#3b82f6,#16a34a)';
+    }
+
+    function markProgressFailed() {
+        progressBar.style.background = '#dc2626';
+    }
+
+    function pipelineFailInfo(json) {
+        return {
+            step: json.failed_step || (json.data && json.data.last_result && json.data.last_result.step) || json.current_step || '',
+            error: json.error || (json.data && json.data.last_result && json.data.last_result.error) || '未知错误'
+        };
+    }
+
+    function handlePipelineFailed(paperName, json) {
+        if (pollingTimer) {
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+        }
+        processingId = null;
+        const info = pipelineFailInfo(json);
+        markProgressFailed();
+        updateProgress(json.progress || 0, getStepLabel('failed'));
+        updateStepIndicator(info.step || json.current_step || '', true);
+        addLog(`❌ 流水线在 ${info.step || '未知步骤'} 失败: ${info.error}`, 'error');
+        loadData();
+    }
+
+    // ======================== 进度条 ========================
+    function showProgress(show) {
+        progressContainer.style.display = show ? 'block' : 'none';
+    }
+
+    function updateProgress(percent, label) {
+        progressBar.style.width = percent + '%';
+        progressPercent.textContent = percent + '%';
+        if (label) progressLabel.textContent = label;
+    }
+
+    // ======================== 渲染列表 ========================
+    function renderList(data) {
+        if (!data || data.length === 0) {
+            resultBox.innerHTML = `
+                <div class="empty-state">
+                    <span class="icon">📭</span>
+                    暂无论文记录<br />
+                    上传 PDF 或添加文本，系统将自动解析
+                </div>
+            `;
+            updateStats(data);
+            return;
+        }
+
+        let html = '';
+        data.forEach(item => {
+            const hasFile = !!(item.filepath || item.filePath || item.file_path);
+            const filePath = item.filepath || item.filePath || item.file_path || '';
+            const info = item.keyInformation || {};
+            const isParsed = info && typeof info === 'object' && Object.keys(info).length > 0;
+            const status = item.status || 'unknown';
+            const paperName = item.paper_name || item.id || '';
+            const stepsStatus = item.steps_status || {};
+            const stepKeys = ['step1', 'step2_1', 'step2_2', 'step2_3', 'step3', 'step4', 'step5', 'step6', 'step7', 'step8'];
+            const completedSteps = stepKeys.filter(s => stepsStatus[s] && stepsStatus[s].done).length;
+
+            // 状态标签
+            let statusBadge = '';
+            if (status === 'processing') {
+                statusBadge = '<span style="font-size:12px;background:#fef3c7;padding:2px 12px;border-radius:12px;color:#92400e;">🔄 处理中</span>';
+            } else if (status === 'completed') {
+                statusBadge = '<span style="font-size:12px;background:#bbf7d0;padding:2px 12px;border-radius:12px;color:#166534;">✅ 已完成</span>';
+            } else if (status === 'failed') {
+                statusBadge = '<span style="font-size:12px;background:#fecaca;padding:2px 12px;border-radius:12px;color:#991b1b;">❌ 失败</span>';
+            } else {
+                statusBadge = '<span style="font-size:12px;background:#e9edf2;padding:2px 12px;border-radius:12px;color:#475569;">📋 待处理</span>';
+            }
+
+            // 元数据标签
+            let metaTags = '';
+            if (info.authors) metaTags += `<span class="tag">✍️ ${info.authors}</span>`;
+            if (info.keywords) {
+                const kw = Array.isArray(info.keywords) ? info.keywords.slice(0, 3).join(', ') : info.keywords;
+                metaTags += `<span class="tag">🏷️ ${kw}</span>`;
+            }
+            if (info.dataset) {
+                const ds = Array.isArray(info.dataset) ? info.dataset.slice(0, 2).join(', ') : String(info.dataset || '');
+                metaTags += `<span class="tag">📊 ${ds.substring(0, 30)}</span>`;
+            }
+            if (info.methodology) {
+                const mt = Array.isArray(info.methodology) ? info.methodology.slice(0, 2).join(', ') : String(info.methodology || '');
+                metaTags += `<span class="tag">🧩 ${mt.substring(0, 30)}</span>`;
+            }
+
+            const displayTitle = info.title || item.content || paperName || '未命名论文';
+            const currentStep = item.current_step || '';
+            const failedStep = item.failed_step || '';
+
+            const stepProgressItems = stepKeys
+                .map(step => {
+                    const done = stepsStatus[step] && stepsStatus[step].done;
+                    const isActive = status === 'processing' && step === currentStep;
+                    const isFailed = status === 'failed' && step === (failedStep || currentStep);
+                    return `<div class="step-progress-item ${done ? 'done' : ''} ${isActive ? 'active' : ''} ${isFailed ? 'failed' : ''}"></div>`;
+                }).join('');
+
+            html += `
+                <div class="item-card" data-id="${paperName}">
+                    <div class="item-header">
+                        <span class="item-id">📄 ${paperName}</span>
+                        <div class="item-actions">
+                            ${statusBadge}
+                            ${status === 'failed' ? `<button class="btn btn-success btn-sm" onclick="startProcess('${paperName}')" style="margin-left:6px;">🔄 重试</button>` : (status !== 'completed' ? `<button class="btn btn-success btn-sm" onclick="startProcess('${paperName}')" style="margin-left:6px;">🚀 处理</button>` : '')}
+                            ${status === 'completed' ? `<button class="btn btn-outline btn-sm" onclick="showOutputPanel('${paperName}')" style="margin-left:6px;">📦 输出</button>` : ''}
+                            ${status === 'completed' ? `<a class="btn btn-outline btn-sm" href="${baseUrl}/download/${encodeURIComponent(paperName)}" target="_blank" style="margin-left:6px;">⬇️ ZIP</a>` : ''}
+                            <button class="btn btn-outline btn-sm" onclick="runNextStep('${paperName}')" title="运行下一步">▶️ 下一步</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteItem('${paperName}')">删除</button>
+                        </div>
+                    </div>
+                    <div class="item-title">${displayTitle}</div>
+                    <div class="item-meta">
+                        ${metaTags}
+                        ${hasFile ? `<span class="tag" style="color:#3b82f6;">📄 ${filePath.split('/').pop() || filePath.split('\\\\').pop()}</span>` : ''}
+                        <span class="tag">📈 进度: ${completedSteps}/10</span>
+                    </div>
+                    
+                    <!-- 步骤进度条 -->
+                    <div class="step-progress">
+                        ${stepProgressItems}
+                    </div>
+                    ${status === 'failed' ? `<div style="margin-top:8px;font-size:13px;color:#991b1b;background:#fef2f2;padding:8px 12px;border-radius:8px;">❌ ${escapeHtml(failedStep || currentStep || '未知步骤')}: ${escapeHtml(item.error || '处理失败，可点击重试继续未完成步骤')}</div>` : ''}
+                    
+                    ${isParsed ? `
+                        <button class="item-detail-toggle" onclick="toggleDetail('${paperName}')">📖 查看 key_information.json</button>
+                        <div class="item-detail-json" id="detail-${paperName}">${JSON.stringify(info, null, 2)}</div>
+                    ` : ''}
+                    <hr style="margin-top:12px;border:0;border-top:1px solid #e9edf2;" />
+                </div>
+            `;
+        });
+
+        resultBox.innerHTML = html;
+        updateStats(data);
+    }
+
+    // ======================== 统计更新 ========================
+    function updateStats(data) {
+        const total = data ? data.length : 0;
+        const withFile = data ? data.filter(d => (d.filepath || d.filePath || d.file_path)).length : 0;
+        const parsed = data ? data.filter(d => d.status === 'completed').length : 0;
+        const failed = data ? data.filter(d => d.status === 'failed').length : 0;
+
+        statTotal.textContent = total;
+        statWithFile.textContent = withFile;
+        statParsed.textContent = parsed;
+        if (statFailed) statFailed.textContent = failed;
+        listCount.textContent = total + ' 篇';
+        paperCountBadge.textContent = total;
+    }
+
+    // ======================== 展开/收起 JSON ========================
+    window.toggleDetail = function(id) {
+        const el = document.getElementById(`detail-${id}`);
+        if (el) el.classList.toggle('open');
+    };
+
+    // ======================== 删除 ========================
+    window.deleteItem = async function(paperName) {
+        if (!confirm(`确定删除论文 '${paperName}' 吗？`)) return;
+        try {
+            const res = await fetch(`${baseUrl}/del/${encodeURIComponent(paperName)}`, { method: 'DELETE' });
+            const json = await res.json();
+            if (json.code === 200) {
+                addLog(`已删除论文: ${paperName}`, 'success');
+                loadData();
+            } else {
+                addLog(`删除失败: ${json.msg}`, 'error');
+            }
+        } catch (e) {
+            addLog(`删除异常: ${e.message}`, 'error');
+        }
+    };
+
+    // ======================== 清空全部 ========================
+    clearAllBtn.onclick = async function() {
+        if (!confirm('⚠️ 确定清空所有论文记录吗？（不可恢复）')) return;
+        try {
+            const res = await fetch(`${baseUrl}/clear`, { method: 'DELETE' });
+            const json = await res.json();
+            addLog(json.msg || '已清空', 'success');
+            loadData();
+        } catch (e) {
+            addLog(`清空异常: ${e.message}`, 'error');
+        }
+    };
+
+    // ======================== 加载数据 ========================
+    async function loadData() {
+        try {
+            const res = await fetch(`${baseUrl}/list`);
+            const json = await res.json();
+            if (json.code === 200) {
+                renderList(json.data);
+
+                // ★ 检测是否有正在处理的论文，恢复轮询
+                if (!processingId) {
+                    const processing = json.data?.find(p => p.status === 'processing' && p.running);
+                    if (processing) {
+                        const paperName = processing.paper_name || processing.id;
+                        processingId = paperName;
+                        addLog(`🔄 检测到正在处理的论文: '${paperName}'，恢复进度监控...`, 'info');
+                        showProgress(true);
+                        const progress = processing.progress || 0;
+                        const currentStep = processing.current_step || '';
+                        updateProgress(progress, getStepLabel(currentStep));
+                        updateStepIndicator(currentStep);
+                        startPolling(paperName);
+                    }
+                }
+            } else {
+                addLog(`加载数据失败: ${json.msg}`, 'error');
+            }
+        } catch (e) {
+            addLog(`网络异常: ${e.message}`, 'error');
+        }
+    }
+
+    // ======================== ★ API Key 保存 ========================
+    apikeySaveBtn.onclick = async function() {
+        const key = apikeyInput.value.trim();
+        if (!key) { alert('请输入 API Key'); return; }
+        try {
+            const res = await fetch(`${baseUrl}/settings/apikey`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: key })
+            });
+            const json = await res.json();
+            if (json.code === 200) {
+                addLog('✅ API Key 已保存', 'success');
+                apikeyInput.value = '';
+                loadApiKey();
+            } else {
+                addLog(`❌ 保存失败: ${json.msg}`, 'error');
+            }
+        } catch (e) {
+            addLog(`网络异常: ${e.message}`, 'error');
+        }
+    };
+
+    // 加载当前 API Key（脱敏显示在 placeholder）
+    async function loadApiKey() {
+        try {
+            const res = await fetch(`${baseUrl}/settings/apikey`);
+            const json = await res.json();
+            if (json.code === 200 && json.api_key) {
+                apikeyInput.placeholder = `当前: ${json.api_key}`;
+            }
+        } catch (e) {}
+    }
+    loadApiKey();
+
+    // ======================== ★ 输出面板 ========================
+    let _currentOutputPaper = '';
+
+    window.showOutputPanel = async function(paperName) {
+        _currentOutputPaper = paperName;
+        document.getElementById('outputPanelTitle').textContent = `📊 ${paperName} 输出`;
+        document.getElementById('outputPanel').style.display = 'block';
+        document.getElementById('outputPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // 默认加载第一个 tab
+        document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector('.output-tab').classList.add('active');
+        await loadOutputData('config');
+    };
+
+    window.switchOutputTab = async function(tab, btn) {
+        document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        await loadOutputData(tab);
+    };
+
+    window.closeOutputModal = function() {
+        document.getElementById('outputPanel').style.display = 'none';
+        _currentOutputPaper = '';
+    };
+
+    async function loadOutputData(tab) {
+        const content = document.getElementById('outputContent');
+        content.textContent = '加载中...';
+        const name = encodeURIComponent(_currentOutputPaper);
+        let url = '';
+        if (tab === 'config') url = `${baseUrl}/config/${name}`;
+        else if (tab === 'deps') url = `${baseUrl}/deps/${name}`;
+        else if (tab === 'result') url = `${baseUrl}/result/${name}`;
+        try {
+            const res = await fetch(url);
+            const json = await res.json();
+            if (json.code !== 200) { content.textContent = json.msg || '加载失败'; return; }
+            if (tab === 'config') {
+                let html = '';
+                // 论文简报放在最前面
+                if (json.data?.brief) {
+                    const b = json.data.brief;
+                    html += '<h4>📄 论文简报</h4>';
+                    if (b.title) html += '标题: ' + escapeHtml(b.title) + '\n';
+                    if (b.research_problem) html += '研究问题: ' + escapeHtml(b.research_problem) + '\n';
+                    if (b.methodology) html += '核心方法: ' + escapeHtml(b.methodology) + '\n';
+                    if (b.dataset) html += '数据集: ' + escapeHtml(b.dataset) + '\n';
+                }
+                // 执行规范
+                if (json.data?.execution_spec) {
+                    html += '<h4>📋 执行规范</h4>' + escapeHtml(json.data.execution_spec);
+                }
+                // 完整配置（可折叠）
+                if (json.data?.config_yaml) {
+                    html += '<h4>⚙️ 完整配置 (config.yaml)</h4>';
+                    html += '<details><summary style="cursor:pointer;color:#3b82f6;">点击展开完整配置</summary>';
+                    html += '<div style="margin-top:8px;">' + escapeHtml(json.data.config_yaml) + '</div></details>';
+                }
+                content.innerHTML = html || '暂无配置';
+            } else if (tab === 'deps') {
+                const raw = json.data || '';
+                if (!raw || raw.trim() === '') { content.textContent = '暂无依赖'; return; }
+                const deps = raw.split('\n').map(s => s.trim()).filter(Boolean);
+                content.innerHTML = '<h4>📦 Python 依赖</h4>' +
+                    deps.map(d => `<span class="dep-item">${escapeHtml(d)}</span>`).join('');
+            } else if (tab === 'result') {
+                const r = json.data;
+                let html = '';
+                // 生成报告
+                if (r.generation_report) {
+                    const gr = r.generation_report;
+                    const gen = gr.generation || gr;
+                    html += '<h4>🔧 代码生成</h4>';
+                    html += `状态: ${gen.status || '未知'}\n`;
+                    if (gen.total_files !== undefined) html += `总文件: ${gen.total_files}  成功: ${gen.generated_files || gen.success_files || 0}  失败: ${gen.failed_files || 0}\n`;
+                    // 沙箱测试
+                    if (gr.sandbox) {
+                        html += `沙箱测试: ${gr.sandbox.passed || 0}/${gr.sandbox.tested || 0} 通过\n`;
+                    }
+                    // 验证状态
+                    if (gr.validation) {
+                        const v = gr.validation;
+                        const checks = ['syntax','structure','files','third_party','function_interface','traceability','decisions'];
+                        const passed = checks.filter(k => v[k] === 'passed').length;
+                        html += `验证: ${passed}/${checks.length} 项通过\n`;
+                    }
+                }
+                // 执行报告
+                if (r.execution_report) {
+                    const er = r.execution_report;
+                    const exec = er.execution || er;
+                    html += '<h4>🧪 实验执行</h4>';
+                    const total = exec.total || 0;
+                    const success = (er.success || []).length;
+                    const failed = (er.failed || []).length;
+                    const skipped = (er.skipped || []).length;
+                    html += `总计: ${total}  成功: ${success}  失败: ${failed}  跳过: ${skipped}\n`;
+                    // 跳过原因
+                    if (er.skipped && er.skipped.length > 0) {
+                        html += '\n跳过原因:\n';
+                        er.skipped.forEach(s => {
+                            html += `  • ${s.experiment_id}: ${s.reason}\n`;
+                        });
+                    }
+                    // 失败原因
+                    if (er.failed && er.failed.length > 0) {
+                        html += '\n失败详情:\n';
+                        er.failed.forEach(f => {
+                            html += `  • ${f.experiment_id}: ${f.error || '未知错误'}\n`;
+                        });
+                    }
+                } else {
+                    html += '<h4>🧪 实验执行</h4>尚未执行\n';
+                }
+                // 执行计划详情
+                if (r.execution_plan) {
+                    const ep = r.execution_plan;
+                    html += '<h4>📊 资源检查</h4>';
+                    if (ep.environment) {
+                        const env = ep.environment;
+                        html += `Python: ${env.python_version || '?'}  `;
+                        html += `PyTorch: ${env.torch_version || '?'}  `;
+                        html += `GPU: ${env.gpu_available ? '✅' : '❌'}  `;
+                        html += `RAM: ${env.ram_available_gb ? env.ram_available_gb.toFixed(1) : '?'}GB / ${env.ram_total_gb ? env.ram_total_gb.toFixed(1) : '?'}GB\n`;
+                    }
+                }
+                // 日志（只显示警告和错误）
+                if (r.logs && r.logs.length > 0) {
+                    const important = r.logs.filter(l => l.includes('WARNING') || l.includes('ERROR') || l.includes('失败') || l.includes('成功'));
+                    if (important.length > 0) {
+                        html += '<h4>⚠️ 关键日志</h4>' + escapeHtml(important.slice(-15).join('\n'));
+                    }
+                }
+                content.innerHTML = html || '暂无结果';
+            }
+        } catch (e) {
+            content.textContent = `加载失败: ${e.message}`;
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function downloadFile(filename, content, mimeType) {
+        const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType || 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 200);
+    }
+
+    window.exportPaperOutput = async function() {
+        if (!_currentOutputPaper) {
+            addLog('没有选中的论文，无法导出', 'error');
+            return;
+        }
+        const name = encodeURIComponent(_currentOutputPaper);
+        try {
+            const [depsRes, configRes] = await Promise.all([
+                fetch(`${baseUrl}/deps/${name}`),
+                fetch(`${baseUrl}/config/${name}`)
+            ]);
+            const depsJson = await depsRes.json();
+            const configJson = await configRes.json();
+
+            const zip = new JSZip();
+            let hasContent = false;
+
+            if (depsJson.code === 200 && depsJson.data && depsJson.data.trim()) {
+                zip.file('requirements.txt', depsJson.data);
+                hasContent = true;
+            }
+            if (configJson.code === 200 && configJson.data && configJson.data.config_yaml && configJson.data.config_yaml.trim()) {
+                zip.file('config.yaml', configJson.data.config_yaml);
+                hasContent = true;
+            }
+
+            if (!hasContent) {
+                addLog(`${_currentOutputPaper} 暂无配置或依赖可导出`, 'info');
+                return;
+            }
+
+            const blob = await zip.generateAsync({ type: 'blob' });
+            const safeName = String(_currentOutputPaper).replace(/[\\/:*?"<>|]/g, '_');
+            downloadFile(`${safeName}_导出.zip`, blob, 'application/zip');
+            addLog(`已导出 ${_currentOutputPaper} 的实验配置和依赖`, 'success');
+        } catch (e) {
+            addLog(`导出失败: ${e.message}`, 'error');
+        }
+    };
+
+    // ======================== ★ 上传功能（整合所有功能）=======================
+    uploadBtn.onclick = async function() {
+        const file = fileInput.files[0];
+
+        // 如果有文件，上传文件
+        if (file) {
+            if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                alert('请上传 PDF 格式文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('content', file.name);
+
+            try {
+                const res = await fetch(`${baseUrl}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const json = await res.json();
+                if (json.code === 200) {
+                    addLog(`✅ 上传成功: ${file.name}`, 'success');
+                    fileInput.value = '';
+                    loadData();
+                    
+                    if (json.paper_name) {
+                        // 上传成功后自动启动完整流水线
+                        addLog(`🚀 论文 '${json.paper_name}' 上传成功，正在启动完整流水线...`, 'info');
+                        setTimeout(() => {
+                            startProcess(json.paper_name);
+                        }, 1000);
+                    }
+                } else {
+                    addLog(`上传失败: ${json.msg}`, 'error');
+                }
+            } catch (e) {
+                addLog(`网络异常: ${e.message}`, 'error');
+            }
+        } else {
+            alert('请选择 PDF 文件');
+        }
+    };
+
+    // ======================== ★ 核心功能：触发完整流水线 (Step1-8) ========================
+    window.startProcess = async function(paperName) {
+        if (processingId) {
+            addLog('⚠️ 已有论文正在处理中，请等待完成', 'error');
+            return;
+        }
+
+        processingId = paperName;
+        addLog(`🚀 开始处理论文 '${paperName}'，执行 Step1-8 完整流水线...`, 'info');
+        showProgress(true);
+        resetProgressBar();
+        updateProgress(0, '正在启动 Pipeline...');
+        updateStepIndicator('step1');
+
+        try {
+            const res = await fetch(`${baseUrl}/process/${encodeURIComponent(paperName)}`, { method: 'POST' });
+            const json = await res.json();
+
+            if (json.code === 200) {
+                addLog(`⏳ 处理已启动，等待 Pipeline 完成...`, 'info');
+                startPolling(paperName);
+            } else {
+                addLog(`❌ 处理启动失败: ${json.msg}`, 'error');
+                showProgress(false);
+                processingId = null;
+                loadData();
+            }
+        } catch (e) {
+            addLog(`❌ 网络异常: ${e.message}`, 'error');
+            showProgress(false);
+            processingId = null;
+        }
+    };
+
+    // 运行下一步
+    window.runNextStep = async function(paperName) {
+        try {
+            addLog(`▶️ 启动下一步骤...`, 'info');
+            const res = await fetch(`${baseUrl}/next/${encodeURIComponent(paperName)}`, { method: 'POST' });
+            const json = await res.json();
+
+            if (json.code === 200 && json.status === 'running') {
+                const stepName = json.step || '未知步骤';
+                addLog(`⏳ ${stepName} 开始执行，正在监控进度...`, 'info');
+
+                // 启动轮询监控进度
+                if (json.step) {
+                    startPollingForNextStep(paperName, json.step);
+                } else {
+                    // step 为空，回退到全量轮询
+                    startPolling(paperName);
+                }
+            } else if (json.code === 400 && json.status === 'busy') {
+                addLog(`⏳ ${json.msg}，请等待...`, 'info');
+            } else if (json.status === 'success') {
+                addLog(`✅ ${json.label || json.step} 完成！`, 'success');
+                loadData();
+            } else if (json.status === 'complete') {
+                addLog(`🎉 全部步骤已完成！`, 'success');
+                loadData();
+            } else if (json.status === 'skipped') {
+                addLog(`⏭️ ${json.label || json.step} 已跳过（已存在）`, 'info');
+                loadData();
+            } else {
+                addLog(`❌ 启动失败: ${json.msg || json.error}`, 'error');
+            }
+        } catch (e) {
+            addLog(`❌ 网络异常: ${e.message}`, 'error');
+        }
+    };
+    
+    // 轮询监控下一步骤执行
+    function startPollingForNextStep(paperName, stepName) {
+        if (pollingTimer) clearInterval(pollingTimer);
+        
+        let checkCount = 0;
+        const maxChecks = 300; // 最多检查 300 次（15分钟）
+        
+        pollingTimer = setInterval(async () => {
+            try {
+                const res = await fetch(`${baseUrl}/status/${encodeURIComponent(paperName)}`);
+                const json = await res.json();
+                
+                if (json.code === 200) {
+                    const status = json.status;
+                    const currentStep = json.current_step || '';
+                    const progress = json.progress || 0;
+                    
+                    updateProgress(progress, getStepLabel(currentStep));
+                    updateStepIndicator(currentStep);
+
+                    if (status === 'failed') {
+                        handlePipelineFailed(paperName, json);
+                        showProgress(false);
+                        return;
+                    }
+                    
+                    // 检查是否还在运行当前步骤
+                    const stepCompleted = checkStepCompleted(stepName, json.data);
+                    
+                    if (stepCompleted && checkCount > 0) {
+                        clearInterval(pollingTimer);
+                        pollingTimer = null;
+                        addLog(`✅ ${stepName} 完成！`, 'success');
+                        loadData();
+                        
+                        // 自动运行下一步
+                        setTimeout(() => {
+                            addLog(`▶️ 自动运行下一步骤...`, 'info');
+                            runNextStep(paperName);
+                        }, 1000);
+                    } else if (checkCount % 10 === 0) { // 每30秒显示一次
+                        addLog(`⏳ ${stepName} 执行中... (${Math.floor(checkCount * 3)}秒)`, 'info');
+                    }
+                    
+                    checkCount++;
+                    
+                    // 超时处理
+                    if (checkCount >= maxChecks) {
+                        clearInterval(pollingTimer);
+                        pollingTimer = null;
+                        processingId = null;
+                        addLog(`⚠️ 监控超时，请手动检查状态`, 'error');
+                        loadData();
+                    }
+                }
+            } catch (e) {
+                // 轮询失败不中断，继续尝试
+                console.error('轮询错误:', e);
+            }
+        }, 3000); // 每3秒检查一次
+    }
+    
+    // 检查指定步骤是否已完成
+    function checkStepCompleted(stepName, statusData) {
+        if (!statusData) return false;
+        const completed = statusData.completed || [];
+        return completed.includes(stepName);
+    }
+
+    // ======================== 轮询处理状态 ========================
+    function startPolling(paperName) {
+        if (pollingTimer) clearInterval(pollingTimer);
+
+        let pollCount = 0;
+        const maxPolls = 600; // 最多30分钟（每3秒一次）
+        let loadDataCount = 0;
+
+        pollingTimer = setInterval(async () => {
+            try {
+                pollCount++;
+                loadDataCount++;
+
+                // 超时保护：防止无限轮询
+                if (pollCount >= maxPolls) {
+                    clearInterval(pollingTimer);
+                    pollingTimer = null;
+                    processingId = null;
+                    addLog(`⚠️ 轮询超时（30分钟），请手动检查状态`, 'error');
+                    showProgress(false);
+                    loadData();
+                    return;
+                }
+
+                const res = await fetch(`${baseUrl}/status/${encodeURIComponent(paperName)}`);
+                const json = await res.json();
+
+                if (json.code === 200) {
+                    const status = json.status;
+                    const progress = json.progress || 0;
+                    const currentStep = json.current_step || '';
+
+                    updateProgress(progress, getStepLabel(currentStep));
+                    updateStepIndicator(currentStep);
+
+                    // ★ 每30秒刷新一次列表，更新进度条
+                    if (loadDataCount >= 10) {
+                        loadDataCount = 0;
+                        loadData();
+                    }
+
+                    if (status === 'completed') {
+                        clearInterval(pollingTimer);
+                        pollingTimer = null;
+                        resetProgressBar();
+                        updateProgress(100, '处理完成！');
+                        updateStepIndicator('completed');
+                        addLog(`🎉 论文 '${paperName}' 完整流水线处理完成！`, 'success');
+                        processingId = null;
+                        setTimeout(() => {
+                            showProgress(false);
+                            loadData();
+                        }, 1500);
+                    } else if (status === 'failed') {
+                        handlePipelineFailed(paperName, json);
+                    } else if (status === 'processing') {
+                        // 继续轮询
+                    }
+                }
+            } catch (e) {
+                // 轮询失败不中断
+            }
+        }, 3000); // 每3秒轮询一次
+    }
+
+    function getStepLabel(step) {
+        const labels = {
+            'starting': '正在初始化...',
+            'step1': 'Step1: PDF解析中...',
+            'step2_1': 'Step2.1: JSON清洗中...',
+            'step2_2': 'Step2.2: 断词修复中...',
+            'step2_3': 'Step2.3: 结构检测中...',
+            'step3': 'Step3: LLM关键信息提取中（耗时较长）...',
+            'step4': 'Step4: 需求分析中...',
+            'step5': 'Step5: 工程设计中（LLM）...',
+            'step6': 'Step6: 项目整合中...',
+            'step7': 'Step7: 代码生成中（LLM）...',
+            'step8': 'Step8: 实验执行中...',
+            'completed': '处理完成！',
+            'failed': '处理失败'
+        };
+        return labels[step] || step;
+    }
+
+    // ======================== 初始化 ========================
+    (async function init() {
+        try {
+            const res = await fetch(`${baseUrl}/api/health`);
+            if (res.ok) {
+                const json = await res.json();
+                addLog(`✅ 已连接后端服务 (Step1-8 API: 运行中)`, 'success');
+            }
+            loadData();
+        } catch (e) {
+            addLog('⚠️ 后端服务未启动，请先启动 server.js 和 api_server.py', 'error');
+        }
+    })();
+
+    // 每 30 秒自动刷新列表
+    setInterval(() => {
+        if (!processingId) {
+            loadData().catch(() => {});
+        }
+    }, 30000);
+
+    console.log('📄 论文复现验证系统已启动 (支持 Step1-8)');
+    console.log('📌 Express 后端:', baseUrl);
+    console.log('🔗 Flask API: http://localhost:5000');
+    console.log('💡 点击"上传"按钮即可开始完整流程');
+</script>
+
+</body>
+</html>
+

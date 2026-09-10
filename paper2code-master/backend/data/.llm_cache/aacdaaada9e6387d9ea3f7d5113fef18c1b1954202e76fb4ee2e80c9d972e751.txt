@@ -1,0 +1,11 @@
+Based on the table analyses, the key experimental findings are:
+
+1. **Optimal hyperparameter configuration**: The best overall performance across algorithmic tasks was achieved with 200 units, discount factor D, Watkins Q(λ) enabled, and task penalty enabled, yielding 100% success on Copying, Reverse (FF controller), Walk (FF controller), and 2-row Addition.
+
+2. **Task difficulty and curriculum effects**: Tasks like Reverse and 3-row Addition without extra curriculum failed completely across all configurations, while Single Digit Multiplication only succeeded with the D discount factor and Watkins Q(λ) enabled—highlighting the critical role of curriculum design and specific hyperparameter choices.
+
+3. **Reward signal granularity**: Continuous reward consistently outperformed both 0/1 and discretized rewards across most tasks, with the most dramatic improvement in the Walk (FF controller) task (250.0 vs 11.1 and 9.5), demonstrating that finer-grained reward signals significantly enhance learning efficiency.
+
+4. **Vocabulary size effects**: Performance varied substantially with vocabulary size; Copying achieved its lowest error at vocabulary size 8 (0.5), while Addition and 3-number Addition showed high errors (up to 250.0) at smaller vocabularies, and Single Digit Multiplication was invalid at vocabulary size 2 and degraded with increasing size.
+
+5. **Architecture-specific performance**: The FF controller showed notable success on Reverse and Walk tasks, suggesting that controller architecture choice interacts with task requirements and reward types in determining overall performance.

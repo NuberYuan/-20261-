@@ -1,0 +1,321 @@
+import math
+import yaml
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class GRN(nn.Module):
+    """Gated Residual Network used throughout the TFT architecture."""
+    def __init__(self, input_size, hidden_size, output_size, dropout_ratio=0.1, context_size=None):
+        super().__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.dropout_ratio = dropout_ratio
+        self.context_size = context_size
+
+        self.input_layer = nn.Linear(input_size, hidden_size)
+        self.hidden_layer = nn.Linear(hidden_size, hidden_size)
+        self.output_layer = nn.Linear(hidden_size, output_size)
+        self.gate_layer = nn.Linear(hidden_size, output_size)
+        self.dropout = nn.Dropout(dropout_ratio)
+        self.layer_norm = nn.LayerNorm(output_size)
+
+        if input_size != output_size:
+            self.skip_layer = nn.Linear(input_size, output_size)
+        else:
+            self.skip_layer = None
+
+        if context_size is not None:
+            self.context_layer = nn.Linear(context_size, hidden_size)
+        else:
+            self.context_layer = None
+
+    def forward(self, x, context=None):
+        residual = x if self.skip_layer is None else self.skip_layer(x)
+
+        eta2 = self.input_layer(x)
+        if context is not None:
+            if self.context_layer is None:
+                raise ValueError("context provided but context_size was not set")
+            ctx = self.context_layer(context)
+            if eta2.dim() == 3 and ctx.dim() == 2:
+                ctx = ctx.unsqueeze(1)
+            elif eta2.dim() == 2 and ctx.dim() == 3:
+                ctx = ctx.squeeze(1)
+            eta2 = eta2 + ctx
+
+        eta2 = torch.elu(eta2)
+        eta1 = self.hidden_layer(eta2)
+        gate = torch.sigmoid(self.gate_layer(eta2))
+
+        out = gate * eta1
+        out = self.dropout(out)
+        out = out + residual
+        out = self.layer_norm(out)
+        return out
+
+
+class VariableSelectionNetwork(nn.Module):
+    """Variable selection network that weights scalar input variables at each time step."""
+    def __init__(self, input_size, d_model, dropout_ratio=0.1, context_size=None):
+        super().__init__()
+        self.input_size = input_size
+        self.d_model = d_model
+        self.dropout_ratio = dropout_ratio
+        self.context_size = context_size
+
+        self.variable_grns = nn.ModuleList([
+            GRN(input_size=1, hidden_size=d_model, output_size=d_model,
+                dropout_ratio=dropout_ratio, context_size=context_size)
+            for _ in range(input_size)
+        ])
+        self.weight_layer = nn.Linear(input_size * d_model, input_size)
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, x, context=None):
+        if x.dim() == 2:
+            x = x.unsqueeze(1)
+
+        batch, seq, input_size = x.shape
+        variable_outputs = []
+        for i in range(input_size):
+            var_input = x[..., i:i + 1]
+            var_out = self.variable_grns[i](var_input, context=context)
+            variable_outputs.append(var_out)
+
+        stacked = torch.stack(variable_outputs, dim=2)  # (batch, seq, input_size, d_model)
+        flat = stacked.reshape(batch, seq, input_size * self.d_model)
+        weights = self.softmax(self.weight_layer(flat))  # (batch, seq, input_size)
+        weighted = stacked * weights.unsqueeze(-1)
+        output = weighted.sum(dim=2)  # (batch, seq, d_model)
+        return output
+
+
+class InterpretableMultiHeadAttention(nn.Module):
+    """Interpretable multi-head attention as described in the TFT paper.
+
+    The value projection is shared across heads, and the per-head attention outputs
+    are averaged rather than concatenated.
+    """
+    def __init__(self, d_model, num_heads, dropout_ratio=0.1):
+        super().__init__()
+        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_attn = d_model // num_heads
+        self.dropout = nn.Dropout(dropout_ratio)
+
+        self.w_q = nn.ModuleList([nn.Linear(d_model, self.d_attn) for _ in range(num_heads)])
+        self.w_k = nn.ModuleList([nn.Linear(d_model, self.d_attn) for _ in range(num_heads)])
+        self.w_v = nn.Linear(d_model, self.d_attn)
+        self.output_layer = nn.Linear(self.d_attn, d_model)
+
+    def forward(self, q, k, v, mask=None):
+        batch_size, len_q, _ = q.shape
+        _, len_k, _ = k.shape
+
+        v_shared = self.w_v(v)  # (batch, len_k, d_attn)
+
+        head_outputs = []
+        for h in range(self.num_heads):
+            q_h = self.w_q[h](q)  # (batch, len_q, d_attn)
+            k_h = self.w_k[h](k)  # (batch, len_k, d_attn)
+            scores = torch.matmul(q_h, k_h.transpose(-2, -1)) / math.sqrt(self.d_attn)
+
+            if mask is not None:
+                if mask.dtype == torch.bool:
+                    scores = scores.masked_fill(~mask, float('-1e9'))
+                else:
+                    scores = scores + mask
+
+            attn = F.softmax(scores, dim=-1)
+            attn = self.dropout(attn)
+            head_out = torch.matmul(attn, v_shared)  # (batch, len_q, d_attn)
+            head_outputs.append(head_out)
+
+        avg = torch.stack(head_outputs, dim=0).mean(dim=0)  # (batch, len_q, d_attn)
+        out = self.output_layer(avg)  # (batch, len_q, d_model)
+        return out
+
+
+class Transformer(nn.Module):
+    """Temporal Fusion Transformer-shaped model.
+
+    The class name is kept as Transformer to match the project file layout. It accepts
+    static, past-observed, and future-known inputs and produces quantile forecasts.
+
+    Default structural values are inferred from the TFT paper when they are not
+    available in config/config.yaml. Current config.yaml only exposes dataset-specific
+    dropout ratios; hidden size and horizon/lookback defaults are therefore set as
+    reasonable paper-based fallbacks.
+    """
+
+    def __init__(self, config=None, d_model=64, num_heads=4, horizon=24, lookback=168,
+                 num_quantiles=3, dropout_ratio=None):
+        super().__init__()
+        self.config = self._read_config(config)
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.horizon = horizon
+        self.lookback = lookback
+        self.num_quantiles = num_quantiles
+
+        if dropout_ratio is None:
+            dropout_ratio = self._get_dropout_from_config(self.config)
+        self.dropout_ratio = dropout_ratio
+
+        # Modules independent of input feature dimensions.
+        self.lstm_encoder = nn.LSTM(input_size=d_model, hidden_size=d_model, batch_first=True)
+        self.lstm_decoder = nn.LSTM(input_size=d_model, hidden_size=d_model, batch_first=True)
+        self.attention = InterpretableMultiHeadAttention(d_model, num_heads, dropout_ratio)
+
+        self.post_lstm_grn = GRN(input_size=d_model, hidden_size=d_model, output_size=d_model,
+                                 dropout_ratio=dropout_ratio, context_size=d_model)
+        self.static_enrichment_grn = GRN(input_size=d_model, hidden_size=d_model, output_size=d_model,
+                                         dropout_ratio=dropout_ratio, context_size=d_model)
+        self.post_attention_grn = GRN(input_size=d_model, hidden_size=d_model, output_size=d_model,
+                                      dropout_ratio=dropout_ratio, context_size=d_model)
+
+        self.output_layer = nn.Linear(d_model, num_quantiles)
+
+        # Input-dependent variable selection modules are created lazily on first forward.
+        self._input_sizes = None
+        self.static_vsn = None
+        self.past_vsn = None
+        self.future_vsn = None
+        self.static_context_grns = None
+
+    @staticmethod
+    def _read_config(config):
+        if config is None:
+            return {}
+        if isinstance(config, str):
+            with open(config, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        return config
+
+    @staticmethod
+    def _get_dropout_from_config(config):
+        """Read dropout ratio from config.yaml keys that actually exist."""
+        if not config:
+            return 0.1
+
+        model_cfg = config.get('model', {})
+        dropout_cfg = model_cfg.get('dropout_ratio', 0.1)
+
+        if isinstance(dropout_cfg, dict):
+            # Prefer the first experiment run's explicit value if available.
+            exp_runs = config.get('experiment', {}).get('runs', [])
+            if exp_runs and isinstance(exp_runs, list) and 'dropout_ratio' in exp_runs[0]:
+                dropout = exp_runs[0]['dropout_ratio']
+            elif dropout_cfg:
+                dropout = next(iter(dropout_cfg.values()))
+            else:
+                dropout = 0.1
+        else:
+            dropout = dropout_cfg
+
+        if dropout is None:
+            dropout = 0.1
+        return float(dropout)
+
+    def _init_input_dependent_modules(self, static_dim, past_dim, future_dim, device):
+        self.static_vsn = VariableSelectionNetwork(
+            input_size=static_dim, d_model=self.d_model,
+            dropout_ratio=self.dropout_ratio, context_size=None,
+        )
+        self.past_vsn = VariableSelectionNetwork(
+            input_size=past_dim, d_model=self.d_model,
+            dropout_ratio=self.dropout_ratio, context_size=self.d_model,
+        )
+        self.future_vsn = VariableSelectionNetwork(
+            input_size=future_dim, d_model=self.d_model,
+            dropout_ratio=self.dropout_ratio, context_size=self.d_model,
+        )
+
+        self.static_context_grns = nn.ModuleList([
+            GRN(input_size=self.d_model, hidden_size=self.d_model, output_size=self.d_model,
+                dropout_ratio=self.dropout_ratio)
+            for _ in range(4)
+        ])
+
+        self.static_vsn.to(device)
+        self.past_vsn.to(device)
+        self.future_vsn.to(device)
+        self.static_context_grns.to(device)
+
+        self._input_sizes = (static_dim, past_dim, future_dim)
+
+    @staticmethod
+    def _build_causal_mask(lookback, horizon, device):
+        total_len = lookback + horizon
+        mask = torch.ones((total_len, total_len), dtype=torch.bool, device=device)
+
+        # Encoder positions (past) may attend only to encoder positions.
+        mask[:lookback, lookback:] = False
+
+        # Decoder positions (future known) may attend to all encoder positions and
+        # to previous/current decoder positions, but not to future decoder positions.
+        for i in range(lookback, total_len):
+            mask[i, i + 1:] = False
+
+        return mask
+
+    def forward(self, static_inputs=None, past_inputs=None, future_inputs=None):
+        # Lightweight no-argument testing fallback. Dimensions are intentionally small.
+        if static_inputs is None:
+            static_inputs = torch.zeros((2, 3), dtype=torch.float32)
+        if past_inputs is None:
+            past_inputs = torch.zeros((2, self.lookback, 5), dtype=torch.float32)
+        if future_inputs is None:
+            future_inputs = torch.zeros((2, self.horizon, 3), dtype=torch.float32)
+
+        device = next(self.parameters()).device
+        static_inputs = static_inputs.to(device)
+        past_inputs = past_inputs.to(device)
+        future_inputs = future_inputs.to(device)
+
+        static_dim = static_inputs.shape[-1]
+        past_dim = past_inputs.shape[-1]
+        future_dim = future_inputs.shape[-1]
+
+        if self._input_sizes is None:
+            self._init_input_dependent_modules(static_dim, past_dim, future_dim, device)
+
+        batch_size = static_inputs.shape[0]
+        lookback = past_inputs.shape[1]
+        horizon = future_inputs.shape[1]
+
+        # Static covariate encoding and context vectors.
+        static_selected = self.static_vsn(static_inputs)  # (batch, 1, d_model)
+        static_selected = static_selected.squeeze(1)       # (batch, d_model)
+
+        context_vectors = [grn(static_selected) for grn in self.static_context_grns]
+        c_s, c_c, c_h, c_e = context_vectors
+
+        # Variable selection for past and future inputs.
+        past_selected = self.past_vsn(past_inputs, context=c_s)       # (batch, lookback, d_model)
+        future_selected = self.future_vsn(future_inputs, context=c_s) # (batch, horizon, d_model)
+
+        # LSTM sequence processing.
+        encoder_outputs, (encoder_hidden, encoder_cell) = self.lstm_encoder(past_selected)
+        decoder_outputs, _ = self.lstm_decoder(future_selected, (encoder_hidden, encoder_cell))
+
+        # Static enrichment after LSTM.
+        encoder_outputs = self.post_lstm_grn(encoder_outputs, context=c_h)
+        decoder_outputs = self.post_lstm_grn(decoder_outputs, context=c_h)
+        decoder_outputs = self.static_enrichment_grn(decoder_outputs, context=c_e)
+
+        # Causal multi-head attention over concatenated encoder/decoder features.
+        temporal_features = torch.cat([encoder_outputs, decoder_outputs], dim=1)
+        causal_mask = self._build_causal_mask(lookback, horizon, temporal_features.device)
+        attended = self.attention(temporal_features, temporal_features, temporal_features,
+                                  mask=causal_mask)
+        attended = self.post_attention_grn(attended, context=c_c)
+
+        # Decoder portion corresponds to the forecast horizon.
+        decoder_features = attended[:, lookback:, :]  # (batch, horizon, d_model)
+        forecasts = self.output_layer(decoder_features)  # (batch, horizon, num_quantiles)
+        return forecasts

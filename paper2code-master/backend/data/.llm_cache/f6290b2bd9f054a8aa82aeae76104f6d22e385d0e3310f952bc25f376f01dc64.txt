@@ -1,0 +1,53 @@
+{
+  "table_id": "table_5",
+  "table_type": "comparison",
+  "caption_summary": "Performance comparison of TABF against SVM, LSTM, and Random Forest on NASA MDP and Code4Code datasets.",
+  "extracted_data": {
+    "metrics": ["Accuracy (%)", "Precision (%)", "Recall (%)", "F1-Score (%)", "AUC-ROC", "Significance (vs. best baseline)"],
+    "methods": ["SVM", "LSTM", "Random forest", "TABF (proposed)"],
+    "best_result": {
+      "method": "TABF (proposed)",
+      "metric": "Accuracy (%)",
+      "value": 94.3
+    },
+    "key_values": [
+      {"label": "NASA MDP - SVM - Accuracy", "value": "86.2"},
+      {"label": "NASA MDP - SVM - Precision", "value": "84.1"},
+      {"label": "NASA MDP - SVM - Recall", "value": "82.3"},
+      {"label": "NASA MDP - SVM - F1-Score", "value": "83.2"},
+      {"label": "NASA MDP - LSTM - Accuracy", "value": "89.1"},
+      {"label": "NASA MDP - LSTM - Precision", "value": "87.2"},
+      {"label": "NASA MDP - LSTM - Recall", "value": "85.5"},
+      {"label": "NASA MDP - LSTM - F1-Score", "value": "86.3"},
+      {"label": "NASA MDP - Random forest - Accuracy", "value": "87.5"},
+      {"label": "NASA MDP - Random forest - Precision", "value": "85.4"},
+      {"label": "NASA MDP - Random forest - Recall", "value": "83.7"},
+      {"label": "NASA MDP - Random forest - F1-Score", "value": "84.5"},
+      {"label": "NASA MDP - TABF - Accuracy", "value": "92.5"},
+      {"label": "NASA MDP - TABF - Precision", "value": "89.7"},
+      {"label": "NASA MDP - TABF - Recall", "value": "88.5"},
+      {"label": "NASA MDP - TABF - F1-Score", "value": "89.1"},
+      {"label": "NASA MDP - TABF - AUC-ROC", "value": "0.95"},
+      {"label": "NASA MDP - TABF - Significance", "value": "p < 0.05"},
+      {"label": "Code4Code - SVM - Accuracy", "value": "89.0"},
+      {"label": "Code4Code - SVM - Precision", "value": "86.8"},
+      {"label": "Code4Code - SVM - Recall", "value": "85.1"},
+      {"label": "Code4Code - SVM - F1-Score", "value": "85.9"},
+      {"label": "Code4Code - LSTM - Accuracy", "value": "93.2"},
+      {"label": "Code4Code - LSTM - Precision", "value": "91.5"},
+      {"label": "Code4Code - LSTM - Recall", "value": "90.7"},
+      {"label": "Code4Code - LSTM - F1-Score", "value": "91.1"},
+      {"label": "Code4Code - Random forest - Accuracy", "value": "91.0"},
+      {"label": "Code4Code - Random forest - Precision", "value": "89.2"},
+      {"label": "Code4Code - Random forest - Recall", "value": "87.5"},
+      {"label": "Code4Code - Random forest - F1-Score", "value": "88.3"},
+      {"label": "Code4Code - TABF - Accuracy", "value": "94.3"},
+      {"label": "Code4Code - TABF - Precision", "value": "91.2"},
+      {"label": "Code4Code - TABF - Recall", "value": "90.8"},
+      {"label": "Code4Code - TABF - F1-Score", "value": "91.0"},
+      {"label": "Code4Code - TABF - AUC-ROC", "value": "0.96"},
+      {"label": "Code4Code - TABF - Significance", "value": "p < 0.05"}
+    ]
+  },
+  "table_summary": "The table compares the proposed TABF model against three baseline models (SVM, LSTM, Random Forest) on two datasets: NASA MDP and Code4Code. TABF achieves the highest accuracy on both datasets (92.5% on NASA MDP, 94.3% on Code4Code) and also reports AUC-ROC values of 0.95 and 0.96 respectively. The significance tests (p < 0.05) indicate that TABF's improvements over the best baseline are statistically significant."
+}

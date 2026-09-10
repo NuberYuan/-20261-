@@ -1,0 +1,109 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+
+def analyze_image(image_path):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法读取图片",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # OCR text is empty in this case
+        ocr_text = ""
+        
+        # Since OCR is empty, use visual features
+        # Get basic image properties
+        height, width = img.shape[:2]
+        
+        # Check if image is mostly grayscale (common for architecture diagrams)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        color_std = np.std(img)
+        
+        # Check color distribution
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        saturation_mean = np.mean(hsv[:,:,1])
+        
+        # Check if image has many distinct colors (common for datasets)
+        small_img = cv2.resize(img, (64, 64))
+        unique_colors = len(np.unique(small_img.reshape(-1, 3), axis=0))
+        
+        # Check aspect ratio and size
+        aspect_ratio = width / height if height > 0 else 0
+        
+        # Determine image type based on visual characteristics
+        # Since OCR is empty, we rely on visual features
+        
+        # Check for grid-like patterns (common in dataset visualizations)
+        # Check for plots/charts (usually have white background and colored lines)
+        
+        # Calculate white pixel ratio
+        white_ratio = np.sum(gray > 200) / (height * width)
+        
+        # Check for text-like regions (high contrast areas)
+        edges = cv2.Canny(gray, 50, 150)
+        edge_ratio = np.sum(edges > 0) / (height * width)
+        
+        # Decision logic based on visual features
+        if white_ratio > 0.5 and edge_ratio < 0.1:
+            # Likely a plot or chart
+            result_type = "experiment_result"
+            description = "展示实验结果图表，包含性能指标对比"
+            components = []
+            code_info = "需要实现实验评估模块，包含指标计算和可视化功能"
+        elif unique_colors > 100 and saturation_mean > 50:
+            # Likely a dataset with colorful images
+            result_type = "dataset"
+            description = "展示数据集样本，包含多个类别示例"
+            components = []
+            code_info = "需要实现数据加载和预处理模块，支持多类别图像数据"
+        elif color_std < 50 and edge_ratio > 0.05:
+            # Likely architecture diagram (mostly grayscale with clear structure)
+            result_type = "architecture"
+            description = "展示模型网络结构和数据流关系"
+            components = []
+            code_info = "需要实现神经网络模型结构，包含特征提取和分类模块"
+        else:
+            # Default to other
+            result_type = "other"
+            description = "无法确定图片类型"
+            components = []
+            code_info = ""
+        
+        return {
+            "type": result_type,
+            "description": description,
+            "important_components": components,
+            "code_relevant_information": code_info
+        }
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+        result = analyze_image(image_path)
+        print(json.dumps(result, ensure_ascii=False))
+    else:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+```

@@ -1,0 +1,597 @@
+import copy
+import logging
+import os
+from typing import Any, Dict, Optional, Tuple, List
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import yaml
+
+from models.transformer import Transformer
+from data.dataset import get_dataloaders, ElectricityTrafficRetailVolatilityDataset
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Quantile levels used by the TFT paper for forecasting.
+QUANTILES = [0.1, 0.5, 0.9]
+
+
+def load_config(config_path: str = None) -> Dict[str, Any]:
+    """Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the YAML configuration file. If None, the
+            default path ``../config/config.yaml`` relative to this file is
+            used.
+
+    Returns:
+        Dictionary containing the loaded configuration.
+    """
+    if config_path is None:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(current_dir, "..", "config", "config.yaml")
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config or {}
+
+
+def get_device(config: Dict[str, Any]) -> torch.device:
+    """Return the configured device if available, otherwise fallback to CPU."""
+    device_str = config.get("system", {}).get("device", "cuda")
+    if device_str == "cuda" and not torch.cuda.is_available():
+        logger.warning("CUDA is not available, falling back to CPU.")
+        device_str = "cpu"
+    return torch.device(device_str)
+
+
+def quantile_loss(y_true: torch.Tensor, y_pred: torch.Tensor, quantiles: List[float]) -> torch.Tensor:
+    """Compute quantile loss for multi-horizon forecasts.
+
+    Args:
+        y_true: Tensor of shape (batch_size, horizon).
+        y_pred: Tensor of shape (batch_size, horizon, num_quantiles).
+        quantiles: List of quantile levels, length must equal num_quantiles in y_pred.
+
+    Returns:
+        Scalar tensor representing the mean quantile loss over batch, horizon,
+        and quantiles.
+    """
+    if y_true.dim() == 2:
+        y_true = y_true.unsqueeze(-1)  # (batch, horizon, 1)
+
+    quantiles_tensor = torch.tensor(quantiles, dtype=y_pred.dtype, device=y_pred.device)
+    quantiles_tensor = quantiles_tensor.view(1, 1, -1)
+
+    errors = y_true - y_pred  # (batch, horizon, num_quantiles)
+    loss = torch.max(quantiles_tensor * errors, (quantiles_tensor - 1.0) * errors)
+    return loss.mean()
+
+
+def build_future_inputs(past_inputs: torch.Tensor, horizon: int) -> torch.Tensor:
+    """Construct future known inputs from the last `horizon` steps of past inputs.
+
+    The first column of past inputs is assumed to be the target variable. For
+    future timestamps, the target is unknown and is set to zero (normalized
+    mean), while other time-invariant or deterministic features (e.g. day-of-week,
+    hour-of-day) are preserved by shifting the last available values.
+
+    Args:
+        past_inputs: Tensor of shape (batch_size, past_len, feature_dim).
+        horizon: Forecast horizon length.
+
+    Returns:
+        Tensor of shape (batch_size, horizon, feature_dim).
+    """
+    batch_size, past_len, feature_dim = past_inputs.shape
+
+    if past_len >= horizon:
+        future = past_inputs[:, -horizon:, :].clone()
+    else:
+        # Not enough history; pad with zeros at the beginning of future block.
+        pad_len = horizon - past_len
+        pad = torch.zeros(
+            (batch_size, pad_len, feature_dim),
+            dtype=past_inputs.dtype,
+            device=past_inputs.device,
+        )
+        future = torch.cat([past_inputs, pad], dim=1)
+
+    # Set target column (index 0) to zero to avoid leaking future targets.
+    future[:, :, 0] = 0.0
+    return future
+
+
+def initialize_model(
+    config: Optional[Dict[str, Any]] = None,
+    dataset_name: str = "Electricity",
+    config_path: Optional[str] = None,
+) -> Tuple[nn.Module, torch.device]:
+    """Initialize a Temporal Fusion Transformer model from scratch.
+
+    The model architecture is fully random-initialized (kaiming_normal by
+    default in PyTorch), and no pretrained weights are loaded.
+
+    Args:
+        config: Configuration dictionary. If None, it is loaded from the
+            default YAML file.
+        dataset_name: Name of the dataset (one of 'Electricity', 'Traffic',
+            'Retail', 'Volatility').
+        config_path: Optional path to the configuration YAML file.
+
+    Returns:
+        Tuple of (model, device). The model is moved to the appropriate device.
+    """
+    if config is None:
+        config = load_config(config_path)
+
+    # ------------------------------------------------------------------
+    # Read dataset-specific metadata to determine sequence lengths.
+    # ------------------------------------------------------------------
+    try:
+        metadata = ElectricityTrafficRetailVolatilityDataset.DATASET_METADATA[dataset_name]
+    except KeyError:
+        raise ValueError(f"Unsupported dataset '{dataset_name}' for model initialization.")
+
+    encoder_len = int(metadata["encoder_len"])
+    horizon = int(metadata["horizon"])
+
+    # ------------------------------------------------------------------
+    # Read dropout ratio. Preferred path:
+    #   config['training']['dropout_ratio'][dataset_name]
+    # Else fallback to config['model']['dropout_ratio'][dataset_name]
+    # Else default 0.1
+    # ------------------------------------------------------------------
+    dropout = None
+    training_dropout = config.get("training", {}).get("dropout_ratio")
+    if isinstance(training_dropout, dict):
+        dropout = training_dropout.get(dataset_name)
+
+    if dropout is None:
+        model_dropout = config.get("model", {}).get("dropout_ratio")
+        if isinstance(model_dropout, dict):
+            dropout = model_dropout.get(dataset_name)
+
+    if dropout is None:
+        dropout = 0.1
+    dropout = float(dropout)
+
+    # ------------------------------------------------------------------
+    # Build the model with paper-based defaults for architecture.
+    # ------------------------------------------------------------------
+    model = Transformer(
+        config=config,
+        d_model=64,
+        num_heads=4,
+        horizon=horizon,
+        lookback=encoder_len,
+        num_quantiles=len(QUANTILES),
+        dropout_ratio=dropout,
+    )
+
+    device = get_device(config)
+    model.to(device)
+
+    logger.info(
+        "Initialized Transformer model for %s: lookback=%d, horizon=%d, dropout=%.3f, device=%s",
+        dataset_name,
+        encoder_len,
+        horizon,
+        dropout,
+        device,
+    )
+    return model, device
+
+
+def get_optimizer(
+    model: nn.Module,
+    config: Dict[str, Any],
+) -> torch.optim.Optimizer:
+    """Build optimizer from configuration.
+
+    The config field `training.optimizer.name` is often null/empty in the TFT
+    paper; in that case we fall back to Adam with the specified learning rate.
+    Weight decay and momentum are set to 0.0 if not provided.
+    """
+    optimizer_cfg = config.get("training", {}).get("optimizer", {})
+    if not isinstance(optimizer_cfg, dict):
+        optimizer_cfg = {}
+
+    name = optimizer_cfg.get("name")
+    lr = float(optimizer_cfg.get("lr", 0.01))
+    weight_decay = float(optimizer_cfg.get("weight_decay") or 0.0)
+
+    if name is None or name in ["", "NOT_FOUND", "null"]:
+        name = "Adam"
+
+    name = name.lower()
+    if name == "adam":
+        return optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    elif name == "sgd":
+        momentum = float(optimizer_cfg.get("momentum") or 0.0)
+        return optim.SGD(
+            model.parameters(),
+            lr=lr,
+            momentum=momentum,
+            weight_decay=weight_decay,
+        )
+    elif name == "rmsprop":
+        momentum = float(optimizer_cfg.get("momentum") or 0.0)
+        return optim.RMSprop(
+            model.parameters(),
+            lr=lr,
+            momentum=momentum,
+            weight_decay=weight_decay,
+        )
+    else:
+        raise ValueError(f"Unsupported optimizer '{name}' specified in config.")
+
+
+def get_scheduler(
+    optimizer: torch.optim.Optimizer,
+    config: Dict[str, Any],
+) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
+    """Build learning rate scheduler if explicitly configured.
+
+    The TFT paper does not specify a scheduler. If the config field
+    `training.scheduler.name` is null/empty, we return None. Otherwise we
+    support 'StepLR' and 'ReduceLROnPlateau'.
+    """
+    scheduler_cfg = config.get("training", {}).get("scheduler", {})
+    if not isinstance(scheduler_cfg, dict):
+        scheduler_cfg = {}
+
+    name = scheduler_cfg.get("name")
+    if name is None or name in ["", "NOT_FOUND", "null"]:
+        return None
+
+    name = name.lower()
+    if name == "steplr":
+        step_size = int(scheduler_cfg.get("step_size") or 10)
+        gamma = float(scheduler_cfg.get("gamma") or 0.1)
+        return optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+    elif name == "reducelronplateau":
+        # Use common default parameters if not specified in config.
+        patience = int(scheduler_cfg.get("patience") or 5)
+        factor = float(scheduler_cfg.get("factor") or 0.1)
+        return optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=factor, patience=patience
+        )
+    else:
+        raise ValueError(f"Unsupported scheduler '{name}' specified in config.")
+
+
+def train_model(
+    model: nn.Module,
+    train_loader: torch.utils.data.DataLoader,
+    val_loader: Optional[torch.utils.data.DataLoader],
+    config: Optional[Dict[str, Any]] = None,
+    dataset_name: str = "Electricity",
+    config_path: Optional[str] = None,
+) -> Tuple[nn.Module, Dict[str, Any]]:
+    """Train the TFT model.
+
+    The function supports both 'engineering' and 'strict' reproduction modes.
+    In engineering mode, a validation loader is used to track the best model
+    (lowest validation loss). In strict mode, validation is skipped and only
+    the final model is returned.
+
+    Args:
+        model: The model to train.
+        train_loader: DataLoader for the training set.
+        val_loader: Optional DataLoader for the validation set. If None, no
+            validation is performed (strict mode).
+        config: Configuration dictionary. If None, loaded from default YAML.
+        dataset_name: Dataset name used for logging and config lookups.
+        config_path: Optional path to the YAML config file.
+
+    Returns:
+        Tuple of (best_model, history). 'best_model' is a deepcopy of the
+        model with the best validation performance (or final model in strict
+        mode). 'history' contains lists of training and validation losses.
+    """
+    if config is None:
+        config = load_config(config_path)
+
+    device = next(model.parameters()).device
+    epochs = int(config.get("training", {}).get("epochs", 30))
+    train_cfg = config.get("training", {})
+    mode = config.get("reproduction_mode", "engineering").lower()
+
+    optimizer = get_optimizer(model, config)
+    scheduler = get_scheduler(optimizer, config)
+
+    checkpoint_cfg = config.get("checkpoint", {})
+    save_best = bool(checkpoint_cfg.get("save_best", True))
+    best_metric_name = checkpoint_cfg.get("best_metric", "val_accuracy")
+    best_mode = checkpoint_cfg.get("best_mode", "max")
+    save_final = bool(checkpoint_cfg.get("save_final", True))
+
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+    }
+
+    best_metric = None
+    best_model_state = None
+    best_optimizer_state = None
+    best_epoch = -1
+
+    for epoch in range(1, epochs + 1):
+        model.train()
+        running_loss = 0.0
+        num_batches = 0
+
+        for batch_idx, batch in enumerate(train_loader):
+            # ----------------------------------------------------------
+            # Prepare inputs for TFT
+            # ----------------------------------------------------------
+            static_inputs = batch["static_covariates"].to(device)      # (batch, 1)
+            past_inputs = batch["x"].to(device)                        # (batch, lookback, feat_dim)
+            future_targets = batch["y"].to(device)                     # (batch, horizon)
+
+            horizon = future_targets.shape[1]
+            future_inputs = build_future_inputs(past_inputs, horizon)  # (batch, horizon, feat_dim)
+
+            optimizer.zero_grad()
+
+            # ----------------------------------------------------------
+            # Forward pass
+            # ----------------------------------------------------------
+            y_pred = model(
+                static_inputs=static_inputs,
+                past_inputs=past_inputs,
+                future_inputs=future_inputs,
+            )  # (batch, horizon, num_quantiles)
+
+            loss = quantile_loss(future_targets, y_pred, QUANTILES)
+
+            # ----------------------------------------------------------
+            # Backward pass and optimization
+            # ----------------------------------------------------------
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+            num_batches += 1
+
+            if batch_idx % 50 == 0:
+                logger.debug(
+                    "Epoch %d, batch %d: loss=%.6f",
+                    epoch,
+                    batch_idx,
+                    loss.item(),
+                )
+
+        avg_train_loss = running_loss / max(1, num_batches)
+        history["train_loss"].append(avg_train_loss)
+
+        # --------------------------------------------------------------
+        # Validation (only in engineering mode when val_loader is provided)
+        # --------------------------------------------------------------
+        if val_loader is not None:
+            model.eval()
+            val_running_loss = 0.0
+            val_batches = 0
+
+            with torch.no_grad():
+                for batch in val_loader:
+                    static_inputs = batch["static_covariates"].to(device)
+                    past_inputs = batch["x"].to(device)
+                    future_targets = batch["y"].to(device)
+
+                    horizon = future_targets.shape[1]
+                    future_inputs = build_future_inputs(past_inputs, horizon)
+
+                    y_pred = model(
+                        static_inputs=static_inputs,
+                        past_inputs=past_inputs,
+                        future_inputs=future_inputs,
+                    )
+                    loss = quantile_loss(future_targets, y_pred, QUANTILES)
+                    val_running_loss += loss.item()
+                    val_batches += 1
+
+            avg_val_loss = val_running_loss / max(1, val_batches)
+            history["val_loss"].append(avg_val_loss)
+            metric_value = -avg_val_loss  # maximize negative loss = minimize loss
+        else:
+            avg_val_loss = None
+            metric_value = None
+
+        # --------------------------------------------------------------
+        # Learning rate scheduler step
+        # --------------------------------------------------------------
+        if scheduler is not None:
+            if isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+                if avg_val_loss is not None:
+                    scheduler.step(avg_val_loss)
+            else:
+                scheduler.step()
+
+        # --------------------------------------------------------------
+        # Logging
+        # --------------------------------------------------------------
+        log_msg = f"Epoch {epoch}/{epochs} | train_loss={avg_train_loss:.6f}"
+        if avg_val_loss is not None:
+            log_msg += f" | val_loss={avg_val_loss:.6f}"
+        logger.info(log_msg)
+
+        # --------------------------------------------------------------
+        # Best model tracking
+        # --------------------------------------------------------------
+        if val_loader is not None and metric_value is not None:
+            is_best = False
+            if best_metric is None:
+                is_best = True
+            elif best_mode == "max":
+                is_best = metric_value > best_metric
+            else:  # best_mode == "min"
+                is_best = metric_value < best_metric
+
+            if is_best:
+                best_metric = metric_value
+                best_epoch = epoch
+                best_model_state = copy.deepcopy(model.state_dict())
+                if checkpoint_cfg.get("save_optimizer_state", True):
+                    best_optimizer_state = copy.deepcopy(optimizer.state_dict())
+                logger.info(f"  New best model saved at epoch {epoch} (metric={metric_value:.6f})")
+
+    # ------------------------------------------------------------------
+    # Prepare return model
+    # ------------------------------------------------------------------
+    if val_loader is not None and best_model_state is not None:
+        best_model = copy.deepcopy(model)
+        best_model.load_state_dict(best_model_state)
+        history["best_epoch"] = best_epoch
+        history["best_metric"] = best_metric
+        if best_optimizer_state is not None:
+            history["best_optimizer_state"] = best_optimizer_state
+    else:
+        # No validation: return the final model as the "best".
+        best_model = model
+        history["best_epoch"] = epochs
+        history["best_metric"] = None
+
+    history["final_model_state"] = copy.deepcopy(model.state_dict())
+    if checkpoint_cfg.get("save_optimizer_state", True):
+        history["final_optimizer_state"] = copy.deepcopy(optimizer.state_dict())
+
+    return best_model, history
+
+
+def save_model(
+    model: nn.Module,
+    save_path: str,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    epoch: Optional[int] = None,
+    config: Optional[Dict[str, Any]] = None,
+    extra_info: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Save model (and optionally optimizer) state to disk.
+
+    Args:
+        model: Model to save.
+        save_path: Path to the checkpoint file.
+        optimizer: Optional optimizer whose state should be saved.
+        epoch: Optional epoch number for reference.
+        config: Optional configuration dictionary to store alongside.
+        extra_info: Optional dictionary with additional metadata.
+    """
+    if config is None:
+        config = {}
+
+    checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "epoch": epoch,
+        "config": config,
+    }
+
+    if optimizer is not None:
+        checkpoint["optimizer_state_dict"] = optimizer.state_dict()
+
+    if extra_info:
+        checkpoint["extra_info"] = extra_info
+
+    # Ensure directory exists.
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    torch.save(checkpoint, save_path)
+    logger.info(f"Model saved to {save_path}")
+
+
+# ------------------------------------------------------------------
+# Optional command-line entry point for quick training
+# ------------------------------------------------------------------
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Train TFT model on a dataset.")
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="Electricity",
+        choices=["Electricity", "Traffic", "Retail", "Volatility"],
+        help="Dataset name to train on.",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to config YAML file (default: ../config/config.yaml).",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default=None,
+        choices=["engineering", "strict"],
+        help="Reproduction mode override. If not set, uses config value.",
+    )
+    args = parser.parse_args()
+
+    # Load configuration
+    config = load_config(args.config)
+
+    # Optionally override reproduction mode
+    if args.mode is not None:
+        config["reproduction_mode"] = args.mode
+
+    # Determine dataset version from experiment runs if possible
+    dataset_version = "default"
+    exp_runs = config.get("experiment", {}).get("runs", [])
+    for run in exp_runs:
+        if run.get("dataset") == args.dataset:
+            dataset_version = run.get("dataset_version", "default")
+            break
+
+    # Initialize model and device
+    model, device = initialize_model(config=config, dataset_name=args.dataset)
+
+    # Get dataloaders
+    train_loader, val_loader, test_loader = get_dataloaders(
+        version=dataset_version,
+        config=config,
+        dataset=args.dataset,
+    )
+
+    # Determine whether to use validation loader
+    if config.get("reproduction_mode", "engineering").lower() == "strict":
+        val_loader = None
+
+    # Train
+    best_model, history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        config=config,
+        dataset_name=args.dataset,
+    )
+
+    # Save final and best models
+    checkpoint_dir = os.path.join("checkpoints", args.dataset)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    final_path = os.path.join(checkpoint_dir, "final_model.pt")
+    save_model(
+        best_model,
+        final_path,
+        optimizer=None,
+        epoch=history.get("best_epoch", None),
+        config=config,
+        extra_info={"dataset": args.dataset, "type": "final"},
+    )
+
+    if config.get("checkpoint", {}).get("save_best", True) and "best_epoch" in history:
+        best_path = os.path.join(checkpoint_dir, "best_model.pt")
+        save_model(
+            best_model,
+            best_path,
+            optimizer=None,
+            epoch=history["best_epoch"],
+            config=config,
+            extra_info={"dataset": args.dataset, "type": "best"},
+        )
+
+    logger.info("Training completed successfully.")

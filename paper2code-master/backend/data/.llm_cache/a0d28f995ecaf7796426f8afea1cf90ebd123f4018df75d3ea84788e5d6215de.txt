@@ -1,0 +1,17 @@
+{
+  "table_id": "table_2",
+  "table_type": "hyperparameter_table",
+  "caption_summary": "Hyperparameters used for training the deep learning model for plant disease detection.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Solver type", "value": "Stochastic Gradient Descent"},
+      {"label": "Base learning rate", "value": "0.005"},
+      {"label": "Learning rate policy", "value": "Step (decreases by a factor of 10"},
+      {"label": "Momentum", "value": "0.9"}
+    ]
+  },
+  "table_summary": "This table lists the key hyperparameters for the training process, including the solver type (Stochastic Gradient Descent), base learning rate (0.005), learning rate policy (step decay by factor of 10), and momentum (0.9). These settings are typical for fine-tuning deep learning models in image classification tasks."
+}

@@ -1,0 +1,166 @@
+```python
+import sys
+import json
+import os
+import numpy as np
+import cv2
+from PIL import Image
+
+def analyze_image(image_path):
+    """分析论文图片并返回结构化JSON"""
+    
+    # 默认结果
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+    
+    try:
+        # 检查文件是否存在
+        if not os.path.exists(image_path):
+            result["description"] = "图片文件不存在"
+            return result
+        
+        # 读取图片（支持中文路径）
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            result["description"] = "图片读取失败"
+            return result
+        
+        # 获取图片基本信息
+        height, width = img.shape[:2]
+        
+        # 由于OCR文字为空，我们只能依赖视觉信息
+        # 分析图片的基本特征
+        
+        # 转换为灰度图
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # 计算基本统计信息
+        mean_intensity = np.mean(gray)
+        std_intensity = np.std(gray)
+        
+        # 分析颜色分布
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        saturation = np.mean(hsv[:,:,1])
+        value = np.mean(hsv[:,:,2])
+        
+        # 分析图片复杂度
+        # 使用简单的像素差异作为复杂度指标
+        diff = np.abs(np.diff(gray.astype(np.float32), axis=0))
+        complexity = np.mean(diff)
+        
+        # 判断图片类型
+        # 由于没有OCR文字，我们基于视觉特征进行启发式判断
+        
+        # 检查是否是图表类（实验曲线、柱状图等）
+        # 图表通常具有较高的对比度和特定的颜色模式
+        is_chart = False
+        if std_intensity > 40 and complexity > 5:
+            # 检查是否有明显的线条或柱状结构
+            # 通过检查水平/垂直方向的像素变化
+            horizontal_diff = np.mean(np.abs(np.diff(gray.astype(np.float32), axis=1)))
+            vertical_diff = np.mean(np.abs(np.diff(gray.astype(np.float32), axis=0)))
+            
+            # 图表通常有较多的直线元素
+            if horizontal_diff > 3 or vertical_diff > 3:
+                is_chart = True
+        
+        # 检查是否是网络结构图
+        # 网络结构图通常有较多的框和连接线
+        is_architecture = False
+        if complexity > 8 and std_intensity > 30:
+            # 检查是否有明显的矩形区域
+            # 通过分析局部方差
+            local_var = cv2.blur(gray, (10, 10))
+            local_var = cv2.GaussianBlur(gray, (5, 5), 0)
+            edges = cv2.Canny(gray, 50, 150)
+            edge_density = np.mean(edges > 0)
+            
+            if edge_density > 0.05 and edge_density < 0.3:
+                is_architecture = True
+        
+        # 检查是否是数据集图片
+        is_dataset = False
+        if not is_chart and not is_architecture:
+            # 数据集图片通常具有较高的色彩丰富度
+            if saturation > 50 and std_intensity > 20:
+                is_dataset = True
+        
+        # 根据判断结果设置输出
+        if is_chart:
+            result["type"] = "experiment_result"
+            result["description"] = "展示实验结果图表，可能包含性能对比或数据变化趋势"
+            result["important_components"] = ["实验指标", "性能对比"]
+            result["code_relevant_information"] = "需要实现实验数据可视化功能，包括图表绘制和性能指标展示"
+        elif is_architecture:
+            result["type"] = "architecture"
+            result["description"] = "展示模型网络结构或数据处理流程"
+            result["important_components"] = ["网络层", "数据流"]
+            result["code_relevant_information"] = "需要实现模型网络结构定义和数据处理流程"
+        elif is_dataset:
+            result["type"] = "dataset"
+            result["description"] = "展示数据集样本或输入数据示例"
+            result["important_components"] = ["数据样本", "类别示例"]
+            result["code_relevant_information"] = "需要实现数据加载和预处理功能"
+        else:
+            # 进一步分析
+            # 检查图片是否包含文字区域（通过高对比度区域）
+            _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            text_ratio = np.mean(binary > 0)
+            
+            if text_ratio > 0.3:
+                result["type"] = "other"
+                result["description"] = "图片包含较多文字内容，可能是论文中的文字说明或表格"
+                result["important_components"] = []
+                result["code_relevant_information"] = ""
+            else:
+                result["type"] = "other"
+                result["description"] = "无法确定图片类型，可能是示意图或辅助说明图"
+                result["important_components"] = []
+                result["code_relevant_information"] = ""
+        
+        # 确保输出格式正确
+        if result["type"] not in ["architecture", "experiment_result", "dataset", "other"]:
+            result["type"] = "other"
+        
+        # 清理important_components中的无效内容
+        valid_components = []
+        for comp in result["important_components"]:
+            if comp and comp not in ["image_size", "width", "height", "pixel", "color"]:
+                valid_components.append(comp)
+        result["important_components"] = valid_components
+        
+        return result
+        
+    except Exception as e:
+        # 任何异常都返回默认结果
+        result = {
+            "type": "other",
+            "description": "图片分析过程中出现错误",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        return result
+
+def main():
+    # 获取图片路径
+    if len(sys.argv) < 2:
+        # 如果没有提供路径参数，使用默认路径
+        image_path = r"D:\paper2code-master(1)\paper2code-master\backend\data\output\论文6\step1\images\image_13.png"
+    else:
+        image_path = sys.argv[1]
+    
+    # 分析图片
+    result = analyze_image(image_path)
+    
+    # 输出JSON
+    print(json.dumps(result, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,515 @@
+```python
+import os
+import sys
+import time
+import logging
+import copy
+from pathlib import Path
+from typing import Dict, Optional, Tuple, Any, Union
+
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+import yaml
+
+# Add project root to path for imports
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from data.dataset import get_dataloaders, load_config
+from models.transformer import Transformer, create_transformer_from_config
+
+logger = logging.getLogger(__name__)
+
+
+def initialize_model(
+    input_dim: int,
+    config: Optional[Dict[str, Any]] = None,
+    device: Optional[torch.device] = None,
+) -> nn.Module:
+    """Initialize the Transformer model from scratch.
+
+    Args:
+        input_dim: Dimension of input features.
+        config: Configuration dictionary. If None, loads from config.yaml.
+        device: Device to place the model on.
+
+    Returns:
+        Initialized Transformer model with random weights.
+    """
+    if config is None:
+        config = load_config()
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Create model from config
+    model = create_transformer_from_config(input_dim=input_dim, config=config)
+
+    # Ensure model is on the correct device
+    model = model.to(device)
+
+    logger.info(
+        f"Model initialized from scratch: input_dim={input_dim}, "
+        f"d_model={model.d_model}, nhead={model.nhead}, "
+        f"num_layers={model.num_layers}, dropout={model.dropout_ratio}"
+    )
+
+    return model
+
+
+def train_model(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: Optional[DataLoader],
+    config: Optional[Dict[str, Any]] = None,
+    device: Optional[torch.device] = None,
+    use_tensorboard: bool = True,
+) -> Dict[str, Any]:
+    """Train the model.
+
+    Args:
+        model: The model to train.
+        train_loader: DataLoader for training data.
+        val_loader: DataLoader for validation data (can be None).
+        config: Configuration dictionary. If None, loads from config.yaml.
+        device: Device to train on.
+        use_tensorboard: Whether to use TensorBoard for logging.
+
+    Returns:
+        Dictionary containing training history and best model state.
+    """
+    if config is None:
+        config = load_config()
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Extract training configuration
+    training_config = config.get("training", {})
+    epochs = training_config.get("epochs", 30)
+    optimizer_config = training_config.get("optimizer", {})
+    scheduler_config = training_config.get("scheduler", {})
+
+    # Get optimizer parameters with safe defaults
+    lr = optimizer_config.get("lr", 0.001)
+    if lr is None:
+        lr = 0.001
+    weight_decay = optimizer_config.get("weight_decay", 0.0001)
+    if weight_decay is None:
+        weight_decay = 0.0001
+    momentum = optimizer_config.get("momentum", 0.9)
+    if momentum is None:
+        momentum = 0.9
+
+    # Create optimizer
+    optimizer_name = optimizer_config.get("name", "Adam")
+    if optimizer_name.lower() == "adam":
+        optimizer = torch.optim.Adam(
+            model.parameters(), lr=lr, weight_decay=weight_decay
+        )
+    elif optimizer_name.lower() == "sgd":
+        optimizer = torch.optim.SGD(
+            model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay
+        )
+    else:
+        logger.warning(f"Unknown optimizer {optimizer_name}, using Adam")
+        optimizer = torch.optim.Adam(
+            model.parameters(), lr=lr, weight_decay=weight_decay
+        )
+
+    # Create scheduler
+    scheduler_name = scheduler_config.get("name", "StepLR")
+    step_size = scheduler_config.get("step_size", 10)
+    if step_size is None:
+        step_size = 10
+    gamma = scheduler_config.get("gamma", 0.2)
+    if gamma is None:
+        gamma = 0.2
+
+    if scheduler_name.lower() == "steplr":
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=step_size, gamma=gamma
+        )
+    elif scheduler_name.lower() == "cosine":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=epochs
+        )
+    else:
+        logger.warning(f"Unknown scheduler {scheduler_name}, using StepLR")
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=step_size, gamma=gamma
+        )
+
+    # Loss function: Binary Cross-Entropy
+    criterion = nn.BCEWithLogitsLoss()
+
+    # Checkpoint configuration
+    checkpoint_config = config.get("checkpoint", {})
+    save_best = checkpoint_config.get("save_best", True)
+    best_metric = checkpoint_config.get("best_metric", "val_accuracy")
+    best_mode = checkpoint_config.get("best_mode", "max")
+    save_final = checkpoint_config.get("save_final", True)
+    save_optimizer_state = checkpoint_config.get("save_optimizer_state", True)
+    resume_from = checkpoint_config.get("resume_from")
+
+    # Determine if we're in engineering or strict mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # Set up TensorBoard
+    writer = None
+    if use_tensorboard:
+        log_dir = config.get("logging", {}).get("log_dir", "./logs")
+        os.makedirs(log_dir, exist_ok=True)
+        writer = SummaryWriter(log_dir=log_dir)
+
+    # Training history
+    history = {
+        "train_loss": [],
+        "train_accuracy": [],
+        "val_loss": [],
+        "val_accuracy": [],
+        "learning_rates": [],
+    }
+
+    # Best model tracking
+    best_model_state = None
+    best_metric_value = None
+    best_epoch = -1
+
+    # Resume from checkpoint if specified
+    start_epoch = 0
+    if resume_from and os.path.isfile(resume_from):
+        logger.info(f"Resuming from checkpoint: {resume_from}")
+        checkpoint = torch.load(resume_from, map_location=device)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        if save_optimizer_state and "optimizer_state_dict" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        if "epoch" in checkpoint:
+            start_epoch = checkpoint["epoch"] + 1
+        if "best_metric_value" in checkpoint:
+            best_metric_value = checkpoint["best_metric_value"]
+        if "best_model_state" in checkpoint:
+            best_model_state = checkpoint["best_model_state"]
+
+    # Training loop
+    logger.info(f"Starting training for {epochs} epochs on {device}")
+    for epoch in range(start_epoch, epochs):
+        epoch_start_time = time.time()
+
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        train_correct = 0
+        train_total = 0
+
+        for batch_idx, (features, labels) in enumerate(train_loader):
+            features = features.to(device)
+            labels = labels.to(device).float()
+
+            # Forward pass
+            logits = model(features)
+            logits = logits.squeeze(-1) if logits.dim() > 1 else logits
+
+            # Compute loss
+            loss = criterion(logits, labels)
+
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            # Track statistics
+            train_loss += loss.item() * features.size(0)
+            predictions = (torch.sigmoid(logits) >= 0.5).float()
+            train_correct += (predictions == labels).sum().item()
+            train_total += labels.size(0)
+
+            if batch_idx % 10 == 0:
+                logger.debug(
+                    f"Epoch {epoch+1}/{epochs}, Batch {batch_idx}/{len(train_loader)}, "
+                    f"Loss: {loss.item():.4f}"
+                )
+
+        # Compute epoch statistics
+        avg_train_loss = train_loss / max(train_total, 1)
+        train_accuracy = train_correct / max(train_total, 1)
+
+        history["train_loss"].append(avg_train_loss)
+        history["train_accuracy"].append(train_accuracy)
+        history["learning_rates"].append(optimizer.param_groups[0]["lr"])
+
+        # Validation phase (only if val_loader is provided)
+        val_loss = None
+        val_accuracy = None
+        if val_loader is not None:
+            model.eval()
+            val_loss = 0.0
+            val_correct = 0
+            val_total = 0
+
+            with torch.no_grad():
+                for features, labels in val_loader:
+                    features = features.to(device)
+                    labels = labels.to(device).float()
+
+                    logits = model(features)
+                    logits = logits.squeeze(-1) if logits.dim() > 1 else logits
+
+                    loss = criterion(logits, labels)
+                    val_loss += loss.item() * features.size(0)
+
+                    predictions = (torch.sigmoid(logits) >= 0.5).float()
+                    val_correct += (predictions == labels).sum().item()
+                    val_total += labels.size(0)
+
+            avg_val_loss = val_loss / max(val_total, 1)
+            val_accuracy = val_correct / max(val_total, 1)
+
+            history["val_loss"].append(avg_val_loss)
+            history["val_accuracy"].append(val_accuracy)
+
+            logger.info(
+                f"Epoch {epoch+1}/{epochs} - "
+                f"Train Loss: {avg_train_loss:.4f}, Train Acc: {train_accuracy:.4f}, "
+                f"Val Loss: {avg_val_loss:.4f}, Val Acc: {val_accuracy:.4f}, "
+                f"LR: {optimizer.param_groups[0]['lr']:.6f}, "
+                f"Time: {time.time() - epoch_start_time:.2f}s"
+            )
+        else:
+            logger.info(
+                f"Epoch {epoch+1}/{epochs} - "
+                f"Train Loss: {avg_train_loss:.4f}, Train Acc: {train_accuracy:.4f}, "
+                f"LR: {optimizer.param_groups[0]['lr']:.6f}, "
+                f"Time: {time.time() - epoch_start_time:.2f}s"
+            )
+
+        # TensorBoard logging
+        if writer is not None:
+            writer.add_scalar("Loss/train", avg_train_loss, epoch)
+            writer.add_scalar("Accuracy/train", train_accuracy, epoch)
+            writer.add_scalar("LearningRate", optimizer.param_groups[0]["lr"], epoch)
+            if val_loss is not None:
+                writer.add_scalar("Loss/val", val_loss, epoch)
+                writer.add_scalar("Accuracy/val", val_accuracy, epoch)
+
+        # Save best model based on validation accuracy (engineering mode)
+        if save_best and val_loader is not None and val_accuracy is not None:
+            current_metric = val_accuracy
+            if best_metric_value is None:
+                best_metric_value = current_metric
+                best_model_state = copy.deepcopy(model.state_dict())
+                best_epoch = epoch
+            else:
+                if best_mode == "max" and current_metric > best_metric_value:
+                    best_metric_value = current_metric
+                    best_model_state = copy.deepcopy(model.state_dict())
+                    best_epoch = epoch
+                elif best_mode == "min" and current_metric < best_metric_value:
+                    best_metric_value = current_metric
+                    best_model_state = copy.deepcopy(model.state_dict())
+                    best_epoch = epoch
+
+        # Step the scheduler
+        scheduler.step()
+
+    # Close TensorBoard writer
+    if writer is not None:
+        writer.close()
+
+    # Save final model
+    if save_final:
+        final_model_state = copy.deepcopy(model.state_dict())
+        history["final_model_state"] = final_model_state
+
+    # Store best model state
+    if best_model_state is not None:
+        history["best_model_state"] = best_model_state
+        history["best_metric_value"] = best_metric_value
+        history["best_epoch"] = best_epoch
+
+    logger.info(f"Training completed. Best {best_metric}: {best_metric_value} at epoch {best_epoch+1}")
+
+    return history
+
+
+def save_model(
+    model: nn.Module,
+    history: Dict[str, Any],
+    config: Optional[Dict[str, Any]] = None,
+    save_dir: Optional[str] = None,
+    epoch: Optional[int] = None,
+) -> Dict[str, str]:
+    """Save model weights and training history.
+
+    Args:
+        model: The trained model.
+        history: Training history dictionary.
+        config: Configuration dictionary. If None, loads from config.yaml.
+        save_dir: Directory to save the model. If None, uses config.
+        epoch: Current epoch number (optional).
+
+    Returns:
+        Dictionary containing paths to saved files.
+    """
+    if config is None:
+        config = load_config()
+
+    # Determine save directory
+    if save_dir is None:
+        save_dir = config.get("logging", {}).get("log_dir", "./logs")
+        save_dir = os.path.join(save_dir, "checkpoints")
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Get checkpoint configuration
+    checkpoint_config = config.get("checkpoint", {})
+    save_optimizer_state = checkpoint_config.get("save_optimizer_state", True)
+
+    saved_paths = {}
+
+    # Save best model if available
+    if "best_model_state" in history and history["best_model_state"] is not None:
+        best_path = os.path.join(save_dir, "best_model.pt")
+        checkpoint = {
+            "model_state_dict": history["best_model_state"],
+            "best_metric_value": history.get("best_metric_value"),
+            "best_epoch": history.get("best_epoch"),
+            "config": config,
+        }
+        torch.save(checkpoint, best_path)
+        saved_paths["best_model"] = best_path
+        logger.info(f"Best model saved to {best_path}")
+
+    # Save final model
+    if "final_model_state" in history and history["final_model_state"] is not None:
+        final_path = os.path.join(save_dir, "final_model.pt")
+        checkpoint = {
+            "model_state_dict": history["final_model_state"],
+            "config": config,
+        }
+        torch.save(checkpoint, final_path)
+        saved_paths["final_model"] = final_path
+        logger.info(f"Final model saved to {final_path}")
+
+    # Save training history
+    history_path = os.path.join(save_dir, "training_history.pt")
+    torch.save(history, history_path)
+    saved_paths["history"] = history_path
+    logger.info(f"Training history saved to {history_path}")
+
+    return saved_paths
+
+
+def main() -> None:
+    """Main training entry point."""
+    # Set up logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    # Load configuration
+    config = load_config()
+
+    # Get system configuration
+    system_config = config.get("system", {})
+    device_name = system_config.get("device", "cuda")
+    if device_name == "cuda" and not torch.cuda.is_available():
+        logger.warning("CUDA not available, using CPU")
+        device_name = "cpu"
+    device = torch.device(device_name)
+
+    # Get experiment configuration
+    experiment_config = config.get("experiment", {})
+    runs = experiment_config.get("runs", [])
+    if not runs:
+        logger.error("No experiment runs found in config")
+        return
+
+    # Use the first run
+    run = runs[0]
+    dataset_version = run.get("dataset_version", "default")
+    training_mode = run.get("training_mode", "scratch")
+
+    logger.info(f"Starting training run: {run.get('name', 'run_1')}")
+    logger.info(f"Dataset version: {dataset_version}")
+    logger.info(f"Training mode: {training_mode}")
+
+    # Get data loaders
+    batch_size = config.get("training", {}).get("batch_size", {}).get("transformer_boosting", 32)
+    num_workers = system_config.get("num_workers", 0)
+
+    loaders = get_dataloaders(
+        version=dataset_version,
+        config=config,
+        batch_size=batch_size,
+        num_workers=num_workers,
+    )
+
+    train_loader = loaders["train"]
+    val_loader = loaders["val"]
+    test_loader = loaders["test"]
+    feature_dim = loaders["feature_dim"]
+
+    logger.info(f"Feature dimension: {feature_dim}")
+    logger.info(f"Train batches: {len(train_loader)}")
+    if val_loader is not None:
+        logger.info(f"Val batches: {len(val_loader)}")
+    logger.info(f"Test batches: {len(test_loader)}")
+
+    # Initialize model
+    model = initialize_model(input_dim=feature_dim, config=config, device=device)
+
+    # Train model
+    history = train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        config=config,
+        device=device,
+        use_tensorboard=config.get("logging", {}).get("tensorboard", True),
+    )
+
+    # Save model
+    saved_paths = save_model(model=model, history=history, config=config)
+
+    # Evaluate on test set
+    model.eval()
+    test_correct = 0
+    test_total = 0
+    test_loss = 0.0
+    criterion = nn.BCEWithLogitsLoss()
+
+    with torch.no_grad():
+        for features, labels in test_loader:
+            features = features.to(device)
+            labels = labels.to(device).float()
+
+            logits = model(features)
+            logits = logits.squeeze(-1) if logits.dim() > 1 else logits
+
+            loss = criterion(logits, labels)
+            test_loss += loss.item() * features.size(0)
+
+            predictions = (torch.sigmoid(logits) >= 0.5).float()
+            test_correct += (predictions == labels).sum().item()
+            test_total += labels.size(0)
+
+    test_accuracy = test_correct / max(test_total, 1)
+    avg_test_loss = test_loss / max(test_total, 1)
+
+    logger.info(f"Test Results - Loss: {avg_test_loss:.4f}, Accuracy: {test_accuracy:.4f}")
+
+    # Save test results
+    results_path = os.path.join(os.path.dirname(saved_paths.get("final_model", "./logs")), "test_results.pt")
+    torch.save({"test_accuracy": test_accuracy, "test_loss": avg_test_loss}, results_path)
+    logger.info(f"Test results saved to {results_path}")
+
+
+if __name__ == "__main__":
+    main()
+```

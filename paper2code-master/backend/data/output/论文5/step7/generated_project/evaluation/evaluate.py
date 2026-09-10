@@ -1,0 +1,413 @@
+"""
+Evaluation utilities for Temporal Fusion Transformer time-series forecasting.
+
+This module computes quantile-based evaluation metrics on test data and
+generates a human-readable report together with optional diagnostic plots.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Union
+
+import numpy as np
+import torch
+import yaml
+
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:  # pragma: no cover - optional dependency
+    plt = None
+
+from models.lstm import Lstm
+from models.transformer import Transformer
+from utils.metrics import compute_metrics
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_LOOKBACK = 168
+DEFAULT_HORIZON = 24
+DEFAULT_QUANTILES = (0.1, 0.5, 0.9)
+
+
+# ---------------------------------------------------------------------------
+# Config utilities
+# ---------------------------------------------------------------------------
+def _load_config(config: Optional[Union[str, Path, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Load configuration from a dict, path, or the project config.yaml.
+
+    All file reads use UTF-8 encoding.
+    """
+    if config is None:
+        cfg_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
+        if not cfg_path.exists():
+            logger.warning("config/config.yaml not found; using empty config.")
+            return {}
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+        except Exception:
+            return {}
+
+    if isinstance(config, dict):
+        return config
+
+    if isinstance(config, (str, Path)):
+        path = Path(config)
+        if not path.exists():
+            logger.warning("Config path %s not found; using empty config.", path)
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+        except Exception:
+            return {}
+
+    return {}
+
+
+def _resolve_device(config: Dict[str, Any], device: Optional[torch.device] = None) -> torch.device:
+    """Return a torch.device based on config or the user-provided value."""
+    if device is not None:
+        return device
+
+    device_str = str(config.get("system", {}).get("device", "cuda")).lower()
+    if device_str == "cuda" and torch.cuda.is_available():
+        return torch.device("cuda")
+    if device_str == "cuda" and not torch.cuda.is_available():
+        logger.warning("CUDA requested but not available; falling back to CPU.")
+        return torch.device("cpu")
+    return torch.device(device_str if device_str else "cpu")
+
+
+def _move_batch_to_device(batch: Dict[str, Any], device: torch.device) -> Dict[str, Any]:
+    """Move all tensor values in a batch dict to the target device."""
+    return {
+        key: value.to(device) if torch.is_tensor(value) else value
+        for key, value in batch.items()
+    }
+
+
+def _predict_batch(
+    model: torch.nn.Module,
+    batch: Dict[str, Any],
+    lookback: int,
+    horizon: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Run a single batch through an LSTM or Transformer model.
+
+    Returns:
+        (preds, targets) with shapes ``[B, H, Q]`` and ``[B, H]``
+        respectively.
+    """
+    x_real = batch["x_real"]
+    x_cat = batch.get("x_cat")
+    y = batch["y"]
+
+    if isinstance(model, Transformer):
+        if x_cat is None:
+            raise ValueError("Transformer requires x_cat in the batch")
+        static_features = x_cat[:, 0, :]  # [B, num_static]
+        past_features = x_real
+        last_step = x_real[:, -1:, :]
+        future_known = last_step.repeat(1, horizon, 1)
+        future_features = torch.cat([past_features, future_known], dim=1)
+        preds = model(static_features, past_features, future_features)
+    elif isinstance(model, Lstm):
+        past_inputs = x_real
+        last_step = x_real[:, -1:, :]
+        future_inputs = last_step.repeat(1, horizon, 1)
+        preds = model(past_inputs, future_inputs)
+    else:
+        raise TypeError(f"Unsupported model type: {type(model)}")
+
+    if preds.dim() == 4:
+        preds = preds.squeeze(-1)
+
+    # Ensure targets are 2D: [Batch, Horizon].
+    if y.dim() == 3 and y.size(-1) == 1:
+        y = y.squeeze(-1)
+
+    return preds, y
+
+
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+def evaluate_model(
+    model: Optional[torch.nn.Module] = None,
+    test_loader: Optional[Any] = None,
+    y_true: Optional[Union[np.ndarray, torch.Tensor, List]] = None,
+    y_pred: Optional[Union[np.ndarray, torch.Tensor, List]] = None,
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+    device: Optional[torch.device] = None,
+    lookback: int = DEFAULT_LOOKBACK,
+    horizon: int = DEFAULT_HORIZON,
+    quantiles: Optional[Sequence[float]] = None,
+    threshold: float = 0.5,
+    batch_size: int = 32,
+) -> Dict[str, Union[float, Dict[str, float]]]:
+    """Evaluate a trained model on a test set.
+
+    Either ``model`` and ``test_loader`` or ``y_true`` and ``y_pred`` must be
+    supplied.  When a model is provided, predictions are collected across all
+    batches and then passed to :func:`utils.metrics.compute_metrics`.
+
+    Parameters
+    ----------
+    model:
+        A trained ``Lstm`` or ``Transformer`` instance.
+    test_loader:
+        A PyTorch DataLoader whose batches contain ``x_real``, ``x_cat``
+        (optional for LSTM), and ``y`` keys.
+    y_true:
+        Ground-truth values, shape ``(N, H)`` or ``(N, H, 1)``.
+    y_pred:
+        Quantile predictions, shape ``(N, H, Q)`` or list/tuple of per-quantile
+        arrays.
+    config:
+        Optional config path or dict.
+    device:
+        Optional torch.device.  If omitted, the device is read from config.
+    lookback:
+        Number of past timesteps used by the model.
+    horizon:
+        Number of forecast timesteps.
+    quantiles:
+        Explicit quantile values.  When omitted, defaults are resolved inside
+        :func:`utils.metrics.compute_metrics`.
+    threshold:
+        Retained for API compatibility; not used by time-series metrics.
+    batch_size:
+        Retained for API compatibility; not used by time-series metrics.
+
+    Returns
+    -------
+    dict with ``q_risk``, ``p50_risk``, ``p90_risk``, and
+    ``normalized_quantile_losses``.
+    """
+    cfg = _load_config(config)
+
+    if y_true is not None and y_pred is not None:
+        return compute_metrics(
+            y_true=y_true,
+            y_pred=y_pred,
+            config=cfg,
+            quantiles=quantiles,
+            threshold=threshold,
+            batch_size=batch_size,
+        )
+
+    if model is None or test_loader is None:
+        raise ValueError(
+            "Either provide model + test_loader or y_true + y_pred for evaluation."
+        )
+
+    device = _resolve_device(cfg, device)
+    model.to(device)
+    model.eval()
+
+    all_preds: List[np.ndarray] = []
+    all_targets: List[np.ndarray] = []
+
+    with torch.no_grad():
+        for batch in test_loader:
+            batch = _move_batch_to_device(batch, device)
+            preds, targets = _predict_batch(model, batch, lookback, horizon)
+
+            if torch.is_tensor(preds):
+                preds = preds.detach().cpu().numpy()
+            else:
+                preds = np.asarray(preds)
+
+            if torch.is_tensor(targets):
+                targets = targets.detach().cpu().numpy()
+            else:
+                targets = np.asarray(targets)
+
+            all_preds.append(preds)
+            all_targets.append(targets)
+
+    if not all_preds:
+        raise ValueError("test_loader did not produce any evaluation batches.")
+
+    y_pred_all = np.concatenate(all_preds, axis=0)
+    y_true_all = np.concatenate(all_targets, axis=0)
+
+    return compute_metrics(
+        y_true=y_true_all,
+        y_pred=y_pred_all,
+        config=cfg,
+        quantiles=quantiles,
+        threshold=threshold,
+        batch_size=batch_size,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Optional plotting helpers
+# ---------------------------------------------------------------------------
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any],
+    output_path: Union[str, Path],
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+) -> Optional[str]:
+    """Generate a bar chart for scalar metrics.
+
+    The function is designed to be called with the full metrics dictionary.
+    If classification-style keys (``mean_f1``, ``precision``, ``recall``,
+    ``accuracy``) are present, they are plotted.  Otherwise every scalar
+    numeric metric (e.g. ``q_risk``, ``p50_risk``, ``p90_risk``) is plotted.
+    """
+    if plt is None:
+        logger.info("matplotlib is not installed; skipping metrics bar chart.")
+        return None
+
+    del config  # retained for API consistency
+
+    preferred_keys = ["mean_f1", "precision", "recall", "accuracy"]
+    keys = [
+        key
+        for key in preferred_keys
+        if isinstance(metrics.get(key), (int, float, np.number))
+        and not isinstance(metrics.get(key), bool)
+    ]
+
+    if not keys:
+        keys = [
+            key
+            for key, value in metrics.items()
+            if isinstance(value, (int, float, np.number))
+            and not isinstance(value, bool)
+        ]
+
+    if not keys:
+        return None
+
+    values = [float(metrics[key]) for key in keys]
+
+    try:
+        plt.figure(figsize=(8, 6))
+        plt.bar(keys, values)
+        plt.title("Evaluation metrics")
+        plt.ylabel("Value")
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        return str(output_path)
+    except Exception:
+        logger.exception("Failed to generate metrics bar chart.")
+        return None
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: Union[np.ndarray, List[List[float]], torch.Tensor],
+    output_path: Union[str, Path],
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+) -> Optional[str]:
+    """Generate a confusion-matrix heatmap plot.
+
+    This helper is provided for API compatibility with classification
+    evaluation workflows.  Time-series metrics do not normally include a
+    confusion matrix, so this function may not be called by the default
+    report.
+    """
+    if plt is None:
+        logger.info("matplotlib is not installed; skipping confusion matrix plot.")
+        return None
+
+    del config  # retained for API consistency
+
+    cm = np.asarray(confusion_matrix)
+    if cm.ndim != 2:
+        logger.warning("Confusion matrix must be 2D; skipping plot.")
+        return None
+
+    try:
+        plt.figure(figsize=(6, 5))
+        plt.imshow(cm, interpolation="nearest", cmap="Blues")
+        plt.colorbar()
+        plt.title("Confusion matrix")
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close()
+        return str(output_path)
+    except Exception:
+        logger.exception("Failed to generate confusion matrix plot.")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Report generation
+# ---------------------------------------------------------------------------
+def generate_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: Union[str, Path],
+    config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+) -> str:
+    """Generate a text report and optional diagnostic plots for one run.
+
+    Parameters
+    ----------
+    metrics:
+        Evaluation metrics returned by :func:`evaluate_model`.
+    run_name:
+        Run identifier used to name output files.
+    output_dir:
+        Directory in which ``run_name_report.txt`` and optional PNG files are
+        written.
+    config:
+        Optional config path or dict.
+
+    Returns
+    -------
+    Path to the generated text report.
+    """
+    cfg = _load_config(config)
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    q_risk = metrics.get("q_risk", float("nan"))
+    p50_risk = metrics.get("p50_risk", float("nan"))
+    p90_risk = metrics.get("p90_risk", float("nan"))
+    nqls = metrics.get("normalized_quantile_losses", {})
+
+    lines: List[str] = []
+    lines.append(f"Evaluation Report: {run_name}")
+    lines.append("=" * 60)
+    lines.append(f"q-Risk: {q_risk:.6f}")
+    lines.append(f"P50 risk: {p50_risk:.6f}")
+    lines.append(f"P90 risk: {p90_risk:.6f}")
+    lines.append("Normalized quantile losses:")
+
+    if isinstance(nqls, dict):
+        for q_key in sorted(nqls.keys()):
+            lines.append(f"  q={q_key}: {float(nqls[q_key]):.6f}")
+    else:
+        lines.append(f"  {nqls}")
+
+    lines.append("")
+    lines.append("Note: q-Risk = 2 * normalized quantile loss; P50/P90 risks are")
+    lines.append("q-risks at the corresponding quantile levels.")
+    lines.append("")
+
+    report_path = output_dir / f"{run_name}_report.txt"
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    # Generate optional diagnostic plots.  These are engineering aids and are
+    # not required to reproduce the paper's exact visualizations.
+    bar_path = output_dir / f"{run_name}_metrics_bar.png"
+    _generate_metrics_bar_chart(metrics, bar_path, cfg)
+
+    confusion_matrix = metrics.get("confusion_matrix")
+    if confusion_matrix is not None:
+        cm_path = output_dir / f"{run_name}_confusion_matrix.png"
+        _generate_confusion_matrix_plot(confusion_matrix, cm_path, cfg)
+
+    return str(report_path)

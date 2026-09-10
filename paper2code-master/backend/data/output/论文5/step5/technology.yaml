@@ -1,0 +1,48 @@
+paper_name: 论文5
+framework:
+  recommended: PyTorch
+  candidates:
+  - PyTorch
+  source: 复现代码统一使用 PyTorch；论文原文框架见 programming_framework_mentioned
+programming_framework_mentioned: NOT_FOUND
+model_backbone:
+  names:
+  - Temporal Fusion Transformer
+  - Gated Residual Network
+  - Interpretable Multi-Head Attention
+  - LSTM encoder-decoder
+  - lstm
+  - transformer
+  source: 论文提到
+architecture_details:
+  lstm: A sequence-to-sequence LSTM encoder-decoder is used for locality enhancement.
+    Past selected features xi_tilde_{t-k:t} are fed into the encoder and future selected
+    features xi_tilde_{t+1:t+tau_max} into the decoder. Static context vectors cc
+    and ch initialize the cell state and hidden state respectively for the first LSTM
+    in the layer. A gated skip connection is applied over this layer.
+  transformer: 'TFT uses a modified interpretable multi-head attention. Attention
+    is computed as Attention(Q,K,V)=A(Q,K)V, with scaled dot-product A(Q,K)=Softmax(QK^T/sqrt(d_attn)).
+    InterpretableMultiHead shares value weights across heads and uses additive aggregation:
+    InterpretableMultiHead(Q,K,V)=H_tilde WH, where H_tilde = (1/H) sum_{h=1}^{mH}
+    Attention(Q W_Q^{(h)}, K W_K^{(h)}) V WV. It sets dV=dattn=dmodel/mH. Decoder
+    masking ensures each temporal dimension can only attend to features preceding
+    it. The mod'
+training:
+  optimizer:
+    type: NOT_FOUND
+  loss:
+    type: 'Quantile loss: QL(y, yhat, q) = q(y-yhat)_+ + (1-q)(yhat-y)_+, summed across
+      all quantile outputs q in {0.1, 0.5, 0.9} and horizons tau=1,...,tau_max, divided
+      by M*tau_max. Test q-Risk = 2 * sum_{yt in Omega_tilde} sum_{tau=1}^{tau_max}
+      QL(yt, yhat(q,t-tau,tau),q) / sum_{tau=1}^{tau_max}|yt|.'
+  scheduler:
+    type: NOT_FOUND
+pretrained_weights:
+  used: false
+  source: NOT_FOUND
+special_modules: Gated Residual Network, Gated Linear Unit, variable selection networks,
+  static covariate encoders, interpretable multi-head attention, sequence-to-sequence
+  LSTM encoder-decoder, static enrichment layer, temporal self-attention layer, positionwise
+  feedforward layer, quantile output layer.
+hardware:
+  mentioned: NVIDIA Tesla V100 GPU

@@ -1,0 +1,183 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+import os
+
+def analyze_image(image_path, ocr_text):
+    """分析论文图片并返回分类结果"""
+    try:
+        # 读取图片（支持中文路径）
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法读取图片",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # 获取图片基本信息
+        height, width = img.shape[:2]
+        
+        # 将OCR文字转为大写便于匹配
+        ocr_upper = ocr_text.upper()
+        
+        # 定义关键词列表
+        architecture_keywords = [
+            "CNN", "TRANSFORMER", "ATTENTION", "ENCODER", "DECODER",
+            "BLOCK", "EMBEDDING", "CLASSIFIER", "FEATURE EXTRACTOR",
+            "ALEXNET", "RESNET", "VGG", "GOOGLENET"
+        ]
+        
+        experiment_keywords = [
+            "ACCURACY", "LOSS", "EPOCH", "PRECISION", "RECALL", "F1",
+            "PERFORMANCE", "TRAINING", "VALIDATION", "TEST"
+        ]
+        
+        dataset_keywords = [
+            "DATASET", "SAMPLE", "EXAMPLE", "INPUT", "TRAINING DATA",
+            "IMAGE DATASET", "DATA SAMPLES"
+        ]
+        
+        # 检查是否包含architecture关键词
+        has_architecture = any(kw in ocr_upper for kw in architecture_keywords)
+        
+        # 检查是否包含experiment关键词
+        has_experiment = any(kw in ocr_upper for kw in experiment_keywords)
+        
+        # 检查是否包含dataset关键词
+        has_dataset = any(kw in ocr_upper for kw in dataset_keywords)
+        
+        # 判断图片类型（按优先级）
+        if has_experiment:
+            # 检查是否包含实验相关指标
+            metrics = []
+            if "ACCURACY" in ocr_upper:
+                metrics.append("Accuracy")
+            if "LOSS" in ocr_upper:
+                metrics.append("Loss")
+            if "PRECISION" in ocr_upper:
+                metrics.append("Precision")
+            if "RECALL" in ocr_upper:
+                metrics.append("Recall")
+            if "F1" in ocr_upper:
+                metrics.append("F1-score")
+            if "EPOCH" in ocr_upper:
+                metrics.append("Epoch")
+            
+            # 提取模型名称
+            models = []
+            for kw in ["ALEXNET", "RESNET", "VGG", "GOOGLENET", "CNN", "TRANSFORMER"]:
+                if kw in ocr_upper:
+                    models.append(kw.capitalize())
+            
+            components = models + metrics if models else metrics
+            
+            return {
+                "type": "experiment_result",
+                "description": "展示模型性能对比或训练过程中的指标变化",
+                "important_components": components[:5] if components else [],
+                "code_relevant_information": "需要实现模型训练和评估流程，包含指标计算和可视化"
+            }
+        
+        elif has_architecture:
+            # 提取模型组件
+            components = []
+            for kw in architecture_keywords:
+                if kw in ocr_upper:
+                    if kw == "CNN":
+                        components.append("CNN")
+                    elif kw == "TRANSFORMER":
+                        components.append("Transformer")
+                    elif kw == "ATTENTION":
+                        components.append("Attention Module")
+                    elif kw == "ENCODER":
+                        components.append("Encoder")
+                    elif kw == "DECODER":
+                        components.append("Decoder")
+                    elif kw == "BLOCK":
+                        components.append("Block")
+                    elif kw == "EMBEDDING":
+                        components.append("Embedding")
+                    elif kw == "CLASSIFIER":
+                        components.append("Classifier")
+                    elif kw == "FEATURE EXTRACTOR":
+                        components.append("Feature Extractor")
+                    elif kw == "ALEXNET":
+                        components.append("AlexNet")
+                    elif kw == "RESNET":
+                        components.append("ResNet")
+                    elif kw == "VGG":
+                        components.append("VGG")
+                    elif kw == "GOOGLENET":
+                        components.append("GoogLeNet")
+            
+            return {
+                "type": "architecture",
+                "description": "展示模型网络结构和数据流关系",
+                "important_components": components[:5] if components else [],
+                "code_relevant_information": "需要实现模型网络结构，包含特征提取和分类模块"
+            }
+        
+        elif has_dataset:
+            return {
+                "type": "dataset",
+                "description": "展示数据集样本或输入数据示例",
+                "important_components": [],
+                "code_relevant_information": "需要实现数据加载和预处理流程"
+            }
+        
+        else:
+            return {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+            
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "图片分析过程中出现错误",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+def main():
+    try:
+        # 获取图片路径
+        if len(sys.argv) < 2:
+            print(json.dumps({
+                "type": "other",
+                "description": "未提供图片路径",
+                "important_components": [],
+                "code_relevant_information": ""
+            }, ensure_ascii=False))
+            return
+        
+        image_path = sys.argv[1]
+        
+        # OCR文字（由外部提供）
+        ocr_text = "TL"
+        
+        # 分析图片
+        result = analyze_image(image_path, ocr_text)
+        
+        # 输出JSON
+        print(json.dumps(result, ensure_ascii=False))
+        
+    except Exception as e:
+        print(json.dumps({
+            "type": "other",
+            "description": "程序执行出错",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```

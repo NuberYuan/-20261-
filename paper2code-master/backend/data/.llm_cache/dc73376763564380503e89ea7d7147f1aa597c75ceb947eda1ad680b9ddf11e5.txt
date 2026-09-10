@@ -1,0 +1,597 @@
+```python
+import os
+import json
+import random
+import logging
+from typing import Dict, List, Optional, Tuple, Any
+
+import yaml
+import torch
+from torch.utils.data import Dataset
+
+
+logger = logging.getLogger(__name__)
+
+
+class DiverseInstructionFollowingDatasetsIncludingOpenInstructKnowledgeIntensiveDatasetsPopQATriviaQAPubHealthARCChallengeBiographyASQADataset(Dataset):
+    """
+    Dataset class for SELF-RAG training and evaluation.
+
+    Loads and preprocesses diverse instruction-following datasets including:
+    - Open-Instruct
+    - PopQA
+    - TriviaQA
+    - PubHealth
+    - ARC-Challenge
+    - Biography
+    - ASQA
+
+    The dataset is designed to provide instruction-output pairs for training
+    the SELF-RAG model with a standard next token objective (cross-entropy).
+    """
+
+    def __init__(
+        self,
+        version: str = "default",
+        config: Optional[Dict[str, Any]] = None,
+        split: str = "train",
+        seed: int = 42,
+        max_samples: Optional[int] = None,
+    ):
+        """
+        Initialize the dataset.
+
+        Args:
+            version: Dataset version (only 'default' is supported).
+            config: Configuration dictionary loaded from config.yaml.
+            split: Dataset split ('train', 'val', or 'test').
+            seed: Random seed for reproducibility.
+            max_samples: Maximum number of samples to load (for testing).
+        """
+        super().__init__()
+
+        if config is None:
+            config = self._load_default_config()
+
+        self.version = version
+        self.config = config
+        self.split = split
+        self.seed = seed
+        self.max_samples = max_samples
+
+        # Validate version
+        valid_versions = ["default"]
+        if version not in valid_versions:
+            raise ValueError(
+                f"Unsupported dataset version '{version}'. "
+                f"Supported versions: {valid_versions}"
+            )
+
+        # Load raw data
+        self.raw_data = self._load_raw_data()
+
+        # Preprocess data
+        self.data = self.preprocess_data(self.raw_data)
+
+        # Split dataset
+        self.data = self.split_dataset(self.data, split=split, seed=seed)
+
+        # Apply max_samples limit if specified
+        if self.max_samples is not None and self.max_samples > 0:
+            self.data = self.data[: self.max_samples]
+
+        logger.info(
+            f"Dataset initialized: version={version}, split={split}, "
+            f"samples={len(self.data)}"
+        )
+
+    def _load_default_config(self) -> Dict[str, Any]:
+        """Load default configuration from config.yaml."""
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "config",
+            "config.yaml",
+        )
+        with open(config_path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    def _load_raw_data(self) -> List[Dict[str, Any]]:
+        """
+        Load raw data from the dataset directory.
+
+        The data is expected to be in JSONL format with fields:
+        - instruction: the instruction/prompt
+        - output: the expected output
+        - dataset: the source dataset name
+
+        Returns:
+            List of raw data samples.
+        """
+        data_root = self.config.get("data", {}).get("root", "./data")
+        version_path = self.config.get("data", {}).get(
+            "default", {}
+        ).get("path", os.path.join(data_root, "default"))
+
+        raw_samples = []
+
+        # Try to load from JSONL files
+        jsonl_files = [
+            os.path.join(version_path, "train.jsonl"),
+            os.path.join(version_path, "data.jsonl"),
+            os.path.join(version_path, "dataset.jsonl"),
+        ]
+
+        for file_path in jsonl_files:
+            if os.path.exists(file_path):
+                logger.info(f"Loading data from {file_path}")
+                with open(file_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                sample = json.loads(line)
+                                raw_samples.append(sample)
+                            except json.JSONDecodeError as e:
+                                logger.warning(f"Skipping invalid JSON line: {e}")
+                break
+
+        # If no JSONL files found, try JSON
+        if not raw_samples:
+            json_files = [
+                os.path.join(version_path, "train.json"),
+                os.path.join(version_path, "data.json"),
+                os.path.join(version_path, "dataset.json"),
+            ]
+
+            for file_path in json_files:
+                if os.path.exists(file_path):
+                    logger.info(f"Loading data from {file_path}")
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        if isinstance(data, list):
+                            raw_samples = data
+                        elif isinstance(data, dict):
+                            # Try common keys
+                            for key in ["data", "samples", "examples", "train"]:
+                                if key in data and isinstance(data[key], list):
+                                    raw_samples = data[key]
+                                    break
+                    break
+
+        # If still no data, generate synthetic samples for testing
+        if not raw_samples:
+            logger.warning(
+                "No data files found. Generating synthetic samples for testing."
+            )
+            raw_samples = self._generate_synthetic_samples()
+
+        logger.info(f"Loaded {len(raw_samples)} raw samples")
+        return raw_samples
+
+    def _generate_synthetic_samples(self, num_samples: int = 1000) -> List[Dict[str, Any]]:
+        """
+        Generate synthetic samples for testing when no real data is available.
+
+        Args:
+            num_samples: Number of synthetic samples to generate.
+
+        Returns:
+            List of synthetic samples.
+        """
+        datasets = [
+            "open_instruct",
+            "popqa",
+            "triviaqa",
+            "pubhealth",
+            "arc_challenge",
+            "biography",
+            "asqa",
+        ]
+
+        templates = [
+            {
+                "instruction": "Answer the following question: {question}",
+                "question": "What is the capital of France?",
+                "output": "Paris",
+            },
+            {
+                "instruction": "Answer the following question: {question}",
+                "question": "Who wrote Romeo and Juliet?",
+                "output": "William Shakespeare",
+            },
+            {
+                "instruction": "Answer the following question: {question}",
+                "question": "What is the largest planet in our solar system?",
+                "output": "Jupiter",
+            },
+            {
+                "instruction": "Answer the following question: {question}",
+                "question": "What is the chemical symbol for gold?",
+                "output": "Au",
+            },
+            {
+                "instruction": "Answer the following question: {question}",
+                "question": "Who painted the Mona Lisa?",
+                "output": "Leonardo da Vinci",
+            },
+            {
+                "instruction": "Answer the following question: {question}",
+                "question": "What is the speed of light?",
+                "output": "299,792,458 meters per second",
+            },
+            {
+                "instruction": "Answer the following question: {question}",
+                "question": "What is the tallest mountain in the world?",
+                "output": "Mount Everest",
+            },
+            {
+                "instruction": "Answer the following question: {question}",
+                "question": "Who discovered penicillin?",
+                "output": "Alexander Fleming",
+            },
+        ]
+
+        samples = []
+        for i in range(num_samples):
+            template = templates[i % len(templates)]
+            dataset = datasets[i % len(datasets)]
+            sample = {
+                "instruction": template["instruction"].format(
+                    question=template["question"]
+                ),
+                "output": template["output"],
+                "dataset": dataset,
+                "id": f"synthetic_{i}",
+            }
+            samples.append(sample)
+
+        return samples
+
+    def preprocess_data(self, raw_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Preprocess the raw data.
+
+        This method handles:
+        - Text normalization
+        - Standardization of instruction-output pairs
+        - Filtering of invalid samples
+
+        Args:
+            raw_data: List of raw data samples.
+
+        Returns:
+            List of preprocessed samples.
+        """
+        processed_data = []
+
+        for sample in raw_data:
+            try:
+                processed_sample = self._preprocess_sample(sample)
+                if processed_sample is not None:
+                    processed_data.append(processed_sample)
+            except Exception as e:
+                logger.warning(f"Error preprocessing sample: {e}")
+                continue
+
+        logger.info(f"Preprocessed {len(processed_data)} samples")
+        return processed_data
+
+    def _preprocess_sample(self, sample: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Preprocess a single sample.
+
+        Args:
+            sample: Raw sample dictionary.
+
+        Returns:
+            Preprocessed sample or None if invalid.
+        """
+        # Extract instruction and output
+        instruction = sample.get("instruction") or sample.get("prompt") or sample.get("question")
+        output = sample.get("output") or sample.get("answer") or sample.get("response")
+
+        if instruction is None or output is None:
+            return None
+
+        # Convert to string
+        instruction = str(instruction).strip()
+        output = str(output).strip()
+
+        if not instruction or not output:
+            return None
+
+        # Get dataset name
+        dataset = sample.get("dataset", "unknown")
+
+        # Get additional context if available
+        context = sample.get("context") or sample.get("passages") or None
+
+        # Normalize whitespace
+        instruction = " ".join(instruction.split())
+        output = " ".join(output.split())
+
+        processed = {
+            "instruction": instruction,
+            "output": output,
+            "dataset": dataset,
+            "id": sample.get("id", f"{dataset}_{len(self.raw_data)}"),
+        }
+
+        if context is not None:
+            if isinstance(context, list):
+                context = " ".join([str(c) for c in context])
+            processed["context"] = str(context)
+
+        return processed
+
+    def split_dataset(
+        self,
+        data: List[Dict[str, Any]],
+        split: str = "train",
+        seed: int = 42,
+    ) -> List[Dict[str, Any]]:
+        """
+        Split the dataset into train/val/test sets.
+
+        Args:
+            data: List of preprocessed samples.
+            split: Which split to return ('train', 'val', or 'test').
+            seed: Random seed for reproducibility.
+
+        Returns:
+            List of samples for the requested split.
+        """
+        if split not in ["train", "val", "test"]:
+            raise ValueError(f"Invalid split: {split}")
+
+        # Get split ratios from config
+        split_strategy = self.config.get("split_strategy", {})
+        default_train_ratio = split_strategy.get("default_train_ratio", 0.8)
+        val_split_ratio = split_strategy.get("val_split_ratio", 0.2)
+
+        # Calculate split sizes
+        total_size = len(data)
+        train_size = int(total_size * default_train_ratio)
+        val_size = int(train_size * val_split_ratio)
+        train_size = train_size - val_size
+        test_size = total_size - train_size - val_size
+
+        # Shuffle data
+        rng = random.Random(seed)
+        shuffled_indices = list(range(total_size))
+        rng.shuffle(shuffled_indices)
+
+        # Split indices
+        train_indices = shuffled_indices[:train_size]
+        val_indices = shuffled_indices[train_size : train_size + val_size]
+        test_indices = shuffled_indices[train_size + val_size :]
+
+        if split == "train":
+            indices = train_indices
+        elif split == "val":
+            indices = val_indices
+        else:
+            indices = test_indices
+
+        split_data = [data[i] for i in indices]
+
+        logger.info(
+            f"Split '{split}': {len(split_data)} samples "
+            f"(train={len(train_indices)}, val={len(val_indices)}, test={len(test_indices)})"
+        )
+
+        return split_data
+
+    def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
+        return len(self.data)
+
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """
+        Get a sample by index.
+
+        Args:
+            idx: Sample index.
+
+        Returns:
+            Dictionary containing the sample data.
+        """
+        if idx < 0 or idx >= len(self.data):
+            raise IndexError(f"Index {idx} out of range for dataset of size {len(self.data)}")
+
+        sample = self.data[idx]
+
+        # Return a copy to prevent accidental modification
+        return {
+            "instruction": sample["instruction"],
+            "output": sample["output"],
+            "dataset": sample["dataset"],
+            "id": sample["id"],
+            "context": sample.get("context", ""),
+        }
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get dataset statistics.
+
+        Returns:
+            Dictionary with dataset statistics.
+        """
+        dataset_counts = {}
+        total_chars = 0
+
+        for sample in self.data:
+            dataset = sample["dataset"]
+            dataset_counts[dataset] = dataset_counts.get(dataset, 0) + 1
+            total_chars += len(sample["instruction"]) + len(sample["output"])
+
+        return {
+            "total_samples": len(self.data),
+            "dataset_distribution": dataset_counts,
+            "total_chars": total_chars,
+            "avg_chars_per_sample": total_chars / len(self.data) if self.data else 0,
+        }
+
+
+def get_dataloaders(
+    config: Optional[Dict[str, Any]] = None,
+    version: str = "default",
+    batch_size: int = 32,
+    num_workers: int = 4,
+    seed: int = 42,
+) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+    """
+    Create DataLoaders for train, validation, and test splits.
+
+    Args:
+        config: Configuration dictionary.
+        version: Dataset version (default: 'default').
+        batch_size: Batch size for DataLoaders.
+        num_workers: Number of worker processes.
+        seed: Random seed.
+
+    Returns:
+        Tuple of (train_loader, val_loader, test_loader).
+    """
+    if config is None:
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "config",
+            "config.yaml",
+        )
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+    # Get batch size from config if not provided
+    if batch_size is None:
+        batch_size = config.get("training", {}).get("batch_size", 32)
+        if batch_size is None:
+            batch_size = 32
+
+    # Get num_workers from config if not provided
+    if num_workers is None:
+        num_workers = config.get("system", {}).get("num_workers", 4)
+
+    # Get seed from config if not provided
+    if seed is None:
+        seed = config.get("system", {}).get("seed", 42)
+
+    # Create datasets for each split
+    train_dataset = DiverseInstructionFollowingDatasetsIncludingOpenInstructKnowledgeIntensiveDatasetsPopQATriviaQAPubHealthARCChallengeBiographyASQADataset(
+        version=version,
+        config=config,
+        split="train",
+        seed=seed,
+    )
+
+    val_dataset = DiverseInstructionFollowingDatasetsIncludingOpenInstructKnowledgeIntensiveDatasetsPopQATriviaQAPubHealthARCChallengeBiographyASQADataset(
+        version=version,
+        config=config,
+        split="val",
+        seed=seed,
+    )
+
+    test_dataset = DiverseInstructionFollowingDatasetsIncludingOpenInstructKnowledgeIntensiveDatasetsPopQATriviaQAPubHealthARCChallengeBiographyASQADataset(
+        version=version,
+        config=config,
+        split="test",
+        seed=seed,
+    )
+
+    # Create DataLoaders
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+
+    logger.info(
+        f"Created DataLoaders: train={len(train_dataset)}, "
+        f"val={len(val_dataset)}, test={len(test_dataset)}"
+    )
+
+    return train_loader, val_loader, test_loader
+
+
+def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Collate function for batching samples.
+
+    Args:
+        batch: List of sample dictionaries.
+
+    Returns:
+        Dictionary with batched data.
+    """
+    instructions = [item["instruction"] for item in batch]
+    outputs = [item["output"] for item in batch]
+    datasets = [item["dataset"] for item in batch]
+    ids = [item["id"] for item in batch]
+    contexts = [item.get("context", "") for item in batch]
+
+    return {
+        "instruction": instructions,
+        "output": outputs,
+        "dataset": datasets,
+        "id": ids,
+        "context": contexts,
+    }
+
+
+if __name__ == "__main__":
+    # Basic test
+    logging.basicConfig(level=logging.INFO)
+
+    # Test dataset initialization
+    dataset = DiverseInstructionFollowingDatasetsIncludingOpenInstructKnowledgeIntensiveDatasetsPopQATriviaQAPubHealthARCChallengeBiographyASQADataset(
+        version="default",
+        split="train",
+    )
+
+    print(f"Dataset size: {len(dataset)}")
+    print(f"Statistics: {dataset.get_statistics()}")
+
+    # Test getitem
+    if len(dataset) > 0:
+        sample = dataset[0]
+        print(f"Sample keys: {list(sample.keys())}")
+        print(f"Instruction: {sample['instruction'][:100]}...")
+        print(f"Output: {sample['output'][:100]}...")
+
+    # Test dataloaders
+    train_loader, val_loader, test_loader = get_dataloaders(
+        batch_size=4,
+        num_workers=0,
+    )
+
+    print(f"Train batches: {len(train_loader)}")
+    print(f"Val batches: {len(val_loader)}")
+    print(f"Test batches: {len(test_loader)}")
+
+    # Test one batch
+    for batch in train_loader:
+        print(f"Batch keys: {list(batch.keys())}")
+        print(f"Batch size: {len(batch['instruction'])}")
+        break
+```

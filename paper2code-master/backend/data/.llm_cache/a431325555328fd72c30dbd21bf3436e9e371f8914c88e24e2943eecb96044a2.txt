@@ -1,0 +1,21 @@
+{
+  "table_id": "table_2",
+  "table_type": "other",
+  "caption_summary": "A fragment of text showing partial decoding output from a BART-based model, likely illustrating a generation example.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {
+        "label": "content",
+        "value": "eding the BART-only baseline with the partial decoding \" |  |  |  |  |  |  |  |  |  |  |  |  | The"
+      },
+      {
+        "label": "example_text",
+        "value": "\"The | Sun | Also | Rises \" is | a | novel | by | this | au | thor | of \"The | Sun"
+      }
+    ]
+  },
+  "table_summary": "The table appears to be a text fragment, not a structured data table. It shows a partial decoding output from a BART-based model, possibly as an example in a paper about retrieval-augmented generation. No numerical metrics or method comparisons are present."
+}

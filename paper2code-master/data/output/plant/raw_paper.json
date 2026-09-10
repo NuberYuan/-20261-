@@ -1,0 +1,1623 @@
+{
+    "paragraphs": [
+        {
+            "id": 1,
+            "block_id": 0,
+            "page": 1,
+            "bbox": [
+                51.85599899291992,
+                47.6682243347168,
+                495.1961364746094,
+                102.94257354736328
+            ],
+            "type": "unknown",
+            "text": "Using Deep Learning for Image-Based Plant\nDisease Detection"
+        },
+        {
+            "id": 2,
+            "block_id": 1,
+            "page": 1,
+            "bbox": [
+                51.85599899291992,
+                106.82122039794922,
+                347.4415588378906,
+                119.97000885009766
+            ],
+            "type": "unknown",
+            "text": "Sharada Prasanna Mohanty1,2, David Hughes3,4,5, and Marcel Salathé1,2,6"
+        },
+        {
+            "id": 3,
+            "block_id": 2,
+            "page": 1,
+            "bbox": [
+                51.516998291015625,
+                126.3160400390625,
+                556.584716796875,
+                152.75912475585938
+            ],
+            "type": "unknown",
+            "text": "1Digital Epidemiology Lab, EPFL, Switzerland; 2School of Life Sciences, EPFL, Switzerland; 3Department of Entomology, College of Agricultural Sciences, Penn State\nUniversity, USA; 4Department of Biology, Eberly College of Sciences, Penn State University, USA; 5Center for Infectious Disease Dynamics, Huck Institutes of Life Sciences,\nPenn State University, USA; 6School of Computer and Communication Sciences, EPFL, Switzerland"
+        },
+        {
+            "id": 4,
+            "block_id": 3,
+            "page": 1,
+            "bbox": [
+                51.6510009765625,
+                160.498291015625,
+                192.33517456054688,
+                168.70016479492188
+            ],
+            "type": "unknown",
+            "text": "This manuscript was compiled on April 15, 2016"
+        },
+        {
+            "id": 5,
+            "block_id": 4,
+            "page": 1,
+            "bbox": [
+                51.62099838256836,
+                179.49557495117188,
+                298.5085754394531,
+                397.2244873046875
+            ],
+            "type": "unknown",
+            "text": "Crop diseases are a major threat to food security, but their rapid\nidentiﬁcation remains difﬁcult in many parts of the world due to the\nlack of the necessary infrastructure. The combination of increasing\nglobal smartphone penetration and recent advances in computer\nvision made possible by deep learning has paved the way for\nsmartphone-assisted disease diagnosis. Using a public dataset of\n54,306 images of diseased and healthy plant leaves collected under\ncontrolled conditions, we train a deep convolutional neural network\nto identify 14 crop species and 26 diseases (or absence thereof).\nThe trained model achieves an accuracy of 99.35% on a held-out test\nset, demonstrating the feasibility of this approach. When testing the\nmodel on a set of images collected from trusted online sources - i.e.\ntaken under conditions different from the images used for training -\nthe model still achieves an accuracy of 31.4%. While this accuracy\nis much higher than the one based on random selection (2.6%), a\nmore diverse set of training data is needed to improve the general\naccuracy. Overall, the approach of training deep learning models on\nincreasingly large and publicly available image datasets presents a\nclear path towards smartphone-assisted crop disease diagnosis on\na massive global scale."
+        },
+        {
+            "id": 6,
+            "block_id": 5,
+            "page": 1,
+            "bbox": [
+                51.85599899291992,
+                417.3564453125,
+                240.31686401367188,
+                431.82708740234375
+            ],
+            "type": "unknown",
+            "text": "Deep Learning | Crop Diseases | Digital Epidemiology"
+        },
+        {
+            "id": 7,
+            "block_id": 6,
+            "page": 1,
+            "bbox": [
+                51.85599899291992,
+                435.5931091308594,
+                77.18904113769531,
+                472.6601867675781
+            ],
+            "type": "unknown",
+            "text": "M"
+        },
+        {
+            "id": 8,
+            "block_id": 7,
+            "page": 1,
+            "bbox": [
+                51.85599899291992,
+                444.7248840332031,
+                298.5808410644531,
+                610.1851806640625
+            ],
+            "type": "unknown",
+            "text": "odern technologies have given human society the ability\nto produce enough food to meet the demand of more\nthan 7 billion people. However, food security remains threat-\nened by a number of factors including climate change[1], the\ndecline in pollinators[2], plant diseases [3], and others. Plant\ndiseases are not only a threat to food security at the global\nscale, but can also have disastrous consequences for small-\nholder farmers whose livelihoods depend on healthy crops. In\nthe developing world, more than 80 percent of the agricultural\nproduction is generated by smallholder farmers [4], and reports\nof yield loss of more than 50% due to pests and diseases are\ncommon [5]. Furthermore, the largest fraction of hungry peo-\nple (50%) live in smallholder farming households [6], making\nsmallholder farmers a group that’s particularly vulnerable to\npathogen-derived disruptions in food supply."
+        },
+        {
+            "id": 9,
+            "block_id": 8,
+            "page": 1,
+            "bbox": [
+                51.85599899291992,
+                611.5079345703125,
+                298.57586669921875,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "Various eﬀorts have been developed to prevent crop loss due\nto diseases. Historical approaches of widespread application\nof pesticides have in the past decade increasingly been sup-\nplemented by integrated pest management (IPM) approaches\n[7]. Independent of the approach, identifying a disease cor-\nrectly when it ﬁrst appears is a crucial step for eﬃcient disease\nmanagement.\nHistorically, disease identiﬁcation has been\nsupported by agricultural extension organizations or other\ninstitutions such as local plant clinics. In more recent times,\nsuch eﬀorts have additionally been supported by providing\ninformation for disease diagnosis online, leveraging the increas-"
+        },
+        {
+            "id": 10,
+            "block_id": 9,
+            "page": 1,
+            "bbox": [
+                310.4830017089844,
+                177.02090454101562,
+                555.6627807617188,
+                222.48019409179688
+            ],
+            "type": "unknown",
+            "text": "ing internet penetration worldwide. Even more recently, tools\nbased on mobile phones have proliferated, taking advantage\nof the historically unparalleled rapid uptake of mobile phone\ntechnology in all parts of the world[8]."
+        },
+        {
+            "id": 11,
+            "block_id": 10,
+            "page": 1,
+            "bbox": [
+                310.1610107421875,
+                222.64889526367188,
+                557.2072143554688,
+                420.835205078125
+            ],
+            "type": "unknown",
+            "text": "Smartphones in particular oﬀer very novel approaches to\nhelp identify diseases because of their tremendous computing\npower, high-resolution displays, and extensive built-in sets\nof accessories such as advanced HD cameras.\nIt is widely\nestimated that there will be between 5 and 6 billion smart-\nphones on the globe by 2020. At the end of 2015, already\n69% of the world’s population had access to mobile broad-\nband coverage, and mobile broadband penetration reached\n47% in 2015, a 12-fold increase since 2007[8]. The combined\nfactors of widespread smartphone penetration, HD cameras,\nand high performance processors in mobile devices lead to a\nsituation where disease diagnosis based on automated image\nrecognition, if technically feasible, can be made available at an\nunprecedented scale. Here, we demonstrate the technical fea-\nsibility using a deep learning approach utilizing 54,306 images\nof 14 crop species with 26 diseases (or healthy) made openly\navailable through the project PlantVillage[9]. An example of\neach crop - disease pair cann bee seen in Figure 1."
+        },
+        {
+            "id": 12,
+            "block_id": 11,
+            "page": 1,
+            "bbox": [
+                310.2439880371094,
+                421.00390625,
+                557.4528198242188,
+                564.6451416015625
+            ],
+            "type": "unknown",
+            "text": "Computer vision, and object recognition in particular,\nhas made tremendous advances in the past few years. The\nPASCAL VOC Challenge[10], and more recently the Large\nScale Visual Recognition Challenge (ILSVRC)[11] based on the\nImageNet dataset[12] have been widely used as benchmarks for\nnumerous visualization-related problems in computer vision,\nincluding object classiﬁcation. In 2012, a large, deep convo-\nlutional neural network achieved a top-5 error of 16.4% for\nthe classiﬁcation of images into 1,000 possible categories[13].\nIn the following three years, various advances in deep convo-\nlutional neural networks lowered the error rate to 3.57% [13]\n[14] [15] [16] [17]. While training large neural networks can be\nvery time-consuming, the trained models can classify images"
+        },
+        {
+            "id": 13,
+            "block_id": 12,
+            "page": 1,
+            "bbox": [
+                317.1579895019531,
+                591.7481689453125,
+                421.2959289550781,
+                603.6355590820312
+            ],
+            "type": "unknown",
+            "text": "Signiﬁcance Statement"
+        },
+        {
+            "id": 14,
+            "block_id": 13,
+            "page": 1,
+            "bbox": [
+                316.85101318359375,
+                608.5023193359375,
+                550.3997192382812,
+                695.41162109375
+            ],
+            "type": "unknown",
+            "text": "Crop diseases remain a major threat to food supply world-\nwide. This paper demonstrates the technical feasibility of a\ndeep learning approach to enable automatic disease diagnosis\nthrough image recognition. Using a public dataset of 54,306 im-\nages of diseased and healthy plant leaves, a deep convolutional\nneural network is trained to classify crop species and disease\nstatus of 38 different classes containing 14 crop species and\n26 diseases, achieving an accuracy of over 99%."
+        },
+        {
+            "id": 15,
+            "block_id": 14,
+            "page": 1,
+            "bbox": [
+                310.4830017089844,
+                724.0371704101562,
+                428.5203552246094,
+                731.0673828125
+            ],
+            "type": "unknown",
+            "text": "Corresponding author: marcel.salathe@epﬂ.ch"
+        },
+        {
+            "id": 16,
+            "block_id": 15,
+            "page": 1,
+            "bbox": [
+                491.74700927734375,
+                749.3062744140625,
+                555.6605224609375,
+                757.6539306640625
+            ],
+            "type": "unknown",
+            "text": "April 15, 2016\n|\n1"
+        },
+        {
+            "id": 17,
+            "block_id": 0,
+            "page": 2,
+            "bbox": [
+                56.13399887084961,
+                276.9312744140625,
+                302.6189270019531,
+                464.4611511230469
+            ],
+            "type": "unknown",
+            "text": "Fig. 1. Example of leaf images from the PlantVillage dataset, representing every\ncrop-disease pair used. 1) Apple Scab, Venturia inaequalis 2) Apple Black Rot,\nBotryosphaeria obtusa 3) Apple Cedar Rust, Gymnosporangium juniperi-virginianae\n4) Apple healthy 5) Blueberry healthy 6) Cherry healthy 7) Cherry Powdery Mildew, Po-\ndosphaera spp. 8) Corn Gray Leaf Spot, Cercospora zeae-maydis 9) Corn Common\nRust, Puccinia sorghi 10) Corn healthy 11) Corn Northern Leaf Blight, Exserohilum\nturcicum 12) Grape Black Rot, Guignardia bidwellii, 13) Grape Black Measles (Esca),\nPhaeomoniella aleophilum, Phaeomoniella chlamydospora 14) Grape Healthy 15)\nGrape Leaf Blight, Pseudocercospora vitis 16) Orange Huanglongbing (Citrus Green-\ning), Candidatus Liberibacter spp. 17) Peach Bacterial Spot, Xanthomonas campestris\n18) Peach healthy 19) Bell Pepper Bacterial Spot, Xanthomonas campestris 20) Bell\nPepper healthy 21) Potato Early Blight, Alternaria solani\n22) Potato healthy 23)\nPotato Late Blight, Phytophthora infestans 24) Raspberry healthy 25) Soybean healthy\n26) Squash Powdery Mildew, Erysiphe cichoracearum, Sphaerotheca fuliginea 27)\nStrawberry Healthy 28) Strawberry Leaf Scorch, Diplocarpon earlianum 29) Tomato\nBacterial Spot, Xanthomonas campestris pv. vesicatoria 30) Tomato Early Blight,\nAlternaria solani 31) Tomato Late Blight, Phytophthora infestans 32) Tomato Leaf\nMold, Fulvia fulva 33) Tomato Septoria Leaf Spot, Septoria lycopersici 34) Tomato\nTwo Spotted Spider Mite, Tetranychus urticae 35) Tomato Target Spot, Corynespora\ncassiicola 36) Tomato Mosaic Virus 37) Tomato Yellow Leaf Curl Virus 38) Tomato\nhealthy"
+        },
+        {
+            "id": 18,
+            "block_id": 1,
+            "page": 2,
+            "bbox": [
+                56.099998474121094,
+                482.660888671875,
+                301.701171875,
+                506.30218505859375
+            ],
+            "type": "unknown",
+            "text": "very quickly, which makes them also suitable for consumer\napplications on smartphones."
+        },
+        {
+            "id": 19,
+            "block_id": 2,
+            "page": 2,
+            "bbox": [
+                55.26100158691406,
+                504.7859191894531,
+                303.0621032714844,
+                659.336181640625
+            ],
+            "type": "unknown",
+            "text": "In order to develop accurate image classiﬁers for the pur-\nposes of plant disease diagnosis, we needed a large, veriﬁed\ndataset of images of diseased and healthy plants. Until very re-\ncently, such a dataset did not exist, and even smaller datasets\nwere not freely available. To address this problem, the PlantVil-\nlage project has begun collecting tens of thousands of images\nof healthy and diseased crop plants [9], and has made them\nopenly and freely available. Here, we report on the classiﬁca-\ntion of 26 diseases in 14 crop species using 54,306 images with\na convolutional neural network approach. We measure the\nperformance of our models based on their ability to predict\nthe correct crop-diseases pair, given 38 possible classes. The\nbest performing model achieves a mean F1 score of 0.9934\n(overall accuracy of 99.35%), hence demonstrating the tech-"
+        },
+        {
+            "id": 20,
+            "block_id": 3,
+            "page": 2,
+            "bbox": [
+                56.3390007019043,
+                657.512939453125,
+                303.3092041015625,
+                681.1541748046875
+            ],
+            "type": "unknown",
+            "text": "nical feasibility of our approach. Our results are a ﬁrst step\ntowards a smartphone-assisted plant disease diagnosis system."
+        },
+        {
+            "id": 21,
+            "block_id": 4,
+            "page": 2,
+            "bbox": [
+                56.3390007019043,
+                694.6251831054688,
+                90.52477264404297,
+                706.5125732421875
+            ],
+            "type": "unknown",
+            "text": "Results"
+        },
+        {
+            "id": 22,
+            "block_id": 5,
+            "page": 2,
+            "bbox": [
+                55.99800109863281,
+                709.68994140625,
+                303.0623779296875,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "At the outset, we note that on a dataset with 38 class\nlabels, random guessing will only achieve an overall accu-"
+        },
+        {
+            "id": 23,
+            "block_id": 6,
+            "page": 2,
+            "bbox": [
+                326.7229919433594,
+                138.75503540039062,
+                555.5631713867188,
+                148.86705017089844
+            ],
+            "type": "unknown",
+            "text": "(a) Leaf 1: Color\n(b) Leaf 1: Grayscale (c) Leaf 1: Segmented"
+        },
+        {
+            "id": 24,
+            "block_id": 7,
+            "page": 2,
+            "bbox": [
+                324.97198486328125,
+                235.92105102539062,
+                554.028076171875,
+                246.03306579589844
+            ],
+            "type": "unknown",
+            "text": "(d) Leaf 2: Color\n(e) Leaf 2: Grayscale (f) Leaf 2: Segmented"
+        },
+        {
+            "id": 25,
+            "block_id": 8,
+            "page": 2,
+            "bbox": [
+                314.96600341796875,
+                260.56329345703125,
+                560.1414184570312,
+                277.7311706542969
+            ],
+            "type": "unknown",
+            "text": "Fig. 2. Sample images from the three different versions of the PlantVillage dataset\nused in various experimental conﬁgurations."
+        },
+        {
+            "id": 26,
+            "block_id": 9,
+            "page": 2,
+            "bbox": [
+                314.96600341796875,
+                299.6119079589844,
+                561.6871337890625,
+                443.2532043457031
+            ],
+            "type": "unknown",
+            "text": "racy of 2.63% on average. Across all our experimental con-\nﬁgurations, which include three visual representations of\nthe image data (see Figure 2), the overall accuracy we ob-\ntained on the PlantVillage dataset varied from 85.53% (in\ncase of AlexNet::TrainingFromScratch::GrayScale::80-20) to\n99.34%(in case of GoogLeNet::TransferLearning::Color::80-20),\nhence showing strong promise of the deep learning approach\nfor similar prediction problems. Table 1 shows the mean F1\nscore, mean precision, mean recall, and overall accuracy across\nall our experimental conﬁgurations. All the experimental con-\nﬁgurations run for a total of 30 epochs each, and they almost\nconsistently converge after the ﬁrst step down in the learning\nrate."
+        },
+        {
+            "id": 27,
+            "block_id": 10,
+            "page": 2,
+            "bbox": [
+                313.88800048828125,
+                443.577880859375,
+                561.4288940429688,
+                543.5821533203125
+            ],
+            "type": "unknown",
+            "text": "To address the issue of over-ﬁtting, we vary the test set to\ntrain set ratio and observe that even in the extreme case of\ntraining on only 20% of the data and testing the trained model\non the rest 80% of the data, the model achieves an overall\naccuracy of 98.21% (mean F1-Score of 0.9820) in the case\nof GoogLeNet::TransferLearning::Color::20-80. As expected,\nthe overall performance of both AlexNet and GoogLeNet do\ndegrade if we keep increasing the test set to train set ratio\n(see Figure 4(d)), but the decrease in performance is not as"
+        },
+        {
+            "id": 28,
+            "block_id": 11,
+            "page": 2,
+            "bbox": [
+                314.96600341796875,
+                541.7589111328125,
+                561.9346313476562,
+                598.128173828125
+            ],
+            "type": "unknown",
+            "text": "drastic as we would expect if the model was indeed over-ﬁtting.\nFigure 4(c) also shows that there is no divergence between\nthe validation loss and the training loss, conﬁrming that over-\nﬁtting is not a contributor to the results we obtain across all\nour experiments."
+        },
+        {
+            "id": 29,
+            "block_id": 12,
+            "page": 2,
+            "bbox": [
+                314.72698974609375,
+                598.451904296875,
+                561.4330444335938,
+                643.9111328125
+            ],
+            "type": "unknown",
+            "text": "Among\nthe\nAlexNet\nand\nGoogLeNet\narchitectures,\nGoogLeNet consistently performs better than AlexNet 4(a),\nand based on the method of training, transfer learning always\nyields better results 4(b), both of which were expected."
+        },
+        {
+            "id": 30,
+            "block_id": 13,
+            "page": 2,
+            "bbox": [
+                314.635009765625,
+                644.2349243164062,
+                561.6878662109375,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "The three versions of the dataset (color, gray-scale and\nsegmented) show a characteristic variation in performance\nacross all the experiments when we keep the rest of the exper-\nimental conﬁguration constant. The models perform the best\nin case of the colored version of the dataset. When designing\nthe experiments, we were concerned that the neural networks\nmight only learn to pick up the inherent biases associated\nwith the lighting conditions, the method and apparatus of"
+        },
+        {
+            "id": 31,
+            "block_id": 14,
+            "page": 2,
+            "bbox": [
+                496.2300109863281,
+                749.3062744140625,
+                560.1435546875,
+                757.6539306640625
+            ],
+            "type": "unknown",
+            "text": "April 15, 2016\n|\n2"
+        },
+        {
+            "id": 32,
+            "block_id": 0,
+            "page": 3,
+            "bbox": [
+                51.52399826049805,
+                56.153907775878906,
+                298.3232727050781,
+                221.61416625976562
+            ],
+            "type": "unknown",
+            "text": "collection of the data. We therefore experimented with the\ngray-scaled version of the same dataset to test the model’s\nadaptability in the absence of color information, and its ability\nto learn higher level structural patterns typical to particular\ncrops and diseases. As expected, the performance did decrease\nwhen compared to the experiments on the colored version of\nthe dataset, but even in the case of the worst performance,\nthe observed mean F1 score was 0.8524 (overall accuracy of\n85.53%). The segmented versions of the whole dataset was\nalso prepared to investigate the role of the background of\nthe images in overall performance, and as shown in Figure\n4(e), the performance of the model using segmented images is\nconsistently better than that of the model using gray-scaled\nimages, but slightly lower than that of the model using the\ncolored version of the images."
+        },
+        {
+            "id": 33,
+            "block_id": 1,
+            "page": 3,
+            "bbox": [
+                50.76499938964844,
+                220.24789428710938,
+                297.2893371582031,
+                342.0711975097656
+            ],
+            "type": "unknown",
+            "text": "Finally, while these approaches yield excellent results on\nthe PlantVillage dataset which was collected in a controlled\nenvironment, we also assessed the model’s performance on\nimages sampled from trusted online sources such as academic\nagriculture extension services. Such images are not available\nin large numbers, and using a combination of automated\ndownload from Bing Image Search with a visual veriﬁcation\nstep by one of us (MS), we obtained a small, veriﬁed dataset\nof 121 images (see Supplementary Material for a detailed\ndescription of the process). By using the model trained using\nGoogLeNet:Segmented:TransferLearning:80-20, we obtained an"
+        },
+        {
+            "id": 34,
+            "block_id": 2,
+            "page": 3,
+            "bbox": [
+                51.85599899291992,
+                340.2478942871094,
+                297.2832946777344,
+                429.34320068359375
+            ],
+            "type": "unknown",
+            "text": "overall accuracy of 31.40% in successfully predicting the correct\nclass label (i.e. crop and disease information) from among 38\npossible class labels. We note that a random classiﬁer will\nobtain an average accuracy of only 2.63%. When providing the\ninformation about the crop that the particular image belongs\nto, the accuracy increases to 47.93%. Across all images, the\ncorrect class was in the top-5 predictions in 52.89% of the\ncases."
+        },
+        {
+            "id": 35,
+            "block_id": 3,
+            "page": 3,
+            "bbox": [
+                51.85599899291992,
+                443.565185546875,
+                102.3490982055664,
+                455.4526062011719
+            ],
+            "type": "unknown",
+            "text": "Discussion"
+        },
+        {
+            "id": 36,
+            "block_id": 4,
+            "page": 3,
+            "bbox": [
+                51.52399826049805,
+                458.7808837890625,
+                298.5802917480469,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "The performance of convolutional neural networks in object\nrecognition and image classiﬁcation has made tremendous\nprogress in the past few years. [13] [14] [15] [16] [17]. Previ-\nously, the traditional approach for image classiﬁcation tasks\nhas been based on hand-engineered features such as SIFT[18],\nHoG[19], SURF[20], etc., and then to use some form of learning\nalgorithm in these feature spaces. This led to the performance\nof all these approaches depending heavily on the underlying\npredeﬁned features. Feature engineering itself is a complex\nand tedious process which needed to be revisited every time\nthe problem at hand or the associated dataset changed consid-\nerably. This problem has occurred in all traditional attempts\nto detect plant diseases using computer vision as they leaned\nheavily on hand-engineered features, image enhancement tech-\nniques, and a host of other complex and labour-intensive\nmethodologies. A few years ago, AlexNet[13] showed for the\nﬁrst time that end-to-end supervised training using a deep\nconvolutional neural network architecture is a practical possi-\nbility even for image classiﬁcation problems with a very large\nnumber of classes, beating the traditional approaches using\nhand-engineered features by a substantial margin in standard\nbenchmarks. The absence of the labor-intensive phase of fea-\nture engineering and the generalizability of the solution makes\nthem a very promising candidate for a practical and scaleable\napproach for computational inference of plant diseases."
+        },
+        {
+            "id": 37,
+            "block_id": 5,
+            "page": 3,
+            "bbox": [
+                329.45599365234375,
+                256.5234375,
+                529.7601318359375,
+                266.3983459472656
+            ],
+            "type": "unknown",
+            "text": "(a) Example image of a leaf suﬀering from Apple Cedar"
+        },
+        {
+            "id": 38,
+            "block_id": 6,
+            "page": 3,
+            "bbox": [
+                328.90399169921875,
+                264.493408203125,
+                530.51416015625,
+                298.27935791015625
+            ],
+            "type": "unknown",
+            "text": "Rust, selected from the top-20 images returned by Bing\nImage search for the keywords \"Apple Cedar Rust Leaves\"\non April 4th, 2016. Image Reference : Clemson University\n- USDA Cooperative Extension Slide Series, Bugwood.org"
+        },
+        {
+            "id": 39,
+            "block_id": 7,
+            "page": 3,
+            "bbox": [
+                309.5459899902344,
+                556.8024291992188,
+                558.73828125,
+                590.58837890625
+            ],
+            "type": "unknown",
+            "text": "(b)\nVisualization\nof\nactivations\nin\nthe\nﬁrst\nconvolution\nlayer(conv1)\nof\nan\nAlexNet\narchitecture\ntrained\nusing\nAlexNet:Color:TrainFromScratch:80-20 when doing a forward pass\non the image in Figure 3(a)"
+        },
+        {
+            "id": 40,
+            "block_id": 8,
+            "page": 3,
+            "bbox": [
+                310.4830017089844,
+                606.1982421875,
+                555.6621704101562,
+                632.3331909179688
+            ],
+            "type": "unknown",
+            "text": "Fig. 3. Visualization of activations in the initial layers of an AlexNet architecture\ndemonstrating that the model has learnt to efﬁciently activate against the diseased\nspots on the example leaf"
+        },
+        {
+            "id": 41,
+            "block_id": 9,
+            "page": 3,
+            "bbox": [
+                310.1510009765625,
+                655.1439208984375,
+                556.9443359375,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "Using the deep convolutional neural network architecture,\nwe trained a model on images of plant leaves with the goal of\nclassifying both crop species and the presence and identity of\ndisease on images that the model had not seen before. Within\nthe PlantVillage data set of 54,306 images containing 38 classes\nof 14 crop species and 26 diseases (or absence thereof), this\ngoal has been achieved as demonstrated by the top accuracy"
+        },
+        {
+            "id": 42,
+            "block_id": 10,
+            "page": 3,
+            "bbox": [
+                491.74700927734375,
+                749.3062744140625,
+                555.6605224609375,
+                757.6539306640625
+            ],
+            "type": "unknown",
+            "text": "April 15, 2016\n|\n3"
+        },
+        {
+            "id": 43,
+            "block_id": 0,
+            "page": 4,
+            "bbox": [
+                56.10499954223633,
+                56.392555236816406,
+                559.8043212890625,
+                76.26649475097656
+            ],
+            "type": "unknown",
+            "text": "Table 1. Mean F1 score across various experiment conﬁgurations at the end of 30 Epochs. Each cell in the table represents the Mean F1\nscore{mean precision, mean recall, overall accuracy} for the corresponding experimental conﬁguration."
+        },
+        {
+            "id": 44,
+            "block_id": 1,
+            "page": 4,
+            "bbox": [
+                273.0570068359375,
+                89.61963653564453,
+                486.0773010253906,
+                98.53522491455078
+            ],
+            "type": "unknown",
+            "text": "AlexNet\nGoogLeNet"
+        },
+        {
+            "id": 45,
+            "block_id": 2,
+            "page": 4,
+            "bbox": [
+                212.16099548339844,
+                105.55963897705078,
+                548.2297973632812,
+                114.47522735595703
+            ],
+            "type": "unknown",
+            "text": "Transfer learning\nTraining from scratch\nTransfer learning\nTraining from scratch"
+        },
+        {
+            "id": 46,
+            "block_id": 3,
+            "page": 4,
+            "bbox": [
+                161.07699584960938,
+                121.87023162841797,
+                550.4435424804688,
+                131.01712036132812
+            ],
+            "type": "unknown",
+            "text": "Color\n0.9736{ 0.9742, 0.9737, 0.9738}\n0.9118{ 0.9137, 0.9132, 0.9130}\n0.9820{ 0.9824, 0.9821, 0.9821}\n0.9430{ 0.9440, 0.9431, 0.9429}"
+        },
+        {
+            "id": 47,
+            "block_id": 4,
+            "page": 4,
+            "bbox": [
+                65.54199981689453,
+                137.81024169921875,
+                550.4435424804688,
+                146.95712280273438
+            ],
+            "type": "unknown",
+            "text": "Train: 20%, Test: 80%\nGrayscale\n0.9361{ 0.9368, 0.9369, 0.9371}\n0.8524{ 0.8539, 0.8555, 0.8553}\n0.9563{ 0.9570, 0.9564, 0.9564}\n0.8828{ 0.8842, 0.8835, 0.8841}"
+        },
+        {
+            "id": 48,
+            "block_id": 5,
+            "page": 4,
+            "bbox": [
+                151.21400451660156,
+                153.750244140625,
+                550.4435424804688,
+                162.89810180664062
+            ],
+            "type": "unknown",
+            "text": "Segmented\n0.9724{ 0.9727, 0.9727, 0.9726}\n0.8945{ 0.8956, 0.8963, 0.8969}\n0.9808{ 0.9810, 0.9808, 0.9808}\n0.9377{ 0.9388, 0.9380, 0.9380}"
+        },
+        {
+            "id": 49,
+            "block_id": 6,
+            "page": 4,
+            "bbox": [
+                161.07699584960938,
+                170.0892333984375,
+                550.4435424804688,
+                179.23611450195312
+            ],
+            "type": "unknown",
+            "text": "Color\n0.9860{ 0.9861, 0.9861, 0.9860}\n0.9555{ 0.9557, 0.9558, 0.9558}\n0.9914{ 0.9914, 0.9914, 0.9914}\n0.9729{ 0.9731, 0.9729, 0.9729}"
+        },
+        {
+            "id": 50,
+            "block_id": 7,
+            "page": 4,
+            "bbox": [
+                65.54199981689453,
+                186.02923583984375,
+                550.4435424804688,
+                195.17709350585938
+            ],
+            "type": "unknown",
+            "text": "Train: 40%, Test: 60%\nGrayscale\n0.9584{ 0.9588, 0.9589, 0.9588}\n0.9088{ 0.9090, 0.9101, 0.9100}\n0.9714{ 0.9717, 0.9716, 0.9716}\n0.9361{ 0.9364, 0.9363, 0.9364}"
+        },
+        {
+            "id": 51,
+            "block_id": 8,
+            "page": 4,
+            "bbox": [
+                151.21400451660156,
+                201.96923828125,
+                550.4435424804688,
+                211.11709594726562
+            ],
+            "type": "unknown",
+            "text": "Segmented\n0.9812{ 0.9814, 0.9813, 0.9813}\n0.9404{ 0.9409, 0.9408, 0.9408}\n0.9896{ 0.9896, 0.9896, 0.9898}\n0.9643{ 0.9647, 0.9642, 0.9642}"
+        },
+        {
+            "id": 52,
+            "block_id": 9,
+            "page": 4,
+            "bbox": [
+                161.07699584960938,
+                218.3082275390625,
+                550.4435424804688,
+                227.45608520507812
+            ],
+            "type": "unknown",
+            "text": "Color\n0.9896{ 0.9897, 0.9896, 0.9897}\n0.9644{ 0.9647, 0.9647, 0.9647}\n0.9916{ 0.9916, 0.9916, 0.9916}\n0.9772{ 0.9774, 0.9773, 0.9773}"
+        },
+        {
+            "id": 53,
+            "block_id": 10,
+            "page": 4,
+            "bbox": [
+                65.54199981689453,
+                234.24822998046875,
+                550.4435424804688,
+                243.39608764648438
+            ],
+            "type": "unknown",
+            "text": "Train: 50%, Test: 50%\nGrayscale\n0.9661{ 0.9663, 0.9663, 0.9663}\n0.9312{ 0.9315, 0.9318, 0.9319}\n0.9788{ 0.9789, 0.9788, 0.9788}\n0.9507{ 0.9510, 0.9507, 0.9509}"
+        },
+        {
+            "id": 54,
+            "block_id": 11,
+            "page": 4,
+            "bbox": [
+                151.21400451660156,
+                250.189208984375,
+                550.4435424804688,
+                259.3360900878906
+            ],
+            "type": "unknown",
+            "text": "Segmented\n0.9867{ 0.9868, 0.9868, 0.9869}\n0.9551{ 0.9552, 0.9555, 0.9556}\n0.9909{ 0.9910, 0.9910, 0.9910}\n0.9720{ 0.9721, 0.9721, 0.9722}"
+        },
+        {
+            "id": 55,
+            "block_id": 12,
+            "page": 4,
+            "bbox": [
+                161.07699584960938,
+                266.5272216796875,
+                550.4435424804688,
+                275.6750793457031
+            ],
+            "type": "unknown",
+            "text": "Color\n0.9907{ 0.9908, 0.9908, 0.9907}\n0.9724{ 0.9725, 0.9725, 0.9725}\n0.9924{ 0.9924, 0.9924, 0.9924}\n0.9824{ 0.9825, 0.9824, 0.9824}"
+        },
+        {
+            "id": 56,
+            "block_id": 13,
+            "page": 4,
+            "bbox": [
+                65.54199981689453,
+                282.4682312011719,
+                550.4435424804688,
+                291.6151123046875
+            ],
+            "type": "unknown",
+            "text": "Train: 60%, Test: 40%\nGrayscale\n0.9686{ 0.9689, 0.9688, 0.9688}\n0.9388{ 0.9396, 0.9395, 0.9391}\n0.9785{ 0.9789, 0.9786, 0.9787}\n0.9547{ 0.9554, 0.9548, 0.9551}"
+        },
+        {
+            "id": 57,
+            "block_id": 14,
+            "page": 4,
+            "bbox": [
+                151.21400451660156,
+                298.4082336425781,
+                550.4435424804688,
+                307.5561218261719
+            ],
+            "type": "unknown",
+            "text": "Segmented\n0.9855{ 0.9856, 0.9856, 0.9856}\n0.9595{ 0.9597, 0.9597, 0.9596}\n0.9905{ 0.9906, 0.9906, 0.9906}\n0.9740{ 0.9743, 0.9740, 0.9745}"
+        },
+        {
+            "id": 58,
+            "block_id": 15,
+            "page": 4,
+            "bbox": [
+                161.07699584960938,
+                314.7756042480469,
+                550.4435424804688,
+                323.89410400390625
+            ],
+            "type": "unknown",
+            "text": "Color\n0.9927{ 0.9928, 0.9927, 0.9928}\n0.9782{ 0.9786, 0.9782, 0.9782}\n0.9934{ 0.9935, 0.9935, 0.9935}\n0.9836{ 0.9839, 0.9837, 0.9837}"
+        },
+        {
+            "id": 59,
+            "block_id": 16,
+            "page": 4,
+            "bbox": [
+                65.54199981689453,
+                330.7156066894531,
+                550.4435424804688,
+                339.8351135253906
+            ],
+            "type": "unknown",
+            "text": "Train: 80%, Test: 20%\nGrayscale\n0.9726{ 0.9728, 0.9727, 0.9725}\n0.9449{ 0.9451, 0.9454, 0.9452}\n0.9800{ 0.9804, 0.9801, 0.9798}\n0.9621{ 0.9624, 0.9621, 0.9621}"
+        },
+        {
+            "id": 60,
+            "block_id": 17,
+            "page": 4,
+            "bbox": [
+                151.21400451660156,
+                346.6556091308594,
+                550.4435424804688,
+                355.7751159667969
+            ],
+            "type": "unknown",
+            "text": "Segmented\n0.9891{ 0.9893, 0.9891, 0.9892}\n0.9722{ 0.9725, 0.9724, 0.9723}\n0.9925{ 0.9925, 0.9925, 0.9924}\n0.9824{ 0.9827, 0.9824, 0.9822}"
+        },
+        {
+            "id": 61,
+            "block_id": 18,
+            "page": 4,
+            "bbox": [
+                56.3390007019043,
+                375.3578796386719,
+                301.7039489746094,
+                475.3631896972656
+            ],
+            "type": "unknown",
+            "text": "of 99.35%. Thus, without any feature engineering, the model\ncorrectly classiﬁes crop and disease from 38 possible classes\nin 993 out of 1000 images. Importantly, while the training\nof the model takes a lot of time (multiple hours on a high\nperformance GPU cluster computer), the classiﬁcation itself\nis very fast (less than a second on a CPU), and can thus\neasily be implemented on a smartphone. This presents a clear\npath towards smartphone-assisted crop disease diagnosis on a\nmassive global scale."
+        },
+        {
+            "id": 62,
+            "block_id": 19,
+            "page": 4,
+            "bbox": [
+                56.3390007019043,
+                475.89288330078125,
+                302.80169677734375,
+                597.7161865234375
+            ],
+            "type": "unknown",
+            "text": "However, there are a number of limitations at the current\nstage that need to be addressed in future work. First, when\ntested on a set of images taken under conditions diﬀerent\nfrom the images used for training, the model’s accuracy is\nreduced substantially, to 31.4%. It’s important to note that\nthis accuracy is much higher than the one based on random\nselection of 38 classes (2.6%), but nevertheless, a more diverse\nset of training data is needed to improve the accuracy. Our\ncurrent results indicate that more (and more variable) data\nalone will be suﬃcient to substantially increase the accuracy,\nand corresponding data collection eﬀorts are underway."
+        },
+        {
+            "id": 63,
+            "block_id": 20,
+            "page": 4,
+            "bbox": [
+                56.3390007019043,
+                598.2459106445312,
+                302.80487060546875,
+                709.16015625
+            ],
+            "type": "unknown",
+            "text": "The second limitation is that we are currently constrained to\nthe classiﬁcation of single leaves, facing up, on a homogeneous\nbackground. While these are straightforward conditions, a\nreal world application should be able to classify images of a\ndisease as it presents itself directly on the plant. Indeed, many\ndiseases don’t present themselves on the upper side of leaves\nonly (or at all), but on many diﬀerent parts of the plant. Thus,\nnew image collection eﬀorts should try to obtain images from\nmany diﬀerent perspectives, and ideally from settings that are\nas realistic as possible."
+        },
+        {
+            "id": 64,
+            "block_id": 21,
+            "page": 4,
+            "bbox": [
+                56.3390007019043,
+                709.68994140625,
+                301.518310546875,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "At the same time, by using 38 classes that contain both\ncrop species and disease status, we have made the challenge"
+        },
+        {
+            "id": 65,
+            "block_id": 22,
+            "page": 4,
+            "bbox": [
+                314.635009765625,
+                375.3578796386719,
+                561.9390869140625,
+                540.817138671875
+            ],
+            "type": "unknown",
+            "text": "harder than ultimately necessary from a practical perspective,\nas growers are expected to know which crops they are growing.\nGiven the very high accuracy on the PlantVillage dataset,\nlimiting the classiﬁcation challenge to the disease status won’t\nhave a measurable eﬀect. However, on the real world data set,\nwe can measure noticeable improvements in accuracy. To do\nthis, we limit ourselves to crops where we have at least n>=2\nor n>=3 classes per crop (to avoid trivial classiﬁcation). In\nthe n>=2 case, the dataset contains 33 classes distributed\namong 9 crops. Random guessing in such a dataset would\nachieve an accuracy of 0.273, while our model has an accuracy\nof 0.478. In the n>=3 case, the dataset contains 25 classes\ndistributed among 5 crops. Random guessing in such a dataset\nwould achieve an accuracy of 0.2, while our model has an\naccuracy of 0.411."
+        },
+        {
+            "id": 66,
+            "block_id": 23,
+            "page": 4,
+            "bbox": [
+                314.96600341796875,
+                553.0111694335938,
+                353.87457275390625,
+                564.8985595703125
+            ],
+            "type": "unknown",
+            "text": "Methods"
+        },
+        {
+            "id": 67,
+            "block_id": 24,
+            "page": 4,
+            "bbox": [
+                314.635009765625,
+                567.8199462890625,
+                561.4317016601562,
+                667.8251953125
+            ],
+            "type": "unknown",
+            "text": "Dataset Description. We analyze 54,306 images of plant leaves,\nwhich have a spread of 38 class labels assigned to them. Each\nclass label is a crop-disease pair, and we make an attempt\nto predict the crop-disease pair given just the image of the\nplant leaf.\nFigure\n1 shows one example each from every\ncrop-disease pair from the PlantVillage dataset. In all the\napproaches described in this paper, we resize the images to\n256 x 256 pixels, and we perform both the model optimization\nand predictions on these downscaled images."
+        },
+        {
+            "id": 68,
+            "block_id": 25,
+            "page": 4,
+            "bbox": [
+                314.635009765625,
+                666.0538940429688,
+                561.6846923828125,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "Across all our experiments, we use three diﬀerent versions of\nthe whole PlantVillage dataset. We start with the PlantVillage\ndataset as it is, in color; then we experiment with a gray-\nscaled version of the PlantVillage dataset, and ﬁnally we run\nall the experiments on a version of the PlantVillage dataset\nwhere the leaves were segmented, hence removing all the"
+        },
+        {
+            "id": 69,
+            "block_id": 26,
+            "page": 4,
+            "bbox": [
+                496.2300109863281,
+                749.3062744140625,
+                560.1435546875,
+                757.6539306640625
+            ],
+            "type": "unknown",
+            "text": "April 15, 2016\n|\n4"
+        },
+        {
+            "id": 70,
+            "block_id": 0,
+            "page": 5,
+            "bbox": [
+                50.91899871826172,
+                169.2604522705078,
+                206.36021423339844,
+                195.07534790039062
+            ],
+            "type": "unknown",
+            "text": "(a) Comparison\nof\nprogression\nof\nmean\nF1 score across all experiments, grouped by\ndeep learning architecture"
+        },
+        {
+            "id": 71,
+            "block_id": 1,
+            "page": 5,
+            "bbox": [
+                225.71400451660156,
+                169.2604522705078,
+                381.15509033203125,
+                195.07534790039062
+            ],
+            "type": "unknown",
+            "text": "(b) Comparison\nof\nprogression\nof\nmean\nF1 score across all experiments, grouped by\ntraining mechanism"
+        },
+        {
+            "id": 72,
+            "block_id": 2,
+            "page": 5,
+            "bbox": [
+                400.5090026855469,
+                169.2604522705078,
+                555.6630249023438,
+                179.13534545898438
+            ],
+            "type": "unknown",
+            "text": "(c) Comparison of progression of train-loss"
+        },
+        {
+            "id": 73,
+            "block_id": 3,
+            "page": 5,
+            "bbox": [
+                401.4460144042969,
+                177.2304229736328,
+                526.5439453125,
+                187.10531616210938
+            ],
+            "type": "unknown",
+            "text": "and test-loss across all experiments."
+        },
+        {
+            "id": 74,
+            "block_id": 4,
+            "page": 5,
+            "bbox": [
+                50.91899871826172,
+                364.283447265625,
+                282.98681640625,
+                375.15435791015625
+            ],
+            "type": "unknown",
+            "text": "(d) Comparison of progression of mean F1 score across all experi-"
+        },
+        {
+            "id": 75,
+            "block_id": 5,
+            "page": 5,
+            "bbox": [
+                51.85599899291992,
+                372.2534484863281,
+                185.07374572753906,
+                382.12835693359375
+            ],
+            "type": "unknown",
+            "text": "ments, grouped by train-test set splits"
+        },
+        {
+            "id": 76,
+            "block_id": 6,
+            "page": 5,
+            "bbox": [
+                324.9410095214844,
+                364.283447265625,
+                557.0077514648438,
+                375.15435791015625
+            ],
+            "type": "unknown",
+            "text": "(e) Comparison of progression of mean F1 score across all experi-"
+        },
+        {
+            "id": 77,
+            "block_id": 7,
+            "page": 5,
+            "bbox": [
+                325.87799072265625,
+                372.2534484863281,
+                436.3067626953125,
+                382.12835693359375
+            ],
+            "type": "unknown",
+            "text": "ments, grouped by dataset type"
+        },
+        {
+            "id": 78,
+            "block_id": 8,
+            "page": 5,
+            "bbox": [
+                51.85599899291992,
+                396.35528564453125,
+                555.6607666015625,
+                422.4891662597656
+            ],
+            "type": "unknown",
+            "text": "Fig. 4. Progression of mean F1 score and loss through the training period of 30 epochs across all experiments, grouped by experimental conﬁguration parameters. The\nintensity of a particular class at any point is proportional to the corresponding uncertainty across all experiments with the particular conﬁgurations. A similar plot of all the direct\nobservations can be found in the Supplementary Material."
+        },
+        {
+            "id": 79,
+            "block_id": 9,
+            "page": 5,
+            "bbox": [
+                51.85599899291992,
+                440.076904296875,
+                297.2850341796875,
+                561.899169921875
+            ],
+            "type": "unknown",
+            "text": "extra background information which might have the potential\nto introduce some inherent bias in the dataset due to the\nregularized process of data collection in case of PlantVillage\ndataset. Segmentation was automated by the means of a script\ntuned to perform well on our particular dataset. We chose a\ntechnique based on a set of masks generated by analysis of the\ncolor, lightness and saturation components of diﬀerent parts\nof the images in several color spaces (Lab and HSB). One of\nthe steps of that processing also allowed us to easily ﬁx color\ncasts, which happened to be very strong in some of the image\ncollection subsets, thus removing another potential bias."
+        },
+        {
+            "id": 80,
+            "block_id": 10,
+            "page": 5,
+            "bbox": [
+                51.625999450683594,
+                560.076904296875,
+                298.3199157714844,
+                616.4451904296875
+            ],
+            "type": "unknown",
+            "text": "This set of experiments was designed to understand if the\nneural network actually learns the “notion” of plant diseases,\nor if it is just learning the inherent biases in the dataset. Figure\n2 shows the diﬀerent versions of the same leaf for a randomly\nselected set of leaves."
+        },
+        {
+            "id": 81,
+            "block_id": 11,
+            "page": 5,
+            "bbox": [
+                51.85599899291992,
+                622.4169311523438,
+                298.5790100097656,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "Measurement of Performance. To get a sense of how our ap-\nproaches will perform on new unseen data, and also to keep\na track of if any of our approaches are overﬁtting, we run all\nour experiments across a whole range of train-test set splits,\nnamely 80-20 ( 80% of the whole dataset used for training,\nand 20% for testing), 60-40 ( 60% of the whole dataset used\nfor training, and 40% for testing), 50-50 ( 50% of the whole\ndataset used for training, and 50% for testing), 40-60 ( 40%\nof the whole dataset used for training, and 60% for testing)\nand ﬁnally 20-80 ( 20% of the whole dataset used for training,"
+        },
+        {
+            "id": 82,
+            "block_id": 12,
+            "page": 5,
+            "bbox": [
+                309.4049987792969,
+                440.076904296875,
+                556.942138671875,
+                474.627197265625
+            ],
+            "type": "unknown",
+            "text": "and 80% for testing). It must be noted that in many cases,\nthe PlantVillage dataset has multiple images of the same leaf\n(taken from diﬀerent orientations), and we have the mappings"
+        },
+        {
+            "id": 83,
+            "block_id": 13,
+            "page": 5,
+            "bbox": [
+                310.4830017089844,
+                472.80389404296875,
+                557.4566650390625,
+                572.8091430664062
+            ],
+            "type": "unknown",
+            "text": "of such cases for 41,112 images out of the 54,306 images; and\nduring all these test-train splits, we make sure all the images of\nthe same leaf goes either in the training set or the testing set.\nFurther, for every experiment, we compute the mean precision,\nmean recall, mean F1 score, along with the overall accuracy\nover the whole period of training at regular intervals (at the\nend of every epoch). We use the ﬁnal mean F1 score for the\ncomparison of results across all of the diﬀerent experimental\nconﬁgurations."
+        },
+        {
+            "id": 84,
+            "block_id": 14,
+            "page": 5,
+            "bbox": [
+                309.4419860839844,
+                578.7809448242188,
+                557.1989135742188,
+                635.149169921875
+            ],
+            "type": "unknown",
+            "text": "Approach. We evaluate the applicability of deep convolutional\nneural networks for the said classiﬁcation problem. We fo-\ncus on two popular architectures, namely AlexNet[13] and\nGoogLeNet[16], which were designed in the context of the\n\"Large Scale Visual Recognition Challenge\" (ILSVRC)[11] for"
+        },
+        {
+            "id": 85,
+            "block_id": 15,
+            "page": 5,
+            "bbox": [
+                310.4830017089844,
+                633.325927734375,
+                414.47979736328125,
+                646.0581665039062
+            ],
+            "type": "unknown",
+            "text": "the ImageNet dataset[12]."
+        },
+        {
+            "id": 86,
+            "block_id": 16,
+            "page": 5,
+            "bbox": [
+                310.4830017089844,
+                644.2349243164062,
+                556.9454956054688,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "The AlexNet architecture follows the same design pattern\nas the LeNet-5[21] architecture from the 1990s. The LeNet-5\narchitecture variants are usually a set of stacked convolution\nlayers followed by one or more fully connected layers. The\nconvolution layers optionally may have a normalization layer\nand a pooling layer right after them, and all the layers in\nthe network usually have ReLu non linear activation units\nassociated with them. AlexNet consists of 5 convolution layers,"
+        },
+        {
+            "id": 87,
+            "block_id": 17,
+            "page": 5,
+            "bbox": [
+                491.74700927734375,
+                749.3062744140625,
+                555.6605224609375,
+                757.6539306640625
+            ],
+            "type": "unknown",
+            "text": "April 15, 2016\n|\n5"
+        },
+        {
+            "id": 88,
+            "block_id": 0,
+            "page": 6,
+            "bbox": [
+                56.007999420166016,
+                56.153907775878906,
+                301.8524169921875,
+                177.97720336914062
+            ],
+            "type": "unknown",
+            "text": "followed by 3 fully connected layers, and ﬁnally ending with a\nsoftMax layer. The ﬁrst two convolution layers (conv{1,2}) are\neach followed by a normalization and a pooling layer, and the\nlast convolution layer(conv5) is followed by a single pooling\nlayer. The ﬁnal fully connected layer (fc8) has 38 outputs in\nour adapted version of AlexNet (equaling the total number\nof classes in our dataset), which feeds the softMax layer. All\nof the ﬁrst 7 layers of AlexNet have a ReLu non-linearity\nactivation unit associated with them, and the ﬁrst two fully\nconnected layers (fc{6,7}) have a dropout layer associated\nwith them, with a dropout ratio of 0.5."
+        },
+        {
+            "id": 89,
+            "block_id": 1,
+            "page": 6,
+            "bbox": [
+                55.87900161743164,
+                176.15390014648438,
+                303.3111267089844,
+                385.25018310546875
+            ],
+            "type": "unknown",
+            "text": "The GoogleNet architecture on the other hand is a much\ndeeper and wider architecture with 22 layers, while still having\nconsiderably lower number of parameters ( 5 million parame-\nters) in the network than AlexNet ( 60 million parameters).\nAn application of the \"network in network\" architecture[22]\nin the form of the inception modules is a key feature of the\nGoogleNet architecture. The inception module uses parallel\n1x1, 3x3 and 5x5 convolutions along with a max-pooling layer\nin parallel, hence enabling it to capture a variety of features\nin parallel. In terms of practicality of the implementation, the\namount of associated computation needs to be kept in check,\nso they add 1x1 convolutions before the above mentioned\n3x3, 5x5 convolutions (and also after the max-pooling layer)\nfor dimensionality reduction. Finally, a ﬁlter concatenation\nlayer simply concatenates the outputs of all these parallel\nlayers. While this forms a single inception module, a total of\n9 inception modules is used in the version of the GoogLeNet\narchitecture that we use in our experiments. A more detailed\noverview of this architecture can be found for reference in [16]."
+        },
+        {
+            "id": 90,
+            "block_id": 2,
+            "page": 6,
+            "bbox": [
+                55.26100158691406,
+                383.4268798828125,
+                301.5162048339844,
+                428.8861999511719
+            ],
+            "type": "unknown",
+            "text": "We analyze the performance of both these architectures on\nthe PlantVillage dataset by training the model from scratch\nin one case, and then by adapting already trained models\n(trained on the ImageNet dataset) using transfer learning. In"
+        },
+        {
+            "id": 91,
+            "block_id": 3,
+            "page": 6,
+            "bbox": [
+                56.3390007019043,
+                427.0628967285156,
+                301.7724914550781,
+                483.43218994140625
+            ],
+            "type": "unknown",
+            "text": "case of transfer learning, we do not limit the learning of the\nrest of the layers, and we instead just reset the weights of layer\nfc8 in case AlexNet; in case of GoogLeNet, we similarly do\nnot limit the learning of the rest of the layers but instead just\nreset the weights of the loss{1,2,3}/classiﬁer layers."
+        },
+        {
+            "id": 92,
+            "block_id": 4,
+            "page": 6,
+            "bbox": [
+                56.3390007019043,
+                481.60888671875,
+                303.0626525878906,
+                505.25018310546875
+            ],
+            "type": "unknown",
+            "text": "To summarize, we have a total of 60 experimental conﬁgu-\nrations, which vary on the following parameters :"
+        },
+        {
+            "id": 93,
+            "block_id": 5,
+            "page": 6,
+            "bbox": [
+                62.994998931884766,
+                511.3368835449219,
+                220.2477264404297,
+                524.0691528320312
+            ],
+            "type": "unknown",
+            "text": "1. Choice of deep learning architecture"
+        },
+        {
+            "id": 94,
+            "block_id": 6,
+            "page": 6,
+            "bbox": [
+                83.26899719238281,
+                530.1859130859375,
+                140.79954528808594,
+                555.80419921875
+            ],
+            "type": "unknown",
+            "text": "• AlexNet\n• GoogLeNet"
+        },
+        {
+            "id": 95,
+            "block_id": 7,
+            "page": 6,
+            "bbox": [
+                62.994998931884766,
+                561.9209594726562,
+                194.64593505859375,
+                574.6531982421875
+            ],
+            "type": "unknown",
+            "text": "2. Choice of training mechanism"
+        },
+        {
+            "id": 96,
+            "block_id": 8,
+            "page": 6,
+            "bbox": [
+                83.26899719238281,
+                580.7699584960938,
+                183.9332733154297,
+                606.38916015625
+            ],
+            "type": "unknown",
+            "text": "• Transfer Learning\n• Training from Scratch"
+        },
+        {
+            "id": 97,
+            "block_id": 9,
+            "page": 6,
+            "bbox": [
+                62.994998931884766,
+                612.5059204101562,
+                165.4441680908203,
+                625.2381591796875
+            ],
+            "type": "unknown",
+            "text": "3. Choice of dataset type"
+        },
+        {
+            "id": 98,
+            "block_id": 10,
+            "page": 6,
+            "bbox": [
+                83.26899719238281,
+                631.3549194335938,
+                158.66957092285156,
+                669.8601684570312
+            ],
+            "type": "unknown",
+            "text": "• Color\n• Gray scale\n• Leaf Segmented"
+        },
+        {
+            "id": 99,
+            "block_id": 11,
+            "page": 6,
+            "bbox": [
+                62.994998931884766,
+                675.9769287109375,
+                242.1347198486328,
+                688.7091674804688
+            ],
+            "type": "unknown",
+            "text": "4. Choice of training-testing set distribution"
+        },
+        {
+            "id": 100,
+            "block_id": 12,
+            "page": 6,
+            "bbox": [
+                83.26899719238281,
+                694.825927734375,
+                189.82601928710938,
+                733.3311767578125
+            ],
+            "type": "unknown",
+            "text": "• Train: 80% , Test: 20%\n• Train: 60% , Test: 40%\n• Train: 50% , Test: 50%"
+        },
+        {
+            "id": 101,
+            "block_id": 13,
+            "page": 6,
+            "bbox": [
+                341.89599609375,
+                56.153907775878906,
+                448.4530944824219,
+                81.7131576538086
+            ],
+            "type": "unknown",
+            "text": "• Train: 40% , Test: 60%\n• Train: 20% , Test: 80%"
+        },
+        {
+            "id": 102,
+            "block_id": 14,
+            "page": 6,
+            "bbox": [
+                313.875,
+                87.70987701416016,
+                561.6882934570312,
+                176.80618286132812
+            ],
+            "type": "unknown",
+            "text": "Throughout this paper, we have used the notation of\nArchitecture:TrainingMechanism:DatasetType:Train-Test-\nSet-Distribution to refer to particular experiments.\nFor\ninstance, to refer to the experiment using the GoogLeNet\narchitecture,\nwhich was trained using transfer learning\non\nthe\ngray-scaled\nPlantVillage\ndataset\non\na\ntrain-\ntest set distribution of 60-40, we will use the notation\nGoogLeNet:TransferLearning:GrayScale:60-40."
+        },
+        {
+            "id": 103,
+            "block_id": 15,
+            "page": 6,
+            "bbox": [
+                314.635009765625,
+                185.89187622070312,
+                561.4290161132812,
+                274.9872131347656
+            ],
+            "type": "unknown",
+            "text": "Each of these 60 experiments runs for a total of 30 epochs,\nwhere one epoch is deﬁned as the number of training iterations\nin which the particular neural network has completed a full\npass of the whole training set. The choice of 30 epochs was\nmade based on the empirical observation that in all of these\nexperiments, the learning always converged well within 30\nepochs (as is evident from the aggregated plots (Figure 2)\nacross all the experiments)."
+        },
+        {
+            "id": 104,
+            "block_id": 16,
+            "page": 6,
+            "bbox": [
+                314.96600341796875,
+                273.1648864746094,
+                560.144287109375,
+                318.62420654296875
+            ],
+            "type": "unknown",
+            "text": "To enable a fair comparison between the results of all the\nexperimental conﬁgurations, we also tried to standardize the\nhyperparameters across all the experiments, and we used the\nfollowing hyperparameters in all of the experiments :"
+        },
+        {
+            "id": 105,
+            "block_id": 17,
+            "page": 6,
+            "bbox": [
+                321.62200927734375,
+                324.47088623046875,
+                499.6332702636719,
+                337.20318603515625
+            ],
+            "type": "unknown",
+            "text": "• Solver type: Stochastic Gradient Descent"
+        },
+        {
+            "id": 106,
+            "block_id": 18,
+            "page": 6,
+            "bbox": [
+                321.62200927734375,
+                339.2898864746094,
+                434.2323913574219,
+                352.0221862792969
+            ],
+            "type": "unknown",
+            "text": "• Base learning rate: 0.005"
+        },
+        {
+            "id": 107,
+            "block_id": 19,
+            "page": 6,
+            "bbox": [
+                321.62200927734375,
+                354.10888671875,
+                560.3783569335938,
+                377.75018310546875
+            ],
+            "type": "unknown",
+            "text": "• Learning rate policy: Step (decreases by a factor of 10\nevery 30/3 epochs)"
+        },
+        {
+            "id": 108,
+            "block_id": 20,
+            "page": 6,
+            "bbox": [
+                321.62200927734375,
+                379.8368835449219,
+                397.90582275390625,
+                392.5691833496094
+            ],
+            "type": "unknown",
+            "text": "• Momentum: 0.9"
+        },
+        {
+            "id": 109,
+            "block_id": 21,
+            "page": 6,
+            "bbox": [
+                321.62200927734375,
+                394.6558837890625,
+                419.6655578613281,
+                407.38818359375
+            ],
+            "type": "unknown",
+            "text": "• Weight decay: 0.0005"
+        },
+        {
+            "id": 110,
+            "block_id": 22,
+            "page": 6,
+            "bbox": [
+                321.62200927734375,
+                409.4748840332031,
+                383.6268005371094,
+                422.2071838378906
+            ],
+            "type": "unknown",
+            "text": "• Gamma: 0.1"
+        },
+        {
+            "id": 111,
+            "block_id": 23,
+            "page": 6,
+            "bbox": [
+                321.62200927734375,
+                424.29388427734375,
+                560.1716918945312,
+                447.9351806640625
+            ],
+            "type": "unknown",
+            "text": "• Batch size: 24 (in case of GoogLeNet), 100 (in case of\nAlexNet)"
+        },
+        {
+            "id": 112,
+            "block_id": 24,
+            "page": 6,
+            "bbox": [
+                314.96600341796875,
+                453.7818908691406,
+                560.4793090820312,
+                499.2421875
+            ],
+            "type": "unknown",
+            "text": "All the above experiments were conducted using our own\nfork of Caﬀe1 [23], which is a fast, open source framework for\ndeep learning. The basic results such as the overall accuracy\ncan also be replicated using a standard instance of caﬀe."
+        },
+        {
+            "id": 113,
+            "block_id": 25,
+            "page": 6,
+            "bbox": [
+                314.65301513671875,
+                510.52166748046875,
+                561.4011840820312,
+                593.5462646484375
+            ],
+            "type": "unknown",
+            "text": "ACKNOWLEDGMENTS. We thank Boris Conforty for help with\nthe segmentation. We thank Kelsee Baranowski, Ryan Bringenberg\nand Megan Wilkerson for taking the images and Kelsee Baranowski\nfor image curation. We thank Anna Sostarecz, Kaity Gonzalez,\nAshtyn Goodreau, Kalley Veit, Ethan Keller, Parand Jalili, Emma\nVolk, Nooeree Samdani, Kelsey Pryze for additional help with image\ncuration. We thank EPFL, and the Huck Institutes at Penn State\nUniversity for support. We are particularly grateful for access to\nEPFL GPU cluster computing resources."
+        },
+        {
+            "id": 114,
+            "block_id": 26,
+            "page": 6,
+            "bbox": [
+                319.7019958496094,
+                598.6082153320312,
+                560.6140747070312,
+                717.2203979492188
+            ],
+            "type": "unknown",
+            "text": "1.\nTai AP, Martin MV, Heald CL (2014) Threat to future global food security from climate change\nand ozone air pollution. Nature Climate Change 4(9):817–821.\n2.\nTO-BE-Filled (2016) Pollinators vital to our food supply under threat.\n3.\nStrange RN, Scott PR (2005) Plant disease: a threat to global food security. Phytopathology\n43.\n4.\nUNEP (2013) Smallholders, food security, and the environment.\n5.\nHarvey CA et al. (2014) Extreme vulnerability of smallholder farmers to agricultural risks and\nclimate change in madagascar. Philosophical Transactions of the Royal Society of London B:\nBiological Sciences 369(1639).\n6.\nSanchez PA, Swaminathan MS (2005) Cutting world hunger in half.\n7.\nEhler LE (2006) Integrated pest management (ipm): deﬁnition, historical development and\nimplementation, and the other ipm. Pest management science 62(9):787–789.\n8.\nITU (2015) Ict facts and ﬁgures – the world in 2015.\n9.\nHughes DP, Salathé M (2015) An open access repository of images on plant health to enable\nthe development of mobile disease diagnostics. CoRR abs/1511.08060."
+        },
+        {
+            "id": 115,
+            "block_id": 27,
+            "page": 6,
+            "bbox": [
+                311.0780029296875,
+                722.0970458984375,
+                407.6308898925781,
+                732.3314208984375
+            ],
+            "type": "unknown",
+            "text": "1https://github.com/salathegroup/caffe"
+        },
+        {
+            "id": 116,
+            "block_id": 28,
+            "page": 6,
+            "bbox": [
+                496.2300109863281,
+                749.3062744140625,
+                560.1435546875,
+                757.6539306640625
+            ],
+            "type": "unknown",
+            "text": "April 15, 2016\n|\n6"
+        },
+        {
+            "id": 117,
+            "block_id": 0,
+            "page": 7,
+            "bbox": [
+                53.435001373291016,
+                60.856204986572266,
+                297.60400390625,
+                171.49842834472656
+            ],
+            "type": "unknown",
+            "text": "10.\nEveringham M, Van Gool L, Williams CK, Winn J, Zisserman A (2010) The pascal visual\nobject classes (voc) challenge. International journal of computer vision 88(2):303–338.\n11.\nRussakovsky O et al. (2015) ImageNet Large Scale Visual Recognition Challenge. Interna-\ntional Journal of Computer Vision (IJCV) 115(3):211–252.\n12.\nDeng J et al. (2009) Imagenet: A large-scale hierarchical image database in Computer Vision\nand Pattern Recognition, 2009. CVPR 2009. IEEE Conference on. (IEEE), pp. 248–255.\n13.\nKrizhevsky A, Sutskever I, Hinton GE (2012) Imagenet classiﬁcation with deep convolutional\nneural networks in Advances in neural information processing systems. pp. 1097–1105.\n14.\nZeiler MD, Fergus R (2014) Visualizing and understanding convolutional networks in Com-\nputer vision–ECCV 2014. (Springer), pp. 818–833.\n15.\nSimonyan K, Zisserman A (2014) Very deep convolutional networks for large-scale image\nrecognition. arXiv preprint arXiv:1409.1556.\n16.\nSzegedy C et al. (2015) Going deeper with convolutions in Proceedings of the IEEE Confer-\nence on Computer Vision and Pattern Recognition. pp. 1–9."
+        },
+        {
+            "id": 118,
+            "block_id": 1,
+            "page": 7,
+            "bbox": [
+                312.06201171875,
+                60.856204986572266,
+                556.7686767578125,
+                171.49842834472656
+            ],
+            "type": "unknown",
+            "text": "17.\nHe K, Zhang X, Ren S, Sun J (2015) Deep residual learning for image recognition. arXiv\npreprint arXiv:1512.03385.\n18.\nLowe DG (2004) Distinctive image features from scale-invariant keypoints. International jour-\nnal of computer vision 60(2):91–110.\n19.\nDalal N, Triggs B (2005) Histograms of oriented gradients for human detection in Computer\nVision and Pattern Recognition, 2005. CVPR 2005. IEEE Computer Society Conference on.\n(IEEE), Vol. 1, pp. 886–893.\n20.\nBay H, Ess A, Tuytelaars T, Van Gool L (2008) Speeded-up robust features (surf). Computer\nvision and image understanding 110(3):346–359.\n21.\nLeCun Y et al. (1989) Backpropagation applied to handwritten zip code recognition. Neural\ncomputation 1(4):541–551.\n22.\nLin M, Chen Q, Yan S (2013) Network in network. arXiv preprint arXiv:1312.4400.\n23.\nJia Y et al. (2014) Caffe: Convolutional architecture for fast feature embedding. arXiv preprint\narXiv:1408.5093."
+        },
+        {
+            "id": 119,
+            "block_id": 2,
+            "page": 7,
+            "bbox": [
+                491.74700927734375,
+                749.3062744140625,
+                555.6605224609375,
+                757.6539306640625
+            ],
+            "type": "unknown",
+            "text": "April 15, 2016\n|\n7"
+        }
+    ],
+    "images": [
+        {
+            "id": "image_1",
+            "page": 2,
+            "path": "../data/output\\images\\image_1.png"
+        },
+        {
+            "id": "image_2",
+            "page": 2,
+            "path": "../data/output\\images\\image_2.png"
+        },
+        {
+            "id": "image_3",
+            "page": 2,
+            "path": "../data/output\\images\\image_3.png"
+        },
+        {
+            "id": "image_4",
+            "page": 2,
+            "path": "../data/output\\images\\image_4.png"
+        },
+        {
+            "id": "image_5",
+            "page": 2,
+            "path": "../data/output\\images\\image_5.png"
+        },
+        {
+            "id": "image_6",
+            "page": 2,
+            "path": "../data/output\\images\\image_6.png"
+        },
+        {
+            "id": "image_7",
+            "page": 2,
+            "path": "../data/output\\images\\image_7.png"
+        },
+        {
+            "id": "image_8",
+            "page": 3,
+            "path": "../data/output\\images\\image_8.png"
+        },
+        {
+            "id": "image_9",
+            "page": 3,
+            "path": "../data/output\\images\\image_9.png"
+        },
+        {
+            "id": "image_10",
+            "page": 5,
+            "path": "../data/output\\images\\image_10.png"
+        },
+        {
+            "id": "image_11",
+            "page": 5,
+            "path": "../data/output\\images\\image_11.png"
+        },
+        {
+            "id": "image_12",
+            "page": 5,
+            "path": "../data/output\\images\\image_12.png"
+        },
+        {
+            "id": "image_13",
+            "page": 5,
+            "path": "../data/output\\images\\image_13.png"
+        },
+        {
+            "id": "image_14",
+            "page": 5,
+            "path": "../data/output\\images\\image_14.png"
+        }
+    ]
+}

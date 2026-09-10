@@ -1,0 +1,267 @@
+import torch
+import torch.nn as nn
+import yaml
+import os
+
+
+class GPT4DataCollection(nn.Module):
+    """
+    GPT4DataCollection model for SELF-RAG data collection.
+
+    This model is a randomly initialized GPT-style transformer decoder that
+    serves as a proxy for GPT-4 during the data collection phase. It follows
+    the standard next-token prediction objective (cross-entropy).
+
+    The architecture is a standard causal transformer decoder with:
+      - Token embeddings
+      - Positional embeddings
+      - N stacked transformer decoder layers
+      - Final LayerNorm
+      - LM head (tied weights with token embeddings)
+
+    Note:
+        This is a randomly initialized structure (no pretrained weights).
+        Weight initialization is handled externally in training/train.py.
+    """
+
+    def __init__(self, config=None):
+        """
+        Initialize the GPT4DataCollection model.
+
+        Args:
+            config (dict, optional): Configuration dictionary loaded from
+                config/config.yaml. If None, defaults are used.
+        """
+        super(GPT4DataCollection, self).__init__()
+
+        # Load config if provided, otherwise use defaults
+        if config is None:
+            config = self._load_default_config()
+
+        # ------------------------------------------------------------------
+        # Extract model hyperparameters from config with safe fallbacks.
+        # The paper (SELF-RAG) uses Llama-2 style architectures with
+        # vocab_size=32000. Since the config does not specify a vocabulary
+        # size, we default to 32000 (standard for Llama-2 / GPT-style models).
+        # ------------------------------------------------------------------
+        # Vocabulary size: default 32000 (standard Llama-2 vocab size)
+        # This is a reasonable default for a GPT-style language model.
+        self.vocab_size = 32000
+
+        # Hidden size / embedding dimension
+        # Default: 4096 (Llama-2 7B hidden size)
+        self.hidden_size = 4096
+
+        # Number of transformer decoder layers
+        # Default: 32 (Llama-2 7B number of layers)
+        self.num_layers = 32
+
+        # Number of attention heads
+        # Default: 32 (Llama-2 7B number of heads)
+        self.num_heads = 32
+
+        # Intermediate size for feed-forward network
+        # Default: 11008 (Llama-2 7B intermediate size)
+        self.intermediate_size = 11008
+
+        # Max sequence length
+        # Default: 2048 (common for GPT-style models)
+        self.max_seq_len = 2048
+
+        # Dropout ratio from config (if provided)
+        dropout_ratio = config.get("model", {}).get("dropout_ratio")
+        if dropout_ratio is None:
+            # Default dropout ratio for transformer layers
+            dropout_ratio = 0.1
+        self.dropout_ratio = float(dropout_ratio)
+
+        # ------------------------------------------------------------------
+        # Build the model components
+        # ------------------------------------------------------------------
+
+        # Token embedding layer
+        self.token_embedding = nn.Embedding(
+            num_embeddings=self.vocab_size,
+            embedding_dim=self.hidden_size,
+            padding_idx=0,  # index 0 is reserved for padding
+        )
+
+        # Positional embedding layer (learned)
+        self.position_embedding = nn.Embedding(
+            num_embeddings=self.max_seq_len,
+            embedding_dim=self.hidden_size,
+        )
+
+        # Dropout layer
+        self.dropout = nn.Dropout(p=self.dropout_ratio)
+
+        # Transformer decoder layers
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=self.hidden_size,
+            nhead=self.num_heads,
+            dim_feedforward=self.intermediate_size,
+            dropout=self.dropout_ratio,
+            activation="gelu",
+            batch_first=True,
+            norm_first=True,  # Pre-LN transformer (like GPT-2 / Llama)
+        )
+        self.layers = nn.ModuleList(
+            [decoder_layer for _ in range(self.num_layers)]
+        )
+
+        # Final layer normalization
+        self.final_norm = nn.LayerNorm(self.hidden_size)
+
+        # LM head (tied weights with token embedding)
+        self.lm_head = nn.Linear(
+            in_features=self.hidden_size,
+            out_features=self.vocab_size,
+            bias=False,
+        )
+        # Tie the weights between lm_head and token_embedding
+        self.lm_head.weight = self.token_embedding.weight
+
+        # Initialize weights (will be re-initialized in training/train.py)
+        self._init_weights()
+
+    def _init_weights(self):
+        """Initialize model weights with normal distribution."""
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Embedding):
+                nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            elif isinstance(module, nn.LayerNorm):
+                nn.init.ones_(module.weight)
+                nn.init.zeros_(module.bias)
+
+    def _load_default_config(self):
+        """
+        Load default config from config/config.yaml.
+
+        Returns:
+            dict: Configuration dictionary.
+        """
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "config",
+            "config.yaml",
+        )
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            return config
+        except FileNotFoundError:
+            # Return empty dict if config file not found
+            return {}
+
+    def forward(self, input_ids, attention_mask=None):
+        """
+        Forward pass of the GPT4DataCollection model.
+
+        Args:
+            input_ids (torch.Tensor): Token indices of shape
+                (batch_size, seq_len).
+            attention_mask (torch.Tensor, optional): Attention mask of shape
+                (batch_size, seq_len) where 1 indicates valid positions and
+                0 indicates padding positions. If None, all positions are
+                considered valid.
+
+        Returns:
+            torch.Tensor: Logits of shape (batch_size, seq_len, vocab_size).
+        """
+        batch_size, seq_len = input_ids.shape
+
+        # Ensure input_ids are within valid range
+        input_ids = input_ids.clamp(0, self.vocab_size - 1)
+
+        # Create position indices
+        positions = torch.arange(
+            seq_len, dtype=torch.long, device=input_ids.device
+        )
+        positions = positions.unsqueeze(0).expand(batch_size, seq_len)
+
+        # Token embeddings
+        token_embeds = self.token_embedding(input_ids)
+
+        # Positional embeddings
+        pos_embeds = self.position_embedding(positions)
+
+        # Combine embeddings
+        hidden_states = token_embeds + pos_embeds
+        hidden_states = self.dropout(hidden_states)
+
+        # Create causal mask for autoregressive decoding
+        # This prevents attending to future tokens
+        causal_mask = torch.triu(
+            torch.ones(
+                seq_len, seq_len, dtype=torch.bool, device=input_ids.device
+            ),
+            diagonal=1,
+        )
+
+        # Prepare attention mask for transformer decoder
+        # The transformer decoder expects a 4D mask or 2D mask
+        # We'll use a 2D mask of shape (tgt_seq_len, tgt_seq_len)
+        # where True indicates positions to be masked (not attended to)
+
+        # Combine causal mask with padding mask
+        if attention_mask is not None:
+            # attention_mask: (batch_size, seq_len) with 1 for valid, 0 for padding
+            # Convert to (batch_size, seq_len) where True means masked
+            padding_mask = (attention_mask == 0).unsqueeze(1).expand(
+                -1, seq_len, -1
+            )
+            # Combine with causal mask
+            # causal_mask: (seq_len, seq_len) -> expand to (batch_size, seq_len, seq_len)
+            causal_mask_expanded = causal_mask.unsqueeze(0).expand(
+                batch_size, -1, -1
+            )
+            # Combined mask: True means masked (either padding or future)
+            combined_mask = causal_mask_expanded | padding_mask
+            # Convert to float mask for transformer (True -> -inf, False -> 0)
+            tgt_mask = torch.zeros_like(
+                combined_mask, dtype=torch.float32
+            )
+            tgt_mask = tgt_mask.masked_fill(combined_mask, float("-inf"))
+        else:
+            # Only causal mask
+            tgt_mask = torch.zeros_like(causal_mask, dtype=torch.float32)
+            tgt_mask = tgt_mask.masked_fill(causal_mask, float("-inf"))
+
+        # Pass through transformer decoder layers
+        # Note: We use tgt_mask for causal masking
+        # memory is not used (we're not doing encoder-decoder)
+        # We pass hidden_states as both tgt and memory (self-attention only)
+        for layer in self.layers:
+            hidden_states = layer(
+                tgt=hidden_states,
+                memory=hidden_states,
+                tgt_mask=tgt_mask,
+                memory_mask=None,
+                tgt_key_padding_mask=None,
+                memory_key_padding_mask=None,
+            )
+
+        # Final layer norm
+        hidden_states = self.final_norm(hidden_states)
+
+        # Project to vocabulary size
+        logits = self.lm_head(hidden_states)
+
+        return logits
+
+
+def create_gpt4_data_collection_model(config=None):
+    """
+    Factory function to create a GPT4DataCollection model.
+
+    Args:
+        config (dict, optional): Configuration dictionary.
+
+    Returns:
+        GPT4DataCollection: Instantiated model.
+    """
+    return GPT4DataCollection(config=config)

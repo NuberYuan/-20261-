@@ -1,0 +1,59 @@
+# =========================
+# paper2code .gitignore
+# =========================
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 虚拟环境
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志
+logs/
+*.log
+
+# =========================
+# 敏感文件 — 切勿提交
+# =========================
+
+# 包含 API key 或 token 的文件
+.env
+*.secret
+
+# =========================
+# 临时/生成文件
+# =========================
+
+# AI 生成的代码 (Step3)
+code/step3/generated/generated_figure_code_*.py
+
+# Step4 输出 (可重新生成)
+data/output/*/step4/*.yaml
+data/output/step4/
+
+# 提取的图片 (可重新生成)
+data/output/*/images/
+data/output/images/
+
+# =========================
+# 大文件
+# =========================
+
+# PDF 论文
+data/input/*.pdf
+data/output/*/images/*.png

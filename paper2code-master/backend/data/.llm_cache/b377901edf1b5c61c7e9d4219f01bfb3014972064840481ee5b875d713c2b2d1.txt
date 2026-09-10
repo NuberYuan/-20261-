@@ -1,0 +1,17 @@
+{
+  "table_id": "table_2",
+  "table_type": "other",
+  "caption_summary": "A fragment of a table listing input symbol counts for different arithmetic tasks, with a mention of Q-learning.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "input symbols for addition", "value": "two 104 long numbers"},
+      {"label": "input symbols for addition (alternative)", "value": "3 long numbers"},
+      {"label": "input symbols for single digit multiplication", "value": "a single"},
+      {"label": "method", "value": "Q-LEARNING"}
+    ]
+  },
+  "table_summary": "The table appears to be a fragment from a larger table, possibly describing the input symbol requirements for different arithmetic tasks (addition and multiplication) in the context of a Q-learning approach. The extracted data is incomplete and lacks clear metric or method comparisons, making it difficult to determine the exact table type or purpose."
+}

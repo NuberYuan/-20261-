@@ -1,0 +1,136 @@
+```python
+import os
+import sys
+import json
+import numpy as np
+import cv2
+from PIL import Image
+
+def analyze_image(image_path, ocr_text):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法确定图片类型",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # Get basic image info
+        height, width = img.shape[:2]
+        
+        # Convert OCR text to lowercase for matching
+        ocr_lower = ocr_text.lower()
+        
+        # Define keyword sets
+        architecture_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        experiment_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "curve", "performance", "comparison", "result"
+        ]
+        
+        dataset_keywords = [
+            "sample", "example", "dataset", "input", "image"
+        ]
+        
+        # Check for experiment results first (highest priority)
+        experiment_components = []
+        for kw in experiment_keywords:
+            if kw in ocr_lower:
+                experiment_components.append(kw)
+        
+        if experiment_components:
+            # Check for model names in OCR
+            model_names = []
+            for kw in architecture_keywords:
+                if kw in ocr_lower:
+                    model_names.append(kw)
+            
+            components = model_names + experiment_components
+            return {
+                "type": "experiment_result",
+                "description": "展示实验结果和性能指标对比",
+                "important_components": components[:5],
+                "code_relevant_information": "需要实现实验评估模块，包含指标计算和结果可视化"
+            }
+        
+        # Check for architecture
+        architecture_components = []
+        for kw in architecture_keywords:
+            if kw in ocr_lower:
+                architecture_components.append(kw)
+        
+        if architecture_components:
+            return {
+                "type": "architecture",
+                "description": "展示模型网络结构和数据流关系",
+                "important_components": architecture_components,
+                "code_relevant_information": "需要实现模型架构，包含特征提取和分类模块"
+            }
+        
+        # Check for dataset
+        dataset_components = []
+        for kw in dataset_keywords:
+            if kw in ocr_lower:
+                dataset_components.append(kw)
+        
+        if dataset_components:
+            return {
+                "type": "dataset",
+                "description": "展示数据集样本或输入示例",
+                "important_components": dataset_components,
+                "code_relevant_information": "需要实现数据加载和预处理模块"
+            }
+        
+        # Default case
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+def main():
+    try:
+        # Get image path from command line
+        image_path = sys.argv[1]
+        
+        # OCR text provided externally
+        ocr_text = "SCICoQA"
+        
+        # Analyze image
+        result = analyze_image(image_path, ocr_text)
+        
+        # Output JSON
+        print(json.dumps(result, ensure_ascii=False))
+        
+    except Exception as e:
+        # Fallback output
+        fallback = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        print(json.dumps(fallback, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+```

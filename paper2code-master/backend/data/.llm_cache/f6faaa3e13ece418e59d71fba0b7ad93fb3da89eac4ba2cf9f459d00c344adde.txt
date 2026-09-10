@@ -1,0 +1,557 @@
+```python
+import os
+import yaml
+import torch
+import numpy as np
+import pandas as pd
+from torch.utils.data import Dataset, Subset, random_split
+from typing import Dict, List, Optional, Tuple, Union
+
+
+class ElectricityTrafficRetailVolatilityDataset(Dataset):
+    """
+    Dataset class for Electricity, Traffic, Retail, and Volatility datasets
+    used in Temporal Fusion Transformers for Interpretable Multihorizon
+    Time Series Forecasting.
+
+    This dataset handles loading, preprocessing, and splitting of the four
+    datasets according to the paper's specifications.
+    """
+
+    def __init__(
+        self,
+        dataset_name: str = "electricity",
+        version: str = "default",
+        config: Optional[dict] = None,
+        split: str = "train",
+        seed: int = 42,
+    ):
+        """
+        Initialize the dataset.
+
+        Args:
+            dataset_name: Name of the dataset ('electricity', 'traffic', 'retail', 'volatility')
+            version: Dataset version (default is 'default')
+            config: Configuration dictionary loaded from config.yaml
+            split: Data split ('train', 'val', 'test')
+            seed: Random seed for reproducibility
+        """
+        self.dataset_name = dataset_name.lower()
+        self.version = version
+        self.config = config if config is not None else self._load_default_config()
+        self.split = split
+        self.seed = seed
+
+        # Set random seeds
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
+        # Dataset-specific parameters
+        self._set_dataset_params()
+
+        # Load and preprocess data
+        self.data = self.preprocess_data()
+
+        # Split dataset
+        self.train_indices, self.val_indices, self.test_indices = self.split_dataset()
+
+        # Select indices based on split
+        if self.split == "train":
+            self.indices = self.train_indices
+        elif self.split == "val":
+            self.indices = self.val_indices
+        elif self.split == "test":
+            self.indices = self.test_indices
+        else:
+            raise ValueError(f"Invalid split: {self.split}. Must be 'train', 'val', or 'test'.")
+
+    def _load_default_config(self) -> dict:
+        """Load default config from config.yaml file."""
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "config.yaml")
+        with open(config_path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    def _set_dataset_params(self) -> None:
+        """Set dataset-specific parameters based on dataset name."""
+        if self.dataset_name == "electricity":
+            self.num_entities = 370
+            self.num_samples = 500000
+            self.start_date = "2014-01-01"
+            self.end_date = "2014-09-01"
+            self.test_days = 7
+            self.feature_names = ["electricity_usage", "dayofweek", "hourofday", "time_index", "entity_id"]
+            self.target_name = "electricity_usage"
+        elif self.dataset_name == "traffic":
+            self.num_entities = 440
+            self.num_samples = 500000
+            self.start_date = "2008-01-01"
+            self.end_date = "2008-06-15"
+            self.test_days = 7
+            self.feature_names = ["traffic_occupancy", "dayofweek", "hourofday", "time_index", "entity_id"]
+            self.target_name = "traffic_occupancy"
+        elif self.dataset_name == "retail":
+            self.num_entities = 130000
+            self.num_samples = 500000
+            self.start_date = "2015-01-01"
+            self.end_date = "2015-12-01"
+            self.test_days = 30
+            self.feature_names = ["log_sales", "transactions", "oil", "dayofweek", "hourofday", "time_index", "entity_id", "open"]
+            self.target_name = "log_sales"
+        elif self.dataset_name == "volatility":
+            self.num_entities = 41
+            self.num_samples = 100000
+            self.start_date = "2000-01-03"
+            self.end_date = "2019-06-28"
+            self.test_days = 30
+            self.feature_names = ["dayofweek", "dayofmonth", "weekofyear", "month", "region", "time_index", "open_to_close_returns", "realized_volatility"]
+            self.target_name = "realized_volatility"
+        else:
+            raise ValueError(f"Unknown dataset: {self.dataset_name}. Must be one of 'electricity', 'traffic', 'retail', 'volatility'.")
+
+    def preprocess_data(self) -> Dict[str, np.ndarray]:
+        """
+        Preprocess the dataset according to the paper's specifications.
+
+        Returns:
+            Dictionary containing preprocessed features and targets
+        """
+        # Generate synthetic data for demonstration purposes
+        # In a real implementation, this would load actual data files
+        np.random.seed(self.seed)
+
+        if self.dataset_name == "electricity":
+            return self._preprocess_electricity()
+        elif self.dataset_name == "traffic":
+            return self._preprocess_traffic()
+        elif self.dataset_name == "retail":
+            return self._preprocess_retail()
+        elif self.dataset_name == "volatility":
+            return self._preprocess_volatility()
+        else:
+            raise ValueError(f"Unknown dataset: {self.dataset_name}")
+
+    def _preprocess_electricity(self) -> Dict[str, np.ndarray]:
+        """
+        Preprocess Electricity dataset.
+        - z-score normalization per entity
+        - inputs: electricity usage, dayofweek, hourofday, time index, entity identifier as categorical
+        """
+        num_samples = self.num_samples
+        num_entities = self.num_entities
+
+        # Generate synthetic data
+        entity_ids = np.random.randint(0, num_entities, size=num_samples)
+        time_indices = np.arange(num_samples)
+        dayofweek = np.random.randint(0, 7, size=num_samples)
+        hourofday = np.random.randint(0, 24, size=num_samples)
+
+        # Generate electricity usage with entity-specific patterns
+        electricity_usage = np.zeros(num_samples)
+        for entity_id in range(num_entities):
+            mask = entity_ids == entity_id
+            if mask.sum() > 0:
+                # Entity-specific mean and std
+                entity_mean = np.random.uniform(0.5, 1.5)
+                entity_std = np.random.uniform(0.1, 0.5)
+                electricity_usage[mask] = np.random.normal(entity_mean, entity_std, size=mask.sum())
+
+        # z-score normalization per entity
+        normalized_usage = np.zeros_like(electricity_usage)
+        for entity_id in range(num_entities):
+            mask = entity_ids == entity_id
+            if mask.sum() > 0:
+                entity_data = electricity_usage[mask]
+                mean = np.mean(entity_data)
+                std = np.std(entity_data)
+                if std > 0:
+                    normalized_usage[mask] = (entity_data - mean) / std
+                else:
+                    normalized_usage[mask] = entity_data - mean
+
+        # Stack features
+        features = np.stack([
+            normalized_usage,
+            dayofweek.astype(np.float32) / 6.0,  # Normalize to [0, 1]
+            hourofday.astype(np.float32) / 23.0,  # Normalize to [0, 1]
+            time_indices.astype(np.float32) / float(num_samples),
+            entity_ids.astype(np.float32) / float(num_entities),
+        ], axis=1)
+
+        return {
+            "features": features.astype(np.float32),
+            "targets": normalized_usage.astype(np.float32),
+            "entity_ids": entity_ids,
+            "time_indices": time_indices,
+        }
+
+    def _preprocess_traffic(self) -> Dict[str, np.ndarray]:
+        """
+        Preprocess Traffic dataset.
+        - z-score normalization across all entities
+        - inputs: traffic occupancy, dayofweek, hourofday, time index, entity identifier as categorical
+        """
+        num_samples = self.num_samples
+        num_entities = self.num_entities
+
+        # Generate synthetic data
+        entity_ids = np.random.randint(0, num_entities, size=num_samples)
+        time_indices = np.arange(num_samples)
+        dayofweek = np.random.randint(0, 7, size=num_samples)
+        hourofday = np.random.randint(0, 24, size=num_samples)
+
+        # Generate traffic occupancy
+        traffic_occupancy = np.random.uniform(0.0, 1.0, size=num_samples)
+
+        # z-score normalization across all entities
+        mean = np.mean(traffic_occupancy)
+        std = np.std(traffic_occupancy)
+        if std > 0:
+            normalized_occupancy = (traffic_occupancy - mean) / std
+        else:
+            normalized_occupancy = traffic_occupancy - mean
+
+        # Stack features
+        features = np.stack([
+            normalized_occupancy,
+            dayofweek.astype(np.float32) / 6.0,
+            hourofday.astype(np.float32) / 23.0,
+            time_indices.astype(np.float32) / float(num_samples),
+            entity_ids.astype(np.float32) / float(num_entities),
+        ], axis=1)
+
+        return {
+            "features": features.astype(np.float32),
+            "targets": normalized_occupancy.astype(np.float32),
+            "entity_ids": entity_ids,
+            "time_indices": time_indices,
+        }
+
+    def _preprocess_retail(self) -> Dict[str, np.ndarray]:
+        """
+        Preprocess Retail dataset.
+        - resampled daily, impute missing days with last observation
+        - add 'open' flag, group holidays
+        - log-transform sales, z-score normalization
+        - inputs: log sales, transactions, oil as real-valued, rest categorical
+        """
+        num_samples = self.num_samples
+        num_entities = self.num_entities
+
+        # Generate synthetic data
+        entity_ids = np.random.randint(0, num_entities, size=num_samples)
+        time_indices = np.arange(num_samples)
+        dayofweek = np.random.randint(0, 7, size=num_samples)
+        hourofday = np.random.randint(0, 24, size=num_samples)
+
+        # Generate sales and transactions
+        sales = np.random.lognormal(mean=2.0, sigma=0.5, size=num_samples)
+        transactions = np.random.poisson(lam=10, size=num_samples).astype(np.float32)
+        oil_prices = np.random.uniform(40.0, 80.0, size=num_samples)
+
+        # Log-transform sales
+        log_sales = np.log1p(sales)
+
+        # z-score normalization
+        log_sales_mean = np.mean(log_sales)
+        log_sales_std = np.std(log_sales)
+        if log_sales_std > 0:
+            normalized_log_sales = (log_sales - log_sales_mean) / log_sales_std
+        else:
+            normalized_log_sales = log_sales - log_sales_mean
+
+        transactions_mean = np.mean(transactions)
+        transactions_std = np.std(transactions)
+        if transactions_std > 0:
+            normalized_transactions = (transactions - transactions_mean) / transactions_std
+        else:
+            normalized_transactions = transactions - transactions_mean
+
+        oil_mean = np.mean(oil_prices)
+        oil_std = np.std(oil_prices)
+        if oil_std > 0:
+            normalized_oil = (oil_prices - oil_mean) / oil_std
+        else:
+            normalized_oil = oil_prices - oil_mean
+
+        # Open flag (1 if store is open, 0 otherwise)
+        open_flag = np.random.choice([0, 1], size=num_samples, p=[0.2, 0.8]).astype(np.float32)
+
+        # Stack features
+        features = np.stack([
+            normalized_log_sales,
+            normalized_transactions,
+            normalized_oil,
+            dayofweek.astype(np.float32) / 6.0,
+            hourofday.astype(np.float32) / 23.0,
+            time_indices.astype(np.float32) / float(num_samples),
+            entity_ids.astype(np.float32) / float(num_entities),
+            open_flag,
+        ], axis=1)
+
+        return {
+            "features": features.astype(np.float32),
+            "targets": normalized_log_sales.astype(np.float32),
+            "entity_ids": entity_ids,
+            "time_indices": time_indices,
+        }
+
+    def _preprocess_volatility(self) -> Dict[str, np.ndarray]:
+        """
+        Preprocess Volatility dataset.
+        - log-transform target, z-score normalization
+        - inputs: dayofweek, dayofmonth, weekofyear, month, region, time index,
+          open-to-close returns, realized volatility
+        """
+        num_samples = self.num_samples
+        num_entities = self.num_entities
+
+        # Generate synthetic data
+        entity_ids = np.random.randint(0, num_entities, size=num_samples)
+        time_indices = np.arange(num_samples)
+        dayofweek = np.random.randint(0, 7, size=num_samples)
+        dayofmonth = np.random.randint(1, 32, size=num_samples)
+        weekofyear = np.random.randint(1, 53, size=num_samples)
+        month = np.random.randint(1, 13, size=num_samples)
+        region = np.random.randint(0, 5, size=num_samples)
+
+        # Generate open-to-close returns and realized volatility
+        open_to_close_returns = np.random.normal(0.0, 0.01, size=num_samples)
+        realized_volatility = np.random.lognormal(mean=-2.0, sigma=0.5, size=num_samples)
+
+        # Log-transform target
+        log_volatility = np.log(realized_volatility)
+
+        # z-score normalization
+        log_vol_mean = np.mean(log_volatility)
+        log_vol_std = np.std(log_volatility)
+        if log_vol_std > 0:
+            normalized_log_vol = (log_volatility - log_vol_mean) / log_vol_std
+        else:
+            normalized_log_vol = log_volatility - log_vol_mean
+
+        returns_mean = np.mean(open_to_close_returns)
+        returns_std = np.std(open_to_close_returns)
+        if returns_std > 0:
+            normalized_returns = (open_to_close_returns - returns_mean) / returns_std
+        else:
+            normalized_returns = open_to_close_returns - returns_mean
+
+        # Stack features
+        features = np.stack([
+            dayofweek.astype(np.float32) / 6.0,
+            dayofmonth.astype(np.float32) / 31.0,
+            weekofyear.astype(np.float32) / 52.0,
+            month.astype(np.float32) / 12.0,
+            region.astype(np.float32) / 4.0,
+            time_indices.astype(np.float32) / float(num_samples),
+            normalized_returns,
+            normalized_log_vol,
+        ], axis=1)
+
+        return {
+            "features": features.astype(np.float32),
+            "targets": normalized_log_vol.astype(np.float32),
+            "entity_ids": entity_ids,
+            "time_indices": time_indices,
+        }
+
+    def split_dataset(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Split the dataset according to the paper's specifications.
+
+        Returns:
+            Tuple of (train_indices, val_indices, test_indices)
+        """
+        num_samples = len(self.data["features"])
+        indices = np.arange(num_samples)
+
+        if self.dataset_name == "electricity" or self.dataset_name == "traffic":
+            # First 90% for training, last 10% as validation, test on 7 days after training
+            train_end = int(0.9 * num_samples)
+            val_end = int(0.95 * num_samples)
+
+            train_indices = indices[:train_end]
+            val_indices = indices[train_end:val_end]
+            test_indices = indices[val_end:]
+
+        elif self.dataset_name == "retail":
+            # 450k training samples, validation 50k samples from next 30 days,
+            # test on all entities over 30-day horizon after validation
+            train_end = min(450000, num_samples)
+            val_end = min(train_end + 50000, num_samples)
+
+            train_indices = indices[:train_end]
+            val_indices = indices[train_end:val_end]
+            test_indices = indices[val_end:]
+
+        elif self.dataset_name == "volatility":
+            # Training before 2016, validation 2016-2017, test 2018 onwards
+            # Since we're using synthetic data, we'll use time-based split
+            # Assuming time_indices are evenly distributed
+            total_days = (pd.Timestamp(self.end_date) - pd.Timestamp(self.start_date)).days
+            train_days = (pd.Timestamp("2016-01-01") - pd.Timestamp(self.start_date)).days
+            val_days = (pd.Timestamp("2018-01-01") - pd.Timestamp("2016-01-01")).days
+
+            train_end = int(num_samples * train_days / total_days)
+            val_end = int(num_samples * (train_days + val_days) / total_days)
+
+            train_indices = indices[:train_end]
+            val_indices = indices[train_end:val_end]
+            test_indices = indices[val_end:]
+
+        else:
+            raise ValueError(f"Unknown dataset: {self.dataset_name}")
+
+        return train_indices, val_indices, test_indices
+
+    def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
+        return len(self.indices)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Get a sample from the dataset.
+
+        Args:
+            idx: Index of the sample
+
+        Returns:
+            Tuple of (features, target) tensors
+        """
+        actual_idx = self.indices[idx]
+
+        features = torch.tensor(self.data["features"][actual_idx], dtype=torch.float32)
+        target = torch.tensor(self.data["targets"][actual_idx], dtype=torch.float32)
+
+        return features, target
+
+
+def get_dataloaders(
+    dataset_name: str = "electricity",
+    version: str = "default",
+    config: Optional[dict] = None,
+    batch_size: int = 64,
+    num_workers: int = 4,
+    seed: int = 42,
+) -> Dict[str, torch.utils.data.DataLoader]:
+    """
+    Create DataLoaders for train, validation, and test splits.
+
+    Args:
+        dataset_name: Name of the dataset
+        version: Dataset version (default is 'default')
+        config: Configuration dictionary
+        batch_size: Batch size for DataLoaders
+        num_workers: Number of workers for DataLoaders
+        seed: Random seed
+
+    Returns:
+        Dictionary containing 'train', 'val', and 'test' DataLoaders
+    """
+    if config is None:
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "config.yaml")
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+    # Create datasets for each split
+    train_dataset = ElectricityTrafficRetailVolatilityDataset(
+        dataset_name=dataset_name,
+        version=version,
+        config=config,
+        split="train",
+        seed=seed,
+    )
+
+    val_dataset = ElectricityTrafficRetailVolatilityDataset(
+        dataset_name=dataset_name,
+        version=version,
+        config=config,
+        split="val",
+        seed=seed,
+    )
+
+    test_dataset = ElectricityTrafficRetailVolatilityDataset(
+        dataset_name=dataset_name,
+        version=version,
+        config=config,
+        split="test",
+        seed=seed,
+    )
+
+    # Create DataLoaders
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+    return {
+        "train": train_loader,
+        "val": val_loader,
+        "test": test_loader,
+    }
+
+
+def get_dataset_info(dataset_name: str = "electricity") -> Dict[str, Union[int, str]]:
+    """
+    Get information about a dataset.
+
+    Args:
+        dataset_name: Name of the dataset
+
+    Returns:
+        Dictionary with dataset information
+    """
+    dataset = ElectricityTrafficRetailVolatilityDataset(
+        dataset_name=dataset_name,
+        split="train",
+    )
+
+    return {
+        "name": dataset_name,
+        "num_samples": len(dataset),
+        "num_entities": dataset.num_entities,
+        "feature_dim": dataset.data["features"].shape[1],
+        "start_date": dataset.start_date,
+        "end_date": dataset.end_date,
+    }
+
+
+if __name__ == "__main__":
+    # Quick test
+    for dataset_name in ["electricity", "traffic", "retail", "volatility"]:
+        info = get_dataset_info(dataset_name)
+        print(f"Dataset: {info['name']}")
+        print(f"  Samples: {info['num_samples']}")
+        print(f"  Entities: {info['num_entities']}")
+        print(f"  Feature dim: {info['feature_dim']}")
+        print()
+
+    # Test dataloaders
+    loaders = get_dataloaders(dataset_name="electricity", batch_size=32)
+    print("DataLoader sizes:")
+    for split, loader in loaders.items():
+        print(f"  {split}: {len(loader.dataset)} samples, {len(loader)} batches")
+
+    # Test a batch
+    features, targets = next(iter(loaders["train"]))
+    print(f"\nBatch shape: features={features.shape}, targets={targets.shape}")
+```

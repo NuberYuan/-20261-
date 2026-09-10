@@ -1,0 +1,16 @@
+{
+  "table_id": "table_7",
+  "table_type": "other",
+  "caption_summary": "A bar chart showing recall values for different AI models grouped by data origin (Real vs Synthetic, and subcategories like GitHub, CS, Other).",
+  "extracted_data": {
+    "metrics": ["Recall"],
+    "methods": ["GPT-5", "GPT-5 Mini", "Claude 3.1 Pro", "T-OSS 20B", "Claude 2.5 Pro", "GPT-5 Codex", "T-OSS 120B", "Claude 2.5 Flash"],
+    "best_result": null,
+    "key_values": [
+      {"label": "Origin", "value": "Real S, R/GitHub S, R/Repro. S, ynthetic /CS /Other"},
+      {"label": "Recall scale", "value": "0.0 to 1.0"},
+      {"label": "Models", "value": "GPT-5, GPT-5 Mini, Claude 3.1 Pro, T-OSS 20B, Claude 2.5 Pro, GPT-5 Codex, T-OSS 120B, Claude 2.5 Flash"}
+    ]
+  },
+  "table_summary": "This table appears to be a bar chart visualization rather than a traditional data table. It displays recall values for several AI models (GPT-5, GPT-5 Mini, Claude 3.1 Pro, T-OSS 20B, Claude 2.5 Pro, GPT-5 Codex, T-OSS 120B, Claude 2.5 Flash) across different data origins (Real vs Synthetic, with subcategories like GitHub, CS, Other). The recall values are plotted on a scale from 0.0 to 1.0, but exact numerical values are not provided in the extracted text."
+}

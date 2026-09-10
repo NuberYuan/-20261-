@@ -1,0 +1,5 @@
+{
+  "models[0].architecture.total_layers": "NOT_FOUND",
+  "models[0].architecture.param_count": "400M",
+  "models[0].architecture.final_classifier": "NOT_FOUND"
+}

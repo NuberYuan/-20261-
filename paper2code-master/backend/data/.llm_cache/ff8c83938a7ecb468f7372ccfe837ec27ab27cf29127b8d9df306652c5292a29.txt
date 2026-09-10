@@ -1,0 +1,27 @@
+```python
+# models/__init__.py
+"""
+模型模块初始化文件。
+
+统一导出所有支持的模型类，便于外部模块通过 `from models import ...` 导入。
+所有模型类名与各模型文件中的定义完全一致。
+"""
+
+from .deep_seek_coder13_b67_b_instruct import DeepSeekCoder13B67BInstruct
+from .stable_code_instruct3_b import StableCodeInstruct3B
+from .qwen25_coder15_b7_b_instruct import Qwen25Coder15B7BInstruct
+from .qwen306_b import Qwen306B
+from .qwen317_b import Qwen317B
+from .qwen34_b import Qwen34B
+from .qwen38_b import Qwen38B
+
+__all__ = [
+    "DeepSeekCoder13B67BInstruct",
+    "StableCodeInstruct3B",
+    "Qwen25Coder15B7BInstruct",
+    "Qwen306B",
+    "Qwen317B",
+    "Qwen34B",
+    "Qwen38B",
+]
+```

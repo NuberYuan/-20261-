@@ -1,0 +1,12 @@
+{
+  "table_id": "table_5",
+  "table_type": "other",
+  "caption_summary": "The table appears to be a placeholder or empty grid with no discernible content.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": []
+  },
+  "table_summary": "The table contains only ellipses and grid lines, indicating that no actual data is present in the extracted version. It may be a formatting artifact or a table that was not properly captured. Without any numerical or textual content, it is impossible to determine its intended purpose or findings."
+}

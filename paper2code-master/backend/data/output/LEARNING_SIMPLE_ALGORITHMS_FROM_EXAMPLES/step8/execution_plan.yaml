@@ -1,0 +1,81 @@
+environment:
+  python_version: 3.9.13
+  cpu_count: 24
+  ram_total_gb: 15.71
+  ram_available_gb: 3.06
+  disk_free_gb: 48.72
+  torch_available: true
+  torch_version: 2.8.0+cpu
+  gpu_available: false
+  gpu_memory_gb: null
+  dependencies:
+    torch: true
+    numpy: true
+    pandas: true
+    sklearn: true
+    scipy: true
+    matplotlib: true
+    PIL: true
+    yaml: true
+    tqdm: false
+    cv2: true
+    huggingface_hub: false
+    transformers: false
+summary:
+  total: 1
+  run: 0
+  skip: 1
+  warnings: 0
+experiments:
+- experiment_id: None_scratch_default
+  run_index: 0
+  model: null
+  mode: scratch
+  dataset_version: default
+  data_source: synthetic
+  acquisition: n/a
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: missing_dependencies
+    detail: '缺少依赖: models（请 pip install -r requirements.txt 后重跑）'
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: true
+      reason: not_required
+      detail: 数据集不适用（data_source=synthetic）
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: true
+      reason: null
+      detail: 不强制要求 GPU（可 CPU 运行）
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: false
+      reason: missing_dependencies
+      detail: '缺少依赖: models（请 pip install -r requirements.txt 后重跑）'
+  execution: null

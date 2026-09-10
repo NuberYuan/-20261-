@@ -1,0 +1,154 @@
+{
+  "title": "Using Deep Learning for Image-Based Plant Disease Detection",
+  "research_problem": "Crop diseases are a major threat to food security, but their rapid identification remains difficult in many parts of the world due to the lack of the necessary infrastructure. The paper investigates using deep learning for image-based plant disease detection, training a deep convolutional neural network to identify 14 crop species and 26 diseases (or absence thereof) from leaf images.",
+  "motivation": "The combination of increasing global smartphone penetration and recent advances in computer vision made possible by deep learning has paved the way for smartphone-assisted disease diagnosis. Traditional image classification approaches rely on hand-engineered features which are complex and labor-intensive, while deep learning enables end-to-end training. A large public dataset of plant leaf images (PlantVillage) is available to train accurate classifiers.",
+  "main_contribution": "The paper demonstrates the technical feasibility of using deep convolutional neural networks for plant disease diagnosis from leaf images. Using a public dataset of 54,306 images, the trained model achieves an accuracy of 99.35% on a held-out test set, and 31.4% on images from trusted online sources, which is much higher than random selection (2.6%).",
+  "methodology": {
+    "method_name": "Deep Convolutional Neural Network (AlexNet and GoogLeNet) for Plant Disease Classification",
+    "core_idea": "Train deep convolutional neural networks (AlexNet and GoogLeNet) end-to-end on leaf images to classify crop-disease pairs without hand-engineered features; compare architectures, training mechanisms (transfer learning vs from scratch), dataset versions (color, grayscale, segmented), and train-test splits.",
+    "pipeline": "Preprocess images by resizing to 256x256 pixels and generating color, grayscale, and segmented versions. Train AlexNet and GoogLeNet models using either transfer learning from ImageNet or training from scratch. Evaluate performance using mean F1 score, mean precision, mean recall, and overall accuracy. Compare across 60 experimental configurations.",
+    "model": "AlexNet, GoogLeNet",
+    "model_architecture": {
+      "input": "Images resized to 256 x 256 pixels",
+      "output": "38 class probability distribution (crop-disease pairs)",
+      "feature_extraction": "AlexNet uses 5 stacked convolution layers with ReLU activations, normalization and pooling layers; GoogLeNet uses 22 layers with 9 inception modules containing parallel 1x1, 3x3, 5x5 convolutions and max pooling.",
+      "classification": "AlexNet: final fully connected layer fc8 with 38 outputs feeding a softmax layer. GoogLeNet: loss1/2/3/classifier layers (reset for transfer learning) with output for 38 classes.",
+      "pretrained_model": "ImageNet pretrained weights; for transfer learning, reset weights of fc8 in AlexNet, and loss1/2/3/classifier layers in GoogLeNet, while not limiting learning of remaining layers.",
+      "special_modules": "GoogLeNet inception modules (9 total); AlexNet dropout layers on first two fully connected layers with dropout ratio 0.5; ReLU nonlinearity in first 7 layers of AlexNet.",
+      "alexnet": "AlexNet consists of 5 convolution layers, followed by 3 fully connected layers, and finally ending with a softMax layer. The first two convolution layers (conv1, conv2) are each followed by a normalization and a pooling layer, and the last convolution layer (conv5) is followed by a single pooling layer. The final fully connected layer (fc8) has 38 outputs in the adapted version. All of the first 7 layers of AlexNet have a ReLU nonlinearity activation unit, and the first two fully connected layers (fc6, fc7) have a dropout layer with a dropout ratio of 0.5.",
+      "googlenet": "GoogLeNet is a much deeper and wider architecture with 22 layers, having considerably lower number of parameters (about 5 million) than AlexNet (about 60 million). It uses network in network architecture in the form of inception modules. Each inception module uses parallel 1x1, 3x3 and 5x5 convolutions along with a max-pooling layer in parallel; 1x1 convolutions are added before the 3x3 and 5x5 convolutions and after the max-pooling layer for dimensionality reduction. A filter concatenation layer concatenates the outputs of all parallel layers. A total of 9 inception modules is used.",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "NOT_FOUND",
+      "lstm": "NOT_FOUND"
+    }
+  },
+  "dataset": {
+    "dataset_name": "PlantVillage dataset",
+    "dataset_source": "PlantVillage project (openly available)",
+    "dataset_size": "54,306 images",
+    "number_of_classes": "38 classes",
+    "data_type": "Images of diseased and healthy plant leaves collected under controlled conditions",
+    "train_test_split": "Train-test splits of 80-20, 60-40, 50-50, 40-60, and 20-80 were used. For 41,112 images with known leaf mappings, all images of the same leaf were kept either in training set or test set to avoid data leakage.",
+    "preprocessing": "Images resized to 256 x 256 pixels. Three dataset versions used: color, grayscale, and leaf segmented. Segmentation was automated by a script using masks generated by analysis of color, lightness and saturation components in Lab and HSB color spaces; the process also fixed strong color casts."
+  },
+  "implementation_details": {
+    "programming_framework": "Caffe",
+    "optimizer": "Stochastic Gradient Descent",
+    "learning_rate": "0.005",
+    "batch_size": "24 (GoogLeNet), 100 (AlexNet)",
+    "epoch": "30",
+    "loss_function": "NOT_FOUND",
+    "hardware": "EPFL GPU cluster computing resources",
+    "training_strategy": "All experiments ran for 30 epochs. Solver: Stochastic Gradient Descent, base learning rate 0.005, learning rate policy Step (decreases by a factor of 10 every 30/3 epochs), momentum 0.9, weight decay 0.0005, gamma 0.1. Batch size 24 for GoogLeNet and 100 for AlexNet. Models were trained either from scratch or by transfer learning from ImageNet (resetting final classifier layers). Experiments varied across architectures (AlexNet/GoogLeNet), dataset types (color/grayscale/segmented), and train-test splits (80-20, 60-40, 50-50, 40-60, 20-80), resulting in 60 configurations."
+  },
+  "experiment": {
+    "evaluation_metrics": "mean F1 score, mean precision, mean recall, overall accuracy",
+    "baseline_methods": "Random guessing (2.63% average accuracy on 38 classes)",
+    "comparison_results": "Best PlantVillage result: GoogLeNet::TransferLearning::Color::80-20 achieved mean F1 score 0.9934 (overall accuracy 99.35%). Worst PlantVillage result: AlexNet::TrainingFromScratch::GrayScale::80-20 achieved overall accuracy 85.53% (mean F1 0.8524). GoogLeNet consistently performed better than AlexNet; transfer learning always yielded better results than training from scratch; color version performed best, followed by segmented, then grayscale. In extreme 20-80 split, GoogLeNet::TransferLearning::Color::20-80 achieved overall accuracy 98.21% (mean F1 0.9820). On online images, model accuracy was 31.40% vs random 2.63%; with crop information provided, accuracy increased to 47.93%; correct class in top-5 predictions in 52.89% of cases.",
+    "ablation_study": "Experimental factors included deep learning architecture (AlexNet vs GoogLeNet), training mechanism (Transfer Learning vs Training from Scratch), dataset type (Color vs Grayscale vs Segmented), and train-test set distribution (80-20, 60-40, 50-50, 40-60, 20-80), totaling 60 configurations. Performance comparison showed GoogLeNet better than AlexNet, transfer learning better than from scratch, color dataset best, and performance degraded slightly with less training data without overfitting divergence.",
+    "important_results": "The best model achieved mean F1 score 0.9934 and overall accuracy 99.35% on held-out PlantVillage test set. On images from trusted online sources, accuracy was 31.40% (random 2.63%); with crop information provided, accuracy increased to 47.93%; top-5 prediction accuracy 52.89%. The model classified correctly 993 out of 1000 images. Classification time is less than a second on a CPU. No overfitting observed as validation loss did not diverge from training loss."
+  },
+  "reproduction_requirements": {
+    "required_modules": [
+      "Caffe"
+    ],
+    "important_parameters": {
+      "learning_rate": "0.005",
+      "batch_size": "24 (GoogLeNet), 100 (AlexNet)",
+      "momentum": "0.9",
+      "weight_decay": "0.0005",
+      "gamma": "0.1",
+      "epochs": "30",
+      "train_test_split": "80-20, 60-40, 50-50, 40-60, 20-80"
+    },
+    "possible_difficulties": [
+      "Ensuring images of the same leaf are not split across train and test sets",
+      "Automated leaf segmentation script may need tuning for the specific dataset",
+      "Training large networks requires GPU cluster and multiple hours",
+      "Limited and biased online test set reduces generalization performance"
+    ]
+  },
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "data_example",
+      "description": "Example of leaf images from the PlantVillage dataset, representing every crop-disease pair used. 1) Apple Scab, Venturia inaequalis 2) Apple Black Rot, Botryosphaeria obtusa 3) Apple Cedar Rust, Gymnosporangium juniperivirginianae 4) Apple healthy 5) Blueberry healthy 6) Cherry healthy 7) Cherry Powdery Mildew, Podosphaera spp. 8) Corn Gray Leaf Spot, Cercospora zeaemaydis 9) Corn Common Rust, Puccinia sorghi 10) Corn healthy 11) Corn Northern Leaf Blight, Exserohilum turcicum 12) Grape Black Rot, Guignardia bidwellii 13) Grape Black Measles (Esca), Phaeomoniella aleophilum, Phaeomoniella chlamydospora 14) Grape Healthy 15) Grape Leaf Blight, Pseudocercospora vitis 16) Orange Huanglongbing (Citrus Greening), Candidatus Liberibacter spp. 17) Peach Bacterial Spot, Xanthomonas campestris 18) Peach healthy 19) Bell Pepper Bacterial Spot, Xanthomonas campestris 20) Bell Pepper healthy 21) Potato Early Blight, Alternaria solani 22) Potato healthy 23) Potato Late Blight, Phytophthora infestans 24) Raspberry healthy 25) Soybean healthy 26) Squash Powdery Mildew, Erysiphe cichoracearum, Sphaerotheca fuliginea 27) Strawberry Healthy 28) Strawberry Leaf Scorch, Diplocarpon earlianum 29) Tomato Bacterial Spot, Xanthomonas campestris pv. vesicatoria 30) Tomato Early Blight, Alternaria solani 31) Tomato Late Blight, Phytophthora infestans 32) Tomato Leaf Mold, Fulvia fulva 33) Tomato Septoria Leaf Spot, Septoria lycopersici 34) Tomato Two Spotted Spider Mite, Tetranychus urticae 35) Tomato Target Spot, Corynespora cassiicola 36) Tomato Mosaic Virus 37) Tomato Yellow Leaf Curl Virus 38) Tomato healthy",
+      "data_characteristics": "Example leaf images from PlantVillage dataset for all 38 crop-disease classes.",
+      "categories": [
+        "Apple Scab",
+        "Apple Black Rot",
+        "Apple Cedar Rust",
+        "Apple healthy",
+        "Blueberry healthy",
+        "Cherry healthy",
+        "Cherry Powdery Mildew",
+        "Corn Gray Leaf Spot",
+        "Corn Common Rust",
+        "Corn healthy",
+        "Corn Northern Leaf Blight",
+        "Grape Black Rot",
+        "Grape Black Measles (Esca)",
+        "Grape Healthy",
+        "Grape Leaf Blight",
+        "Orange Huanglongbing (Citrus Greening)",
+        "Peach Bacterial Spot",
+        "Peach healthy",
+        "Bell Pepper Bacterial Spot",
+        "Bell Pepper healthy",
+        "Potato Early Blight",
+        "Potato healthy",
+        "Potato Late Blight",
+        "Raspberry healthy",
+        "Soybean healthy",
+        "Squash Powdery Mildew",
+        "Strawberry Healthy",
+        "Strawberry Leaf Scorch",
+        "Tomato Bacterial Spot",
+        "Tomato Early Blight",
+        "Tomato Late Blight",
+        "Tomato Leaf Mold",
+        "Tomato Septoria Leaf Spot",
+        "Tomato Two Spotted Spider Mite",
+        "Tomato Target Spot",
+        "Tomato Mosaic Virus",
+        "Tomato Yellow Leaf Curl Virus",
+        "Tomato healthy"
+      ],
+      "visual_features": "Images show leaves with disease symptoms (spots, lesions, discoloration) or healthy leaves."
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "data_example",
+      "description": "Sample images from the three different versions of the PlantVillage dataset used in various experimental configurations: (a) Leaf 1 Color, (b) Leaf 1 Grayscale, (c) Leaf 1 Segmented, (d) Leaf 2 Color, (e) Leaf 2 Grayscale, (f) Leaf 2 Segmented.",
+      "data_characteristics": "Three versions of same leaf images: color, grayscale, and segmented.",
+      "categories": [
+        "Color",
+        "Grayscale",
+        "Segmented"
+      ],
+      "visual_features": "Color images show natural leaf colors; grayscale removes color information; segmented removes background leaving only leaf area."
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "experiment_result",
+      "description": "(a) Example image of a leaf suffering from Apple Cedar Rust, selected from top-20 images returned by Bing Image search. (b) Visualization of activations in the first convolution layer (conv1) of an AlexNet architecture trained using AlexNet:Color:TrainFromScratch:80-20 when doing a forward pass on the image in (a).",
+      "x_axis": "Spatial location in image",
+      "y_axis": "Activation intensity",
+      "trend": "Activations are strong on diseased spots on the leaf.",
+      "conclusion": "The model has learnt to efficiently activate against the diseased spots on the example leaf."
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "comparison_chart",
+      "description": "Progression of mean F1 score and loss through the training period of 30 epochs across all experiments, grouped by experimental configuration parameters: (a) architecture, (b) training mechanism, (c) train/test loss, (d) train-test set splits, (e) dataset type.",
+      "x_axis": "Epochs",
+      "y_axis": "Mean F1 score / Loss",
+      "trend": "Mean F1 score increases and converges within 30 epochs; training and validation loss decrease and do not diverge; GoogLeNet outperforms AlexNet; transfer learning outperforms from scratch; larger training set yields better F1; color dataset outperforms segmented then grayscale.",
+      "conclusion": "No overfitting; GoogLeNet and transfer learning are better; color dataset gives best performance; results converge within 30 epochs."
+    }
+  ]
+}

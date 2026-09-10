@@ -1,0 +1,792 @@
+```python
+import os
+import sys
+import json
+import time
+import logging
+import copy
+from typing import Dict, List, Optional, Tuple, Any, Union
+
+import yaml
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from models.transformer import Transformer
+from data.dataset import get_dataloaders, create_train_val_loaders
+
+logger = logging.getLogger(__name__)
+
+
+def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
+    """
+    Load configuration from a YAML file.
+
+    Args:
+        config_path: Path to the YAML configuration file.
+
+    Returns:
+        Configuration dictionary.
+    """
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def initialize_model(
+    config: Optional[Dict[str, Any]] = None,
+    training_mode: str = "scratch",
+    device: Optional[torch.device] = None,
+) -> nn.Module:
+    """
+    Initialize a Transformer model according to the specified training mode.
+
+    Args:
+        config: Configuration dictionary. If None, loads from config/config.yaml.
+        training_mode: One of 'scratch' or 'transfer'.
+            - 'scratch': All layers randomly initialized (Kaiming/Xavier).
+            - 'transfer': Load pretrained weights (DPR for retriever, BART-large
+              for generator), reset output layer, optionally freeze backbone.
+        device: Device to place the model on. If None, uses config['system']['device'].
+
+    Returns:
+        Initialized Transformer model.
+
+    Raises:
+        ValueError: If training_mode is not 'scratch' or 'transfer'.
+    """
+    if config is None:
+        config = load_config()
+
+    if device is None:
+        device_name = config.get("system", {}).get("device", "cuda")
+        device = torch.device(device_name if torch.cuda.is_available() else "cpu")
+
+    # Validate training_mode
+    if training_mode not in ["scratch", "transfer"]:
+        raise ValueError(
+            f"Invalid training_mode: {training_mode}. Must be 'scratch' or 'transfer'."
+        )
+
+    # Get training mode config
+    mode_config = config.get("training_modes", {}).get(training_mode, {})
+
+    # Create model with random initialization
+    model = Transformer(config=config)
+
+    if training_mode == "scratch":
+        # FR-05: Scratch mode - all layers randomly initialized
+        # The Transformer class already initializes weights in _init_weights()
+        # using Xavier uniform for linear layers and normal for embeddings.
+        # No pretrained weights are loaded.
+        logger.info("Initialized model in scratch mode (all weights random).")
+        return model
+
+    elif training_mode == "transfer":
+        # FR-05: Transfer mode - load pretrained weights
+        # For the paper, the retriever uses DPR pretrained biencoder,
+        # and the generator uses BART-large pretrained model.
+        # Since our Transformer is a simplified version, we attempt to load
+        # pretrained weights if available. If not available, we fall back to
+        # random initialization with a warning.
+
+        pretrained_source = mode_config.get("pretrained_source", None)
+        reset_layers = mode_config.get("reset_layers", [])
+        freeze_backbone = mode_config.get("freeze_backbone", {}).get("value", False)
+
+        # Try to load pretrained weights
+        # Note: In a real implementation, this would load DPR/BART weights.
+        # For this engineering implementation, we check if a pretrained
+        # checkpoint exists in the expected location.
+        pretrained_path = None
+        if pretrained_source:
+            # Check common paths for pretrained weights
+            candidate_paths = [
+                os.path.join("checkpoints", "pretrained", "transformer.pt"),
+                os.path.join("pretrained", "transformer.pt"),
+                os.path.join(config.get("data", {}).get("root", "./data"), "pretrained", "transformer.pt"),
+            ]
+            for path in candidate_paths:
+                if os.path.exists(path):
+                    pretrained_path = path
+                    break
+
+        if pretrained_path and os.path.exists(pretrained_path):
+            # Load pretrained weights
+            checkpoint = torch.load(pretrained_path, map_location=device)
+            if "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+            else:
+                state_dict = checkpoint
+
+            # Filter out incompatible keys
+            model_state = model.state_dict()
+            filtered_state = {k: v for k, v in state_dict.items() if k in model_state}
+
+            # Load weights
+            model.load_state_dict(filtered_state, strict=False)
+            logger.info(f"Loaded pretrained weights from {pretrained_path}")
+        else:
+            logger.warning(
+                "Pretrained weights not found. Using random initialization for transfer mode. "
+                "This is an engineering fallback; the paper uses DPR/BART pretrained weights."
+            )
+
+        # Reset specified layers (e.g., output projection)
+        for layer_name in reset_layers:
+            if hasattr(model, layer_name):
+                layer = getattr(model, layer_name)
+                if isinstance(layer, nn.Linear):
+                    nn.init.xavier_uniform_(layer.weight)
+                    nn.init.zeros_(layer.bias)
+                    logger.info(f"Reset layer: {layer_name}")
+                elif isinstance(layer, nn.Embedding):
+                    nn.init.normal_(layer.weight, mean=0.0, std=0.02)
+                    logger.info(f"Reset layer: {layer_name}")
+            else:
+                logger.warning(f"Layer {layer_name} not found in model. Skipping reset.")
+
+        # Freeze backbone if specified
+        if freeze_backbone:
+            for name, param in model.named_parameters():
+                # Freeze all layers except output_projection
+                if "output_projection" not in name:
+                    param.requires_grad = False
+            logger.info("Froze backbone layers (only output_projection is trainable).")
+        else:
+            logger.info("Transfer mode: all layers are trainable (full fine-tuning).")
+
+        return model
+
+
+def compute_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    ignore_index: int = -100,
+) -> torch.Tensor:
+    """
+    Compute negative marginal log-likelihood loss.
+
+    The paper uses negative marginal log-likelihood as the loss function.
+    For sequence generation, this is typically implemented as cross-entropy
+    loss over the target sequence, which is equivalent to maximizing the
+    log-likelihood of the target sequence.
+
+    Args:
+        logits: Model output logits of shape (batch_size, seq_len, num_classes).
+        targets: Target token indices of shape (batch_size, seq_len).
+        ignore_index: Index to ignore in the loss computation (for padding).
+
+    Returns:
+        Scalar loss tensor.
+    """
+    # Reshape logits and targets for cross-entropy
+    # logits: (batch_size, seq_len, num_classes) -> (batch_size * seq_len, num_classes)
+    # targets: (batch_size, seq_len) -> (batch_size * seq_len)
+    batch_size, seq_len, num_classes = logits.shape
+    logits_flat = logits.reshape(-1, num_classes)
+    targets_flat = targets.reshape(-1)
+
+    # Compute cross-entropy loss (negative log-likelihood)
+    loss = nn.functional.cross_entropy(
+        logits_flat,
+        targets_flat,
+        ignore_index=ignore_index,
+        reduction="mean",
+    )
+
+    return loss
+
+
+def train_one_epoch(
+    model: nn.Module,
+    train_loader: DataLoader,
+    optimizer: optim.Optimizer,
+    device: torch.device,
+    epoch: int,
+    config: Dict[str, Any],
+) -> float:
+    """
+    Train the model for one epoch.
+
+    Args:
+        model: The model to train.
+        train_loader: DataLoader for training data.
+        optimizer: Optimizer for training.
+        device: Device to train on.
+        epoch: Current epoch number.
+        config: Configuration dictionary.
+
+    Returns:
+        Average training loss for this epoch.
+    """
+    model.train()
+    total_loss = 0.0
+    num_batches = 0
+
+    for batch_idx, batch in enumerate(train_loader):
+        # Move batch to device
+        # The dataset returns a dict with 'query', 'answers', 'documents', 'dataset'
+        # For time series prediction, we need to convert these to tensors.
+        # Since the dataset is text-based, we use a simple tokenization approach:
+        # map each character to an integer index.
+
+        # For this engineering implementation, we create synthetic input/target
+        # sequences from the batch data.
+        batch_size = len(batch["query"])
+
+        # Create synthetic source and target sequences
+        # Source: tokenized query (first 50 chars)
+        # Target: tokenized first answer (first 50 chars)
+        max_seq_len = 50
+
+        # Simple character-level tokenization
+        char_to_idx = {chr(i): i - 32 for i in range(32, 127)}  # printable ASCII
+        char_to_idx["<PAD>"] = 0
+        char_to_idx["<BOS>"] = 1
+        char_to_idx["<EOS>"] = 2
+
+        src_sequences = []
+        tgt_sequences = []
+
+        for i in range(batch_size):
+            query = batch["query"][i]
+            answers = batch["answers"][i] if isinstance(batch["answers"][i], list) else [batch["answers"][i]]
+
+            # Tokenize query for source
+            src_tokens = []
+            for ch in query[:max_seq_len]:
+                if ch in char_to_idx:
+                    src_tokens.append(char_to_idx[ch])
+                else:
+                    src_tokens.append(0)  # padding/unknown
+
+            # Pad or truncate source
+            if len(src_tokens) < max_seq_len:
+                src_tokens.extend([0] * (max_seq_len - len(src_tokens)))
+            else:
+                src_tokens = src_tokens[:max_seq_len]
+
+            # Tokenize first answer for target
+            answer = answers[0] if answers else ""
+            tgt_tokens = []
+            for ch in answer[:max_seq_len]:
+                if ch in char_to_idx:
+                    tgt_tokens.append(char_to_idx[ch])
+                else:
+                    tgt_tokens.append(0)
+
+            # Pad or truncate target
+            if len(tgt_tokens) < max_seq_len:
+                tgt_tokens.extend([0] * (max_seq_len - len(tgt_tokens)))
+            else:
+                tgt_tokens = tgt_tokens[:max_seq_len]
+
+            src_sequences.append(src_tokens)
+            tgt_sequences.append(tgt_tokens)
+
+        src = torch.tensor(src_sequences, dtype=torch.long, device=device)
+        tgt = torch.tensor(tgt_sequences, dtype=torch.long, device=device)
+
+        # Forward pass
+        optimizer.zero_grad()
+        logits = model(src=src, tgt=tgt)
+
+        # Compute loss (shift target for teacher forcing)
+        # Use tgt as target (the model predicts the next token)
+        loss = compute_loss(logits, tgt)
+
+        # Backward pass
+        loss.backward()
+
+        # Gradient clipping
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+        # Optimizer step
+        optimizer.step()
+
+        total_loss += loss.item()
+        num_batches += 1
+
+        if (batch_idx + 1) % 100 == 0:
+            logger.info(
+                f"Epoch {epoch}, Batch {batch_idx + 1}/{len(train_loader)}, "
+                f"Loss: {loss.item():.4f}"
+            )
+
+    avg_loss = total_loss / max(num_batches, 1)
+    return avg_loss
+
+
+@torch.no_grad()
+def validate(
+    model: nn.Module,
+    val_loader: DataLoader,
+    device: torch.device,
+    config: Dict[str, Any],
+) -> Tuple[float, float]:
+    """
+    Validate the model on the validation set.
+
+    Args:
+        model: The model to validate.
+        val_loader: DataLoader for validation data.
+        device: Device to validate on.
+        config: Configuration dictionary.
+
+    Returns:
+        Tuple of (average loss, accuracy).
+    """
+    model.eval()
+    total_loss = 0.0
+    correct = 0
+    total = 0
+    num_batches = 0
+
+    for batch in val_loader:
+        batch_size = len(batch["query"])
+        max_seq_len = 50
+
+        # Same tokenization as in training
+        char_to_idx = {chr(i): i - 32 for i in range(32, 127)}
+        char_to_idx["<PAD>"] = 0
+        char_to_idx["<BOS>"] = 1
+        char_to_idx["<EOS>"] = 2
+
+        src_sequences = []
+        tgt_sequences = []
+
+        for i in range(batch_size):
+            query = batch["query"][i]
+            answers = batch["answers"][i] if isinstance(batch["answers"][i], list) else [batch["answers"][i]]
+
+            src_tokens = []
+            for ch in query[:max_seq_len]:
+                if ch in char_to_idx:
+                    src_tokens.append(char_to_idx[ch])
+                else:
+                    src_tokens.append(0)
+
+            if len(src_tokens) < max_seq_len:
+                src_tokens.extend([0] * (max_seq_len - len(src_tokens)))
+            else:
+                src_tokens = src_tokens[:max_seq_len]
+
+            answer = answers[0] if answers else ""
+            tgt_tokens = []
+            for ch in answer[:max_seq_len]:
+                if ch in char_to_idx:
+                    tgt_tokens.append(char_to_idx[ch])
+                else:
+                    tgt_tokens.append(0)
+
+            if len(tgt_tokens) < max_seq_len:
+                tgt_tokens.extend([0] * (max_seq_len - len(tgt_tokens)))
+            else:
+                tgt_tokens = tgt_tokens[:max_seq_len]
+
+            src_sequences.append(src_tokens)
+            tgt_sequences.append(tgt_tokens)
+
+        src = torch.tensor(src_sequences, dtype=torch.long, device=device)
+        tgt = torch.tensor(tgt_sequences, dtype=torch.long, device=device)
+
+        # Forward pass
+        logits = model(src=src, tgt=tgt)
+
+        # Compute loss
+        loss = compute_loss(logits, tgt)
+        total_loss += loss.item()
+
+        # Compute accuracy (token-level)
+        predictions = logits.argmax(dim=-1)
+        mask = tgt != 0  # ignore padding
+        correct += ((predictions == tgt) & mask).sum().item()
+        total += mask.sum().item()
+
+        num_batches += 1
+
+    avg_loss = total_loss / max(num_batches, 1)
+    accuracy = correct / max(total, 1)
+
+    return avg_loss, accuracy
+
+
+def train_model(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: Optional[DataLoader],
+    config: Dict[str, Any],
+    device: torch.device,
+    training_mode: str = "scratch",
+) -> Dict[str, Any]:
+    """
+    Train the model for the specified number of epochs.
+
+    Args:
+        model: The model to train.
+        train_loader: DataLoader for training data.
+        val_loader: DataLoader for validation data. Can be None in strict mode.
+        config: Configuration dictionary.
+        device: Device to train on.
+        training_mode: One of 'scratch' or 'transfer'.
+
+    Returns:
+        Dictionary containing training history and best model state.
+    """
+    # Get training configuration
+    training_cfg = config.get("training", {})
+    epochs = training_cfg.get("epochs", 30)
+    optimizer_cfg = training_cfg.get("optimizer", {})
+    scheduler_cfg = training_cfg.get("scheduler", {})
+
+    # Get optimizer parameters
+    lr = optimizer_cfg.get("lr", 1e-4)
+    if lr is None:
+        lr = 1e-4  # Default learning rate
+
+    weight_decay = optimizer_cfg.get("weight_decay", 0.0)
+    if weight_decay is None:
+        weight_decay = 0.0
+
+    momentum = optimizer_cfg.get("momentum", 0.9)
+    if momentum is None:
+        momentum = 0.9
+
+    # Create optimizer
+    optimizer = optim.Adam(
+        model.parameters(),
+        lr=lr,
+        weight_decay=weight_decay,
+    )
+
+    # Create scheduler
+    scheduler = None
+    scheduler_name = scheduler_cfg.get("name", "StepLR")
+    if scheduler_name == "StepLR":
+        step_size = scheduler_cfg.get("step_size", 66)
+        gamma = scheduler_cfg.get("gamma", 0.5)
+        scheduler = optim.lr_scheduler.StepLR(
+            optimizer, step_size=step_size, gamma=gamma
+        )
+    elif scheduler_name == "ReduceLROnPlateau":
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", patience=3, factor=0.5
+        )
+
+    # Get checkpoint configuration
+    checkpoint_cfg = config.get("checkpoint", {})
+    save_best = checkpoint_cfg.get("save_best", True)
+    best_metric = checkpoint_cfg.get("best_metric", "val_accuracy")
+    best_mode = checkpoint_cfg.get("best_mode", "max")
+    save_final = checkpoint_cfg.get("save_final", True)
+    save_optimizer_state = checkpoint_cfg.get("save_optimizer_state", True)
+    save_frequency = checkpoint_cfg.get("save_frequency_epochs", None)
+
+    # Get reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # Initialize tracking variables
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+        "val_accuracy": [],
+        "lr": [],
+    }
+
+    best_metric_value = None
+    best_model_state = None
+    best_epoch = -1
+
+    # Create checkpoint directory
+    checkpoint_dir = os.path.join("checkpoints", training_mode)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # Training loop
+    for epoch in range(1, epochs + 1):
+        logger.info(f"Epoch {epoch}/{epochs}")
+
+        # Train one epoch
+        train_loss = train_one_epoch(
+            model, train_loader, optimizer, device, epoch, config
+        )
+        history["train_loss"].append(train_loss)
+
+        # Get current learning rate
+        current_lr = optimizer.param_groups[0]["lr"]
+        history["lr"].append(current_lr)
+
+        # Validate if val_loader is provided (engineering mode)
+        val_loss = None
+        val_accuracy = None
+        if val_loader is not None:
+            val_loss, val_accuracy = validate(model, val_loader, device, config)
+            history["val_loss"].append(val_loss)
+            history["val_accuracy"].append(val_accuracy)
+            logger.info(
+                f"Epoch {epoch}: Train Loss: {train_loss:.4f}, "
+                f"Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.4f}"
+            )
+
+            # Update best model based on best_metric
+            if save_best:
+                if best_metric == "val_accuracy":
+                    metric_value = val_accuracy
+                elif best_metric == "val_loss":
+                    metric_value = val_loss
+                else:
+                    metric_value = val_accuracy
+
+                if best_metric_value is None:
+                    best_metric_value = metric_value
+                    best_model_state = copy.deepcopy(model.state_dict())
+                    best_epoch = epoch
+                else:
+                    if best_mode == "max" and metric_value > best_metric_value:
+                        best_metric_value = metric_value
+                        best_model_state = copy.deepcopy(model.state_dict())
+                        best_epoch = epoch
+                    elif best_mode == "min" and metric_value < best_metric_value:
+                        best_metric_value = metric_value
+                        best_model_state = copy.deepcopy(model.state_dict())
+                        best_epoch = epoch
+        else:
+            # Strict mode: no validation
+            logger.info(f"Epoch {epoch}: Train Loss: {train_loss:.4f}")
+
+        # Save checkpoint at specified frequency
+        if save_frequency is not None and epoch % save_frequency == 0:
+            checkpoint_path = os.path.join(
+                checkpoint_dir, f"checkpoint_epoch_{epoch}.pt"
+            )
+            checkpoint = {
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict() if save_optimizer_state else None,
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "val_accuracy": val_accuracy,
+                "config": config,
+                "training_mode": training_mode,
+            }
+            torch.save(checkpoint, checkpoint_path)
+            logger.info(f"Saved checkpoint to {checkpoint_path}")
+
+        # Step scheduler
+        if scheduler is not None:
+            if isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+                if val_loss is not None:
+                    scheduler.step(val_loss)
+            else:
+                scheduler.step()
+
+    # Save best model
+    if save_best and best_model_state is not None:
+        best_model_path = os.path.join(checkpoint_dir, "best_model.pt")
+        checkpoint = {
+            "epoch": best_epoch,
+            "model_state_dict": best_model_state,
+            "best_metric": best_metric,
+            "best_metric_value": best_metric_value,
+            "config": config,
+            "training_mode": training_mode,
+        }
+        if save_optimizer_state:
+            checkpoint["optimizer_state_dict"] = optimizer.state_dict()
+        torch.save(checkpoint, best_model_path)
+        logger.info(
+            f"Saved best model to {best_model_path} "
+            f"(epoch {best_epoch}, {best_metric}: {best_metric_value:.4f})"
+        )
+
+    # Save final model
+    if save_final:
+        final_model_path = os.path.join(checkpoint_dir, "final_model.pt")
+        checkpoint = {
+            "epoch": epochs,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict() if save_optimizer_state else None,
+            "train_loss": history["train_loss"][-1] if history["train_loss"] else None,
+            "config": config,
+            "training_mode": training_mode,
+        }
+        torch.save(checkpoint, final_model_path)
+        logger.info(f"Saved final model to {final_model_path}")
+
+    # Save training history
+    history_path = os.path.join(checkpoint_dir, "training_history.json")
+    with open(history_path, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2)
+    logger.info(f"Saved training history to {history_path}")
+
+    return {
+        "history": history,
+        "best_metric_value": best_metric_value,
+        "best_epoch": best_epoch,
+        "best_model_path": os.path.join(checkpoint_dir, "best_model.pt") if save_best else None,
+        "final_model_path": os.path.join(checkpoint_dir, "final_model.pt") if save_final else None,
+    }
+
+
+def save_model(
+    model: nn.Module,
+    path: str,
+    config: Optional[Dict[str, Any]] = None,
+    optimizer: Optional[optim.Optimizer] = None,
+    epoch: Optional[int] = None,
+    metrics: Optional[Dict[str, float]] = None,
+) -> str:
+    """
+    Save model weights and metadata to a checkpoint file.
+
+    Args:
+        model: The model to save.
+        path: Path where to save the checkpoint.
+        config: Configuration dictionary. If None, loads from config/config.yaml.
+        optimizer: Optional optimizer state to save.
+        epoch: Optional epoch number.
+        metrics: Optional metrics dictionary.
+
+    Returns:
+        The path where the model was saved.
+    """
+    if config is None:
+        config = load_config()
+
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
+
+    # Prepare checkpoint
+    checkpoint = {
+        "model_state_dict": model.state_dict(),
+        "config": config,
+        "saved_at": time.time(),
+    }
+
+    if optimizer is not None:
+        checkpoint["optimizer_state_dict"] = optimizer.state_dict()
+
+    if epoch is not None:
+        checkpoint["epoch"] = epoch
+
+    if metrics is not None:
+        checkpoint["metrics"] = metrics
+
+    # Save checkpoint
+    torch.save(checkpoint, path)
+    logger.info(f"Model saved to {path}")
+
+    return path
+
+
+def main() -> None:
+    """
+    Main training entry point.
+    """
+    # Setup logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    # Load config
+    config = load_config()
+
+    # Get device
+    device_name = config.get("system", {}).get("device", "cuda")
+    device = torch.device(device_name if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
+
+    # Get reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+    logger.info(f"Reproduction mode: {reproduction_mode}")
+
+    # Get batch size
+    batch_size = config.get("training", {}).get("batch_size", 32)
+    if batch_size is None:
+        batch_size = 32
+
+    # Get num_workers
+    num_workers = config.get("system", {}).get("num_workers", 4)
+
+    # Get seed
+    seed = config.get("system", {}).get("seed", 42)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # Get experiment runs
+    runs = config.get("experiment", {}).get("runs", [])
+    if not runs:
+        logger.warning("No experiment runs found in config. Using default scratch run.")
+        runs = [{"name": "scratch_run", "training_mode": "scratch"}]
+
+    # Train each run
+    for run in runs:
+        run_name = run.get("name", "run")
+        training_mode = run.get("training_mode", "scratch")
+        dataset_version = run.get("dataset_version", "default")
+
+        logger.info(f"Starting run: {run_name} (mode: {training_mode})")
+
+        # Initialize model
+        model = initialize_model(config, training_mode=training_mode, device=device)
+        model = model.to(device)
+
+        # Create data loaders
+        if reproduction_mode == "engineering":
+            # Engineering mode: create train/val split from training data
+            val_split_ratio = config.get("split_strategy", {}).get("val_split_ratio", 0.2)
+            loaders = create_train_val_loaders(
+                config=config,
+                version=dataset_version,
+                batch_size=batch_size,
+                num_workers=num_workers,
+                seed=seed,
+                val_split_ratio=val_split_ratio,
+            )
+            train_loader = loaders["train"]
+            val_loader = loaders["val"]
+            logger.info(
+                f"Engineering mode: Train batches: {len(train_loader)}, "
+                f"Val batches: {len(val_loader)}"
+            )
+        else:
+            # Strict mode: no validation split
+            loaders = get_dataloaders(
+                config=config,
+                version=dataset_version,
+                batch_size=batch_size,
+                num_workers=num_workers,
+                seed=seed,
+            )
+            train_loader = loaders["train"]
+            val_loader = None
+            logger.info(
+                f"Strict mode: Train batches: {len(train_loader)}, "
+                f"No validation set."
+            )
+
+        # Train model
+        result = train_model(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            config=config,
+            device=device,
+            training_mode=training_mode,
+        )
+
+        logger.info(
+            f"Run {run_name} completed. "
+            f"Best metric: {result['best_metric_value']:.4f} at epoch {result['best_epoch']}"
+        )
+
+
+if __name__ == "__main__":
+    main()
+```

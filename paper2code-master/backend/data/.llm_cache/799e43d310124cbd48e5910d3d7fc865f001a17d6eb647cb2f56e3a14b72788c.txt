@@ -1,0 +1,531 @@
+from __future__ import annotations
+
+import math
+import statistics
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+try:
+    import yaml
+except Exception:  # pragma: no cover - PyYAML may not be installed in all environments
+    yaml = None
+
+
+def _load_config(config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Load configuration from a dict or from config/config.yaml if available."""
+    if isinstance(config, dict):
+        return config
+
+    if yaml is None:
+        return {}
+
+    candidates: List[Path] = []
+    try:
+        repo_root = Path(__file__).resolve().parent.parent
+        candidates.append(repo_root / "config" / "config.yaml")
+    except NameError:
+        repo_root = Path.cwd()
+        candidates.append(repo_root / "config" / "config.yaml")
+
+    candidates.append(Path("config/config.yaml"))
+
+    for candidate in candidates:
+        if candidate.exists():
+            try:
+                with open(candidate, "r", encoding="utf-8") as f:
+                    loaded = yaml.safe_load(f)
+                    if isinstance(loaded, dict):
+                        return loaded
+            except Exception:
+                continue
+
+    return {}
+
+
+def _to_list(value: Any) -> List[Any]:
+    """Convert scalar values, tuples, or tensor-like objects to a list."""
+    if value is None:
+        return []
+
+    if hasattr(value, "tolist"):
+        try:
+            value = value.tolist()
+        except Exception:
+            pass
+
+    if isinstance(value, (list, tuple)):
+        return list(value)
+
+    if isinstance(value, (set, frozenset)):
+        return list(value)
+
+    return [value]
+
+
+def _as_float(value: Any, default: Optional[float] = None) -> Optional[float]:
+    """Safely cast a value to float, returning *default* on failure."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _is_numeric(value: Any) -> bool:
+    """Return True if value can be interpreted as a numeric score."""
+    if isinstance(value, bool):
+        return False
+    try:
+        float(value)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+_TRUTHY_STATUSES = {
+    "pass",
+    "passed",
+    "proved",
+    "true",
+    "ok",
+    "success",
+    "correct",
+    "1",
+}
+
+
+def _status_to_bool(status: Any) -> bool:
+    """Convert common proof-status representations to a boolean."""
+    if status is None:
+        return False
+    if isinstance(status, bool):
+        return status
+    if isinstance(status, (int, float)):
+        return float(status) > 0.0
+    return str(status).strip().lower() in _TRUTHY_STATUSES
+
+
+def _extract_proof_info(proof: Any) -> Tuple[bool, int, int]:
+    """Return (passed, total_obligations, proven_obligations) for a proof item."""
+    if isinstance(proof, bool):
+        return proof, 1, 1
+
+    if isinstance(proof, dict):
+        status = proof.get(
+            "passed",
+            proof.get(
+                "status",
+                proof.get(
+                    "proved",
+                    proof.get("success", proof.get("correct", False)),
+                ),
+            ),
+        )
+        passed = _status_to_bool(status)
+
+        total = 1
+        for key in ("total_obligations", "num_obligations", "obligations"):
+            if key in proof and proof[key] is not None:
+                try:
+                    total = int(proof[key])
+                except (TypeError, ValueError):
+                    total = 1
+                break
+
+        proven = 0
+        for key in (
+            "proven_obligations",
+            "num_proven",
+            "discharged",
+            "obligations_proven",
+        ):
+            if key in proof and proof[key] is not None:
+                try:
+                    proven = int(proof[key])
+                except (TypeError, ValueError):
+                    proven = 0
+                break
+
+        if passed and proven == 0 and total > 1:
+            proven = total
+        elif passed and proven == 0:
+            proven = 1
+
+        return passed, total, proven
+
+    passed = _status_to_bool(proof)
+    return passed, 1, 1
+
+
+def _compute_proof_metrics(correctness_proofs: Any) -> Dict[str, Any]:
+    """Compute correctness-proof success and obligation-coverage metrics."""
+    if correctness_proofs is None:
+        return {}
+
+    items: List[Any] = []
+    if isinstance(correctness_proofs, dict):
+        if "proofs" in correctness_proofs:
+            items = _to_list(correctness_proofs["proofs"])
+        elif "results" in correctness_proofs:
+            items = _to_list(correctness_proofs["results"])
+        else:
+            items = [correctness_proofs]
+    else:
+        items = _to_list(correctness_proofs)
+
+    total_proofs = 0
+    passed_proofs = 0
+    total_obligations = 0
+    proven_obligations = 0
+
+    for proof in items:
+        passed, total, proven = _extract_proof_info(proof)
+        total_proofs += 1
+        if passed:
+            passed_proofs += 1
+        total_obligations += total
+        proven_obligations += proven
+
+    if total_obligations == 0 and total_proofs > 0:
+        total_obligations = total_proofs
+        proven_obligations = passed_proofs
+
+    return {
+        "total_proofs": total_proofs,
+        "passed_proofs": passed_proofs,
+        "failed_proofs": total_proofs - passed_proofs,
+        "proof_success_rate": (passed_proofs / total_proofs) if total_proofs else 0.0,
+        "total_obligations": total_obligations,
+        "proven_obligations": proven_obligations,
+        "obligation_coverage": (
+            (proven_obligations / total_obligations) if total_obligations else 0.0
+        ),
+    }
+
+
+def _extract_runtimes_and_sizes(
+    runtime_measurements: Any,
+    input_sizes: Any = None,
+) -> Tuple[List[float], List[float]]:
+    """Extract runtime values and optional input sizes from flexible inputs."""
+    runtimes: List[Optional[float]] = []
+    sizes: List[Optional[float]] = []
+
+    if isinstance(runtime_measurements, dict):
+        if "runtimes" in runtime_measurements:
+            runtimes = list(_to_list(runtime_measurements["runtimes"]))
+        elif "runtime" in runtime_measurements:
+            runtimes = [runtime_measurements["runtime"]]
+
+        if "sizes" in runtime_measurements:
+            sizes = list(_to_list(runtime_measurements["sizes"]))
+        elif "input_sizes" in runtime_measurements:
+            sizes = list(_to_list(runtime_measurements["input_sizes"]))
+        elif "input_size" in runtime_measurements:
+            sizes = [runtime_measurements["input_size"]]
+    elif isinstance(runtime_measurements, (list, tuple)):
+        for item in runtime_measurements:
+            if isinstance(item, dict):
+                rt = None
+                for key in ("runtime", "time", "elapsed", "duration"):
+                    if item.get(key) is not None:
+                        rt = item[key]
+                        break
+                sz = None
+                for key in ("input_size", "size", "n"):
+                    if item.get(key) is not None:
+                        sz = item[key]
+                        break
+
+                if rt is not None:
+                    runtimes.append(_as_float(rt))
+                if sz is not None:
+                    sizes.append(_as_float(sz))
+            else:
+                runtimes.append(_as_float(item))
+    else:
+        rt = _as_float(runtime_measurements)
+        if rt is not None:
+            runtimes = [rt]
+
+    if input_sizes is not None:
+        sizes = list(_to_list(input_sizes))
+
+    clean_runtimes = [r for r in runtimes if r is not None]
+    clean_sizes = [s for s in sizes if s is not None]
+
+    return clean_runtimes, clean_sizes
+
+
+def _percentile(sorted_values: List[float], p: float) -> float:
+    """Linear-interpolation percentile for a sorted list."""
+    n = len(sorted_values)
+    if n == 0:
+        return 0.0
+    if n == 1:
+        return sorted_values[0]
+
+    k = (n - 1) * p
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        return sorted_values[int(k)]
+    return sorted_values[int(f)] * (c - k) + sorted_values[int(c)] * (k - f)
+
+
+def _compute_runtime_summary(runtimes: List[float]) -> Dict[str, Any]:
+    """Compute summary statistics for runtime measurements."""
+    if not runtimes:
+        return {}
+
+    rt = [float(r) for r in runtimes if r is not None]
+    if not rt:
+        return {}
+
+    sorted_rt = sorted(rt)
+    n = len(sorted_rt)
+
+    return {
+        "count": n,
+        "mean": statistics.mean(rt),
+        "median": statistics.median(rt),
+        "std": statistics.stdev(rt) if n > 1 else 0.0,
+        "min": min(rt),
+        "max": max(rt),
+        "p95": _percentile(sorted_rt, 0.95),
+    }
+
+
+def _compute_empirical_complexity(
+    runtimes: List[float],
+    sizes: List[float],
+) -> Dict[str, Any]:
+    """Estimate empirical time complexity from runtime vs input size.
+
+    Uses a linear least-squares fit in log-log space. The resulting slope is
+    interpreted as the empirical polynomial exponent.
+    """
+    if len(runtimes) < 2 or len(sizes) < 2:
+        return {}
+
+    grouped: Dict[float, List[float]] = defaultdict(list)
+    for size, runtime in zip(sizes, runtimes):
+        size_f = _as_float(size)
+        runtime_f = _as_float(runtime)
+        if size_f is not None and runtime_f is not None and size_f > 0 and runtime_f > 0:
+            grouped[float(size_f)].append(float(runtime_f))
+
+    if len(grouped) < 2:
+        return {}
+
+    xs: List[float] = []
+    ys: List[float] = []
+    for size in sorted(grouped):
+        values = grouped[size]
+        if not values:
+            continue
+        xs.append(float(size))
+        ys.append(statistics.mean(values))
+
+    if len(xs) < 2:
+        return {}
+
+    log_x = [math.log(x) for x in xs]
+    log_y = [math.log(y) for y in ys]
+
+    n = len(xs)
+    mean_lx = statistics.mean(log_x)
+    mean_ly = statistics.mean(log_y)
+
+    ss_xx = sum((lx - mean_lx) ** 2 for lx in log_x)
+    ss_xy = sum(
+        (lx - mean_lx) * (ly - mean_ly) for lx, ly in zip(log_x, log_y)
+    )
+    ss_yy = sum((ly - mean_ly) ** 2 for ly in log_y)
+
+    if ss_xx == 0:
+        return {
+            "empirical_exponent": None,
+            "log_log_intercept": None,
+            "r_squared": None,
+            "num_distinct_sizes": n,
+            "input_sizes": xs,
+            "mean_runtimes": ys,
+        }
+
+    slope = ss_xy / ss_xx
+    intercept = mean_ly - slope * mean_lx
+
+    if ss_yy > 0:
+        residual = sum(
+            (ly - (intercept + slope * lx)) ** 2
+            for lx, ly in zip(log_x, log_y)
+        )
+        r_squared = 1.0 - (residual / ss_yy)
+    else:
+        r_squared = 1.0
+
+    return {
+        "empirical_exponent": slope,
+        "log_log_intercept": intercept,
+        "r_squared": r_squared,
+        "num_distinct_sizes": n,
+        "input_sizes": xs,
+        "mean_runtimes": ys,
+    }
+
+
+def _compute_complexity_report_metrics(reports: Any) -> Dict[str, Any]:
+    """Compare expected and observed complexity strings from report items."""
+    if reports is None:
+        return {}
+
+    if isinstance(reports, dict):
+        reports = [reports]
+
+    items = _to_list(reports)
+    eligible = [rep for rep in items if isinstance(rep, dict)]
+    if not eligible:
+        return {}
+
+    matched = 0
+    for rep in eligible:
+        expected = rep.get("expected", rep.get("expected_complexity", rep.get("theory")))
+        observed = rep.get("observed", rep.get("observed_complexity", rep.get("empirical")))
+        if (
+            expected is not None
+            and observed is not None
+            and str(expected).strip() == str(observed).strip()
+        ):
+            matched += 1
+
+    total = len(eligible)
+    return {
+        "matched_complexity_reports": matched,
+        "total_reports": total,
+        "complexity_agreement": matched / total if total else 0.0,
+    }
+
+
+def _compute_general_agreement(
+    y_true: Any,
+    y_pred: Any,
+    threshold: float = 0.5,
+) -> Dict[str, Any]:
+    """Compute exact agreement between true and predicted labels.
+
+    For binary 0/1 targets with probabilistic predictions, predictions are
+    first binarised using *threshold*.
+    """
+    yt = _to_list(y_true)
+    yp = _to_list(y_pred)
+
+    if not yt or not yp or len(yt) != len(yp):
+        return {}
+
+    yt_is_binary = all(
+        _is_numeric(v) and float(v) in {0.0, 1.0} for v in yt
+    )
+    yp_is_numeric = all(_is_numeric(v) for v in yp)
+    yp_has_scores = yp_is_numeric and any(0.0 < float(v) < 1.0 for v in yp)
+
+    if yt_is_binary and yp_has_scores:
+        yt_processed = [int(float(v)) for v in yt]
+        yp_processed = [1 if float(v) > threshold else 0 for v in yp]
+    else:
+        yt_processed = yt
+        yp_processed = yp
+
+    matched = sum(
+        1 for a, b in zip(yt_processed, yp_processed) if str(a).strip() == str(b).strip()
+    )
+    total = len(yt_processed)
+
+    return {
+        "agreement_accuracy": matched / total if total else 0.0,
+        "matched_samples": matched,
+        "total_samples": total,
+    }
+
+
+def compute_metrics(
+    y_true: Any = None,
+    y_pred: Any = None,
+    runtime_measurements: Any = None,
+    input_sizes: Any = None,
+    correctness_proofs: Any = None,
+    complexity_reports: Any = None,
+    config: Optional[Dict[str, Any]] = None,
+    threshold: float = 0.5,
+    batch_size: int = 32,
+) -> Dict[str, Any]:
+    """Compute evaluation metrics for the graph-program project.
+
+    Parameters
+    ----------
+    y_true:
+        Optional ground-truth labels/statuses. Used only for general agreement.
+    y_pred:
+        Optional predicted labels/scores. Used only for general agreement.
+    runtime_measurements:
+        Runtime values, either a list of floats or a list of dicts containing
+        ``runtime``/``time`` and optional ``input_size``/``size`` keys.
+    input_sizes:
+        Optional input sizes aligned with runtime measurements. If omitted and
+        ``runtime_measurements`` contains sizes, those are used.
+    correctness_proofs:
+        Optional proof items. A list of booleans/dicts with status and optional
+        obligation counts.
+    complexity_reports:
+        Optional report items with expected/observed complexity strings.
+    config:
+        Optional config dict. If not provided, the function attempts to load
+        ``config/config.yaml``.
+    threshold:
+        Threshold for binarising probabilistic binary predictions.
+    batch_size:
+        Accepted for API compatibility; not required by the current metrics.
+
+    Returns
+    -------
+    Dict with keys ``time_complexity``, ``correctness_proofs``, and
+    ``runtime_measurements``. All metrics are computed dynamically from the
+    provided inputs; no paper-specific conclusion is hardcoded.
+    """
+    # Config is loaded for forward compatibility. Metrics currently do not
+    # depend on experiment hyperparameters.
+    _ = _load_config(config)
+
+    threshold = _as_float(threshold, 0.5) or 0.5
+
+    runtimes, sizes = _extract_runtimes_and_sizes(runtime_measurements, input_sizes)
+
+    runtime_summary = _compute_runtime_summary(runtimes)
+    empirical_complexity = _compute_empirical_complexity(runtimes, sizes)
+    complexity_report_metrics = _compute_complexity_report_metrics(complexity_reports)
+    proof_metrics = _compute_proof_metrics(correctness_proofs)
+
+    agreement = {}
+    if y_true is not None and y_pred is not None:
+        agreement = _compute_general_agreement(y_true, y_pred, threshold)
+
+    if agreement:
+        proof_metrics["classification_agreement"] = agreement
+
+    time_metrics: Dict[str, Any] = {}
+    if empirical_complexity:
+        time_metrics.update(empirical_complexity)
+    if complexity_report_metrics:
+        time_metrics.update(complexity_report_metrics)
+    time_metrics["available"] = bool(empirical_complexity or complexity_report_metrics)
+
+    proof_metrics["available"] = bool(proof_metrics)
+    runtime_summary["available"] = bool(runtime_summary)
+
+    return {
+        "time_complexity": time_metrics,
+        "correctness_proofs": proof_metrics,
+        "runtime_measurements": runtime_summary,
+    }

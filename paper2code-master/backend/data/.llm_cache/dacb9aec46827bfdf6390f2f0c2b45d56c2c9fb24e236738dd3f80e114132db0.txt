@@ -1,0 +1,168 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+
+def analyze_image(image_path, ocr_text):
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {
+                "type": "other",
+                "description": "无法读取图片",
+                "important_components": [],
+                "code_relevant_information": ""
+            }
+        
+        # Get basic image info
+        height, width = img.shape[:2]
+        
+        # Convert OCR text to lowercase for matching
+        ocr_lower = ocr_text.lower()
+        
+        # Define keyword sets
+        architecture_keywords = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "feature extractor",
+            "alexnet", "resnet", "vgg", "googlenet"
+        ]
+        
+        experiment_keywords = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "training", "validation", "performance", "curve"
+        ]
+        
+        dataset_keywords = [
+            "sample", "example", "dataset", "class", "category",
+            "input image", "training data"
+        ]
+        
+        # Check for experiment results first (highest priority)
+        experiment_components = []
+        is_experiment = False
+        
+        # Check for experiment indicators
+        for kw in experiment_keywords:
+            if kw in ocr_lower:
+                is_experiment = True
+                break
+        
+        # Check for specific experiment patterns
+        if "epoch" in ocr_lower or "loss" in ocr_lower or "accuracy" in ocr_lower:
+            is_experiment = True
+        
+        # Check for training mechanism (common in experiment plots)
+        if "training" in ocr_lower and ("finetuning" in ocr_lower or "from scratch" in ocr_lower):
+            is_experiment = True
+        
+        if is_experiment:
+            # Extract model names if present
+            model_names = []
+            for kw in ["alexnet", "resnet", "vgg", "googlenet", "cnn", "transformer"]:
+                if kw in ocr_lower:
+                    model_names.append(kw.upper() if kw != "cnn" else "CNN")
+            
+            # Extract metric names
+            metrics = []
+            for kw in ["accuracy", "loss", "precision", "recall", "f1"]:
+                if kw in ocr_lower:
+                    metrics.append(kw.capitalize())
+            
+            experiment_components = model_names + metrics
+            
+            return {
+                "type": "experiment_result",
+                "description": "展示模型训练过程中的性能变化曲线或实验结果对比",
+                "important_components": experiment_components,
+                "code_relevant_information": "需要实现训练循环、损失函数计算和性能评估指标"
+            }
+        
+        # Check for architecture
+        architecture_components = []
+        is_architecture = False
+        
+        for kw in architecture_keywords:
+            if kw in ocr_lower:
+                is_architecture = True
+                # Add specific component names
+                if kw == "cnn":
+                    architecture_components.append("CNN")
+                elif kw == "transformer":
+                    architecture_components.append("Transformer")
+                elif kw == "attention":
+                    architecture_components.append("Attention Module")
+                elif kw == "encoder":
+                    architecture_components.append("Encoder")
+                elif kw == "decoder":
+                    architecture_components.append("Decoder")
+                elif kw == "block":
+                    architecture_components.append("Block")
+                elif kw == "embedding":
+                    architecture_components.append("Embedding Layer")
+                elif kw == "classifier":
+                    architecture_components.append("Classifier")
+                elif kw == "feature extractor":
+                    architecture_components.append("Feature Extractor")
+                elif kw in ["alexnet", "resnet", "vgg", "googlenet"]:
+                    architecture_components.append(kw.upper())
+        
+        if is_architecture and architecture_components:
+            return {
+                "type": "architecture",
+                "description": "展示模型网络结构和数据流关系",
+                "important_components": architecture_components,
+                "code_relevant_information": "需要实现" + "、".join(architecture_components) + "等网络模块"
+            }
+        
+        # Check for dataset
+        is_dataset = False
+        for kw in dataset_keywords:
+            if kw in ocr_lower:
+                is_dataset = True
+                break
+        
+        if is_dataset:
+            return {
+                "type": "dataset",
+                "description": "展示数据集样本或类别示例",
+                "important_components": [],
+                "code_relevant_information": "需要实现数据加载和预处理流程"
+            }
+        
+        # Default case
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        
+    except Exception as e:
+        return {
+            "type": "other",
+            "description": "图片分析失败",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+if __name__ == "__main__":
+    # Get image path from command line
+    image_path = sys.argv[1]
+    
+    # OCR text provided externally
+    ocr_text = """1.0
+0.5
+Training Mechanism
+Finetuning
+TrainFromScratch
+0.4
+Epochs"""
+    
+    # Analyze and output result
+    result = analyze_image(image_path, ocr_text)
+    print(json.dumps(result, ensure_ascii=False))
+```

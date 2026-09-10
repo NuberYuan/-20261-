@@ -1,0 +1,707 @@
+```python
+"""Evaluation and report generation utilities for UNet++ medical image segmentation.
+
+This module implements model evaluation and report generation as required by
+Phase 5 of the project. It provides:
+
+- evaluate_model: Evaluate a trained model on a dataloader and compute metrics.
+- generate_report: Generate a text report (and optional charts) for a single run.
+
+The module is designed to work even when matplotlib is not installed; all
+metric computation and text report generation are unconditional, while chart
+generation is skipped gracefully when matplotlib is unavailable.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
+import torch
+import torch.nn.functional as F
+
+# Optional matplotlib import — must never crash if missing
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+# Import metrics utilities
+from utils.metrics import compute_metrics
+
+
+def _safe_config_get(config: Optional[Dict[str, Any]], key: str, default: Any = None) -> Any:
+    """Safely get a value from a nested config dict using dot-separated keys.
+
+    Args:
+        config: Configuration dictionary (may be None).
+        key: Dot-separated key path, e.g. 'training.batch_size'.
+        default: Default value to return if key is not found.
+
+    Returns:
+        The value at the key path, or the default if not found.
+    """
+    if config is None:
+        return default
+
+    current = config
+    for part in key.split("."):
+        if not isinstance(current, dict):
+            return default
+        current = current.get(part)
+        if current is None:
+            return default
+    return current
+
+
+def _load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """Load configuration from a YAML file.
+
+    Args:
+        config_path: Path to the config file. If None, uses the default path
+            relative to the project root.
+
+    Returns:
+        Configuration dictionary.
+    """
+    import yaml
+
+    if config_path is None:
+        # Default path: project_root/config/config.yaml
+        project_root = Path(__file__).parent.parent
+        config_path = project_root / "config" / "config.yaml"
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+
+def _get_device(config: Optional[Dict[str, Any]] = None) -> torch.device:
+    """Determine the device to use for evaluation.
+
+    Args:
+        config: Configuration dictionary.
+
+    Returns:
+        torch.device: The device to use.
+    """
+    if config is not None:
+        device_name = _safe_config_get(config, "system.device", "cuda")
+        if device_name is not None and torch.cuda.is_available():
+            return torch.device(device_name)
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def _prepare_inputs(
+    data: torch.Tensor, target: torch.Tensor, device: torch.device
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Move data and target to the specified device.
+
+    Args:
+        data: Input tensor.
+        target: Target tensor.
+        device: Device to move tensors to.
+
+    Returns:
+        Tuple of (data, target) on the specified device.
+    """
+    data = data.to(device)
+    target = target.to(device)
+    return data, target
+
+
+def _extract_predictions(
+    output: torch.Tensor, target: torch.Tensor, num_classes: int
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Extract class predictions and target labels from model output.
+
+    For segmentation models, the output is (N, C, H, W). We apply global
+    average pooling to get (N, C) and then take argmax for classification.
+
+    Args:
+        output: Model output tensor.
+        target: Target tensor (labels or one-hot).
+        num_classes: Number of classes.
+
+    Returns:
+        Tuple of (predicted_labels, target_labels) as 1D tensors.
+    """
+    # Global average pooling for 4D outputs (segmentation)
+    if output.dim() == 4:
+        pooled = output.mean(dim=(2, 3))
+    else:
+        pooled = output
+
+    # Get predicted class labels
+    _, predicted = torch.max(pooled, dim=1)
+
+    # Convert target to class labels if one-hot
+    if target.dim() > 1:
+        if target.shape[1] == num_classes:
+            # One-hot encoded target
+            _, target_labels = torch.max(target, dim=1)
+        else:
+            # Target has shape (N, H, W) — take mode or use argmax over classes
+            # For classification, we use the most frequent class in the mask
+            target_labels = torch.mode(target.view(target.size(0), -1), dim=1).values
+    else:
+        target_labels = target
+
+    return predicted, target_labels
+
+
+def _compute_confusion_matrix(
+    predicted: torch.Tensor, target: torch.Tensor, num_classes: int
+) -> torch.Tensor:
+    """Compute the confusion matrix.
+
+    Args:
+        predicted: Predicted class labels (1D tensor).
+        target: Ground truth class labels (1D tensor).
+        num_classes: Number of classes.
+
+    Returns:
+        Confusion matrix of shape (num_classes, num_classes).
+    """
+    confusion = torch.zeros(num_classes, num_classes, dtype=torch.long)
+    for t, p in zip(target.cpu().numpy(), predicted.cpu().numpy()):
+        if 0 <= t < num_classes and 0 <= p < num_classes:
+            confusion[t, p] += 1
+    return confusion
+
+
+def _compute_classification_metrics(
+    predicted: torch.Tensor, target: torch.Tensor, num_classes: int
+) -> Dict[str, Any]:
+    """Compute classification metrics from predictions and targets.
+
+    Args:
+        predicted: Predicted class labels (1D tensor).
+        target: Ground truth class labels (1D tensor).
+        num_classes: Number of classes.
+
+    Returns:
+        Dictionary with accuracy, precision, recall, F1, and confusion matrix.
+    """
+    # Move to CPU for metric computation
+    predicted = predicted.cpu()
+    target = target.cpu()
+
+    # Compute confusion matrix
+    confusion = _compute_confusion_matrix(predicted, target, num_classes)
+
+    # Compute per-class metrics
+    tp = torch.diag(confusion).float()
+    fp = confusion.sum(dim=0) - tp
+    fn = confusion.sum(dim=1) - tp
+
+    # Avoid division by zero
+    precision = torch.where(
+        (tp + fp) > 0, tp / torch.clamp(tp + fp, min=1e-7), torch.zeros_like(tp)
+    )
+    recall = torch.where(
+        (tp + fn) > 0, tp / torch.clamp(tp + fn, min=1e-7), torch.zeros_like(tp)
+    )
+    f1 = torch.where(
+        (precision + recall) > 0,
+        2 * precision * recall / torch.clamp(precision + recall, min=1e-7),
+        torch.zeros_like(precision),
+    )
+
+    # Overall accuracy
+    accuracy = tp.sum().item() / max(confusion.sum().item(), 1)
+
+    # Macro-averaged metrics
+    mean_precision = precision.mean().item()
+    mean_recall = recall.mean().item()
+    mean_f1 = f1.mean().item()
+
+    return {
+        "accuracy": accuracy,
+        "precision": mean_precision,
+        "recall": mean_recall,
+        "f1": mean_f1,
+        "mean_f1": mean_f1,
+        "mean_precision": mean_precision,
+        "mean_recall": mean_recall,
+        "confusion_matrix": confusion.numpy().tolist(),
+        "per_class_precision": precision.numpy().tolist(),
+        "per_class_recall": recall.numpy().tolist(),
+        "per_class_f1": f1.numpy().tolist(),
+    }
+
+
+def evaluate_model(
+    model: torch.nn.Module,
+    dataloader: torch.utils.data.DataLoader,
+    config: Optional[Dict[str, Any]] = None,
+    device: Optional[torch.device] = None,
+    threshold: float = 0.5,
+    batch_size: int = 32,
+) -> Dict[str, Any]:
+    """Evaluate a trained model on a dataloader.
+
+    Args:
+        model: The trained model to evaluate.
+        dataloader: DataLoader providing (data, target) batches.
+        config: Configuration dictionary. If None, loads from config.yaml.
+        device: Device to run evaluation on. If None, auto-detected.
+        threshold: Threshold for binarizing probability outputs (used by metrics).
+        batch_size: Batch size hint (kept for API compatibility).
+
+    Returns:
+        Dictionary containing evaluation metrics:
+            - accuracy: Overall classification accuracy.
+            - precision: Macro-averaged precision.
+            - recall: Macro-averaged recall.
+            - f1: Macro-averaged F1 score.
+            - mean_f1: Alias for f1.
+            - mean_precision: Alias for precision.
+            - mean_recall: Alias for recall.
+            - confusion_matrix: Confusion matrix as a list of lists.
+            - iou: Mean IoU (from segmentation metrics).
+            - dice: Mean Dice coefficient (from segmentation metrics).
+            - per_class_precision: Per-class precision values.
+            - per_class_recall: Per-class recall values.
+            - per_class_f1: Per-class F1 values.
+            - num_samples: Number of samples evaluated.
+    """
+    if config is None:
+        config = _load_config()
+
+    # Determine device
+    if device is None:
+        device = _get_device(config)
+
+    # Get number of classes from config
+    num_classes = _safe_config_get(config, "model.num_classes", 1)
+    if num_classes is None:
+        num_classes = 1
+
+    # Set model to evaluation mode
+    model.eval()
+    model = model.to(device)
+
+    # Accumulate predictions and targets
+    all_predicted = []
+    all_targets = []
+    all_outputs = []
+    all_labels = []
+
+    total_loss = 0.0
+    num_batches = 0
+
+    with torch.no_grad():
+        for data, target in dataloader:
+            data, target = _prepare_inputs(data, target, device)
+
+            # Forward pass
+            output = model(data)
+
+            # Extract predictions and target labels
+            predicted, target_labels = _extract_predictions(output, target, num_classes)
+
+            # Accumulate
+            all_predicted.append(predicted.cpu())
+            all_targets.append(target_labels.cpu())
+            all_outputs.append(output.cpu())
+            all_labels.append(target.cpu())
+
+            num_batches += 1
+
+    # Concatenate all batches
+    if len(all_predicted) > 0:
+        all_predicted = torch.cat(all_predicted, dim=0)
+        all_targets = torch.cat(all_targets, dim=0)
+        all_outputs = torch.cat(all_outputs, dim=0)
+        all_labels = torch.cat(all_labels, dim=0)
+    else:
+        # Empty dataloader — return empty metrics
+        return {
+            "accuracy": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "mean_f1": 0.0,
+            "mean_precision": 0.0,
+            "mean_recall": 0.0,
+            "confusion_matrix": [[0] * num_classes for _ in range(num_classes)],
+            "iou": 0.0,
+            "dice": 0.0,
+            "per_class_precision": [0.0] * num_classes,
+            "per_class_recall": [0.0] * num_classes,
+            "per_class_f1": [0.0] * num_classes,
+            "num_samples": 0,
+        }
+
+    # Compute classification metrics
+    classification_metrics = _compute_classification_metrics(
+        all_predicted, all_targets, num_classes
+    )
+
+    # Compute segmentation metrics (IoU, Dice) if outputs are 4D
+    iou = 0.0
+    dice = 0.0
+    if all_outputs.dim() == 4:
+        try:
+            seg_metrics = compute_metrics(
+                preds=all_outputs,
+                targets=all_labels,
+                config=config,
+                threshold=threshold,
+                batch_size=batch_size,
+            )
+            iou = seg_metrics.get("iou", 0.0)
+            dice = seg_metrics.get("dice", 0.0)
+        except (ValueError, RuntimeError) as e:
+            # Fallback: compute IoU and Dice from predicted masks
+            print(f"Warning: compute_metrics failed ({e}), using fallback.")
+            # Convert outputs to binary predictions
+            if all_outputs.shape[1] == 2:
+                probs = F.softmax(all_outputs, dim=1)[:, 1, :, :]
+            else:
+                probs = torch.sigmoid(all_outputs[:, 0, :, :])
+            binary_preds = (probs >= threshold).long()
+            binary_targets = (all_labels >= 1).long()
+
+            # Compute IoU and Dice
+            intersection = (binary_preds & binary_targets).sum(dim=(1, 2)).float()
+            union = (binary_preds | binary_targets).sum(dim=(1, 2)).float()
+            iou = (intersection / torch.clamp(union, min=1e-7)).mean().item()
+
+            dice_num = 2 * intersection
+            dice_den = binary_preds.sum(dim=(1, 2)) + binary_targets.sum(dim=(1, 2))
+            dice = (dice_num / torch.clamp(dice_den, min=1e-7)).mean().item()
+
+    # Combine all metrics
+    metrics = {
+        "accuracy": classification_metrics["accuracy"],
+        "precision": classification_metrics["precision"],
+        "recall": classification_metrics["recall"],
+        "f1": classification_metrics["f1"],
+        "mean_f1": classification_metrics["mean_f1"],
+        "mean_precision": classification_metrics["mean_precision"],
+        "mean_recall": classification_metrics["mean_recall"],
+        "confusion_matrix": classification_metrics["confusion_matrix"],
+        "iou": iou,
+        "dice": dice,
+        "per_class_precision": classification_metrics["per_class_precision"],
+        "per_class_recall": classification_metrics["per_class_recall"],
+        "per_class_f1": classification_metrics["per_class_f1"],
+        "num_samples": all_predicted.size(0),
+    }
+
+    return metrics
+
+
+def _generate_metrics_bar_chart(
+    metrics: Dict[str, Any], output_path: str, run_name: str
+) -> Optional[str]:
+    """Generate a bar chart of key metrics.
+
+    Args:
+        metrics: Complete metrics dictionary (must contain mean_f1, precision,
+            recall, accuracy keys).
+        output_path: Path to save the chart.
+        run_name: Name of the run (used in the title).
+
+    Returns:
+        Path to the saved chart, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        return None
+
+    # Extract metrics — the full dict is passed, we read individual keys
+    mean_f1 = metrics.get("mean_f1", 0.0)
+    precision = metrics.get("precision", 0.0)
+    recall = metrics.get("recall", 0.0)
+    accuracy = metrics.get("accuracy", 0.0)
+
+    # Create bar chart
+    fig, ax = plt.subplots(figsize=(8, 6))
+    metric_names = ["Mean F1", "Precision", "Recall", "Accuracy"]
+    metric_values = [mean_f1, precision, recall, accuracy]
+    colors = ["#2E86AB", "#A23B72", "#F18F01", "#C73E1D"]
+
+    bars = ax.bar(metric_names, metric_values, color=colors, alpha=0.8)
+    ax.set_ylim(0, 1.0)
+    ax.set_ylabel("Score")
+    ax.set_title(f"Evaluation Metrics — {run_name}")
+    ax.axhline(y=0.5, color="gray", linestyle="--", alpha=0.5, label="Random baseline")
+
+    # Add value labels on bars
+    for bar, value in zip(bars, metric_values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.02,
+            f"{value:.4f}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
+
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def _generate_confusion_matrix_plot(
+    confusion_matrix: Any, output_path: str, run_name: str
+) -> Optional[str]:
+    """Generate a confusion matrix heatmap.
+
+    Args:
+        confusion_matrix: 2D array (list of lists) representing the confusion matrix.
+        output_path: Path to save the plot.
+        run_name: Name of the run (used in the title).
+
+    Returns:
+        Path to the saved plot, or None if matplotlib is unavailable.
+    """
+    if plt is None:
+        return None
+
+    import numpy as np
+
+    cm = np.array(confusion_matrix, dtype=np.int64)
+    num_classes = cm.shape[0]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues)
+    ax.figure.colorbar(im, ax=ax)
+
+    # Set labels
+    ax.set(
+        xticks=np.arange(num_classes),
+        yticks=np.arange(num_classes),
+        xticklabels=[f"Class {i}" for i in range(num_classes)],
+        yticklabels=[f"Class {i}" for i in range(num_classes)],
+        xlabel="Predicted Label",
+        ylabel="True Label",
+        title=f"Confusion Matrix — {run_name}",
+    )
+
+    # Rotate tick labels
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
+    # Add text annotations
+    thresh = cm.max() / 2.0 if cm.max() > 0 else 1.0
+    for i in range(num_classes):
+        for j in range(num_classes):
+            ax.text(
+                j,
+                i,
+                format(cm[i, j], "d"),
+                ha="center",
+                va="center",
+                color="white" if cm[i, j] > thresh else "black",
+            )
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def generate_report(
+    metrics: Dict[str, Any],
+    run_name: str,
+    output_dir: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generate a report for a single evaluation run.
+
+    Args:
+        metrics: Dictionary of evaluation metrics (from evaluate_model).
+        run_name: Name of the run (e.g., 'unetpp_scratch').
+        output_dir: Directory to save the report and charts.
+        config: Configuration dictionary. If None, loads from config.yaml.
+
+    Returns:
+        Path to the generated report file (text report).
+    """
+    if config is None:
+        config = _load_config()
+
+    # Create output directory
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate charts (optional, skipped if matplotlib is unavailable)
+    chart_paths = {}
+
+    # Bar chart — pass the full metrics dict
+    bar_chart_path = _generate_metrics_bar_chart(
+        metrics=metrics,
+        output_path=str(output_dir / f"{run_name}_metrics_bar.png"),
+        run_name=run_name,
+    )
+    if bar_chart_path is not None:
+        chart_paths["bar_chart"] = bar_chart_path
+
+    # Confusion matrix plot — pass the 2D array
+    confusion_matrix = metrics.get("confusion_matrix")
+    if confusion_matrix is not None:
+        cm_plot_path = _generate_confusion_matrix_plot(
+            confusion_matrix=confusion_matrix,
+            output_path=str(output_dir / f"{run_name}_confusion_matrix.png"),
+            run_name=run_name,
+        )
+        if cm_plot_path is not None:
+            chart_paths["confusion_matrix"] = cm_plot_path
+
+    # Build text report
+    report_lines = []
+    report_lines.append("=" * 70)
+    report_lines.append(f"EVALUATION REPORT — {run_name}")
+    report_lines.append("=" * 70)
+    report_lines.append("")
+
+    # Project info
+    project_name = _safe_config_get(config, "project.name", "UNet++ Medical Image Segmentation")
+    paper_ref = _safe_config_get(
+        config, "project.paper", "UNet++: A Nested U-Net Architecture for Medical Image Segmentation"
+    )
+    report_lines.append(f"Project: {project_name}")
+    report_lines.append(f"Paper: {paper_ref}")
+    report_lines.append("")
+
+    # Reproduction mode
+    repro_mode = _safe_config_get(config, "reproduction_mode", "engineering")
+    report_lines.append(f"Reproduction Mode: {repro_mode}")
+    report_lines.append("")
+
+    # Training configuration summary
+    report_lines.append("-" * 70)
+    report_lines.append("TRAINING CONFIGURATION")
+    report_lines.append("-" * 70)
+
+    epochs = _safe_config_get(config, "training.epochs", 30)
+    optimizer_name = _safe_config_get(config, "training.optimizer.name", "Adam")
+    lr = _safe_config_get(config, "training.optimizer.lr", 0.001)
+    loss_fn = _safe_config_get(
+        config, "training.loss_function", "Combination of binary cross-entropy and dice coefficient"
+    )
+
+    report_lines.append(f"  Epochs: {epochs}")
+    report_lines.append(f"  Optimizer: {optimizer_name}")
+    report_lines.append(f"  Learning Rate: {lr}")
+    report_lines.append(f"  Loss Function: {loss_fn}")
+
+    # Scheduler info
+    scheduler_name = _safe_config_get(config, "training.scheduler.name", None)
+    if scheduler_name:
+        step_size = _safe_config_get(config, "training.scheduler.step_size", None)
+        gamma = _safe_config_get(config, "training.scheduler.gamma", None)
+        report_lines.append(f"  Scheduler: {scheduler_name}")
+        if step_size is not None:
+            report_lines.append(f"    Step Size: {step_size}")
+        if gamma is not None:
+            report_lines.append(f"    Gamma: {gamma}")
+    else:
+        report_lines.append("  Scheduler: None (not specified in paper)")
+
+    report_lines.append("")
+
+    # Evaluation metrics
+    report_lines.append("-" * 70)
+    report_lines.append("EVALUATION METRICS")
+    report_lines.append("-" * 70)
+
+    accuracy = metrics.get("accuracy", 0.0)
+    precision = metrics.get("precision", 0.0)
+    recall = metrics.get("recall", 0.0)
+    f1 = metrics.get("f1", 0.0)
+    iou = metrics.get("iou", 0.0)
+    dice = metrics.get("dice", 0.0)
+    num_samples = metrics.get("num_samples", 0)
+
+    report_lines.append(f"  Number of samples evaluated: {num_samples}")
+    report_lines.append(f"  Accuracy: {accuracy:.4f}")
+    report_lines.append(f"  Precision (macro): {precision:.4f}")
+    report_lines.append(f"  Recall (macro): {recall:.4f}")
+    report_lines.append(f"  F1 Score (macro): {f1:.4f}")
+    report_lines.append(f"  IoU: {iou:.4f}")
+    report_lines.append(f"  Dice Coefficient: {dice:.4f}")
+    report_lines.append("")
+
+    # Per-class metrics
+    per_class_precision = metrics.get("per_class_precision", [])
+    per_class_recall = metrics.get("per_class_recall", [])
+    per_class_f1 = metrics.get("per_class_f1", [])
+
+    if per_class_precision:
+        report_lines.append("  Per-Class Metrics:")
+        report_lines.append(f"    {'Class':<10} {'Precision':<12} {'Recall':<12} {'F1':<12}")
+        report_lines.append("    " + "-" * 46)
+        for i in range(len(per_class_precision)):
+            report_lines.append(
+                f"    {'Class ' + str(i):<10} {per_class_precision[i]:<12.4f} "
+                f"{per_class_recall[i]:<12.4f} {per_class_f1[i]:<12.4f}"
+            )
+        report_lines.append("")
+
+    # Confusion matrix
+    confusion_matrix = metrics.get("confusion_matrix")
+    if confusion_matrix:
+        report_lines.append("  Confusion Matrix:")
+        report_lines.append("    " + " ".join([f"Pred{i:<6}" for i in range(len(confusion_matrix))]))
+        for i, row in enumerate(confusion_matrix):
+            report_lines.append(
+                f"    True{i}: " + " ".join([f"{val:<10}" for val in row])
+            )
+        report_lines.append("")
+
+    # Chart paths
+    if chart_paths:
+        report_lines.append("-" * 70)
+        report_lines.append("GENERATED CHARTS")
+        report_lines.append("-" * 70)
+        for chart_name, chart_path in chart_paths.items():
+            report_lines.append(f"  {chart_name}: {chart_path}")
+        report_lines.append("")
+
+    # Notes
+    report_lines.append("-" * 70)
+    report_lines.append("NOTES")
+    report_lines.append("-" * 70)
+
+    checkpoint_note = _safe_config_get(config, "checkpoint.note", None)
+    if checkpoint_note:
+        report_lines.append(f"  Checkpoint note: {checkpoint_note}")
+
+    scheduler_note = _safe_config_get(config, "training.scheduler.note", None)
+    if scheduler_note:
+        report_lines.append(f"  Scheduler note: {scheduler_note}")
+
+    version_note = _safe_config_get(config, "version_selector.note", None)
+    if version_note:
+        report_lines.append(f"  Version selector note: {version_note}")
+
+    report_lines.append("")
+    report_lines.append("=" * 70)
+    report_lines.append("END OF REPORT")
+    report_lines.append("=" * 70)
+
+    # Write report
+    report_path = output_dir / f"{run_name}_report.txt"
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(report_lines))
+
+    # Also save metrics as JSON for programmatic access
+    metrics_path = output_dir / f"{run_name}_metrics.json"
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
+
+    return str(report_path)
+```

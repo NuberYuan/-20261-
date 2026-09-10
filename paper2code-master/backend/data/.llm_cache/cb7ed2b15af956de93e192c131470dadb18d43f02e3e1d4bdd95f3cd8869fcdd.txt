@@ -1,0 +1,303 @@
+```python
+import os
+import random
+import numpy as np
+import pandas as pd
+import torch
+from torch.utils.data import Dataset, random_split
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import IterativeImputer
+from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from imblearn.over_sampling import SMOTE
+import yaml
+
+
+class NASAMDPCode4CodeDataset(Dataset):
+    """
+    Dataset class for loading and preprocessing NASA MDP and Code4Code datasets.
+    """
+
+    def __init__(self, root_dir=None, version='default', config=None, transform=None):
+        """
+        Args:
+            root_dir (str): Root directory containing the dataset.
+            version (str): Dataset version (e.g., 'default').
+            config (dict): Configuration dictionary loaded from config.yaml.
+            transform (callable, optional): Optional transform to be applied on a sample.
+        """
+        self.root_dir = root_dir
+        self.version = version
+        self.config = config
+        self.transform = transform
+
+        # Load configuration if not provided
+        if self.config is None:
+            config_path = os.path.join('config', 'config.yaml')
+            with open(config_path, 'r', encoding='utf-8') as f:
+                self.config = yaml.safe_load(f)
+
+        # Set root directory from config if not provided
+        if self.root_dir is None:
+            data_cfg = self.config.get('data', {})
+            self.root_dir = data_cfg.get('root', 'data')
+
+        # Determine dataset path based on version
+        version_cfg = self.config.get('data', {}).get(self.version, {})
+        self.dataset_path = version_cfg.get('path', os.path.join(self.root_dir, self.version))
+
+        # Load and preprocess data
+        self.data, self.labels, self.feature_names, self.categorical_indices = self.preprocess_data()
+
+        # Split dataset into train, validation, and test sets
+        self.train_indices, self.val_indices, self.test_indices = self.split_dataset()
+
+        # Store indices for current mode (default to train)
+        self.current_indices = self.train_indices
+
+    def __len__(self):
+        """Return the number of samples in the dataset."""
+        return len(self.current_indices)
+
+    def __getitem__(self, idx):
+        """
+        Get a sample by index.
+
+        Args:
+            idx (int): Index of the sample.
+
+        Returns:
+            tuple: (features, label) as torch tensors.
+        """
+        actual_idx = self.current_indices[idx]
+        features = torch.tensor(self.data[actual_idx], dtype=torch.float32)
+        label = torch.tensor(self.labels[actual_idx], dtype=torch.float32)
+        return features, label
+
+    def preprocess_data(self):
+        """
+        Preprocess the dataset:
+        - Load raw data from CSV files
+        - Handle missing values using multivariate iterative imputation
+        - Remove outliers using z-score method (|z| > 3)
+        - Apply Min-Max normalization to [0, 1]
+        - Apply one-hot encoding for categorical variables
+        - Apply SMOTE to balance classes (applied later on training data)
+
+        Returns:
+            tuple: (preprocessed_features, labels, feature_names, categorical_indices)
+        """
+        # Load raw data
+        data_file = os.path.join(self.dataset_path, 'data.csv')
+        if not os.path.exists(data_file):
+            # If no data.csv, try to find any CSV file in the directory
+            csv_files = [f for f in os.listdir(self.dataset_path) if f.endswith('.csv')]
+            if not csv_files:
+                raise FileNotFoundError(f"No CSV files found in {self.dataset_path}")
+            data_file = os.path.join(self.dataset_path, csv_files[0])
+
+        df = pd.read_csv(data_file, encoding='utf-8')
+
+        # Separate features and labels
+        # Assume last column is the label (defect indicator)
+        label_col = df.columns[-1]
+        X = df.drop(columns=[label_col])
+        y = df[label_col].values
+
+        # Identify categorical columns (object dtype or low cardinality)
+        categorical_cols = []
+        for col in X.columns:
+            if X[col].dtype == 'object' or (X[col].nunique() < 10 and X[col].dtype in ['int64', 'float64']):
+                categorical_cols.append(col)
+
+        categorical_indices = [X.columns.get_loc(col) for col in categorical_cols]
+
+        # Handle missing values using multivariate iterative imputation
+        if X.isnull().any().any():
+            imputer = IterativeImputer(max_iter=10, random_state=42)
+            X_imputed = imputer.fit_transform(X)
+            X = pd.DataFrame(X_imputed, columns=X.columns)
+
+        # Remove outliers using z-score method (|z| > 3)
+        z_scores = np.abs((X - X.mean()) / X.std())
+        outlier_mask = (z_scores > 3).any(axis=1)
+        X = X[~outlier_mask]
+        y = y[~outlier_mask]
+
+        # Separate categorical and numerical features
+        X_categorical = X[categorical_cols] if categorical_cols else pd.DataFrame()
+        X_numerical = X.drop(columns=categorical_cols) if categorical_cols else X
+
+        # Apply one-hot encoding for categorical variables
+        if not X_categorical.empty:
+            encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+            X_cat_encoded = encoder.fit_transform(X_categorical)
+        else:
+            X_cat_encoded = np.empty((len(X), 0))
+
+        # Apply Min-Max normalization to numerical features
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        X_num_scaled = scaler.fit_transform(X_numerical)
+
+        # Combine numerical and categorical features
+        if X_cat_encoded.shape[1] > 0:
+            X_combined = np.hstack([X_num_scaled, X_cat_encoded])
+        else:
+            X_combined = X_num_scaled
+
+        # Store feature names for reference
+        feature_names = list(X_numerical.columns) + [f'cat_{i}' for i in range(X_cat_encoded.shape[1])]
+
+        return X_combined, y, feature_names, categorical_indices
+
+    def split_dataset(self):
+        """
+        Split dataset into train, validation, and test sets using random split.
+
+        Returns:
+            tuple: (train_indices, val_indices, test_indices)
+        """
+        n_samples = len(self.data)
+        indices = np.arange(n_samples)
+
+        # Get split ratios from config
+        split_cfg = self.config.get('split_strategy', {})
+        train_ratio = split_cfg.get('default_train_ratio', 0.8)
+        val_ratio = split_cfg.get('val_split_ratio', 0.2)
+        seed = split_cfg.get('seed', 42)
+
+        # Calculate split sizes
+        train_size = int(n_samples * train_ratio)
+        val_size = int((n_samples - train_size) * val_ratio)
+        test_size = n_samples - train_size - val_size
+
+        # Perform random split
+        random.seed(seed)
+        np.random.seed(seed)
+        shuffled_indices = np.random.permutation(indices)
+
+        train_indices = shuffled_indices[:train_size]
+        val_indices = shuffled_indices[train_size:train_size + val_size]
+        test_indices = shuffled_indices[train_size + val_size:]
+
+        return train_indices, val_indices, test_indices
+
+    def set_mode(self, mode='train'):
+        """
+        Set the current mode of the dataset.
+
+        Args:
+            mode (str): One of 'train', 'val', or 'test'.
+        """
+        if mode == 'train':
+            self.current_indices = self.train_indices
+        elif mode == 'val':
+            self.current_indices = self.val_indices
+        elif mode == 'test':
+            self.current_indices = self.test_indices
+        else:
+            raise ValueError(f"Invalid mode: {mode}. Must be 'train', 'val', or 'test'.")
+
+    def apply_smote(self):
+        """
+        Apply SMOTE to balance the training data.
+        This should be called before training to oversample the minority class.
+        """
+        if len(self.train_indices) == 0:
+            return
+
+        # Get training data
+        X_train = self.data[self.train_indices]
+        y_train = self.labels[self.train_indices]
+
+        # Apply SMOTE
+        smote = SMOTE(random_state=42)
+        X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
+
+        # Update training data and indices
+        self.data = np.vstack([self.data, X_resampled[len(X_train):]])
+        self.labels = np.concatenate([self.labels, y_resampled[len(y_train):]])
+
+        # Update indices
+        n_original = len(self.train_indices)
+        n_new = len(X_resampled) - n_original
+        new_indices = np.arange(n_original, n_original + n_new)
+        self.train_indices = np.concatenate([self.train_indices, new_indices])
+
+        # Update current indices if in train mode
+        if len(self.current_indices) == n_original:
+            self.current_indices = self.train_indices
+
+
+def get_dataloaders(config=None, version='default', batch_size=32, num_workers=0):
+    """
+    Create DataLoader objects for train, validation, and test sets.
+
+    Args:
+        config (dict): Configuration dictionary.
+        version (str): Dataset version (default: 'default').
+        batch_size (int): Batch size for DataLoader.
+        num_workers (int): Number of worker processes for DataLoader.
+
+    Returns:
+        tuple: (train_loader, val_loader, test_loader)
+    """
+    # Load config if not provided
+    if config is None:
+        config_path = os.path.join('config', 'config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+
+    # Get batch size from config if not provided
+    if batch_size is None:
+        training_cfg = config.get('training', {})
+        batch_size_cfg = training_cfg.get('batch_size', {})
+        batch_size = batch_size_cfg.get('transformer_boost', 32)
+
+    # Create dataset
+    dataset = NASAMDPCode4CodeDataset(version=version, config=config)
+
+    # Apply SMOTE to training data
+    dataset.apply_smote()
+
+    # Create data loaders
+    train_loader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
+    )
+
+    # Set mode to validation and create loader
+    dataset.set_mode('val')
+    val_loader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    # Set mode to test and create loader
+    dataset.set_mode('test')
+    test_loader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    )
+
+    # Reset to train mode
+    dataset.set_mode('train')
+
+    return train_loader, val_loader, test_loader
+
+
+def get_dataset(config=None, version='default'):
+    """
+    Get the dataset object for a specific version.
+
+    Args:
+        config (dict): Configuration dictionary.
+        version (str): Dataset version (default: 'default').
+
+    Returns:
+        NASAMDPCode4CodeDataset: The dataset object.
+    """
+    if config is None:
+        config_path = os.path.join('config', 'config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+
+    return NASAMDPCode4CodeDataset(version=version, config=config)
+```

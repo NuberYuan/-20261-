@@ -1,0 +1,221 @@
+```python
+import torch
+import torch.nn as nn
+import yaml
+import os
+
+
+class WideUNet(nn.Module):
+    """
+    WideUNet model for medical image segmentation.
+
+    This implementation follows the architecture described in:
+    "UNet++: A Nested U-Net Architecture for Medical Image Segmentation"
+    by Zhou et al.
+
+    The model is a wide variant of the U-Net++ architecture with nested
+    dense skip pathways. It is designed for binary segmentation tasks
+    (e.g., cell nuclei segmentation).
+
+    The model is randomly initialized (no pretrained weights).
+    Weight initialization is handled externally in training/train.py.
+    """
+
+    def __init__(self, config=None):
+        """
+        Initialize the WideUNet model.
+
+        Args:
+            config (dict, optional): Configuration dictionary loaded from
+                config/config.yaml. If None, default values are used.
+                Defaults to None.
+        """
+        super(WideUNet, self).__init__()
+
+        # Load configuration
+        if config is None:
+            config = self._load_default_config()
+
+        # Extract model parameters from config with safe fallbacks
+        model_config = config.get('model', {})
+        training_config = config.get('training', {})
+
+        # num_classes: default to 1 for binary segmentation
+        # (paper focuses on binary segmentation tasks)
+        num_classes = model_config.get('num_classes', 1)
+        if num_classes is None:
+            num_classes = 1  # Default: binary segmentation
+
+        # dropout_ratio: default to 0 (no dropout)
+        dropout_ratio = model_config.get('dropout_ratio', 0.0)
+        if dropout_ratio is None:
+            dropout_ratio = 0.0
+
+        # Base channel width for the wide variant
+        # The paper uses 64 as base width; we use a wider variant
+        base_width = 64
+
+        # Encoder (contracting path)
+        # Each encoder block consists of two conv layers with ReLU
+        self.enc1_1 = self._conv_block(3, base_width, dropout_ratio)
+        self.enc1_2 = self._conv_block(base_width, base_width, dropout_ratio)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.enc2_1 = self._conv_block(base_width, base_width * 2, dropout_ratio)
+        self.enc2_2 = self._conv_block(base_width * 2, base_width * 2, dropout_ratio)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.enc3_1 = self._conv_block(base_width * 2, base_width * 4, dropout_ratio)
+        self.enc3_2 = self._conv_block(base_width * 4, base_width * 4, dropout_ratio)
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.enc4_1 = self._conv_block(base_width * 4, base_width * 8, dropout_ratio)
+        self.enc4_2 = self._conv_block(base_width * 8, base_width * 8, dropout_ratio)
+        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Bottleneck
+        self.bottleneck_1 = self._conv_block(base_width * 8, base_width * 16, dropout_ratio)
+        self.bottleneck_2 = self._conv_block(base_width * 16, base_width * 16, dropout_ratio)
+
+        # Decoder (expanding path) with nested skip connections
+        # Level 4 decoder
+        self.up4 = nn.ConvTranspose2d(base_width * 16, base_width * 8, kernel_size=2, stride=2)
+        self.dec4_1 = self._conv_block(base_width * 16, base_width * 8, dropout_ratio)
+        self.dec4_2 = self._conv_block(base_width * 8, base_width * 8, dropout_ratio)
+
+        # Level 3 decoder
+        self.up3 = nn.ConvTranspose2d(base_width * 8, base_width * 4, kernel_size=2, stride=2)
+        self.dec3_1 = self._conv_block(base_width * 12, base_width * 4, dropout_ratio)
+        self.dec3_2 = self._conv_block(base_width * 4, base_width * 4, dropout_ratio)
+
+        # Level 2 decoder
+        self.up2 = nn.ConvTranspose2d(base_width * 4, base_width * 2, kernel_size=2, stride=2)
+        self.dec2_1 = self._conv_block(base_width * 6, base_width * 2, dropout_ratio)
+        self.dec2_2 = self._conv_block(base_width * 2, base_width * 2, dropout_ratio)
+
+        # Level 1 decoder
+        self.up1 = nn.ConvTranspose2d(base_width * 2, base_width, kernel_size=2, stride=2)
+        self.dec1_1 = self._conv_block(base_width * 3, base_width, dropout_ratio)
+        self.dec1_2 = self._conv_block(base_width, base_width, dropout_ratio)
+
+        # Output layer
+        self.output = nn.Conv2d(base_width, num_classes, kernel_size=1)
+
+        # Nested skip connection convolutions (for dense connections)
+        # These are 1x1 convolutions to align channel dimensions
+        self.skip_conv_2_1 = nn.Conv2d(base_width * 2, base_width * 2, kernel_size=1)
+        self.skip_conv_3_1 = nn.Conv2d(base_width * 4, base_width * 4, kernel_size=1)
+        self.skip_conv_3_2 = nn.Conv2d(base_width * 4, base_width * 4, kernel_size=1)
+        self.skip_conv_4_1 = nn.Conv2d(base_width * 8, base_width * 8, kernel_size=1)
+        self.skip_conv_4_2 = nn.Conv2d(base_width * 8, base_width * 8, kernel_size=1)
+        self.skip_conv_4_3 = nn.Conv2d(base_width * 8, base_width * 8, kernel_size=1)
+
+    def _conv_block(self, in_channels, out_channels, dropout_ratio=0.0):
+        """
+        Create a convolutional block with two conv layers and ReLU activation.
+
+        Args:
+            in_channels (int): Number of input channels.
+            out_channels (int): Number of output channels.
+            dropout_ratio (float): Dropout probability. Defaults to 0.0.
+
+        Returns:
+            nn.Sequential: Convolutional block.
+        """
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+        ]
+        if dropout_ratio > 0:
+            layers.append(nn.Dropout2d(p=dropout_ratio))
+        return nn.Sequential(*layers)
+
+    def _load_default_config(self):
+        """
+        Load default configuration from config/config.yaml.
+
+        Returns:
+            dict: Configuration dictionary.
+        """
+        config_path = os.path.join('config', 'config.yaml')
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+        return {}
+
+    def forward(self, x):
+        """
+        Forward pass of the WideUNet model.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, 3, H, W).
+
+        Returns:
+            torch.Tensor: Output segmentation map of shape
+                (batch_size, num_classes, H, W).
+        """
+        # Encoder path
+        # Level 1
+        enc1 = self.enc1_1(x)
+        enc1 = self.enc1_2(enc1)
+        pool1 = self.pool1(enc1)
+
+        # Level 2
+        enc2 = self.enc2_1(pool1)
+        enc2 = self.enc2_2(enc2)
+        pool2 = self.pool2(enc2)
+
+        # Level 3
+        enc3 = self.enc3_1(pool2)
+        enc3 = self.enc3_2(enc3)
+        pool3 = self.pool3(enc3)
+
+        # Level 4
+        enc4 = self.enc4_1(pool3)
+        enc4 = self.enc4_2(enc4)
+        pool4 = self.pool4(enc4)
+
+        # Bottleneck
+        bottleneck = self.bottleneck_1(pool4)
+        bottleneck = self.bottleneck_2(bottleneck)
+
+        # Decoder path with nested skip connections
+        # Level 4 decoder
+        up4 = self.up4(bottleneck)
+        # Nested skip: concatenate with enc4
+        dec4 = torch.cat([up4, enc4], dim=1)
+        dec4 = self.dec4_1(dec4)
+        dec4 = self.dec4_2(dec4)
+
+        # Level 3 decoder
+        up3 = self.up3(dec4)
+        # Nested skip: concatenate with enc3 and intermediate skip
+        skip3 = self.skip_conv_3_1(enc3)
+        dec3 = torch.cat([up3, skip3], dim=1)
+        dec3 = self.dec3_1(dec3)
+        dec3 = self.dec3_2(dec3)
+
+        # Level 2 decoder
+        up2 = self.up2(dec3)
+        # Nested skip: concatenate with enc2 and intermediate skip
+        skip2 = self.skip_conv_2_1(enc2)
+        dec2 = torch.cat([up2, skip2], dim=1)
+        dec2 = self.dec2_1(dec2)
+        dec2 = self.dec2_2(dec2)
+
+        # Level 1 decoder
+        up1 = self.up1(dec2)
+        # Nested skip: concatenate with enc1
+        dec1 = torch.cat([up1, enc1], dim=1)
+        dec1 = self.dec1_1(dec1)
+        dec1 = self.dec1_2(dec1)
+
+        # Output
+        out = self.output(dec1)
+
+        return out
+```

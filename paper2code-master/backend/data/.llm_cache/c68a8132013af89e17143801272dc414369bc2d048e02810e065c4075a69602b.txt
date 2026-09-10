@@ -1,0 +1,162 @@
+# SELF-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection
+
+This repository contains a PyTorch implementation of the SELF-RAG framework, which enhances large language models with adaptive retrieval and self-reflection capabilities. The model learns to retrieve relevant passages on demand, generate responses, and critique its own outputs through special reflection tokens.
+
+## Paper
+
+**SELF-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection**  
+Akari Asai, Zeqiu Wu, Yizhong Wang, Avirup Sil, Hannaneh Hajishirzi  
+*International Conference on Learning Representations (ICLR), 2024*
+
+## Project Structure
+
+```
+README.md
+main.py
+requirements.txt
+config/config/config.yaml
+data/data/dataset.py
+evaluation/evaluation/evaluate.py
+models/models/__init__.py
+models/models/contriever_msmarco_retriever.py
+models/models/gpt4_data_collection.py
+models/models/llama213_b.py
+models/models/llama27_b.py
+training/training/train.py
+utils/utils/metrics.py
+```
+
+## Installation
+
+```bash
+pip install -r requirements.txt
+```
+
+## Configuration
+
+All configuration parameters are defined in `config/config/config.yaml`. Key configuration groups include:
+
+- **project**: Project metadata (name, framework, paper reference)
+- **data**: Dataset paths, feature dimensions, normalization settings
+- **model**: Model architecture, dropout ratio, number of classes, weight initialization
+- **training**: Training hyperparameters (batch size, epochs, optimizer, scheduler, loss function)
+- **evaluation**: Evaluation settings (batch size, device)
+- **system**: System settings (device, number of workers, random seed)
+- **checkpoint**: Model checkpointing configuration
+- **logging**: Logging configuration
+
+## Usage
+
+### Training
+
+To train the SELF-RAG model from scratch:
+
+```bash
+python main.py --mode train
+```
+
+To resume training from a checkpoint:
+
+```bash
+python main.py --mode train --resume /path/to/checkpoint.pt
+```
+
+### Evaluation
+
+To evaluate a trained model:
+
+```bash
+python main.py --mode evaluate --checkpoint /path/to/checkpoint.pt
+```
+
+### Inference
+
+To run inference with a trained model:
+
+```bash
+python main.py --mode inference --checkpoint /path/to/checkpoint.pt --input "Your input text here"
+```
+
+## Model Architecture
+
+The implementation includes several model components:
+
+1. **Contriever-MS MARCO Retriever** (`contriever_msmarco_retriever.py`): A dense passage retriever based on the Contriever model fine-tuned on MS MARCO, used to retrieve relevant passages for generation.
+
+2. **LLaMA-2-13B** (`llama213_b.py`): The 13-billion parameter variant of the LLaMA-2 model, serving as the base generator.
+
+3. **LLaMA-2-7B** (`llama27_b.py`): The 7-billion parameter variant of the LLaMA-2 model, serving as the base generator.
+
+4. **GPT-4 Data Collection** (`gpt4_data_collection.py`): Utilities for collecting training data using GPT-4 to generate reflection token annotations.
+
+The SELF-RAG framework augments the base generator with:
+- **Retrieval tokens**: The model learns when to retrieve (`[Retrieve]`, `[No Retrieval]`, `[Continue to Use Evidence]`)
+- **Critique tokens**: The model generates self-reflections on relevance (`[Relevant]`/`[Irrelevant]`), support (`[Fully supported]`/`[Partially supported]`/`[No support]`), and utility (`[Useful]`/`[Not useful]`)
+
+## Training Details
+
+- **Loss Function**: Standard next token objective (cross-entropy)
+- **Epochs**: 30
+- **Optimizer**: Configured in `config/config/config.yaml` under `training.optimizer`
+- **Learning Rate**: Configured in `config/config/config.yaml` under `training.optimizer.lr`
+- **Scheduler**: StepLR with step size and gamma configured in `config/config/config.yaml` under `training.scheduler`
+
+## Reproduction
+
+To reproduce the experimental results:
+
+1. **Data Preparation**: Ensure the dataset is available at the path specified in `config['data.root']`. The dataset should be preprocessed with retrieval annotations.
+
+2. **Configuration**: Review and adjust `config/config/config.yaml` to match your hardware setup (GPU memory, number of workers, etc.).
+
+3. **Training**: Run the training script with the desired configuration. The training process will:
+   - Load the base LLaMA-2 model
+   - Fine-tune with the SELF-RAG objective (generation + reflection tokens)
+   - Save checkpoints at specified intervals
+
+4. **Evaluation**: After training, evaluate the model on the test set. The evaluation script computes standard metrics (accuracy, F1, etc.) and also reports the model's self-reflection quality.
+
+## Evaluation Metrics
+
+The evaluation module (`evaluation/evaluation/evaluate.py`) computes:
+
+- **Generation Quality**: Standard metrics such as BLEU, ROUGE, and accuracy
+- **Retrieval Quality**: Whether the model appropriately decides when to retrieve
+- **Critique Quality**: Whether the model's self-reflections align with ground truth labels
+
+The metrics utilities (`utils/utils/metrics.py`) provide implementations of these evaluation measures.
+
+## Checkpointing
+
+The training script saves model checkpoints according to the configuration in `config['checkpoint']`:
+
+- `save_frequency_epochs`: How often to save checkpoints
+- `save_best`: Whether to save the best model based on `best_metric`
+- `save_final`: Whether to save the final model
+- `save_optimizer_state`: Whether to include optimizer state in checkpoints
+
+**Note on validation**: The original paper does not use a separate validation set. If you wish to perform model selection, we recommend creating a validation split from the training data (e.g., using `config['split_strategy']`). Using the test set for model selection would lead to data leakage and inflated performance estimates.
+
+## Logging
+
+Training logs are saved to the directory specified in `config['logging.log_dir']`. The logging configuration controls:
+
+- `log_level`: Verbosity of logging
+- `save_interval`: How frequently to write logs
+
+## License
+
+This project is for research purposes. Please refer to the original paper and the licenses of the underlying models (LLaMA-2, Contriever) for usage restrictions.
+
+## Citation
+
+If you use this code in your research, please cite:
+
+```bibtex
+@inproceedings{asai2024selfrag,
+  title={Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection},
+  author={Asai, Akari and Wu, Zeqiu and Wang, Yizhong and Sil, Avirup and Hajishirzi, Hannaneh},
+  booktitle={International Conference on Learning Representations (ICLR)},
+  year={2024}
+}
+```

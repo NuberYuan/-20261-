@@ -1,0 +1,671 @@
+```python
+import os
+import sys
+import time
+import copy
+import logging
+from typing import Dict, Optional, Tuple, Any, Union
+
+import yaml
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from data.dataset import get_dataloaders
+from models.lstm import Lstm
+from models.transformer import Transformer
+
+
+def load_config(config_path: str = "config/config.yaml") -> dict:
+    """
+    Load configuration from YAML file.
+
+    Args:
+        config_path: Path to the configuration file.
+
+    Returns:
+        dict: Configuration dictionary.
+    """
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def initialize_model(
+    config: Optional[dict] = None,
+    model_name: str = "temporal_fusion_transformer",
+    device: Optional[torch.device] = None,
+) -> nn.Module:
+    """
+    Initialize a model from scratch based on configuration.
+
+    Args:
+        config: Configuration dictionary loaded from config.yaml.
+        model_name: Name of the model architecture to initialize.
+        device: Device to place the model on.
+
+    Returns:
+        nn.Module: Initialized model.
+    """
+    if config is None:
+        config = load_config()
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Get model configuration
+    model_config = config.get("model", {})
+
+    # Get training mode configuration
+    training_modes = config.get("training_modes", {})
+    scratch_config = training_modes.get("scratch", {})
+    weight_init = scratch_config.get("weight_init", "kaiming_normal")
+
+    # Initialize model based on architecture name
+    if model_name == "temporal_fusion_transformer" or model_name == "transformer":
+        model = Transformer(config=config)
+    elif model_name == "lstm":
+        model = Lstm(config=model_config)
+    else:
+        raise ValueError(f"Unknown model architecture: {model_name}")
+
+    # Apply weight initialization if specified
+    if weight_init == "kaiming_normal":
+        _apply_kaiming_normal_init(model)
+    elif weight_init == "xavier_uniform":
+        _apply_xavier_uniform_init(model)
+
+    # Move model to device
+    model = model.to(device)
+
+    return model
+
+
+def _apply_kaiming_normal_init(model: nn.Module) -> None:
+    """
+    Apply Kaiming normal initialization to model weights.
+
+    Args:
+        model: PyTorch model.
+    """
+    for name, param in model.named_parameters():
+        if "weight" in name and param.dim() >= 2:
+            nn.init.kaiming_normal_(param, mode="fan_in", nonlinearity="relu")
+        elif "bias" in name:
+            nn.init.constant_(param, 0.0)
+
+
+def _apply_xavier_uniform_init(model: nn.Module) -> None:
+    """
+    Apply Xavier uniform initialization to model weights.
+
+    Args:
+        model: PyTorch model.
+    """
+    for name, param in model.named_parameters():
+        if "weight" in name and param.dim() >= 2:
+            nn.init.xavier_uniform_(param)
+        elif "bias" in name:
+            nn.init.constant_(param, 0.0)
+
+
+def quantile_loss(
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    quantiles: Optional[list] = None,
+) -> torch.Tensor:
+    """
+    Compute Quantile loss summed across all quantile outputs.
+
+    Args:
+        predictions: Model predictions of shape (batch_size, seq_len, num_quantiles).
+        targets: Target values of shape (batch_size, seq_len) or (batch_size, seq_len, 1).
+        quantiles: List of quantile values. Defaults to [0.1, 0.5, 0.9].
+
+    Returns:
+        torch.Tensor: Scalar quantile loss.
+    """
+    if quantiles is None:
+        quantiles = [0.1, 0.5, 0.9]
+
+    # Ensure targets have the right shape
+    if targets.dim() == predictions.dim() - 1:
+        targets = targets.unsqueeze(-1)
+    elif targets.dim() == predictions.dim() and targets.size(-1) == 1:
+        targets = targets.squeeze(-1).unsqueeze(-1)
+
+    # Expand targets to match predictions shape
+    if targets.size(-1) == 1 and predictions.size(-1) > 1:
+        targets = targets.expand_as(predictions)
+
+    # Compute quantile loss for each quantile
+    total_loss = torch.tensor(0.0, device=predictions.device)
+
+    for i, q in enumerate(quantiles):
+        if i < predictions.size(-1):
+            pred = predictions[..., i]
+            target = targets[..., i] if targets.size(-1) > 1 else targets[..., 0]
+
+            # Quantile loss formula
+            errors = target - pred
+            loss = torch.max(q * errors, (q - 1) * errors)
+            total_loss = total_loss + loss.mean()
+
+    return total_loss
+
+
+def train_model(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: Optional[DataLoader] = None,
+    config: Optional[dict] = None,
+    device: Optional[torch.device] = None,
+    logger: Optional[logging.Logger] = None,
+) -> Dict[str, Any]:
+    """
+    Train the model for the specified number of epochs.
+
+    Args:
+        model: PyTorch model to train.
+        train_loader: DataLoader for training data.
+        val_loader: Optional DataLoader for validation data.
+        config: Configuration dictionary.
+        device: Device to train on.
+        logger: Optional logger for logging training progress.
+
+    Returns:
+        Dict containing training history and best model state.
+    """
+    if config is None:
+        config = load_config()
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        logging.basicConfig(level=logging.INFO)
+
+    # Get training configuration
+    training_config = config.get("training", {})
+    epochs = int(training_config.get("epochs", 30))
+    optimizer_config = training_config.get("optimizer", {})
+    lr = float(optimizer_config.get("lr", 0.01))
+    optimizer_name = optimizer_config.get("name", "adam")
+    weight_decay = optimizer_config.get("weight_decay", 0.0)
+    if weight_decay is None:
+        weight_decay = 0.0
+    momentum = optimizer_config.get("momentum", 0.9)
+    if momentum is None:
+        momentum = 0.9
+
+    # Get checkpoint configuration
+    checkpoint_config = config.get("checkpoint", {})
+    save_best = checkpoint_config.get("save_best", True)
+    best_metric = checkpoint_config.get("best_metric", "val_accuracy")
+    best_mode = checkpoint_config.get("best_mode", "max")
+    save_final = checkpoint_config.get("save_final", True)
+    save_optimizer_state = checkpoint_config.get("save_optimizer_state", True)
+
+    # Get reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+
+    # Setup optimizer
+    if optimizer_name.lower() == "adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+    elif optimizer_name.lower() == "sgd":
+        optimizer = torch.optim.SGD(
+            model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay
+        )
+    elif optimizer_name.lower() == "rmsprop":
+        optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=weight_decay)
+    else:
+        logger.warning(f"Unknown optimizer {optimizer_name}, using Adam")
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    # Setup scheduler if specified
+    scheduler_config = training_config.get("scheduler", {})
+    scheduler = None
+    scheduler_name = scheduler_config.get("name")
+    if scheduler_name:
+        step_size = scheduler_config.get("step_size")
+        gamma = scheduler_config.get("gamma")
+        if step_size is not None and gamma is not None:
+            scheduler = torch.optim.lr_scheduler.StepLR(
+                optimizer, step_size=int(step_size), gamma=float(gamma)
+            )
+
+    # Training history
+    history = {
+        "train_loss": [],
+        "val_loss": [],
+        "val_accuracy": [],
+        "epochs": [],
+        "learning_rates": [],
+    }
+
+    # Best model tracking
+    best_model_state = None
+    best_metric_value = None
+    best_epoch = -1
+
+    # Determine best metric direction
+    if best_mode == "max":
+        best_metric_value = float("-inf")
+    else:
+        best_metric_value = float("inf")
+
+    # Training loop
+    for epoch in range(epochs):
+        epoch_start_time = time.time()
+
+        # Training phase
+        model.train()
+        train_loss = 0.0
+        num_batches = 0
+
+        for batch_idx, (features, targets) in enumerate(train_loader):
+            features = features.to(device)
+            targets = targets.to(device)
+
+            # Zero gradients
+            optimizer.zero_grad()
+
+            # Forward pass
+            try:
+                # Try transformer-style forward (past_inputs, future_inputs)
+                # For simplicity, we split features into past and future parts
+                seq_len = features.size(1)
+                past_len = seq_len // 2
+                past_inputs = features[:, :past_len, :]
+                future_inputs = features[:, past_len:, :]
+
+                predictions = model(past_inputs, future_inputs)
+            except (TypeError, ValueError, RuntimeError):
+                # Fallback to LSTM-style forward
+                predictions = model(features)
+
+            # Handle different output shapes
+            if predictions.dim() == 3 and predictions.size(-1) == 3:
+                # Quantile outputs
+                loss = quantile_loss(predictions, targets)
+            else:
+                # Single output
+                if predictions.dim() == 3:
+                    predictions = predictions.squeeze(-1)
+                loss = nn.functional.mse_loss(predictions, targets)
+
+            # Backward pass
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            num_batches += 1
+
+        avg_train_loss = train_loss / max(num_batches, 1)
+        history["train_loss"].append(avg_train_loss)
+        history["epochs"].append(epoch + 1)
+
+        # Get current learning rate
+        current_lr = optimizer.param_groups[0]["lr"]
+        history["learning_rates"].append(current_lr)
+
+        # Validation phase (only in engineering mode)
+        val_loss = None
+        val_accuracy = None
+
+        if val_loader is not None:
+            model.eval()
+            val_loss = 0.0
+            correct = 0
+            total = 0
+            num_val_batches = 0
+
+            with torch.no_grad():
+                for features, targets in val_loader:
+                    features = features.to(device)
+                    targets = targets.to(device)
+
+                    try:
+                        seq_len = features.size(1)
+                        past_len = seq_len // 2
+                        past_inputs = features[:, :past_len, :]
+                        future_inputs = features[:, past_len:, :]
+
+                        predictions = model(past_inputs, future_inputs)
+                    except (TypeError, ValueError, RuntimeError):
+                        predictions = model(features)
+
+                    if predictions.dim() == 3 and predictions.size(-1) == 3:
+                        # Use median quantile (index 1) for accuracy
+                        pred_median = predictions[..., 1]
+                        loss = quantile_loss(predictions, targets)
+                        val_loss += loss.item()
+
+                        # Compute accuracy (within tolerance)
+                        if targets.dim() == pred_median.dim():
+                            tolerance = 0.1 * (targets.max() - targets.min() + 1e-8)
+                            correct += (torch.abs(pred_median - targets) < tolerance).sum().item()
+                            total += targets.numel()
+                    else:
+                        if predictions.dim() == 3:
+                            predictions = predictions.squeeze(-1)
+                        loss = nn.functional.mse_loss(predictions, targets)
+                        val_loss += loss.item()
+
+                        tolerance = 0.1 * (targets.max() - targets.min() + 1e-8)
+                        correct += (torch.abs(predictions - targets) < tolerance).sum().item()
+                        total += targets.numel()
+
+                    num_val_batches += 1
+
+            avg_val_loss = val_loss / max(num_val_batches, 1)
+            val_accuracy = correct / max(total, 1)
+
+            history["val_loss"].append(avg_val_loss)
+            history["val_accuracy"].append(val_accuracy)
+
+            # Check if this is the best model
+            if save_best:
+                if best_mode == "max" and val_accuracy > best_metric_value:
+                    best_metric_value = val_accuracy
+                    best_epoch = epoch + 1
+                    best_model_state = copy.deepcopy(model.state_dict())
+                elif best_mode == "min" and avg_val_loss < best_metric_value:
+                    best_metric_value = avg_val_loss
+                    best_epoch = epoch + 1
+                    best_model_state = copy.deepcopy(model.state_dict())
+        else:
+            # In strict mode, track training loss for best model
+            history["val_loss"].append(None)
+            history["val_accuracy"].append(None)
+
+            if save_best:
+                if best_mode == "min" and avg_train_loss < best_metric_value:
+                    best_metric_value = avg_train_loss
+                    best_epoch = epoch + 1
+                    best_model_state = copy.deepcopy(model.state_dict())
+
+        # Step scheduler
+        if scheduler is not None:
+            scheduler.step()
+
+        epoch_time = time.time() - epoch_start_time
+
+        # Log progress
+        log_msg = (
+            f"Epoch {epoch + 1}/{epochs} | "
+            f"Train Loss: {avg_train_loss:.6f} | "
+            f"Time: {epoch_time:.2f}s"
+        )
+        if val_loss is not None:
+            log_msg += f" | Val Loss: {avg_val_loss:.6f} | Val Acc: {val_accuracy:.4f}"
+        if best_epoch == epoch + 1:
+            log_msg += " | *Best*"
+
+        logger.info(log_msg)
+
+    # Save final model if requested
+    if save_final:
+        final_model_state = copy.deepcopy(model.state_dict())
+        history["final_model_state"] = final_model_state
+
+    # Save best model if requested
+    if save_best and best_model_state is not None:
+        history["best_model_state"] = best_model_state
+        history["best_epoch"] = best_epoch
+        history["best_metric_value"] = best_metric_value
+
+    # Save optimizer state if requested
+    if save_optimizer_state:
+        history["optimizer_state"] = copy.deepcopy(optimizer.state_dict())
+
+    return history
+
+
+def save_model(
+    model: nn.Module,
+    history: Dict[str, Any],
+    config: Optional[dict] = None,
+    save_dir: Optional[str] = None,
+    model_name: str = "temporal_fusion_transformer",
+    logger: Optional[logging.Logger] = None,
+) -> Dict[str, str]:
+    """
+    Save model weights (best and final) to disk.
+
+    Args:
+        model: Trained PyTorch model.
+        history: Training history containing best and final model states.
+        config: Configuration dictionary.
+        save_dir: Directory to save model checkpoints.
+        model_name: Name of the model architecture.
+        logger: Optional logger.
+
+    Returns:
+        Dict containing paths to saved model files.
+    """
+    if config is None:
+        config = load_config()
+
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    # Determine save directory
+    if save_dir is None:
+        checkpoint_config = config.get("checkpoint", {})
+        save_dir = checkpoint_config.get("save_dir", "./checkpoints")
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    saved_paths = {}
+
+    # Save best model
+    if "best_model_state" in history:
+        best_path = os.path.join(save_dir, f"{model_name}_best.pth")
+        checkpoint = {
+            "model_state_dict": history["best_model_state"],
+            "best_epoch": history.get("best_epoch", -1),
+            "best_metric_value": history.get("best_metric_value", None),
+            "model_name": model_name,
+        }
+
+        # Include optimizer state if available
+        if "optimizer_state" in history:
+            checkpoint["optimizer_state_dict"] = history["optimizer_state"]
+
+        torch.save(checkpoint, best_path)
+        saved_paths["best"] = best_path
+        logger.info(f"Best model saved to {best_path}")
+
+    # Save final model
+    if "final_model_state" in history:
+        final_path = os.path.join(save_dir, f"{model_name}_final.pth")
+        checkpoint = {
+            "model_state_dict": history["final_model_state"],
+            "model_name": model_name,
+        }
+
+        # Include optimizer state if available
+        if "optimizer_state" in history:
+            checkpoint["optimizer_state_dict"] = history["optimizer_state"]
+
+        torch.save(checkpoint, final_path)
+        saved_paths["final"] = final_path
+        logger.info(f"Final model saved to {final_path}")
+
+    # Save training history
+    history_path = os.path.join(save_dir, f"{model_name}_history.pt")
+    torch.save(history, history_path)
+    saved_paths["history"] = history_path
+
+    return saved_paths
+
+
+def main() -> None:
+    """
+    Main training entry point.
+    """
+    # Setup logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger = logging.getLogger(__name__)
+
+    # Load configuration
+    config = load_config()
+
+    # Get system configuration
+    system_config = config.get("system", {})
+    device_name = system_config.get("device", "cuda")
+    device = torch.device(device_name if torch.cuda.is_available() else "cpu")
+    num_workers = int(system_config.get("num_workers", 4))
+    seed = int(system_config.get("seed", 42))
+
+    # Set random seeds
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    # Get experiment configuration
+    experiment_config = config.get("experiment", {})
+    runs = experiment_config.get("runs", [])
+
+    if not runs:
+        logger.warning("No experiment runs found in config")
+        return
+
+    # Get training configuration
+    training_config = config.get("training", {})
+    batch_sizes = training_config.get("batch_size", {})
+    epochs = int(training_config.get("epochs", 30))
+
+    # Get reproduction mode
+    reproduction_mode = config.get("reproduction_mode", "engineering")
+    val_split_ratio = float(config.get("split_strategy", {}).get("val_split_ratio", 0.2))
+
+    # Process each experiment run
+    for run in runs:
+        run_name = run.get("name", "experiment")
+        dataset_name = run.get("dataset", "electricity")
+        model_name = run.get("model", "temporal_fusion_transformer")
+        training_mode = run.get("training_mode", "scratch")
+        dataset_version = run.get("dataset_version", "default")
+
+        logger.info(f"Starting experiment: {run_name}")
+        logger.info(f"  Dataset: {dataset_name}")
+        logger.info(f"  Model: {model_name}")
+        logger.info(f"  Training mode: {training_mode}")
+        logger.info(f"  Dataset version: {dataset_version}")
+
+        # Get batch size for this model
+        if isinstance(batch_sizes, dict):
+            batch_size = batch_sizes.get(model_name, [64])[0]
+        elif isinstance(batch_sizes, list):
+            batch_size = batch_sizes[0]
+        else:
+            batch_size = 64
+
+        # Create dataloaders
+        loaders = get_dataloaders(
+            dataset_name=dataset_name,
+            version=dataset_version,
+            config=config,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            seed=seed,
+        )
+
+        train_loader = loaders["train"]
+        val_loader = None
+        test_loader = loaders["test"]
+
+        # In engineering mode, split training set for validation
+        if reproduction_mode == "engineering":
+            # Use the val split from the dataset
+            val_loader = loaders["val"]
+            logger.info(f"  Using validation split (engineering mode)")
+        else:
+            logger.info(f"  Strict reproduction mode - no validation split")
+
+        # Initialize model
+        model = initialize_model(
+            config=config,
+            model_name=model_name,
+            device=device,
+        )
+
+        # Count parameters
+        num_params = sum(p.numel() for p in model.parameters())
+        logger.info(f"  Model parameters: {num_params:,}")
+
+        # Train model
+        history = train_model(
+            model=model,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            config=config,
+            device=device,
+            logger=logger,
+        )
+
+        # Save model
+        checkpoint_config = config.get("checkpoint", {})
+        save_dir = checkpoint_config.get("save_dir", "./checkpoints")
+        saved_paths = save_model(
+            model=model,
+            history=history,
+            config=config,
+            save_dir=save_dir,
+            model_name=f"{model_name}_{dataset_name}",
+            logger=logger,
+        )
+
+        # Evaluate on test set
+        model.eval()
+        test_loss = 0.0
+        num_test_batches = 0
+
+        with torch.no_grad():
+            for features, targets in test_loader:
+                features = features.to(device)
+                targets = targets.to(device)
+
+                try:
+                    seq_len = features.size(1)
+                    past_len = seq_len // 2
+                    past_inputs = features[:, :past_len, :]
+                    future_inputs = features[:, past_len:, :]
+
+                    predictions = model(past_inputs, future_inputs)
+                except (TypeError, ValueError, RuntimeError):
+                    predictions = model(features)
+
+                if predictions.dim() == 3 and predictions.size(-1) == 3:
+                    loss = quantile_loss(predictions, targets)
+                else:
+                    if predictions.dim() == 3:
+                        predictions = predictions.squeeze(-1)
+                    loss = nn.functional.mse_loss(predictions, targets)
+
+                test_loss += loss.item()
+                num_test_batches += 1
+
+        avg_test_loss = test_loss / max(num_test_batches, 1)
+        logger.info(f"  Test Loss: {avg_test_loss:.6f}")
+
+        # Log final training loss
+        if history["train_loss"]:
+            final_train_loss = history["train_loss"][-1]
+            logger.info(f"  Final Train Loss: {final_train_loss:.6f}")
+
+        logger.info(f"Experiment {run_name} completed")
+
+
+if __name__ == "__main__":
+    main()
+```

@@ -1,0 +1,5 @@
+{
+  "data_source": "synthetic",
+  "acquisition": "n/a",
+  "data_source_note": "论文明确说明数据由作者生成（synthetic arithmetic tasks），无外部真实数据集依赖。"
+}
