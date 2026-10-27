@@ -1,473 +1,450 @@
-import logging
-import math
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+# -*- coding: utf-8 -*-
+"""数据集加载、预处理和划分。
+
+支持 Electricity / Traffic / Retail / Volatility 四类时间序列数据集：
+
+* 读取本地数据文件（csv/tsv/parquet/json/pkl/npy）；
+* ``preprocess_data`` 完成时间列解析、数值化、排序与 z-score 标准化；
+* ``split_dataset`` 按各数据集的时间边界划分 train / val / test；
+* ``__getitem__`` 按 ``input_window`` / ``forecast_horizon`` 返回张量样本。
+"""
+
+from __future__ import annotations
+
+import glob
+import os
+import warnings
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import torch
-import yaml
 from torch.utils.data import Dataset
 
+try:  # pragma: no cover - pyyaml 为可选依赖
+    import yaml
+except Exception:  # noqa: BLE001
+    yaml = None
 
-logger = logging.getLogger(__name__)
+
+__all__ = [
+    "ElectricityUCIElectricityLoadDiagramsTrafficUCIPEMSFTrafficRetailFavoritaGrocerySalesFromKaggleVolatilityOxfordManInstituteRealizedLibraryDataset",
+]
+
+_MISSING = object()
+_DEFAULT_COLUMNS = ("timestamp", "group_id", "target")
+_TABLE_PATTERNS = ("*.csv", "*.tsv", "*.parquet", "*.pq", "*.json", "*.pkl", "*.pickle", "*.npy")
+
+_DATASET_ALIASES = {
+    "electricity": "Electricity",
+    "electricityuci": "Electricity",
+    "electricityload": "Electricity",
+    "electricityloaddiagrams": "Electricity",
+    "electricityucielectricityloaddiagrams": "Electricity",
+    "traffic": "Traffic",
+    "trafficuci": "Traffic",
+    "pemsf": "Traffic",
+    "pems": "Traffic",
+    "pemsft": "Traffic",
+    "pemsfttraffic": "Traffic",
+    "retail": "Retail",
+    "favorita": "Retail",
+    "retailfavorita": "Retail",
+    "retailfavoritagrocerysales": "Retail",
+    "retailfavoritagrocerysalesfromkaggle": "Retail",
+    "volatility": "Volatility",
+    "oxfordman": "Volatility",
+    "oxfordmaninstitute": "Volatility",
+    "realizedlibrary": "Volatility",
+    "volatilityoxfordmaninstituterealizedlibrary": "Volatility",
+}
 
 
-class ElectricityTrafficRetailVolatilityDataset(Dataset):
-    """Dataset loader and preprocessor for Electricity, Traffic, Retail and Volatility.
+# ---------------------------------------------------------------------------
+# 配置 / 文件工具函数
+# ---------------------------------------------------------------------------
+def _load_config_object(config: Any) -> Dict[str, Any]:
+    """把 config（dict / yaml 路径 / 目录 / None）转换为嵌套 dict。"""
+    if config is None:
+        return {}
+    if isinstance(config, dict):
+        return config
+    if isinstance(config, (str, os.PathLike)):
+        path = str(config)
+        if os.path.isdir(path):
+            for fname in ("config.yaml", "config.yml", "config.json"):
+                candidate = os.path.join(path, fname)
+                if os.path.isfile(candidate):
+                    path = candidate
+                    break
+        if not os.path.isfile(path):
+            return {}
+        if path.endswith(".json"):
+            import json
 
-    The dataset supports the ``default`` version from ``config/config.yaml``.  If no
-    local CSV file is found, synthetic data is generated so that the dataset object can
-    still be used for development and shape checks.
+            with open(path, "r", encoding="utf-8") as handle:
+                loaded = json.load(handle)
+            return loaded if isinstance(loaded, dict) else {}
+        if yaml is None:
+            warnings.warn("未安装 pyyaml，无法读取配置文件 %s，使用默认配置。" % path)
+            return {}
+        with open(path, "r", encoding="utf-8") as handle:
+            loaded = yaml.safe_load(handle)
+        return loaded if isinstance(loaded, dict) else {}
+    return {}
+
+
+def _cfg_get(cfg: Any, key: str, default: Any = None) -> Any:
+    """支持点号嵌套路径与扁平点号键两种写法的配置读取。"""
+    if not isinstance(cfg, dict):
+        return default
+    if key in cfg:
+        return cfg[key]
+    node = cfg
+    for part in key.split("."):
+        if isinstance(node, dict) and part in node:
+            node = node[part]
+        else:
+            return default
+    return node
+
+
+def _normalise_dataset_name(name: Any) -> str:
+    """把各种数据集别名归一化为 Electricity / Traffic / Retail / Volatility。"""
+    if name is None:
+        return "Electricity"
+    key = str(name).strip().lower().replace("-", "").replace("_", "").replace(" ", "")
+    if not key:
+        return "Electricity"
+    if key in _DATASET_ALIASES:
+        return _DATASET_ALIASES[key]
+    for alias, canonical in _DATASET_ALIASES.items():
+        if key.startswith(alias):
+            return canonical
+    for alias, canonical in _DATASET_ALIASES.items():
+        if alias.startswith(key):
+            return canonical
+    raise ValueError("未知数据集名称: %s" % name)
+
+
+def _read_table(path: str) -> pd.DataFrame:
+    """按扩展名读取单个数据文件。"""
+    ext = os.path.splitext(path)[1].lower()
+    if ext in (".csv", ".txt"):
+        return pd.read_csv(path)
+    if ext == ".tsv":
+        return pd.read_csv(path, sep="\t")
+    if ext in (".parquet", ".pq"):
+        return pd.read_parquet(path)
+    if ext == ".json":
+        return pd.read_json(path)
+    if ext in (".pkl", ".pickle"):
+        return pd.read_pickle(path)
+    if ext == ".npy":
+        return pd.DataFrame(np.load(path, allow_pickle=True))
+    raise ValueError("暂不支持的数据文件格式: %s" % path)
+
+
+def _load_dataframe_from_path(path: Any) -> pd.DataFrame:
+    """从文件或目录加载数据，目录下递归读取常见表格文件。"""
+    if path is None:
+        return pd.DataFrame(columns=list(_DEFAULT_COLUMNS))
+    path = str(path)
+    if os.path.isfile(path):
+        return _read_table(path)
+    if os.path.isdir(path):
+        files: List[str] = []
+        for pattern in _TABLE_PATTERNS:
+            files.extend(glob.glob(os.path.join(path, "**", pattern), recursive=True))
+        files = sorted(set(files))
+        if not files:
+            return pd.DataFrame(columns=list(_DEFAULT_COLUMNS))
+        frames = [_read_table(item) for item in files]
+        return pd.concat(frames, ignore_index=True)
+    return pd.DataFrame(columns=list(_DEFAULT_COLUMNS))
+
+
+def _to_timestamp(value: Any) -> Optional[pd.Timestamp]:
+    """把配置中的日期字符串解析为 pandas Timestamp。"""
+    if value is None:
+        return None
+    if isinstance(value, pd.Timestamp):
+        return value
+    try:
+        return pd.Timestamp(str(value))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+# ---------------------------------------------------------------------------
+# 主数据集类
+# ---------------------------------------------------------------------------
+class ElectricityUCIElectricityLoadDiagramsTrafficUCIPEMSFTrafficRetailFavoritaGrocerySalesFromKaggleVolatilityOxfordManInstituteRealizedLibraryDataset(Dataset):
+    """通用时间序列数据集。
+
+    同时支持 Electricity (UCI Electricity Load Diagrams)、Traffic (UCI PEMS-SF Traffic)、
+    Retail (Favorita Grocery Sales from Kaggle)、Volatility (Oxford-Man Institute Realized Library)
+    四种数据集，通过 ``dataset_name`` 或配置文件中的数据集键进行区分。
     """
 
     def __init__(
         self,
-        version: str = "default",
-        config: Optional[Dict[str, Any]] = None,
-        dataset_name: str = "Electricity",
+        config: Any = None,
+        dataset_name: Optional[str] = None,
+        data_path: Optional[str] = None,
         split: str = "train",
-        lookback: int = 168,
-        horizon: int = 24,
-        local_path: Optional[str] = None,
+        input_window: Optional[int] = None,
+        forecast_horizon: Optional[int] = None,
+        timestamp_column: Optional[str] = None,
+        group_id_column: Optional[str] = None,
+        target_column: Optional[str] = None,
+        normalization: Optional[str] = None,
+        seed: int = 42,
     ) -> None:
-        super().__init__()
-        self.version = version
-        self.dataset_name = dataset_name
-        self.split = split
-        self.lookback = int(lookback)
-        self.horizon = int(horizon)
-        self.local_path = local_path
-
-        self.config = config if config is not None else self._load_config()
-        self.root = (self.config.get("data", {}) or {}).get("root", None)
-        self.seed = int((self.config.get("system", {}) or {}).get("seed", 42))
-        self._is_synthetic = False
-
-        if dataset_name not in self._dataset_meta():
-            raise ValueError(f"Unknown dataset_name: {dataset_name}")
-
-        self.meta = self._dataset_meta()[dataset_name]
-        self.steps_per_day = int(self.meta.get("steps_per_day", 24))
-
-        self.raw_data = self._load_raw_data()
-        self.processed_data = self.preprocess_data(self.raw_data)
-        self.splits = self.split_dataset(self.processed_data)
-        self.windows = self._build_windows(self.splits[self.split], self.split)
-
-    # ------------------------------------------------------------------
-    # Config loading
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _load_config() -> Dict[str, Any]:
-        config_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
-        if not config_path.exists():
-            logger.warning("config/config.yaml not found; using empty config.")
-            return {}
-        with open(config_path, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
-
-    # ------------------------------------------------------------------
-    # Dataset metadata
-    # ------------------------------------------------------------------
-    @staticmethod
-    def _dataset_meta() -> Dict[str, Dict[str, Any]]:
-        return {
-            "Electricity": {
-                "n_entities": 370,
-                "n_samples": 500000,
-                "steps_per_day": 24,
-                "target_raw": "electricity_usage",
-                "target_col": "electricity_usage",
-                "real_cols": ["electricity_usage", "time_idx"],
-                "cat_cols": ["entity_id", "day_of_week", "hour_of_day"],
-                "normalization": "per_entity",
-                "log_transform": False,
-                "split_mode": "temporal_90_7",
-            },
-            "Traffic": {
-                "n_entities": 440,
-                "n_samples": 500000,
-                "steps_per_day": 24,
-                "target_raw": "traffic_occupancy",
-                "target_col": "traffic_occupancy",
-                "real_cols": ["traffic_occupancy", "time_idx"],
-                "cat_cols": ["entity_id", "day_of_week", "hour_of_day"],
-                "normalization": "global",
-                "log_transform": False,
-                "split_mode": "temporal_90_7",
-            },
-            "Retail": {
-                "n_entities": 130000,
-                "n_samples": 500000,
-                "steps_per_day": 1,
-                "target_raw": "sales",
-                "target_col": "log_sales",
-                "real_cols": ["log_sales", "transactions", "oil"],
-                "cat_cols": [
-                    "entity_id",
-                    "day_of_week",
-                    "open_flag",
-                    "holiday_national",
-                    "holiday_regional",
-                    "holiday_local",
-                ],
-                "normalization": "global",
-                "log_transform": True,
-                "split_mode": "retail",
-            },
-            "Volatility": {
-                "n_entities": 41,
-                "n_samples": 200000,
-                "steps_per_day": 1,
-                "target_raw": "rv5_ss",
-                "target_col": "log_rv5_ss",
-                "real_cols": ["log_rv5_ss", "open_to_close_return"],
-                "cat_cols": ["entity_id", "day_of_week", "month", "region"],
-                "normalization": "global",
-                "log_transform": True,
-                "split_mode": "temporal_volatility",
-            },
-        }
-
-    # ------------------------------------------------------------------
-    # Raw data loading
-    # ------------------------------------------------------------------
-    def _load_raw_data(self) -> pd.DataFrame:
-        def _read_csv(path: Path) -> pd.DataFrame:
-            return pd.read_csv(path, encoding="utf-8")
-
-        if self.local_path is not None:
-            p = Path(self.local_path)
-            if p.exists():
-                self._is_synthetic = False
-                return _read_csv(p)
-
-        if self.root is not None:
-            root = Path(self.root)
-            version_dir = root / self.version / f"{self.dataset_name.lower()}.csv"
-            plain_path = root / f"{self.dataset_name.lower()}.csv"
-            if version_dir.exists():
-                self._is_synthetic = False
-                return _read_csv(version_dir)
-            if plain_path.exists():
-                self._is_synthetic = False
-                return _read_csv(plain_path)
-
-        logger.info(
-            "No local CSV found for %s (version=%s); generating synthetic raw data.",
-            self.dataset_name,
-            self.version,
+        self.cfg = _load_config_object(config)
+        self.dataset_name = _normalise_dataset_name(
+            dataset_name if dataset_name is not None else _cfg_get(self.cfg, "dataset_name")
         )
-        self._is_synthetic = True
-        return self._make_synthetic_raw()
 
-    def _make_synthetic_raw(self) -> pd.DataFrame:
-        meta = self.meta
-        n = int(meta["n_samples"])
-        n_entities = int(meta["n_entities"])
+        self.timestamp_column = (
+            timestamp_column
+            or _cfg_get(self.cfg, "data.timestamp_column")
+            or _cfg_get(self.cfg, "data_timestamp_column")
+            or "timestamp"
+        )
+        self.group_id_column = (
+            group_id_column
+            or _cfg_get(self.cfg, "data.group_id_column")
+            or _cfg_get(self.cfg, "data_group_id_column")
+            or "group_id"
+        )
+        self.target_column = (
+            target_column
+            or _cfg_get(self.cfg, "data.target_column")
+            or _cfg_get(self.cfg, "data_target_column")
+            or "target"
+        )
+        self.normalization = (
+            normalization
+            or _cfg_get(self.cfg, "data.normalization")
+            or _cfg_get(self.cfg, "data_normalization")
+            or "standard"
+        )
+        self.input_window = input_window if input_window is not None else (
+            _cfg_get(self.cfg, "data.input_window") or _cfg_get(self.cfg, "data_input_window") or 168
+        )
+        self.forecast_horizon = forecast_horizon if forecast_horizon is not None else (
+            _cfg_get(self.cfg, "data.forecast_horizon") or _cfg_get(self.cfg, "data_forecast_horizon") or 24
+        )
+        self.seed = seed
+        self.split = split
 
-        rng_seed = self.seed + sum(ord(c) for c in self.dataset_name)
-        rng = np.random.default_rng(rng_seed)
+        ds_key = "data.datasets.%s.path" % self.dataset_name
+        resolved_path = (
+            data_path
+            or _cfg_get(self.cfg, ds_key)
+            or _cfg_get(self.cfg, "data.datasets.%s" % self.dataset_name + ".path")
+        )
+        if resolved_path is None:
+            root = _cfg_get(self.cfg, "data.root") or "./data"
+            resolved_path = os.path.join(root, "tft", "default", self.dataset_name.lower())
+        self.data_path = str(resolved_path)
 
-        entity_id = rng.integers(0, n_entities, size=n).astype(np.int64)
-        time_idx = np.arange(n, dtype=np.int64)
-        day_of_week = (time_idx % 7).astype(np.int64)
-        if self.steps_per_day > 1:
-            hour_of_day = (time_idx % self.steps_per_day).astype(np.int64)
-        else:
-            hour_of_day = np.zeros(n, dtype=np.int64)
-
-        data: Dict[str, np.ndarray] = {
-            "entity_id": entity_id,
-            "time_idx": time_idx,
-            "day_of_week": day_of_week,
-            "hour_of_day": hour_of_day,
-        }
-
-        if self.dataset_name == "Electricity":
-            data["electricity_usage"] = (
-                100.0
-                + 10.0 * np.sin(time_idx / 24.0)
-                + rng.normal(0.0, 5.0, n)
-            ).astype(np.float32)
-        elif self.dataset_name == "Traffic":
-            data["traffic_occupancy"] = (
-                50.0
-                + 5.0 * np.sin(time_idx / 24.0)
-                + rng.normal(0.0, 3.0, n)
-            ).astype(np.float32)
-        elif self.dataset_name == "Retail":
-            data["sales"] = rng.poisson(lam=100.0, size=n).astype(np.float32)
-            data["transactions"] = rng.poisson(lam=80.0, size=n).astype(np.float32)
-            data["oil"] = rng.normal(0.0, 1.0, n).astype(np.float32)
-            data["open_flag"] = (day_of_week < 6).astype(np.int64)
-            data["holiday_national"] = rng.binomial(1, 0.05, n).astype(np.int64)
-            data["holiday_regional"] = rng.binomial(1, 0.10, n).astype(np.int64)
-            data["holiday_local"] = rng.binomial(1, 0.15, n).astype(np.int64)
-        elif self.dataset_name == "Volatility":
-            data["rv5_ss"] = np.exp(rng.normal(0.0, 0.5, n)).astype(np.float32)
-            data["open_to_close_return"] = rng.normal(0.0, 0.02, n).astype(
-                np.float32
-            )
-            data["month"] = ((time_idx // 30) % 12).astype(np.int64)
-            data["region"] = (entity_id % 5).astype(np.int64)
-        else:
-            raise ValueError(f"Unsupported dataset_name: {self.dataset_name}")
-
-        return pd.DataFrame(data)
+        self.raw_df = _load_dataframe_from_path(self.data_path)
+        self.df = self.preprocess_data(self.raw_df.copy())
+        self.train_df, self.val_df, self.test_df = self.split_dataset(self.df)
+        self.active_df = self._get_split_df(self.split)
+        self._build_index()
+        self._fit_normalizer()
+        self._normalise_active()
 
     # ------------------------------------------------------------------
-    # Preprocessing
+    def _get_split_df(self, split: str) -> pd.DataFrame:
+        split = (split or "train").lower()
+        if split in ("train", "training"):
+            return self.train_df
+        if split in ("val", "valid", "validation"):
+            return self.val_df if self.val_df is not None and len(self.val_df) > 0 else self.train_df
+        return self.test_df if self.test_df is not None and len(self.test_df) > 0 else self.train_df
+
     # ------------------------------------------------------------------
-    def preprocess_data(self, raw_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
-        if raw_data is None:
-            raw_data = self._load_raw_data()
+    def preprocess_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """时间列解析、数值化、排序与基础清洗。"""
+        if df is None or len(df) == 0:
+            return pd.DataFrame(columns=list(_DEFAULT_COLUMNS))
 
-        df = raw_data.copy()
-        meta = self.meta
+        df = df.copy()
 
-        # Create target column from raw target if needed.
-        if meta["target_col"] not in df.columns:
-            raw_target = meta.get("target_raw", meta["target_col"])
-            if raw_target in df.columns:
-                numeric_raw = pd.to_numeric(df[raw_target], errors="coerce").fillna(0)
-                if meta.get("log_transform", False):
-                    df[meta["target_col"]] = np.log1p(numeric_raw.clip(lower=0))
-                else:
-                    df[meta["target_col"]] = numeric_raw
-                if meta.get("log_transform", False) and raw_target != meta["target_col"]:
-                    df = df.drop(columns=[raw_target])
-            else:
-                df[meta["target_col"]] = 0.0
+        ts_col = self.timestamp_column if self.timestamp_column in df.columns else None
+        if ts_col is None:
+            for candidate in ("timestamp", "time", "date", "datetime", "ds", "ds_", "index"):
+                if candidate in df.columns:
+                    ts_col = candidate
+                    break
+        if ts_col is not None:
+            df[ts_col] = pd.to_datetime(df[ts_col], errors="coerce")
+            if ts_col != self.timestamp_column:
+                df[self.timestamp_column] = df[ts_col]
 
-        # Ensure all real-valued columns exist and are numeric.
-        for col in meta["real_cols"]:
-            if col not in df.columns:
-                df[col] = 0.0
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+        grp_col = self.group_id_column if self.group_id_column in df.columns else None
+        if grp_col is None:
+            for candidate in ("group_id", "id", "entity", "store_id", "sku", "symbol"):
+                if candidate in df.columns:
+                    grp_col = candidate
+                    break
+        if grp_col is not None and grp_col != self.group_id_column:
+            df[self.group_id_column] = df[grp_col]
 
-        # Ensure all categorical columns exist and are encoded as integer codes.
-        for col in meta["cat_cols"]:
-            if col not in df.columns:
-                df[col] = 0
-            df[col] = df[col].astype("category").cat.codes.astype(np.int64)
+        tgt_col = self.target_column if self.target_column in df.columns else None
+        if tgt_col is None:
+            for candidate in ("target", "value", "y", "sales", "close", "rv", "load"):
+                if candidate in df.columns:
+                    tgt_col = candidate
+                    break
+        if tgt_col is not None and tgt_col != self.target_column:
+            df[self.target_column] = df[tgt_col]
 
-        # Normalize real-valued inputs.
-        if meta["normalization"] == "per_entity":
-            for col in meta["real_cols"]:
-                col_mean = df.groupby("entity_id")[col].transform("mean")
-                col_std = df.groupby("entity_id")[col].transform("std").replace(0, 1e-8)
-                df[col] = ((df[col] - col_mean) / (col_std + 1e-8)).astype(np.float32)
-        else:
-            for col in meta["real_cols"]:
-                col_mean = df[col].mean()
-                col_std = df[col].std()
-                if not np.isfinite(col_std) or col_std == 0:
-                    col_std = 1e-8
-                df[col] = ((df[col] - col_mean) / col_std).astype(np.float32)
+        if self.timestamp_column not in df.columns:
+            df[self.timestamp_column] = pd.date_range("2000-01-01", periods=len(df), freq="h")
+        if self.group_id_column not in df.columns:
+            df[self.group_id_column] = 0
+        if self.target_column not in df.columns:
+            df[self.target_column] = np.nan
 
+        df[self.target_column] = pd.to_numeric(df[self.target_column], errors="coerce")
+        df = df.dropna(subset=[self.target_column])
+
+        df = df.sort_values([self.group_id_column, self.timestamp_column]).reset_index(drop=True)
         return df
 
     # ------------------------------------------------------------------
-    # Splitting
-    # ------------------------------------------------------------------
-    def split_dataset(
-        self, dataset: Optional[pd.DataFrame] = None
-    ) -> Dict[str, pd.DataFrame]:
-        if dataset is None:
-            dataset = self.processed_data
+    def split_dataset(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """按数据集时间边界划分 train / val / test。"""
+        if df is None or len(df) == 0:
+            empty = pd.DataFrame(columns=list(_DEFAULT_COLUMNS))
+            return empty, empty.copy(), empty.copy()
 
-        df = dataset.reset_index(drop=True)
+        ds = self.dataset_name
+
+        if ds == "Electricity":
+            end_train_ts = _to_timestamp(_cfg_get(self.cfg, "data.datasets.Electricity.period_end"))
+            if end_train_ts is not None and self.timestamp_column in df.columns:
+                train_df = df[df[self.timestamp_column] < end_train_ts]
+                rest = df[df[self.timestamp_column] >= end_train_ts]
+            else:
+                n = len(df)
+                cut = int(n * 0.9)
+                train_df, rest = df.iloc[:cut], df.iloc[cut:]
+            n_rest = len(rest)
+            val_df = rest.iloc[: max(n_rest // 2, 1)] if n_rest > 0 else rest.copy()
+            test_df = rest.iloc[max(n_rest // 2, 1):] if n_rest > 1 else rest.copy()
+            return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
+
+        if ds == "Traffic":
+            end_ts = _to_timestamp(_cfg_get(self.cfg, "data.datasets.Traffic.period_end"))
+            if end_ts is not None and self.timestamp_column in df.columns:
+                train_df = df[df[self.timestamp_column] < end_ts]
+                rest = df[df[self.timestamp_column] >= end_ts]
+            else:
+                n = len(df)
+                cut = int(n * 0.9)
+                train_df, rest = df.iloc[:cut], df.iloc[cut:]
+            n_rest = len(rest)
+            val_df = rest.iloc[: max(n_rest // 2, 1)] if n_rest > 0 else rest.copy()
+            test_df = rest.iloc[max(n_rest // 2, 1):] if n_rest > 1 else rest.copy()
+            return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
+
+        if ds == "Retail":
+            train_end = _to_timestamp(_cfg_get(self.cfg, "data.datasets.Retail.train_period_end"))
+            if train_end is not None and self.timestamp_column in df.columns:
+                train_df = df[df[self.timestamp_column] < train_end]
+                rest = df[df[self.timestamp_column] >= train_end]
+            else:
+                n = len(df)
+                cut = int(n * 0.9)
+                train_df, rest = df.iloc[:cut], df.iloc[cut:]
+            val_n = int(_cfg_get(self.cfg, "data.datasets.Retail.val_num_samples") or 50000)
+            val_df = rest.iloc[:val_n] if len(rest) > 0 else rest.copy()
+            test_df = rest.iloc[val_n:] if len(rest) > val_n else rest.copy()
+            return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
+
+        if ds == "Volatility":
+            train_end = _to_timestamp(_cfg_get(self.cfg, "data.datasets.Volatility.train_end")) or _to_timestamp("2016-01-01")
+            val_end = _to_timestamp(_cfg_get(self.cfg, "data.datasets.Volatility.val_end")) or _to_timestamp("2018-01-01")
+            ts = pd.to_datetime(df[self.timestamp_column], errors="coerce") if self.timestamp_column in df.columns else None
+            if ts is not None:
+                train_df = df[ts < train_end]
+                val_df = df[(ts >= train_end) & (ts < val_end)]
+                test_df = df[ts >= val_end]
+            else:
+                n = len(df)
+                cut1, cut2 = int(n * 0.7), int(n * 0.85)
+                train_df, val_df, test_df = df.iloc[:cut1], df.iloc[cut1:cut2], df.iloc[cut2:]
+            return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
+
+        # 默认 80/10/10
         n = len(df)
-        split_mode = self.meta.get("split_mode", "temporal_90_7")
-
-        if split_mode == "temporal_90_7":
-            # Electricity and Traffic: first 90 percent training; validation is set as
-            # the remaining data after a 7-day test window immediately following the
-            # training set.  This preserves a non-overlapping validation split while
-            # still providing the required test horizon.
-            train_end = int(n * 0.9)
-            test_len = 7 * self.steps_per_day
-            test_start = train_end
-            test_end = min(n, test_start + test_len)
-            val_start = min(n, test_start + test_len)
-            val_end = n
-            if val_start < train_end:
-                val_start = train_end
-
-            return {
-                "train": df.iloc[:train_end],
-                "val": df.iloc[val_start:val_end],
-                "test": df.iloc[test_start:test_end],
-            }
-
-        if split_mode == "retail":
-            train_end = min(450000, n)
-            val_end = min(500000, n)
-            test_len = 30 * self.steps_per_day
-            test_start = val_end
-            test_end = min(n, test_start + test_len)
-
-            if test_end <= test_start:
-                test_start = max(0, val_end - test_len)
-                test_end = val_end
-
-            return {
-                "train": df.iloc[:train_end],
-                "val": df.iloc[train_end:val_end],
-                "test": df.iloc[test_start:test_end],
-            }
-
-        if split_mode == "temporal_volatility":
-            train_end = int(n * 0.60)
-            val_end = int(n * 0.85)
-            return {
-                "train": df.iloc[:train_end],
-                "val": df.iloc[train_end:val_end],
-                "test": df.iloc[val_end:],
-            }
-
-        # Safe fallback.
-        train_end = int(n * 0.80)
-        val_end = int(n * 0.90)
-        return {
-            "train": df.iloc[:train_end],
-            "val": df.iloc[train_end:val_end],
-            "test": df.iloc[val_end:],
-        }
+        c1 = int(n * 0.8)
+        c2 = int(n * 0.9)
+        return (
+            df.iloc[:c1].reset_index(drop=True),
+            df.iloc[c1:c2].reset_index(drop=True),
+            df.iloc[c2:].reset_index(drop=True),
+        )
 
     # ------------------------------------------------------------------
-    # Window construction
-    # ------------------------------------------------------------------
-    def _build_windows(self, df: pd.DataFrame, split: str) -> List[Dict[str, Any]]:
-        if self._is_synthetic:
-            return self._build_windows_global(df)
-        return self._build_windows_grouped(df)
-
-    def _build_windows_global(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
-        df = df.sort_values("time_idx").reset_index(drop=True)
-        real_cols = list(self.meta["real_cols"])
-        cat_cols = list(self.meta["cat_cols"])
-        target_col = self.meta["target_col"]
-
-        real_vals = df[real_cols].to_numpy(np.float32)
-        cat_vals = df[cat_cols].to_numpy(np.int64)
-        target_vals = df[target_col].to_numpy(np.float32)
-
-        entity_idx = cat_cols.index("entity_id") if "entity_id" in cat_cols else 0
-        window_len = self.lookback + self.horizon
-        stride = max(1, self.horizon)
-
-        windows: List[Dict[str, Any]] = []
-
-        if len(df) < window_len:
-            pad_len = window_len - len(df)
-            real_vals = np.pad(real_vals, ((0, pad_len), (0, 0)), mode="edge")
-            cat_vals = np.pad(cat_vals, ((0, pad_len), (0, 0)), mode="edge")
-            target_vals = np.pad(target_vals, (0, pad_len), mode="edge")
-            windows.append(
-                {
-                    "x_real": real_vals[: self.lookback],
-                    "x_cat": cat_vals[: self.lookback],
-                    "y": target_vals[self.lookback : window_len],
-                    "entity_id": int(cat_vals[0, entity_idx]),
-                    "time_idx": int(df["time_idx"].iloc[0]),
-                }
-            )
-            return windows
-
-        for start in range(0, len(df) - window_len + 1, stride):
-            end = start + window_len
-            windows.append(
-                {
-                    "x_real": real_vals[start : start + self.lookback],
-                    "x_cat": cat_vals[start : start + self.lookback],
-                    "y": target_vals[start + self.lookback : end],
-                    "entity_id": int(cat_vals[start, entity_idx]),
-                    "time_idx": int(df["time_idx"].iloc[start]),
-                }
-            )
-
-        return windows
-
-    def _build_windows_grouped(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
-        real_cols = list(self.meta["real_cols"])
-        cat_cols = list(self.meta["cat_cols"])
-        target_col = self.meta["target_col"]
-
-        entity_idx = cat_cols.index("entity_id") if "entity_id" in cat_cols else 0
-        window_len = self.lookback + self.horizon
-        stride = max(1, self.horizon)
-
-        windows: List[Dict[str, Any]] = []
-
-        for entity_id, group in df.groupby("entity_id"):
-            group = group.sort_values("time_idx")
-            if len(group) == 0:
-                continue
-
-            real_vals = group[real_cols].to_numpy(np.float32)
-            cat_vals = group[cat_cols].to_numpy(np.int64)
-            target_vals = group[target_col].to_numpy(np.float32)
-
-            if len(group) < window_len:
-                pad_len = window_len - len(group)
-                real_vals = np.pad(real_vals, ((0, pad_len), (0, 0)), mode="edge")
-                cat_vals = np.pad(cat_vals, ((0, pad_len), (0, 0)), mode="edge")
-                target_vals = np.pad(target_vals, (0, pad_len), mode="edge")
-                windows.append(
-                    {
-                        "x_real": real_vals[: self.lookback],
-                        "x_cat": cat_vals[: self.lookback],
-                        "y": target_vals[self.lookback : window_len],
-                        "entity_id": int(cat_vals[0, entity_idx]),
-                        "time_idx": int(group["time_idx"].iloc[0]),
-                    }
-                )
-                continue
-
-            for start in range(0, len(group) - window_len + 1, stride):
-                end = start + window_len
-                windows.append(
-                    {
-                        "x_real": real_vals[start : start + self.lookback],
-                        "x_cat": cat_vals[start : start + self.lookback],
-                        "y": target_vals[start + self.lookback : end],
-                        "entity_id": int(cat_vals[start, entity_idx]),
-                        "time_idx": int(group["time_idx"].iloc[start]),
-                    }
-                )
-
-        return windows
+    def _build_index(self) -> None:
+        self._index: List[Tuple[int, int]] = []
+        if self.active_df is None or len(self.active_df) == 0:
+            return
+        win = int(self.input_window)
+        hor = int(self.forecast_horizon)
+        group_vals = self.active_df[self.group_id_column].values
+        start = 0
+        n = len(self.active_df)
+        for i in range(1, n + 1):
+            if i == n or group_vals[i] != group_vals[start]:
+                seg_len = i - start
+                if seg_len >= win + hor:
+                    for s in range(start, i - win - hor + 1):
+                        self._index.append((s, s + win + hor))
+                start = i
 
     # ------------------------------------------------------------------
-    # PyTorch Dataset API
+    def _fit_normalizer(self) -> None:
+        src = self.train_df if self.train_df is not None and len(self.train_df) > 0 else self.active_df
+        if src is None or len(src) == 0:
+            self._mean = 0.0
+            self._std = 1.0
+            return
+        vals = src[self.target_column].astype(float).values
+        self._mean = float(np.mean(vals))
+        self._std = float(np.std(vals))
+        if self._std == 0 or np.isnan(self._std):
+            self._std = 1.0
+
+    def _normalise_active(self) -> None:
+        if self.active_df is not None and len(self.active_df) > 0:
+            self.active_df = self.active_df.copy()
+            self.active_df[self.target_column] = (
+                self.active_df[self.target_column].astype(float).values - self._mean
+            ) / self._std
+
     # ------------------------------------------------------------------
     def __len__(self) -> int:
-        return len(self.windows)
+        return len(self._index)
 
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        window = self.windows[idx]
-        return {
-            "x_real": torch.tensor(window["x_real"], dtype=torch.float32),
-            "x_cat": torch.tensor(window["x_cat"], dtype=torch.long),
-            "y": torch.tensor(window["y"], dtype=torch.float32),
-            "entity_id": torch.tensor(window["entity_id"], dtype=torch.long),
-            "time_idx": torch.tensor(window["time_idx"], dtype=torch.long),
-        }
+        if idx < 0:
+            idx = len(self) + idx
+        if idx < 0 or idx >= len(self._index):
+            raise IndexError("index %d out of range" % idx)
+        s, e = self._index[idx]
+        win = int(self.input_window)
+        hor = int(self.forecast_horizon)
+        window_df = self.active_df.iloc[s : s + win]
+        future_df = self.active_df.iloc[s + win : s + win + hor]
 
-    # ------------------------------------------------------------------
-    # Useful shape properties
-    # ------------------------------------------------------------------
-    @property
-    def num_real_features(self) -> int:
-        return len(self.meta["real_cols"])
-
-    @property
-    def num_categorical_features(self) -> int:
-        return len(self.meta["cat_cols"])
-
-    @property
-    def num_entities(self) -> int:
-        return int(self.meta["n_entities"])
+        x = torch.tensor(window_df[self.target_column].values, dtype=torch.float32)
+        y = torch.tensor(future_df[self.target_column].values, dtype=torch.float32)
+        return {"x": x, "y": y, "input_window": torch.tensor([win]), "forecast_horizon": torch.tensor([hor])}

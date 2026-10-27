@@ -327,6 +327,10 @@ class ProjectBriefIntegrator:
         data_source: external_dataset / synthetic / environment / none
         acquisition: local_path / auto / n/a（非 external_dataset 时固定 n/a）
         缺失/非法值回退保守默认 external_dataset + local_path。
+
+        leaf_based_split 时额外登记 leaf_mapping 依赖：dataset.py 必须读取叶子
+        映射文件做分组划分；映射文件缺失时必须显式告警并记录
+        leaf_constraint_effective=false，禁止静默回退成随机划分。
         """
         ds = self.step5_yamls.get("dataset", {})
         data_source = str(ds.get("data_source") or "external_dataset").strip().lower()
@@ -337,18 +341,32 @@ class ProjectBriefIntegrator:
             acquisition = "n/a"
         elif acquisition not in {"local_path", "auto"}:
             acquisition = "local_path"
-        return {
+        dd = {
             "data_source": data_source,
             "acquisition": acquisition,
             "note": ds.get("data_source_note", ""),
         }
+        if self._is_leaf_split():
+            dd["leaf_mapping"] = {
+                "required": True,
+                "file": "data/leaf_mappings.csv",
+                "constraint": (
+                    "同一片叶子的多张图片必须保持在同一个集合中（train/val/test 不得跨集）"
+                ),
+                "on_missing": (
+                    "映射文件缺失时必须 logger.warning 显式告警并在结果/配置中记录 "
+                    "leaf_constraint_effective=false，不得静默回退为随机划分"
+                ),
+            }
+        return dd
 
     def _build_unresolved_dataset_versions(self) -> list:
-        """检测 Step5 中数据来源/处理方法未定义（NOT_FOUND）的 dataset version。
+        """检测 Step5 中数据来源/处理参数未定义（NOT_FOUND）的 dataset version。
 
         例如某版本：论文只提某种分割/预处理思路，未给完整脚本/参数，
-        implementation_status=NOT_FOUND。Step7 据此在 config.yaml 中标记 unresolved，
-        而非让代码用 color 兜底伪装成 segmented。
+        implementation_status 含 NOT_FOUND。Step7 据此在 config.yaml 中标记
+        unresolved，而非让代码用 color 兜底伪装成 segmented。
+        方法描述已知而参数未知（PARTIAL）时同样标记，reason 里保留已知部分。
         """
         versions = (self.step5_yamls.get("dataset", {})
                     .get("preprocessing", {}).get("versions", {}))
@@ -357,15 +375,22 @@ class ProjectBriefIntegrator:
             if not isinstance(cfg, dict):
                 continue
             seg = cfg.get("segmentation_algorithm", {})
-            status = str(seg.get("implementation_status", "")).upper()
-            if seg and "NOT_FOUND" in status:
-                unresolved.append({
-                    "name": name,
-                    "reason": (
-                        "Dataset source/processing method not specified in Step6 "
-                        f"(Step5 implementation_status={seg.get('implementation_status')})"
-                    ),
-                })
+            status = str(seg.get("implementation_status", ""))
+            if seg and "NOT_FOUND" in status.upper():
+                if status.upper().startswith("PARTIAL"):
+                    reason = (
+                        f"Segmented preprocessing only partially specified for '{name}': "
+                        f"method description known ({seg.get('method', '')[:120]}), "
+                        "but script thresholds/parameters are NOT_FOUND in the paper. "
+                        "Implement from the method description or a documented fallback; "
+                        "do not silently substitute another version."
+                    )
+                else:
+                    reason = (
+                        f"Dataset source/processing method not specified for '{name}' "
+                        f"(Step5 implementation_status={status})"
+                    )
+                unresolved.append({"name": name, "reason": reason})
         return unresolved
 
     # ============================================================
@@ -906,6 +931,16 @@ class ProjectBriefIntegrator:
         checkpoint_note = tc.get("checkpoint", {}).get("note")
         if checkpoint_note:
             notes.append(f"[checkpoint] {checkpoint_note}")
+
+        # leaf_based_split：叶子级分组划分约束（防止数据泄漏 + 禁止静默回退）
+        if self._is_leaf_split():
+            notes.append(
+                "[leaf_mapping] 数据划分必须按叶子分组（同一片叶子的多张图片不得跨 "
+                "train/val/test 集）：dataset.py 读取叶子映射文件（config 的 "
+                "split_strategy.leaf_mapping_file，缺省 data/leaf_mappings.csv）做分组划分；"
+                "映射文件缺失时必须 logger.warning 显式告警，并在结果/配置中记录 "
+                "leaf_constraint_effective=false，严禁静默回退为随机划分。"
+            )
 
         # 论文结论不可写死（Step7 会做规则检查兜底）
         notes.append(

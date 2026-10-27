@@ -1,0 +1,908 @@
+# -*- coding: utf-8 -*-
+"""training/train.py：模型训练流程（工程复现）。
+
+核心方法：
+- initialize_model：构建模型、权重初始化、配置优化器/调度器/损失
+- train_model：执行训练与验证循环（早停、最优权重跟踪）
+- save_model：保存检查点（可含优化器状态、指标、配置快照）
+"""
+
+from __future__ import annotations
+
+import copy
+import json
+import logging
+import os
+import random
+import sys
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import _LRScheduler
+from torch.utils.data import DataLoader, Dataset
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+try:
+    from data.dataset import (
+        CellNucleiDataScienceBowl2018ColonPolypASUMayoLiverMICCAI2018LiTSChallengeLungNoduleLIDCIDRIDataset,
+    )
+except Exception:
+    try:
+        from dataset import (
+            CellNucleiDataScienceBowl2018ColonPolypASUMayoLiverMICCAI2018LiTSChallengeLungNoduleLIDCIDRIDataset,
+        )
+    except Exception:
+        CellNucleiDataScienceBowl2018ColonPolypASUMayoLiverMICCAI2018LiTSChallengeLungNoduleLIDCIDRIDataset = None
+
+try:
+    from models.densenet import Densenet
+except Exception:
+    try:
+        from densenet import Densenet
+    except Exception:
+        Densenet = None
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_MEAN = (0.485, 0.456, 0.406)
+DEFAULT_STD = (0.229, 0.224, 0.225)
+DEFAULT_IMAGE_SIZE = (224, 224)
+DEFAULT_BATCH_SIZE = 4
+DEFAULT_NUM_WORKERS = 0
+DEFAULT_PATIENCE = 10
+DEFAULT_EPOCHS = 30
+DEFAULT_SEED = 42
+DEFAULT_WEIGHT_INIT = "kaiming_normal"
+
+
+# --------------------------------------------------------------------------- #
+# 配置工具（与 data/dataset.py 的语义保持一致）
+# --------------------------------------------------------------------------- #
+def _flatten_dict(cfg: Any, parent_key: str = "", sep: str = ".") -> Dict[str, Any]:
+    """把嵌套 dict 展平成 'a.b.c' 形式的键值对。"""
+    items: Dict[str, Any] = {}
+    if not isinstance(cfg, dict):
+        return items
+    for key, value in cfg.items():
+        new_key = f"{parent_key}{sep}{key}" if parent_key else str(key)
+        if isinstance(value, dict):
+            items.update(_flatten_dict(value, new_key, sep=sep))
+        else:
+            items[new_key] = value
+    return items
+
+
+def _resolve_config_path(config_path: Optional[str] = None) -> Optional[str]:
+    """定位 config/config.yaml，找不到时返回 None。"""
+    if config_path:
+        candidate = Path(config_path)
+        if candidate.is_file():
+            return str(candidate.resolve())
+    for candidate in (PROJECT_ROOT / "config" / "config.yaml", Path("config/config.yaml"), Path("config.yaml")):
+        if candidate.is_file():
+            return str(candidate.resolve())
+    return None
+
+
+def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """加载 config/config.yaml，返回展平后的配置字典；失败时返回空字典。"""
+    path = _resolve_config_path(config_path)
+    if path is None:
+        return {}
+    raw: Any = {}
+    try:
+        import yaml
+
+        with open(path, "r", encoding="utf-8") as handle:
+            raw = yaml.safe_load(handle) or {}
+    except Exception as exc:
+        logger.warning("load_config: 读取 %s 失败 (%s)，返回空配置", path, exc)
+        raw = {}
+    return _flatten_dict(raw)
+
+
+def _cfg_get(cfg: Any, key: Union[str, Sequence[str]], default: Any = None) -> Any:
+    """读取配置项，支持展平键、嵌套键与候选键列表；值为 None 时返回 default。"""
+    if cfg is None:
+        return default
+    keys: Sequence[str] = [key] if isinstance(key, str) else list(key)
+    for item in keys:
+        if not isinstance(item, str):
+            continue
+        if isinstance(cfg, dict) and item in cfg:
+            value = cfg[item]
+            if value is not None:
+                return value
+        node: Any = cfg
+        matched = True
+        for part in item.split("."):
+            if isinstance(node, dict) and part in node:
+                node = node[part]
+            else:
+                matched = False
+                break
+        if matched and node is not None:
+            return node
+    return default
+
+
+def _to_int(value: Any, default: int) -> int:
+    try:
+        if value is None:
+            return int(default)
+        return int(value)
+    except Exception:
+        return int(default)
+
+
+def _to_float(value: Any, default: float) -> float:
+    try:
+        if value is None:
+            return float(default)
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _to_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return bool(default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(default)
+
+
+# --------------------------------------------------------------------------- #
+# 损失与指标
+# --------------------------------------------------------------------------- #
+def bce_dice_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    smooth: float = 1.0,
+    bce_weight: float = 0.5,
+    dice_weight: float = 0.5,
+) -> torch.Tensor:
+    """binary crossentropy 与 dice 的组合损失（对应 config 的 bce_dice_loss）。"""
+    logits = logits.float()
+    targets = targets.float()
+    if targets.shape != logits.shape:
+        if targets.numel() == logits.numel():
+            targets = targets.reshape_as(logits)
+        else:
+            return F.binary_cross_entropy_with_logits(logits.reshape(-1), targets.reshape(-1))
+    bce = F.binary_cross_entropy_with_logits(logits, targets)
+    probs = torch.sigmoid(logits)
+    dims = tuple(range(1, probs.dim())) or (0,)
+    intersection = (probs * targets).sum(dim=dims)
+    denominator = probs.sum(dim=dims) + targets.sum(dim=dims)
+    dice = (2.0 * intersection + float(smooth)) / (denominator + float(smooth))
+    dice_loss = 1.0 - dice.mean()
+    total = float(bce_weight) + float(dice_weight)
+    if total <= 0:
+        total = 1.0
+    return (float(bce_weight) * bce + float(dice_weight) * dice_loss) / total
+
+
+def accuracy_metric(logits: torch.Tensor, targets: torch.Tensor, num_classes: int = 1) -> float:
+    """逐像素（或逐样本）准确率。"""
+    with torch.no_grad():
+        if logits.dim() > 1 and logits.shape[1] > 1:
+            preds = logits.argmax(dim=1)
+            truth = targets.argmax(dim=1) if targets.shape == logits.shape else targets.long()
+            return float((preds == truth).float().mean().item())
+        preds = (torch.sigmoid(logits) >= 0.5).float()
+        truth = targets.float()
+        if truth.shape != preds.shape and truth.numel() == preds.numel():
+            truth = truth.reshape_as(preds)
+        return float((preds == truth).float().mean().item())
+
+
+def _init_weights(module: nn.Module, method: Optional[str] = DEFAULT_WEIGHT_INIT) -> None:
+    name = (method or DEFAULT_WEIGHT_INIT).lower()
+    for layer in module.modules():
+        if isinstance(layer, nn.Conv2d):
+            if name.startswith("kaiming"):
+                nn.init.kaiming_normal_(layer.weight, mode="fan_out", nonlinearity="relu")
+            elif name.startswith("xavier"):
+                nn.init.xavier_normal_(layer.weight)
+            elif name.startswith("normal"):
+                nn.init.normal_(layer.weight, std=0.01)
+            else:
+                nn.init.kaiming_normal_(layer.weight, mode="fan_out", nonlinearity="relu")
+            if layer.bias is not None:
+                nn.init.zeros_(layer.bias)
+        elif isinstance(layer, (nn.BatchNorm1d, nn.BatchNorm2d, nn.GroupNorm)):
+            if getattr(layer, "weight", None) is not None:
+                nn.init.ones_(layer.weight)
+            if getattr(layer, "bias", None) is not None:
+                nn.init.zeros_(layer.bias)
+        elif isinstance(layer, nn.Linear):
+            nn.init.normal_(layer.weight, std=0.01)
+            if layer.bias is not None:
+                nn.init.zeros_(layer.bias)
+
+
+# --------------------------------------------------------------------------- #
+# 模型：UNetPlusPlus（嵌套 U-Net）
+# --------------------------------------------------------------------------- #
+class _ConvBlock(nn.Module):
+    """Conv -> BN -> ReLU -> Dropout -> Conv -> BN -> ReLU。"""
+
+    def __init__(self, in_channels: int, out_channels: int, dropout_ratio: float = 0.0) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.dropout = nn.Dropout2d(dropout_ratio) if dropout_ratio and dropout_ratio > 0 else nn.Identity()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = F.relu(self.bn1(self.conv1(x)), inplace=True)
+        out = self.dropout(out)
+        out = F.relu(self.bn2(self.conv2(out)), inplace=True)
+        return out
+
+
+class UNetPlusPlus(nn.Module):
+    """UNet++ 嵌套结构：输出单通道 sigmoid 前的 logits。"""
+
+    def __init__(
+        self,
+        in_channels: int = 3,
+        out_channels: int = 1,
+        num_classes: Optional[int] = None,
+        depth: int = 4,
+        features: Sequence[int] = (32, 64, 128, 256),
+        dropout_ratio: float = 0.0,
+    ) -> None:
+        super().__init__()
+        self.depth = max(1, int(depth))
+        base = [int(f) for f in list(features)[: self.depth]]
+        while len(base) < self.depth:
+            base.append(base[-1] * 2 if base else 32)
+        self.features = base
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.blocks = nn.ModuleDict()
+        for i in range(self.depth):
+            for j in range(self.depth - i):
+                if j == 0:
+                    block_in = int(in_channels) if i == 0 else self.features[i - 1]
+                else:
+                    block_in = j * self.features[i] + self.features[i + 1]
+                self.blocks[f"{i}_{j}"] = _ConvBlock(block_in, self.features[i], dropout_ratio)
+        classes = num_classes if num_classes is not None else out_channels
+        self.out_channels = int(classes)
+        self.head = nn.Conv2d(self.features[0], self.out_channels, kernel_size=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        outputs: Dict[Tuple[int, int], torch.Tensor] = {}
+        for i in range(self.depth):
+            for j in range(self.depth - i):
+                if j == 0:
+                    block_input = x if i == 0 else self.pool(outputs[(i - 1, 0)])
+                else:
+                    reference = outputs[(i, j - 1)]
+                    up = F.interpolate(
+                        outputs[(i + 1, j - 1)],
+                        size=reference.shape[2:],
+                        mode="bilinear",
+                        align_corners=False,
+                    )
+                    parts = [outputs[(i, k)] for k in range(j)] + [up]
+                    block_input = torch.cat(parts, dim=1)
+                outputs[(i, j)] = self.blocks[f"{i}_{j}"](block_input)
+        return self.head(outputs[(0, self.depth - 1)])
+
+
+# --------------------------------------------------------------------------- #
+# 训练器
+# --------------------------------------------------------------------------- #
+class Trainer:
+    """模型训练流程：initialize_model / train_model / save_model。"""
+
+    def __init__(
+        self,
+        config: Optional[Union[str, Dict[str, Any]]] = None,
+        device: Optional[Any] = None,
+        seed: Optional[int] = None,
+    ) -> None:
+        if isinstance(config, str):
+            self.base_config = load_config(config)
+        elif isinstance(config, dict):
+            self.base_config = dict(_flatten_dict(config))
+        else:
+            self.base_config = load_config()
+        self.config: Dict[str, Any] = dict(self.base_config)
+        self.device = self._resolve_device(device)
+        self.model: Optional[nn.Module] = None
+        self.optimizer: Optional[Optimizer] = None
+        self.scheduler: Optional[_LRScheduler] = None
+        self.loss_fn: Optional[Callable[..., torch.Tensor]] = None
+        self.history: Dict[str, Any] = {}
+        self.set_seed(seed)
+
+    # ---------------------------- 基础工具 ---------------------------- #
+    def set_seed(self, seed: Optional[int] = None) -> int:
+        resolved = _to_int(seed if seed is not None else _cfg_get(self.base_config, "system.seed", DEFAULT_SEED), DEFAULT_SEED)
+        random.seed(resolved)
+        np.random.seed(resolved)
+        torch.manual_seed(resolved)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(resolved)
+        if torch.backends.cudnn.is_available():
+            torch.backends.cudnn.deterministic = _to_bool(_cfg_get(self.base_config, "system.cudnn_deterministic", True), True)
+            torch.backends.cudnn.benchmark = _to_bool(_cfg_get(self.base_config, "system.cudnn_benchmark", False), False)
+        return resolved
+
+    def _resolve_device(self, device: Optional[Any] = None) -> torch.device:
+        if device is not None:
+            return torch.device(device) if not isinstance(device, torch.device) else device
+        configured = _cfg_get(self.base_config, "system.device", None)
+        if configured and str(configured).lower().startswith("cuda") and torch.cuda.is_available():
+            return torch.device(str(configured))
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    def _merge_config(self, config: Optional[Union[str, Dict[str, Any]]]) -> Dict[str, Any]:
+        if config is None:
+            return dict(self.base_config)
+        if isinstance(config, str):
+            extra = load_config(config)
+        else:
+            extra = _flatten_dict(config)
+        merged = dict(self.base_config)
+        merged.update(extra)
+        self.config = merged
+        return merged
+
+    @staticmethod
+    def _model_name(cfg: Dict[str, Any]) -> str:
+        raw = _cfg_get(cfg, ["model.name", "model.architectures"], "UNetPlusPlus")
+        if isinstance(raw, (list, tuple)):
+            raw = raw[0] if raw else "UNetPlusPlus"
+        return str(raw)
+
+    # ------------------------ initialize_model ------------------------ #
+    def initialize_model(
+        self,
+        model: Optional[nn.Module] = None,
+        config: Optional[Union[str, Dict[str, Any]]] = None,
+        training_mode: Optional[str] = None,
+        device: Optional[Any] = None,
+    ) -> nn.Module:
+        """构建模型、初始化权重、配置优化器/调度器/损失函数并返回模型。"""
+        cfg = self._merge_config(config)
+        self.device = self._resolve_device(device)
+
+        name = self._model_name(cfg)
+        in_channels = _to_int(_cfg_get(cfg, ["model.in_channels", "data.in_channels"], 3), 3)
+        out_channels = _to_int(_cfg_get(cfg, ["model.out_channels", "model.num_classes"], 1), 1)
+        num_classes = _to_int(_cfg_get(cfg, ["model.num_classes", "model.out_channels"], out_channels), out_channels)
+        dropout_ratio = _to_float(_cfg_get(cfg, ["model.dropout_ratio", "training.dropout_ratio"], 0.0), 0.0)
+        nested_depth = _cfg_get(cfg, ["model.nested_depth"], None)
+
+        if model is not None:
+            net = model
+        else:
+            lowered = name.lower()
+            if "densenet" in lowered:
+                if Densenet is None:
+                    raise RuntimeError("models.densenet.Densenet 不可用，无法构建模型")
+                net = Densenet(config=cfg, num_classes=num_classes, in_channels=in_channels, drop_rate=dropout_ratio)
+            else:
+                depth = _to_int(nested_depth, 4) if nested_depth is not None else 4
+                net = UNetPlusPlus(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    num_classes=num_classes,
+                    depth=depth,
+                    dropout_ratio=dropout_ratio,
+                )
+
+        mode = str(training_mode or _cfg_get(cfg, ["training_mode", "mode"], "scratch"))
+        mode_key = f"training_modes.{mode}"
+        pretrained = _to_bool(_cfg_get(cfg, f"{mode_key}.pretrained", False), False)
+        pretrained_weights = _cfg_get(cfg, f"{mode_key}.pretrained_weights", None)
+        freeze_backbone = _to_bool(_cfg_get(cfg, f"{mode_key}.freeze_backbone", False), False)
+        reset_layers = _cfg_get(cfg, f"{mode_key}.reset_layers", []) or []
+
+        weight_init = _cfg_get(cfg, [f"{mode_key}.weight_init", "model.weight_init"], DEFAULT_WEIGHT_INIT)
+        if not pretrained or not pretrained_weights:
+            _init_weights(net, weight_init if weight_init is not None else DEFAULT_WEIGHT_INIT)
+
+        if pretrained_weights and isinstance(pretrained_weights, str):
+            weights_path = Path(pretrained_weights)
+            if weights_path.is_file():
+                state = torch.load(str(weights_path), map_location="cpu")
+                if isinstance(state, dict) and "model_state_dict" in state:
+                    state = state["model_state_dict"]
+                missing, unexpected = net.load_state_dict(state, strict=False)
+                logger.info("initialize_model: 加载预训练权重 %s (missing=%d, unexpected=%d)",
+                            weights_path, len(missing), len(unexpected))
+            else:
+                logger.warning("initialize_model: 预训练权重 %s 不存在，跳过加载", pretrained_weights)
+
+        for layer_name in reset_layers:
+            submodule = net.get_submodule(str(layer_name)) if hasattr(net, "get_submodule") else None
+            if submodule is not None:
+                _init_weights(submodule, DEFAULT_WEIGHT_INIT)
+
+        if freeze_backbone:
+            for param_name, param in net.named_parameters():
+                if any(tag in param_name.lower() for tag in ("head", "classifier", "fc", "out")):
+                    param.requires_grad = True
+                else:
+                    param.requires_grad = False
+
+        net = net.to(self.device)
+        self.model = net
+        self.optimizer = self.build_optimizer(net, cfg)
+        self.scheduler = self.build_scheduler(cfg)
+        self.loss_fn = self.build_loss(cfg)
+        return net
+
+    # ---------------------------- 构建组件 ---------------------------- #
+    def build_optimizer(self, model: nn.Module, config: Optional[Dict[str, Any]] = None) -> Optimizer:
+        cfg = self._merge_config(config)
+        name = str(_cfg_get(cfg, "training.optimizer.name", "Adam")).lower()
+        lr = _to_float(_cfg_get(cfg, "training.optimizer.lr", 1e-3), 1e-3)
+        weight_decay = _to_float(_cfg_get(cfg, "training.optimizer.weight_decay", 0.0), 0.0)
+        momentum = _cfg_get(cfg, "training.optimizer.momentum", None)
+        betas_raw = _cfg_get(cfg, "training.optimizer.betas", [0.9, 0.999])
+        eps = _to_float(_cfg_get(cfg, "training.optimizer.eps", 1e-8), 1e-8)
+        params = [p for p in model.parameters() if p.requires_grad]
+        if not params:
+            params = list(model.parameters())
+        try:
+            betas = tuple(float(b) for b in list(betas_raw)) if betas_raw is not None else (0.9, 0.999)
+            if len(betas) != 2:
+                betas = (0.9, 0.999)
+        except Exception:
+            betas = (0.9, 0.999)
+
+        if name.startswith("sgd"):
+            optimizer = torch.optim.SGD(
+                params,
+                lr=lr,
+                momentum=_to_float(momentum, 0.0) if momentum is not None else 0.0,
+                weight_decay=weight_decay,
+            )
+        elif name.startswith("adamw"):
+            optimizer = torch.optim.AdamW(params, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
+        else:
+            optimizer = torch.optim.Adam(params, lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
+        return optimizer
+
+    def build_scheduler(self, config: Optional[Dict[str, Any]] = None) -> Optional[_LRScheduler]:
+        cfg = self._merge_config(config)
+        name = _cfg_get(cfg, ["training.scheduler.name", "scheduler.name"], None)
+        if name is None or str(name).strip() == "":
+            return None
+        step_size = _to_int(_cfg_get(cfg, "training.scheduler.step_size", 10), 10)
+        gamma = _to_float(_cfg_get(cfg, "training.scheduler.gamma", 0.1), 0.1)
+        optimizer = self.optimizer
+        if optimizer is None:
+            return None
+        lowered = str(name).lower()
+        if lowered.startswith("step"):
+            return torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+        if lowered.startswith("cosine"):
+            return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, step_size))
+        if lowered.startswith("multistep"):
+            return torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[step_size], gamma=gamma)
+        return None
+
+    def build_loss(self, config: Optional[Dict[str, Any]] = None) -> Callable[..., torch.Tensor]:
+        cfg = self._merge_config(config)
+        name = str(_cfg_get(cfg, "training.loss_function.name", "bce_dice_loss")).lower()
+        smooth = _to_float(_cfg_get(cfg, "training.loss_function.smooth", 1.0), 1.0)
+        bce_weight = _cfg_get(cfg, "training.loss_function.bce_weight", None)
+        dice_weight = _cfg_get(cfg, "training.loss_function.dice_weight", None)
+        bce_w = _to_float(bce_weight, 0.5) if bce_weight is not None else 0.5
+        dice_w = _to_float(dice_weight, 0.5) if dice_weight is not None else 0.5
+
+        def criterion(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+            if "dice" in name and "bce" in name:
+                return bce_dice_loss(logits, targets, smooth=smooth, bce_weight=bce_w, dice_weight=dice_w)
+            if name.startswith("bce") or name.startswith("binary"):
+                return F.binary_cross_entropy_with_logits(logits, targets.float())
+            return bce_dice_loss(logits, targets, smooth=smooth, bce_weight=bce_w, dice_weight=dice_w)
+
+        return criterion
+
+    def build_dataloaders(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        batch_size: Optional[int] = None,
+        num_workers: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """按 split_strategy 构建 train / val / test 数据加载器。"""
+        cfg = self._merge_config(config)
+        if CellNucleiDataScienceBowl2018ColonPolypASUMayoLiverMICCAI2018LiTSChallengeLungNoduleLIDCIDRIDataset is None:
+            raise RuntimeError("data.dataset 数据集类不可用，无法构建 DataLoader")
+
+        root = _cfg_get(cfg, "data.root", "./data")
+        seed = _to_int(_cfg_get(cfg, "split_strategy.seed", DEFAULT_SEED), DEFAULT_SEED)
+        mode = str(_cfg_get(cfg, ["reproduction_mode", "mode"], "engineering"))
+        image_size = _cfg_get(cfg, ["training.image_size.default", "data.image_size_default"], DEFAULT_IMAGE_SIZE)
+
+        dataset = CellNucleiDataScienceBowl2018ColonPolypASUMayoLiverMICCAI2018LiTSChallengeLungNoduleLIDCIDRIDataset(
+            root=root,
+            config=cfg,
+            split="all",
+            seed=seed,
+            mode=mode,
+            image_size=image_size,
+        )
+        splits = dataset.split_dataset()
+        if not isinstance(splits, dict):
+            splits = {"train": dataset}
+
+        resolved_batch = batch_size if batch_size is not None else _cfg_get(
+            cfg,
+            [f"training.batch_size.{self._model_name(cfg)}", "training.batch_size.default", "training.batch_size"],
+            DEFAULT_BATCH_SIZE,
+        )
+        batch_size = max(1, _to_int(resolved_batch, DEFAULT_BATCH_SIZE))
+        workers = num_workers if num_workers is not None else _to_int(
+            _cfg_get(cfg, "system.num_workers", DEFAULT_NUM_WORKERS), DEFAULT_NUM_WORKERS
+        )
+        workers = max(0, min(int(workers), 8))
+
+        loaders: Dict[str, Any] = {}
+        for split_name, subset in splits.items():
+            if subset is None:
+                continue
+            shuffle = str(split_name).lower() in {"train", "training"}
+            loaders[str(split_name)] = DataLoader(
+                subset,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                num_workers=workers,
+                pin_memory=torch.cuda.is_available(),
+                drop_last=False,
+            )
+        return loaders
+
+    # ---------------------------- 批次工具 ---------------------------- #
+    @staticmethod
+    def _unpack_batch(batch: Any) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """从 DataLoader 批次中提取 (inputs, targets) 张量，兼容 dict / tuple / tensor。"""
+        inputs: Optional[torch.Tensor] = None
+        targets: Optional[torch.Tensor] = None
+        if isinstance(batch, dict):
+            for key in ("image", "images", "img", "input", "inputs", "data", "x"):
+                value = batch.get(key)
+                if torch.is_tensor(value):
+                    inputs = value
+                    break
+            for key in ("mask", "masks", "label", "labels", "target", "targets", "y"):
+                value = batch.get(key)
+                if torch.is_tensor(value):
+                    targets = value
+                    break
+            if inputs is None:
+                tensors = [v for v in batch.values() if torch.is_tensor(v)]
+                if tensors:
+                    inputs = tensors[0]
+                if targets is None and len(tensors) > 1:
+                    targets = tensors[1]
+        elif isinstance(batch, (tuple, list)):
+            tensors = [item for item in batch if torch.is_tensor(item)]
+            if tensors:
+                inputs = tensors[0]
+            if len(tensors) > 1:
+                targets = tensors[1]
+        elif torch.is_tensor(batch):
+            inputs = batch
+        return inputs, targets
+
+    @staticmethod
+    def _prepare_target(target: torch.Tensor, logits: torch.Tensor) -> torch.Tensor:
+        """把标签/掩码调整为与 logits 兼容的浮点张量。"""
+        tgt = target
+        if not tgt.is_floating_point():
+            tgt = tgt.float()
+        if tgt.shape != logits.shape:
+            if tgt.numel() == logits.numel():
+                tgt = tgt.reshape_as(logits)
+            elif logits.dim() == tgt.dim() + 1 and logits.shape[0] == tgt.shape[0]:
+                tgt = tgt.unsqueeze(1)
+                if tgt.shape != logits.shape and tgt.numel() == logits.numel():
+                    tgt = tgt.reshape_as(logits)
+        return tgt
+
+    @staticmethod
+    def _unwrap_output(outputs: Any) -> torch.Tensor:
+        if isinstance(outputs, (tuple, list)):
+            outputs = outputs[0]
+        if isinstance(outputs, dict):
+            for key in ("out", "logits", "pred", "prediction"):
+                if key in outputs:
+                    outputs = outputs[key]
+                    break
+            else:
+                outputs = next(iter(outputs.values()))
+        return outputs
+
+    # ---------------------------- train_model ---------------------------- #
+    def train_model(
+        self,
+        model: Optional[nn.Module] = None,
+        train_loader: Optional[Any] = None,
+        val_loader: Optional[Any] = None,
+        config: Optional[Union[str, Dict[str, Any]]] = None,
+        epochs: Optional[int] = None,
+        device: Optional[Any] = None,
+        optimizer: Optional[Optimizer] = None,
+        scheduler: Optional[_LRScheduler] = None,
+        loss_fn: Optional[Callable[..., torch.Tensor]] = None,
+    ) -> Dict[str, Any]:
+        """执行训练循环（含验证、早停与最优权重跟踪），返回训练摘要与历史。"""
+        cfg = self._merge_config(config)
+        self.device = self._resolve_device(device)
+
+        if model is not None:
+            self.model = model.to(self.device)
+        elif self.model is None:
+            self.initialize_model(config=cfg, device=self.device)
+        model = self.model
+
+        if optimizer is not None:
+            self.optimizer = optimizer
+        elif self.optimizer is None:
+            self.optimizer = self.build_optimizer(model, cfg)
+        if scheduler is not None:
+            self.scheduler = scheduler
+        if loss_fn is not None:
+            self.loss_fn = loss_fn
+        elif self.loss_fn is None:
+            self.loss_fn = self.build_loss(cfg)
+
+        if train_loader is None:
+            loaders = self.build_dataloaders(cfg)
+            train_loader = loaders.get("train")
+            val_loader = val_loader if val_loader is not None else loaders.get("val")
+        if train_loader is None:
+            raise ValueError("train_model: 缺少 train_loader")
+
+        total_epochs = _to_int(epochs if epochs is not None else _cfg_get(cfg, "training.epochs", DEFAULT_EPOCHS), DEFAULT_EPOCHS)
+        total_epochs = max(1, total_epochs)
+        mode = str(_cfg_get(cfg, ["reproduction_mode", "mode"], "engineering")).lower()
+        strict = mode == "strict"
+
+        early_stop_enabled = _to_bool(_cfg_get(cfg, "training.early_stopping.enabled", True), True)
+        monitor = str(_cfg_get(cfg, "training.early_stopping.monitor", "val_accuracy"))
+        early_mode = str(_cfg_get(cfg, "training.early_stopping.mode", "max")).lower()
+        patience = _to_int(_cfg_get(cfg, "training.early_stopping.patience", DEFAULT_PATIENCE), DEFAULT_PATIENCE)
+        if strict or val_loader is None:
+            early_stop_enabled = False
+
+        save_best = _to_bool(_cfg_get(cfg, "checkpoint.save_best", True), True)
+        save_final = _to_bool(_cfg_get(cfg, "checkpoint.save_final", True), True)
+        best_mode = str(_cfg_get(cfg, "checkpoint.best_mode", early_mode)).lower()
+        best_metric_name = str(_cfg_get(cfg, "checkpoint.best_metric", monitor))
+
+        num_classes = _to_int(_cfg_get(cfg, ["model.num_classes", "model.out_channels"], 1), 1)
+        history: Dict[str, List[Any]] = {
+            "train_loss": [],
+            "train_accuracy": [],
+            "val_loss": [],
+            "val_accuracy": [],
+            "lr": [],
+        }
+
+        def _metric_key(name: str) -> str:
+            key = str(name).strip().lower()
+            mapping = {
+                "acc": "val_accuracy",
+                "accuracy": "val_accuracy",
+                "train_acc": "train_accuracy",
+                "val_acc": "val_accuracy",
+                "loss": "val_loss",
+            }
+            key = mapping.get(key, key)
+            return key if key in history else "val_accuracy"
+
+        def _history_value(key: str) -> Optional[float]:
+            values = history.get(key)
+            if not values:
+                return None
+            value = values[-1]
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except Exception:
+                return None
+
+        best_value: Optional[float] = None
+        best_epoch = -1
+        best_state: Optional[Dict[str, torch.Tensor]] = None
+        bad_epochs = 0
+        early_best: Optional[float] = None
+        early_stop_epoch: Optional[int] = None
+
+        for epoch in range(1, total_epochs + 1):
+            model.train()
+            train_loss_sum = 0.0
+            train_acc_sum = 0.0
+            train_seen = 0
+
+            for batch in train_loader:
+                inputs, targets = self._unpack_batch(batch)
+                if inputs is None or targets is None:
+                    continue
+                inputs = inputs.to(self.device, non_blocking=True)
+                if not inputs.is_floating_point():
+                    inputs = inputs.float()
+                targets = targets.to(self.device, non_blocking=True)
+
+                if self.optimizer is not None:
+                    self.optimizer.zero_grad()
+
+                outputs = model(inputs)
+                logits = self._unwrap_output(outputs)
+                target = self._prepare_target(targets, logits)
+
+                loss = self.loss_fn(logits, target)
+                loss.backward()
+                if self.optimizer is not None:
+                    self.optimizer.step()
+
+                batch_size = int(inputs.shape[0]) if inputs.dim() > 0 else 1
+                train_loss_sum += float(loss.detach().item()) * batch_size
+                train_acc_sum += accuracy_metric(logits.detach(), target, num_classes) * batch_size
+                train_seen += batch_size
+
+            avg_train_loss = train_loss_sum / train_seen if train_seen else 0.0
+            avg_train_acc = train_acc_sum / train_seen if train_seen else 0.0
+            history["train_loss"].append(avg_train_loss)
+            history["train_accuracy"].append(avg_train_acc)
+
+            run_validation = (val_loader is not None) and (not strict)
+            if run_validation:
+                model.eval()
+                val_loss_sum = 0.0
+                val_acc_sum = 0.0
+                val_seen = 0
+                with torch.no_grad():
+                    for batch in val_loader:
+                        inputs, targets = self._unpack_batch(batch)
+                        if inputs is None or targets is None:
+                            continue
+                        inputs = inputs.to(self.device, non_blocking=True)
+                        if not inputs.is_floating_point():
+                            inputs = inputs.float()
+                        targets = targets.to(self.device, non_blocking=True)
+                        outputs = model(inputs)
+                        logits = self._unwrap_output(outputs)
+                        target = self._prepare_target(targets, logits)
+                        loss = self.loss_fn(logits, target)
+                        batch_size = int(inputs.shape[0]) if inputs.dim() > 0 else 1
+                        val_loss_sum += float(loss.detach().item()) * batch_size
+                        val_acc_sum += accuracy_metric(logits.detach(), target, num_classes) * batch_size
+                        val_seen += batch_size
+                history["val_loss"].append(val_loss_sum / val_seen if val_seen else None)
+                history["val_accuracy"].append(val_acc_sum / val_seen if val_seen else None)
+            else:
+                history["val_loss"].append(None)
+                history["val_accuracy"].append(None)
+
+            current_lr: Optional[float] = None
+            if self.optimizer is not None and getattr(self.optimizer, "param_groups", None):
+                try:
+                    current_lr = float(self.optimizer.param_groups[0].get("lr"))
+                except Exception:
+                    current_lr = None
+            history["lr"].append(current_lr)
+
+            logger.info(
+                "train_model: epoch %d/%d train_loss=%.6f train_acc=%.4f val_loss=%s val_acc=%s lr=%s",
+                epoch,
+                total_epochs,
+                avg_train_loss,
+                avg_train_acc,
+                f"{history['val_loss'][-1]:.6f}" if history["val_loss"][-1] is not None else "n/a",
+                f"{history['val_accuracy'][-1]:.4f}" if history["val_accuracy"][-1] is not None else "n/a",
+                current_lr,
+            )
+
+            # --- 最优权重跟踪（checkpoint.best_metric / best_mode） ---
+            best_key = _metric_key(best_metric_name)
+            best_metric_value = _history_value(best_key)
+            if best_metric_value is not None:
+                improved = best_value is None or (
+                    best_metric_value > best_value if best_mode == "max" else best_metric_value < best_value
+                )
+                if improved:
+                    best_value = best_metric_value
+                    best_epoch = epoch
+                    if save_best:
+                        best_state = copy.deepcopy(model.state_dict())
+
+            # --- 早停（training.early_stopping.monitor / mode / patience） ---
+            if early_stop_enabled:
+                monitor_key = _metric_key(monitor)
+                monitor_value = _history_value(monitor_key)
+                if monitor_value is not None:
+                    better = early_best is None or (
+                        monitor_value > early_best if early_mode == "max" else monitor_value < early_best
+                    )
+                    if better:
+                        early_best = monitor_value
+                        bad_epochs = 0
+                    else:
+                        bad_epochs += 1
+                if bad_epochs >= patience:
+                    early_stop_epoch = epoch
+                    logger.info("train_model: 早停触发于 epoch %d（patience=%d）", epoch, patience)
+                    break
+
+            if self.scheduler is not None:
+                self.scheduler.step()
+
+        epochs_run = len(history["train_loss"])
+        stopped_epoch = early_stop_epoch if early_stop_epoch is not None else epochs_run
+
+        if best_state is not None and save_best:
+            try:
+                model.load_state_dict(best_state)
+                logger.info("train_model: 已恢复最优权重（best_epoch=%d, best_value=%s）", best_epoch, best_value)
+            except Exception as exc:
+                logger.warning("train_model: 恢复最优权重失败 (%s)", exc)
+
+        self.history = history
+        summary: Dict[str, Any] = {
+            "epochs_run": epochs_run,
+            "total_epochs": total_epochs,
+            "stopped_epoch": stopped_epoch,
+            "early_stop_epoch": early_stop_epoch,
+            "best_epoch": best_epoch,
+            "best_value": best_value,
+            "best_metric": best_metric_name,
+            "history": history,
+            "model": model,
+            "best_state_dict": best_state,
+            "device": str(self.device),
+            "mode": mode,
+        }
+
+        if save_final:
+            try:
+                final_metrics = {
+                    key: (values[-1] if isinstance(values, list) and values else None)
+                    for key, values in history.items()
+                }
+                summary["final_checkpoint"] = self.save_model(
+                    epoch=epochs_run,
+                    metrics=final_metrics,
+                    config=cfg,
+                )
+            except Exception as exc:
+                logger.warning("train_model: 保存最终检查点失败 (%s)", exc)
+
+        return summary
+
+    # ----------------------------- save_model ----------------------------- #
+    def save_model(
+        self,
+        path: Optional[Union[str, Path]] = None,
+        model: Optional[nn.Module] = None,
+        optimizer: Optional[Optimizer] = None,
+        scheduler: Optional[_LRScheduler] = None,
+        epoch: Optional[int] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        config: Optional[Union[str, Dict[str, Any]]] = None,
+        save_optimizer

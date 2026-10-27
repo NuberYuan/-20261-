@@ -1,0 +1,201 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+
+
+def analyze_image(image_path, ocr_text):
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+
+    try:
+        # Read image with Chinese path support
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+        if img is None:
+            return result
+
+        h, w = img.shape[:2]
+        if h == 0 or w == 0:
+            return result
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # White background ratio
+        _, binary = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY)
+        white_ratio = float(np.sum(binary == 255)) / (h * w)
+
+        # Sample pixels for color analysis
+        pixels = img.reshape(-1, 3)
+        sample_size = min(10000, len(pixels))
+        idx = np.random.choice(len(pixels), sample_size, replace=False)
+        sample_px = pixels[idx].astype(np.int32)
+
+        unique_colors = len(np.unique(sample_px, axis=0))
+        max_ch = np.max(sample_px, axis=1)
+        min_ch = np.min(sample_px, axis=1)
+        color_diff = max_ch - min_ch
+        colored_ratio = float(np.sum(color_diff > 30)) / sample_size
+
+        # Dark pixel ratio (text/lines)
+        dark_ratio = float(np.sum(gray < 50)) / (h * w)
+
+        # ---- OCR keyword matching ----
+        ocr_upper = ocr_text.upper()
+
+        arch_keywords = [
+            "CNN", "TRANSFORMER", "ATTENTION", "ENCODER", "DECODER",
+            "BLOCK", "EMBEDDING", "CLASSIFIER", "FEATURE EXTRACTOR",
+            "ALEXNET", "RESNET", "VGG", "GOOGLENET", "DENSENET",
+            "BERT", "GPT", "UNET", "YOLO", "RNN", "LSTM", "GRU",
+            "POOLING", "CONVOLUTION", "BACKBONE", "NECK", "HEAD",
+            "MULTI-HEAD", "SELF-ATTENTION", "CROSS-ATTENTION",
+            "FEED FORWARD", "LAYER NORM", "POSITIONAL ENCODING",
+            "MASK", "TOKEN", "PATCH", "VIT", "MOBILENET",
+            "INCEPTION", "SHUFFLENET", "SQUEEZENET", "HRNET",
+            "FPN", "PNAS", "MLP-MIXER", "DETR", "BATCH NORM"
+        ]
+
+        exp_keywords = [
+            "ACCURACY", "LOSS", "EPOCH", "PRECISION", "RECALL",
+            "F1", "F1-SCORE", "CURVE", "COMPARISON", "PERFORMANCE",
+            "RESULT", "TRAIN", "TEST", "VALIDATION", "TOP-1", "TOP-5",
+            "BATCH", "LR", "LEARNING RATE", "OPTIMIZER", "EVALUATION",
+            "BENCHMARK", "STATE-OF-THE-ART", "SOTA", "ABLATION",
+            "IOU", "MAP", "MIOU", "ROC", "AUC", "AVERAGE",
+            "OVERALL", "DELTA", "IMPROVEMENT", "BASELINE",
+            "CONVERGENCE", "ITERATION", "STEP", "STEP SIZE",
+            "CONFUSION", "MATRIX", "ROC CURVE", "PR CURVE",
+            "PARAMETERS", "FLOPS", "THROUGHPUT", "FPS", "LATENCY"
+        ]
+
+        data_keywords = [
+            "SAMPLE", "DATASET", "CLASS", "INPUT", "LABEL",
+            "MNIST", "CIFAR", "IMAGENET", "PASCAL", "VOC",
+            "COCO", "EXAMPLE", "ORIGINAL", "GROUND TRUTH",
+            "ANNOTATION", "SEGMENTATION", "BBOX", "BOUNDING BOX",
+            "AUGMENTATION", "CROP", "RESIZE", "NORMALIZE"
+        ]
+
+        arch_found = [kw for kw in arch_keywords if kw in ocr_upper]
+        exp_found = [kw for kw in exp_keywords if kw in ocr_upper]
+        data_found = [kw for kw in data_keywords if kw in ocr_upper]
+
+        # ---- Visual heuristics ----
+        is_chart_like = False
+        is_grid_like = False
+
+        # Charts: often have colored bars/lines on white background
+        if colored_ratio > 0.03 and white_ratio > 0.45:
+            is_chart_like = True
+
+        # Dense charts with many colored elements
+        if colored_ratio > 0.10:
+            is_chart_like = True
+
+        # Dataset grids: multiple similar-sized images arranged in rows
+        # Use row/column color variance as proxy
+        row_means = np.mean(gray, axis=1)
+        col_means = np.mean(gray, axis=0)
+        row_var = np.std(row_means)
+        col_var = np.std(col_means)
+
+        # Grid-like: periodic variation in rows/cols
+        if row_var > 15 and col_var > 15 and white_ratio < 0.5:
+            is_grid_like = True
+
+        # ---- Classification (priority: experiment > architecture > dataset > other) ----
+        type_val = "other"
+        desc = "无法确定图片类型"
+        components = []
+        code_info = ""
+
+        # Check experiment_result first (highest priority)
+        if exp_found:
+            type_val = "experiment_result"
+            desc = "展示实验结果和性能评估指标"
+            components = exp_found[:8]
+            code_info = "需要实现相应的评估指标计算和实验结果对比展示功能"
+        elif is_chart_like and not arch_found and not data_found:
+            type_val = "experiment_result"
+            desc = "展示实验结果图表和性能变化"
+            components = []
+            code_info = "需要实现实验结果可视化和性能指标评估功能"
+
+        # Check architecture (second priority)
+        if type_val == "other" and arch_found:
+            type_val = "architecture"
+            desc = "展示模型网络结构和数据流关系"
+            components = arch_found[:8]
+            comp_str = ", ".join(arch_found[:5])
+            code_info = "需要实现以下模型组件: " + comp_str
+
+        # Check dataset (third priority)
+        if type_val == "other" and data_found:
+            type_val = "dataset"
+            desc = "展示数据样本和类别示例"
+            components = data_found[:8]
+            code_info = "需要实现数据加载、预处理和类别管理模块"
+
+        # Visual fallback
+        if type_val == "other":
+            if is_chart_like:
+                type_val = "experiment_result"
+                desc = "展示实验结果图表"
+                code_info = "需要实现实验结果可视化功能"
+            elif is_grid_like:
+                type_val = "dataset"
+                desc = "展示数据样本网格"
+                code_info = "需要实现数据加载和预处理模块"
+
+        result = {
+            "type": type_val,
+            "description": desc,
+            "important_components": components,
+            "code_relevant_information": code_info
+        }
+
+    except Exception:
+        result = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+    return result
+
+
+def main():
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+
+    try:
+        if len(sys.argv) < 2:
+            print(json.dumps(result, ensure_ascii=False))
+            return
+
+        image_path = sys.argv[1]
+        ocr_text = "6517 0631"
+
+        result = analyze_image(image_path, ocr_text)
+
+    except Exception:
+        pass
+
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
+```

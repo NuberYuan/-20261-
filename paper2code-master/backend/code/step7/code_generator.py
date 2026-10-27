@@ -1,13 +1,26 @@
 """
 Step7.3: 代码生成器
 
-调用 DeepSeek 文本模型，一次生成一个代码文件。
+调用 LLM 文本模型，一次生成一个代码文件。
 """
 
-import re
 import yaml
-from llm_utils import chat_with_text
+from llm_manager import llm_call, extract_code_block
 from logger import logger
+
+# 核心算法文件走 heavy 档，辅助文件（utils/evaluation/文档等）走 light 档。
+# light 档可在 settings.json 的 task_models.light 配更快/更便宜的模型。
+CORE_HEAVY_PREFIXES = ("models/", "training/", "data/")
+CORE_HEAVY_FILES = ("main.py", "run.py", "config/config.yaml", "config/config.yml")
+
+
+def task_type_for_file(file: str) -> str:
+    """按文件复杂度路由 LLM 档位：核心算法 heavy，辅助文件 light。"""
+    if file.endswith("__init__.py"):
+        return "light"
+    if file.startswith(CORE_HEAVY_PREFIXES) or file in CORE_HEAVY_FILES:
+        return "heavy"
+    return "light"
 
 
 class CodeGenerator:
@@ -15,8 +28,12 @@ class CodeGenerator:
 
     def generate(self, context: dict) -> str:
         prompt = self._build_prompt(context)
-        raw = chat_with_text(prompt)
-        return self._extract_code(raw)
+        try:
+            raw = llm_call(prompt, task_type=task_type_for_file(context.get("file", "")))
+        except (RuntimeError, TimeoutError) as e:
+            logger.error(f"代码生成 LLM 调用失败: {e}")
+            return f"# LLM 调用失败: {e}"
+        return extract_code_block(raw)
 
     # ============================================================
     # Prompt 构建
@@ -84,14 +101,15 @@ class CodeGenerator:
             parts.append(f"- 损失函数: {training.get('loss', '')}")
             parts.append(f"- 调度器: {training.get('scheduler', '')}")
 
-        # 已生成的相关代码
+        # 依赖文件的接口摘要（签名级，不含实现）
         related = ctx.get("related_code", {})
         if related:
             parts.append("")
-            parts.append("【已生成的相关代码（引用时保持一致）】")
-            for dep_file, dep_code in related.items():
+            parts.append("【依赖文件接口摘要（引用时保持一致）】")
+            parts.append("（仅含类/方法/函数签名与文档首行，不含实现；引用的名称与签名必须与之完全一致）")
+            for dep_file, dep_digest in related.items():
                 parts.append(f"===== {dep_file} =====")
-                parts.append(dep_code)
+                parts.append(dep_digest)
                 parts.append("")
 
         # config 路径树（生成时就告诉 LLM 哪些路径真实存在）
@@ -138,7 +156,7 @@ class CodeGenerator:
         elif file.endswith(".py"):
             reqs += [
                 "2. 这是 Python 源文件：输出纯 Python 代码，能通过 ast.parse 语法检查。",
-                "3. 引用的类/方法名必须与「已生成的相关代码」中的定义完全一致，不要自行改名。",
+                "3. 引用的类/方法名必须与「依赖文件接口摘要」中的定义完全一致，不要自行改名。",
                 "4. 严格遵循需求与详细设计，不要擅自添加需求之外的功能。",
                 "5. 函数参数必须有合理默认值（config=None, threshold=0.5, batch_size=32 等），"
                 "确保外部可以无参调用进行基本测试，不会因缺少参数而崩溃。",
@@ -151,10 +169,21 @@ class CodeGenerator:
             if has_config:
                 reqs += [
                     "9. 超参数不要硬编码，统一从 config/config.yaml 读取（用 yaml.safe_load）。",
-                    "10. 读取 config 时只能用「已生成的相关代码」里 config.yaml 中真实存在的键，"
+                    "10. 读取 config 时只能用「config.yaml 可用路径」列表中真实存在的键，"
                     "严禁臆造不存在的顶层键（如 data/system/experiment 等必须与 config.yaml 完全对齐）。",
                     "11. config 路径必须逐级验证存在性，不要猜测嵌套路径。"
                     "如果不确定某个 key 是否存在，用 config.get('key', default) 安全访问。",
+                ]
+            # 入口文件：必须支持 --run N 逐组合执行（Step8 实验矩阵依赖此参数）
+            base = file.replace("\\", "/").rsplit("/", 1)[-1]
+            if base in ("main.py", "run.py"):
+                reqs += [
+                    f"{len(reqs) + 1}. 这是项目入口文件，必须支持命令行参数 "
+                    "--run N（argparse add_argument(\"--run\", type=int, ...)）与 "
+                    "--config：N 为 config['experiment']['runs'] 列表的下标（从 0 开始），"
+                    "指定 --run N 时只执行第 N 个实验组合（model/training_mode/"
+                    "dataset_version/train_ratio 等取自该条 run），不指定时可执行默认/全部组合。"
+                    "缺少 --run 参数将导致实验矩阵无法逐个执行，属严重缺陷。",
                 ]
         elif file.endswith(".txt"):
             reqs += [
@@ -197,29 +226,3 @@ class CodeGenerator:
 
         return "\n".join(lines) if lines else "（无）"
 
-    # ============================================================
-    # 提取代码
-    # ============================================================
-
-    @staticmethod
-    def _extract_code(raw: str) -> str:
-        """从 LLM 输出中提取代码（处理 markdown 代码块包裹）。"""
-        raw = raw.strip()
-
-        # 提取 ```...``` 代码块。
-        # 语言标签任意（python/py/yaml/yml/json/markdown/text/...），
-        # 不能只认 python/py，否则 YAML/MD/TXT 文件会带着 fence 返回导致校验失败。
-        blocks = re.findall(r"```[a-zA-Z0-9_+.-]*\s*\n(.*?)```", raw, re.DOTALL)
-        if blocks:
-            if len(blocks) == 1:
-                return blocks[0].strip()
-            # 多个代码块时，优先选看起来像完整文件的（有 import/class/def 语句）
-            def _score(block: str) -> tuple:
-                has_import = bool(re.search(r"^import |^from ", block, re.MULTILINE))
-                has_class = bool(re.search(r"^class ", block, re.MULTILINE))
-                has_def = bool(re.search(r"^def ", block, re.MULTILINE))
-                return (int(has_import) + int(has_class) + int(has_def), len(block))
-            return max(blocks, key=_score).strip()
-
-        # 没有代码块包裹，直接返回
-        return raw

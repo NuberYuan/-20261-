@@ -1,0 +1,261 @@
+"""GoogLeNet model definition for the plant disease detection reproduction.
+
+Paper : "Using Deep Learning for Image-Based Plant Disease Detection"
+Task  : image_classification (PlantVillage, 38 classes)
+File  : models/googlenet.py   (Phase 3)
+
+The module tree is inherited unchanged from ``torchvision.models.GoogLeNet``
+(GoogLeNet / Inception v1: 22 parameterised layers, 9 Inception modules and 2
+auxiliary classifiers).  Nothing is added to / removed from the torchvision
+layout so that ImageNet-pretrained weights can be loaded 1:1 when the
+``transfer`` training mode is used (FR-05 / FR-06).
+
+``__init__`` only builds the architecture with random initialisation; the
+``scratch`` / ``transfer`` weight-initialisation logic lives in
+``training/train.py :: initialize_model`` (no ``load_state_dict`` here).
+
+Every shape hyper-parameter (``num_classes``, ``dropout_ratio``,
+``aux_logits``, ``init_weights``) is read from ``config/config.yaml``.  The
+module-level constants below are only *fallbacks* used when the corresponding
+configuration entry is missing or ``null``; their origin is documented inline.
+"""
+
+from __future__ import annotations
+
+import inspect
+import os
+from typing import Any, Dict, Optional, Tuple, Union
+
+import torch
+import yaml
+
+try:  # some torchvision builds do not re-export the model class at package level
+    from torchvision.models import GoogLeNet as _TorchvisionGoogLeNet
+except ImportError:  # pragma: no cover - compatibility fallback
+    from torchvision.models.googlenet import GoogLeNet as _TorchvisionGoogLeNet
+
+
+# --------------------------------------------------------------------------- #
+# Fallback values: used ONLY when the config entry is missing or null.
+# --------------------------------------------------------------------------- #
+DEFAULT_NUM_CLASSES: int = 38  # paper: 38 classes (14 crop species x disease/healthy)
+DEFAULT_DROPOUT_RATIO: float = 0.5  # config: model.googlenet.dropout_ratio
+DEFAULT_AUX_LOGITS: bool = True  # config: model.googlenet.aux_logits
+DEFAULT_INIT_WEIGHTS: bool = False  # config: model.googlenet.init_weights
+DEFAULT_CONFIG_RELATIVE_PATH: str = os.path.join("config", "config.yaml")
+
+
+def _default_config_path() -> str:
+    """Return the path of config/config.yaml searched from the project root."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(here)
+    candidates = [
+        os.path.join(project_root, DEFAULT_CONFIG_RELATIVE_PATH),
+        os.path.join(os.getcwd(), DEFAULT_CONFIG_RELATIVE_PATH),
+    ]
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+    return candidates[0]
+
+
+def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """Load config/config.yaml with yaml.safe_load (UTF-8).
+
+    Returns an empty dict when the file cannot be found so that the model can
+    still be instantiated with its documented fallback values.
+    """
+    path = config_path if config_path else _default_config_path()
+    if not os.path.isfile(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as handle:
+        cfg = yaml.safe_load(handle)
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _get_nested(cfg: Optional[Dict[str, Any]], dotted_key: str, default: Any = None) -> Any:
+    """Safely fetch a nested config entry such as ``model.num_classes``.
+
+    A missing key *or* an explicit ``null`` value both fall back to ``default``
+    (null-fallback rule for shape parameters).
+    """
+    if not isinstance(cfg, dict):
+        return default
+    node: Any = cfg
+    for key in dotted_key.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return default
+        node = node[key]
+    return default if node is None else node
+
+
+class Googlenet(_TorchvisionGoogLeNet):
+    """GoogLeNet (Inception v1) with a 38-way classifier for PlantVillage.
+
+    Inherits the torchvision ``GoogLeNet`` module tree unchanged, so
+    ImageNet-pretrained checkpoints can be loaded 1:1 in the ``transfer``
+    training mode.  Only the classifier width (``num_classes``) and the dropout
+    probability are configurable; both come from ``config/config.yaml``.
+
+    Args:
+        config: parsed configuration dict (or a path to a YAML file).  When it
+            is ``None``, ``config/config.yaml`` is loaded automatically.
+        num_classes: overrides ``model.num_classes`` (default 38).
+        dropout_ratio: overrides ``model.googlenet.dropout_ratio`` (default 0.5).
+        aux_logits: overrides ``model.googlenet.aux_logits`` (default True).
+        init_weights: overrides ``model.googlenet.init_weights`` (default False).
+        config_path: explicit path to the configuration file.
+    """
+
+    def __init__(
+        self,
+        config: Optional[Union[Dict[str, Any], str]] = None,
+        num_classes: Optional[int] = None,
+        dropout_ratio: Optional[float] = None,
+        aux_logits: Optional[bool] = None,
+        init_weights: Optional[bool] = None,
+        config_path: Optional[str] = None,
+    ) -> None:
+        # ------------------------------------------------------------------ #
+        # 1. Configuration
+        # ------------------------------------------------------------------ #
+        if isinstance(config, dict):
+            cfg: Dict[str, Any] = config
+        elif isinstance(config, str):
+            cfg = load_config(config)
+        else:
+            cfg = load_config(config_path)
+
+        model_cfg = _get_nested(cfg, "model", {}) or {}
+        goog_cfg = _get_nested(model_cfg, "googlenet", {}) or {}
+
+        # ------------------------------------------------------------------ #
+        # 2. Shape hyper-parameters (null -> documented fallback)
+        # ------------------------------------------------------------------ #
+        resolved_num_classes = num_classes
+        if resolved_num_classes is None:
+            resolved_num_classes = _get_nested(cfg, "model.num_classes", None)
+        if resolved_num_classes is None:
+            resolved_num_classes = _get_nested(cfg, "data.num_classes", None)
+        if resolved_num_classes is None:
+            # Fallback source: the paper states 38 classes
+            # (14 crop species x 26 diseases or absence thereof).
+            resolved_num_classes = DEFAULT_NUM_CLASSES
+        resolved_num_classes = int(resolved_num_classes)
+        if resolved_num_classes <= 0:
+            raise ValueError(
+                "num_classes must be a positive integer, got {}".format(resolved_num_classes)
+            )
+
+        resolved_dropout = dropout_ratio
+        if resolved_dropout is None and isinstance(goog_cfg, dict):
+            resolved_dropout = goog_cfg.get("dropout_ratio")
+        if resolved_dropout is None and isinstance(model_cfg, dict):
+            resolved_dropout = model_cfg.get("dropout_ratio")
+        if resolved_dropout is None:
+            resolved_dropout = DEFAULT_DROPOUT_RATIO
+        resolved_dropout = float(resolved_dropout)
+        if not 0.0 <= resolved_dropout < 1.0:
+            raise ValueError(
+                "dropout_ratio must be in [0, 1), got {}".format(resolved_dropout)
+            )
+
+        resolved_aux = aux_logits
+        if resolved_aux is None and isinstance(goog_cfg, dict):
+            resolved_aux = goog_cfg.get("aux_logits")
+        if resolved_aux is None:
+            resolved_aux = DEFAULT_AUX_LOGITS
+        resolved_aux = bool(resolved_aux)
+
+        resolved_init_weights = init_weights
+        if resolved_init_weights is None and isinstance(goog_cfg, dict):
+            resolved_init_weights = goog_cfg.get("init_weights")
+        if resolved_init_weights is None:
+            resolved_init_weights = DEFAULT_INIT_WEIGHTS
+        resolved_init_weights = bool(resolved_init_weights)
+
+        # ------------------------------------------------------------------ #
+        # 3. Build the torchvision GoogLeNet (structure only, random init)
+        # ------------------------------------------------------------------ #
+        ctor_params = inspect.signature(_TorchvisionGoogLeNet.__init__).parameters
+        if "num_classes" not in ctor_params:
+            raise RuntimeError(
+                "Unsupported torchvision GoogLeNet API: constructor without 'num_classes'"
+            )
+
+        ctor_kwargs: Dict[str, Any] = {"num_classes": resolved_num_classes}
+        if "aux_logits" in ctor_params:
+            ctor_kwargs["aux_logits"] = resolved_aux
+        if "dropout" in ctor_params:
+            ctor_kwargs["dropout"] = resolved_dropout
+        if "dropout_aux" in ctor_params:
+            # config exposes a single dropout_ratio; it is applied to both the
+            # main and the auxiliary classifier heads.
+            ctor_kwargs["dropout_aux"] = resolved_dropout
+        if "init_weights" in ctor_params:
+            # False: do not run torchvision's own init here; weight
+            # initialisation is handled by training/train.py :: initialize_model.
+            ctor_kwargs["init_weights"] = resolved_init_weights
+
+        super().__init__(**ctor_kwargs)
+
+        # Older torchvision releases expose no 'dropout' constructor argument;
+        # adjust the existing Dropout module's probability (no structural change).
+        if "dropout" not in ctor_params and hasattr(self, "dropout"):
+            self.dropout.p = resolved_dropout
+
+        # ------------------------------------------------------------------ #
+        # 4. Keep the resolved settings for introspection (no extra layers)
+        # ------------------------------------------------------------------ #
+        self.config = cfg
+        self.resolved_num_classes = resolved_num_classes
+        self.resolved_dropout_ratio = resolved_dropout
+
+    # ---------------------------------------------------------------------- #
+    # Forward
+    # ---------------------------------------------------------------------- #
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Run the network and return the class-score tensor.
+
+        Args:
+            x: preprocessed images, shape ``[N, 3, H, W]`` (256 x 256 per
+               config.yaml, 3 channels).
+
+        Returns:
+            Logits of shape ``[N, num_classes]`` (38 by default).  When
+            ``aux_logits=True`` torchvision returns a ``GoogLeNetOutputs``
+            namedtuple during training; the auxiliary outputs are dropped here
+            so that the downstream cross-entropy loss always receives a plain
+            ``[N, C]`` tensor.
+        """
+        output = super().forward(x)
+        if isinstance(output, tuple):
+            return output[0]
+        return output
+
+    def forward_with_aux(
+        self, x: torch.Tensor
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """Return ``(logits, aux1, aux2)`` to allow auxiliary-head losses.
+
+        Auxiliary outputs are ``None`` when ``aux_logits=False`` or when the
+        model is in ``eval()`` mode (torchvision drops the auxiliary heads then).
+        """
+        output = super().forward(x)
+        if isinstance(output, tuple):
+            logits = output[0]
+            aux1 = output[1] if len(output) > 1 else None
+            aux2 = output[2] if len(output) > 2 else None
+            return logits, aux1, aux2
+        return output, None, None
+
+
+if __name__ == "__main__":  # pragma: no cover - quick smoke test
+    _cfg = load_config()
+    _model = Googlenet(config=_cfg)
+    _model.eval()
+    _input = torch.randn(2, 3, 256, 256)
+    _output = _model(_input)
+    _num_params = sum(parameter.numel() for parameter in _model.parameters())
+    print("output shape: {}".format(tuple(_output.shape)))
+    print("parameters  : {:,}".format(_num_params))

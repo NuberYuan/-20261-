@@ -1,0 +1,1029 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""项目入口（Phase 4）：执行论文方法并产出 runtime measurements 评估。
+
+论文: Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms
+
+入口流程：
+  1) 解析 ``config/config.yaml``（FR-01 数据集构造所需的图参数、种子等）
+  2) 加载/构造 various graph classes 合成数据集并校验样本数（FR-01）
+  3) 执行论文方法 ``EnhancedGP2CompilerWithImprovedGraphDataStructure``（FR-02）
+  4) 在测试集上计算 runtime measurements 等评估指标（FR-03 / FR-04）
+
+命令行：
+    python main.py --config config/config.yaml --run 0
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import math
+import os
+import random
+import sys
+import time
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+DEFAULT_CONFIG_PATH: str = os.path.join(_PROJECT_ROOT, "config", "config.yaml")
+LOGGER = logging.getLogger("rule_based_graph_programs.main")
+
+try:
+    import yaml  # type: ignore
+except Exception:  # pragma: no cover - yaml 属于可选依赖，缺失时走兜底配置
+    yaml = None
+
+try:
+    from evaluation.evaluate import (
+        evaluate_model as _evaluate_model_impl,
+        generate_report as _generate_report_impl,
+        load_config as _eval_load_config,
+    )
+except Exception:  # pragma: no cover - 评估模块缺失时使用本地兜底实现
+    _evaluate_model_impl = None
+    _generate_report_impl = None
+    _eval_load_config = None
+
+try:
+    from src.enhancedgp2compilerwithimprovedgraphdatastructure import (
+        EnhancedGP2CompilerWithImprovedGraphDataStructure,
+    )
+except Exception:  # pragma: no cover
+    EnhancedGP2CompilerWithImprovedGraphDataStructure = None  # type: ignore
+
+
+# --------------------------------------------------------------------------- #
+# 模块级默认值（config/config.yaml 未提供对应的键，故在此给出可复现的默认参数）
+# --------------------------------------------------------------------------- #
+DEFAULT_GRAPH_SIZES: Tuple[int, ...] = (32, 64, 128, 256, 512)
+DEFAULT_SAMPLES_PER_CLASS_PER_SIZE: int = 2
+GRAPH_CLASSES: Tuple[str, ...] = ("path", "cycle", "star", "erdos_renyi")
+ER_EDGE_PROBABILITY: float = 0.05
+CANONICAL_ALGORITHMS: Tuple[str, ...] = (
+    "reachability",
+    "shortest_path",
+    "connected_components",
+)
+
+
+# --------------------------------------------------------------------------- #
+# 配置读取辅助
+# --------------------------------------------------------------------------- #
+def _get_cfg(config: Optional[Dict[str, Any]], *keys: str, default: Any = None) -> Any:
+    """逐级安全取值：先按嵌套字典查找，再按点分扁平键查找。"""
+    if not isinstance(config, dict) or not keys:
+        return default
+    node: Any = config
+    for key in keys:
+        if isinstance(node, dict) and key in node:
+            node = node[key]
+        else:
+            node = None
+            break
+    if node is not None:
+        return node
+    flat_key = ".".join(keys)
+    if flat_key in config and config[flat_key] is not None:
+        return config[flat_key]
+    return default
+
+
+def load_config_file(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, Any]:
+    """读取 ``config/config.yaml``；优先使用 evaluation.load_config，失败时本地解析。"""
+    if _eval_load_config is not None:
+        try:
+            cfg = _eval_load_config(config_path)
+            if isinstance(cfg, dict) and cfg:
+                return cfg
+        except Exception as exc:  # pragma: no cover
+            LOGGER.warning("evaluation.load_config 失败（%s），改用本地解析", exc)
+    if yaml is not None and os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as handle:
+                cfg = yaml.safe_load(handle)
+            if isinstance(cfg, dict):
+                return cfg
+        except Exception as exc:  # pragma: no cover
+            LOGGER.warning("读取 %s 失败：%s", config_path, exc)
+    LOGGER.warning("未获得有效配置，使用空配置 + 模块级默认值继续执行")
+    return {}
+
+
+def _setup_logging(config: Optional[Dict[str, Any]] = None) -> str:
+    """按配置初始化日志并创建结果目录，返回结果输出目录。"""
+    level_name = str(_get_cfg(config, "logging", "level", default="INFO")).upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    output_dir_raw = str(_get_cfg(config, "logging", "output_dir", default="results"))
+    output_dir = output_dir_raw if os.path.isabs(output_dir_raw) else os.path.join(_PROJECT_ROOT, output_dir_raw)
+    os.makedirs(output_dir, exist_ok=True)
+
+    handlers: List[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+    log_file_raw = _get_cfg(config, "logging", "log_file", default="logs/run.log")
+    if log_file_raw:
+        log_path = str(log_file_raw)
+        if not os.path.isabs(log_path):
+            log_path = os.path.join(_PROJECT_ROOT, log_path)
+        os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+        handlers.append(logging.FileHandler(log_path, encoding="utf-8"))
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        handlers=handlers,
+        force=True,
+    )
+    return output_dir
+
+
+# --------------------------------------------------------------------------- #
+# FR-01：加载 / 构造 various graph classes 数据集
+# --------------------------------------------------------------------------- #
+def build_path_graph(n: int) -> Dict[int, List[int]]:
+    """构造 n 个节点的路径图（邻接表）。"""
+    size = max(1, int(n))
+    adjacency: Dict[int, List[int]] = {i: [] for i in range(size)}
+    for i in range(size - 1):
+        adjacency[i].append(i + 1)
+        adjacency[i + 1].append(i)
+    return adjacency
+
+
+def build_cycle_graph(n: int) -> Dict[int, List[int]]:
+    """构造 n 个节点的圈图（n < 3 时退化为路径图）。"""
+    size = max(1, int(n))
+    if size < 3:
+        return build_path_graph(size)
+    adjacency = build_path_graph(size)
+    adjacency[0].append(size - 1)
+    adjacency[size - 1].append(0)
+    return adjacency
+
+
+def build_star_graph(n: int) -> Dict[int, List[int]]:
+    """构造 n 个节点的星型图（0 号节点为中心）。"""
+    size = max(1, int(n))
+    adjacency: Dict[int, List[int]] = {i: [] for i in range(size)}
+    for i in range(1, size):
+        adjacency[0].append(i)
+        adjacency[i].append(0)
+    return adjacency
+
+
+def build_graph(
+    class_name: str,
+    n: int,
+    seed: int = 42,
+    p: float = ER_EDGE_PROBABILITY,
+    compiler: Any = None,
+) -> Dict[int, List[int]]:
+    """按图类别构造单个图，返回 ``Dict[int, List[int]]`` 邻接表。"""
+    name = str(class_name).strip().lower()
+    if name in ("path", "line"):
+        return build_path_graph(n)
+    if name == "cycle":
+        return build_cycle_graph(n)
+    if name == "star":
+        return build_star_graph(n)
+    if name in ("erdos_renyi", "er", "random"):
+        if compiler is None:
+            raise ValueError("构造 erdos_renyi 图需要 EnhancedGP2CompilerWithImprovedGraphDataStructure 实例")
+        return compiler.generate_erdos_renyi_graph(int(n), float(p), seed=int(seed))
+    raise ValueError(f"未知图类别: {class_name}")
+
+
+def build_edge_weights(
+    graph: Dict[int, List[int]],
+    rng: random.Random,
+    weight_min: float = 1.0,
+    weight_max: float = 10.0,
+    weight_integer: bool = True,
+) -> Dict[Tuple[int, int], float]:
+    """为无向图的每条边生成权重，双向键 ``(u, v)`` 与 ``(v, u)`` 均写入。"""
+    lo = float(weight_min)
+    hi = float(weight_max)
+    if hi < lo:
+        lo, hi = hi, lo
+    weights: Dict[Tuple[int, int], float] = {}
+    for u, neighbours in graph.items():
+        for v in neighbours:
+            key_a = (int(u), int(v))
+            key_b = (int(v), int(u))
+            if key_a in weights and key_b in weights:
+                continue
+            if weight_integer:
+                value = float(rng.randint(int(lo), int(hi)))
+            else:
+                value = float(rng.uniform(lo, hi))
+            weights[key_a] = value
+            weights[key_b] = value
+    return weights
+
+
+def build_dataset(
+    config: Optional[Dict[str, Any]] = None,
+    compiler: Any = None,
+    sizes: Optional[Sequence[int]] = None,
+    samples_per_class_per_size: Optional[int] = None,
+    seed: Optional[int] = None,
+) -> Dict[str, Any]:
+    """构造 various graph classes 合成数据集（data_source=synthetic）。"""
+    cfg = config if isinstance(config, dict) else {}
+    if compiler is None:
+        if EnhancedGP2CompilerWithImprovedGraphDataStructure is None:
+            raise RuntimeError("无法导入 EnhancedGP2CompilerWithImprovedGraphDataStructure")
+        compiler = EnhancedGP2CompilerWithImprovedGraphDataStructure(config=cfg)
+
+    if seed is None:
+        seed = int(_get_cfg(cfg, "system", "seed", default=42))
+    size_list = [int(s) for s in (sizes if sizes is not None else DEFAULT_GRAPH_SIZES)]
+    samples = int(
+        samples_per_class_per_size
+        if samples_per_class_per_size is not None
+        else DEFAULT_SAMPLES_PER_CLASS_PER_SIZE
+    )
+    samples = max(1, samples)
+
+    weighted = bool(_get_cfg(cfg, "graph", "weighted", default=False))
+    weight_min = float(_get_cfg(cfg, "graph", "weight_min", default=1))
+    weight_max = float(_get_cfg(cfg, "graph", "weight_max", default=10))
+    weight_integer = bool(_get_cfg(cfg, "graph", "weight_integer", default=True))
+    edge_probability = float(ER_EDGE_PROBABILITY)
+
+    rng = random.Random(int(seed))
+    graphs: List[Dict[str, Any]] = []
+    counts: Dict[str, int] = {name: 0 for name in GRAPH_CLASSES}
+
+    for class_idx, class_name in enumerate(GRAPH_CLASSES):
+        for size_idx, n in enumerate(size_list):
+            for sample_idx in range(samples):
+                sample_seed = int(seed) + class_idx * 100003 + size_idx * 1009 + sample_idx
+                adjacency = build_graph(
+                    class_name, n, seed=sample_seed, p=edge_probability, compiler=compiler
+                )
+                weights = (
+                    build_edge_weights(
+                        adjacency, rng, weight_min, weight_max, weight_integer
+                    )
+                    if weighted
+                    else None
+                )
+                graphs.append(
+                    {
+                        "graph": adjacency,
+                        "weights": weights,
+                        "class": class_name,
+                        "size": int(n),
+                        "seed": sample_seed,
+                    }
+                )
+                counts[class_name] += 1
+
+    dataset: Dict[str, Any] = {
+        "graphs": graphs,
+        "counts": counts,
+        "classes": list(GRAPH_CLASSES),
+        "sizes": list(size_list),
+        "samples_per_class_per_size": samples,
+        "num_samples": len(graphs),
+        "seed": int(seed),
+        "weighted": bool(weighted),
+        "compiler": compiler,
+    }
+    return dataset
+
+
+def verify_sample_count(dataset: Dict[str, Any], expected: Optional[int] = None) -> bool:
+    """校验加载/构造后的样本数（FR-01 验收）。"""
+    graphs = dataset.get("graphs", []) if isinstance(dataset, dict) else []
+    actual = len(graphs)
+    if expected is None:
+        expected = (
+            len(dataset.get("classes", GRAPH_CLASSES))
+            * len(dataset.get("sizes", DEFAULT_GRAPH_SIZES))
+            * int(dataset.get("samples_per_class_per_size", DEFAULT_SAMPLES_PER_CLASS_PER_SIZE))
+        )
+    ok = int(actual) == int(expected)
+    if ok:
+        LOGGER.info("[FR-01] 数据集样本数校验通过：%d 个样本（各类别计数 %s）", actual, dataset.get("counts"))
+    else:
+        LOGGER.error("[FR-01] 数据集样本数不一致：实际 %d，期望 %d", actual, expected)
+    return ok
+
+
+# --------------------------------------------------------------------------- #
+# FR-02：执行论文方法（Enhanced GP 2 compiler with improved graph data structure）
+# --------------------------------------------------------------------------- #
+def _resolve_timer(timer_name: Any) -> Callable[[], float]:
+    candidate = str(timer_name or "time.perf_counter")
+    if "." in candidate:
+        candidate = candidate.split(".")[-1]
+    func = getattr(time, candidate, None)
+    return func if callable(func) else time.perf_counter
+
+
+def _time_trials(
+    func: Callable[..., Any],
+    args: Tuple[Any, ...],
+    num_trials: int,
+    warmup_runs: int,
+    timer: Callable[[], float],
+    timeout_seconds: float,
+) -> Tuple[List[float], Any, bool]:
+    """执行 warmup + num_trials 次计时，返回 (运行时列表, 最后一次输出, 是否超时)。"""
+    result: Any = None
+    for _ in range(max(0, int(warmup_runs))):
+        result = func(*args)
+    timings: List[float] = []
+    timed_out = False
+    wall_start = timer()
+    for _ in range(max(1, int(num_trials))):
+        t0 = timer()
+        result = func(*args)
+        elapsed = timer() - t0
+        timings.append(float(elapsed))
+        if timeout_seconds > 0.0 and (timer() - wall_start) > timeout_seconds:
+            timed_out = True
+            break
+    return timings, result, timed_out
+
+
+def _same_partition(reference: Dict[Any, Any], actual: Dict[Any, Any]) -> bool:
+    """判断两个连通分量标号是否给出相同的划分（标号可不同）。"""
+    if set(reference.keys()) != set(actual.keys()):
+        return False
+    forward: Dict[Any, Any] = {}
+    backward: Dict[Any, Any] = {}
+    for node in reference:
+        ref_label = reference[node]
+        act_label = actual[node]
+        if ref_label in forward and forward[ref_label] != act_label:
+            return False
+        forward[ref_label] = act_label
+        if act_label in backward and backward[act_label] != ref_label:
+            return False
+        backward[act_label] = ref_label
+    return True
+
+
+def outputs_match(algorithm: str, reference: Any, actual: Any) -> bool:
+    """按算法语义比较规则式程序输出与命令式基线输出。"""
+    if not isinstance(reference, dict) or not isinstance(actual, dict):
+        return reference == actual
+    if str(algorithm) == "connected_components":
+        return _same_partition(reference, actual)
+    if str(algorithm) == "shortest_path":
+        if set(reference.keys()) != set(actual.keys()):
+            return False
+        for key in reference:
+            ref_val = float(reference[key])
+            act_val = float(actual[key])
+            if not (math.isfinite(ref_val) and math.isfinite(act_val)):
+                if ref_val != act_val:
+                    return False
+                continue
+            if abs(ref_val - act_val) > 1e-9 * max(1.0, abs(ref_val)):
+                return False
+        return True
+    return dict(reference) == dict(actual)
+
+
+def _flatten_outputs(outputs: Any) -> List[float]:
+    """把单个图的输出展平成 float 列表，便于评估模块做逐元素比较。"""
+    if not isinstance(outputs, dict):
+        return []
+    flat: List[float] = []
+    for key in sorted(outputs.keys()):
+        value = outputs[key]
+        if isinstance(value, bool):
+            flat.append(1.0 if value else 0.0)
+        else:
+            try:
+                flat.append(float(value))
+            except Exception:
+                flat.append(0.0)
+    return flat
+
+
+def _build_call(
+    compiler: Any,
+    algorithm: str,
+    item: Dict[str, Any],
+    config: Optional[Dict[str, Any]] = None,
+    baseline: bool = False,
+) -> Tuple[Callable[..., Any], Tuple[Any, ...]]:
+    """组装 (函数, 位置参数)；函数名与依赖文件接口保持一致。"""
+    graph = item["graph"]
+    weights = item.get("weights")
+    prefix = "imperative_" if baseline else "rule_based_"
+    func = getattr(compiler, f"{prefix}{algorithm}")
+
+    if algorithm == "reachability":
+        source = int(_get_cfg(config, "algorithm", "reachability", "source_vertex", default=0))
+        source = 0 if not graph else min(max(0, source), max(graph.keys()))
+        return func, (graph, source)
+    if algorithm == "shortest_path":
+        source = int(_get_cfg(config, "algorithm", "shortest_path", "source_vertex", default=0))
+        source = 0 if not graph else min(max(0, source), max(graph.keys()))
+        if weights is None:
+            return func, (graph, source)
+        return func, (graph, source, weights)
+    return func, (graph,)
+
+
+def measure_algorithm(
+    compiler: Any,
+    algorithm: str,
+    dataset: Dict[str, Any],
+    config: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """在数据集上对规则式图程序与命令式基线分别计时（FR-02 + FR-03）。"""
+    cfg = config if isinstance(config, dict) else {}
+    num_trials = max(1, int(_get_cfg(cfg, "benchmark", "num_trials", default=10)))
+    warmup_runs = max(0, int(_get_cfg(cfg, "benchmark", "warmup_runs", default=3)))
+    timer = _resolve_timer(_get_cfg(cfg, "benchmark", "timer", default="time.perf_counter"))
+    timing_unit = str(_get_cfg(cfg, "benchmark", "timing_unit", default="seconds"))
+    verify = bool(_get_cfg(cfg, "benchmark", "verify_correctness", default=True))
+    timeout_seconds = float(_get_cfg(cfg, "benchmark", "timeout_seconds", default=600))
+
+    rule_by_size: Dict[int, List[float]] = {}
+    base_by_size: Dict[int, List[float]] = {}
+    rule_timings: List[float] = []
+    base_timings: List[float] = []
+    reference_flat: List[float] = []
+    actual_flat: List[float] = []
+    checked = 0
+    matched = 0
+    timeouts = 0
+
+    for item in dataset.get("graphs", []):
+        graph = item["graph"]
+        size = int(item.get("size", len(graph)))
+        rule_func, rule_args = _build_call(compiler, algorithm, item, cfg, baseline=False)
+        base_func, base_args = _build_call(compiler, algorithm, item, cfg, baseline=True)
+
+        rule_times, rule_out, rule_timeout = _time_trials(
+            rule_func, rule_args, num_trials, warmup_runs, timer, timeout_seconds
+        )
+        base_times, base_out, base_timeout = _time_trials(
+            base_func, base_args, num_trials, warmup_runs, timer, timeout_seconds
+        )
+        if rule_timeout or base_timeout:
+            timeouts += 1
+
+        rule_by_size.setdefault(size, []).extend(rule_times)
+        base_by_size.setdefault(size, []).extend(base_times)
+        rule_timings.extend(rule_times)
+        base_timings.extend(base_times)
+
+        if verify:
+            checked += 1
+            if outputs_match(algorithm, base_out, rule_out):
+                matched += 1
+            reference_flat.extend(_flatten_outputs(base_out))
+            actual_flat.extend(_flatten_outputs(rule_out))
+
+    LOGGER.info(
+        "[FR-02/%s] rule_based=%d 次采样，imperative=%d 次采样，正确性 %d/%d，超时 %d",
+        algorithm,
+        len(rule_timings),
+        len(base_timings),
+        matched,
+        checked,
+        timeouts,
+    )
+
+    return {
+        "algorithm": str(algorithm),
+        "timing_unit": timing_unit,
+        "rule_based_timings": rule_timings,
+        "imperative_timings": base_timings,
+        "rule_based_timings_by_size": rule_by_size,
+        "imperative_timings_by_size": base_by_size,
+        "timings_by_size": rule_by_size,
+        "reference_outputs": reference_flat,
+        "actual_outputs": actual_flat,
+        "num_checked": int(checked),
+        "num_matched": int(matched),
+        "num_timeouts": int(timeouts),
+        "accuracy": (float(matched) / float(checked)) if checked else None,
+        "rule_based_summary": _summarise_timings(rule_timings, cfg),
+        "imperative_summary": _summarise_timings(base_timings, cfg),
+    }
+
+
+# --------------------------------------------------------------------------- #
+# 运行时统计 / 结果落盘
+# --------------------------------------------------------------------------- #
+def _percentile_local(values: Sequence[float], q: float) -> float:
+    """线性插值分位数（q ∈ [0, 1]）。"""
+    if not values:
+        return float("nan")
+    n = len(values)
+    if n == 1:
+        return float(values[0])
+    qq = float(min(1.0, max(0.0, q)))
+    pos = (n - 1) * qq
+    lo = int(math.floor(pos))
+    hi = int(math.ceil(pos))
+    if lo == hi:
+        return float(values[lo])
+    frac = pos - lo
+    return float(values[lo]) * (1.0 - frac) + float(values[hi]) * frac
+
+
+def _to_float_list_local(values: Any) -> List[float]:
+    if values is None:
+        return []
+    if isinstance(values, (int, float)) and not isinstance(values, bool):
+        return [float(values)]
+    out: List[float] = []
+    if isinstance(values, (list, tuple)):
+        for item in values:
+            out.extend(_to_float_list_local(item))
+    elif hasattr(values, "tolist"):
+        try:
+            out.extend(_to_float_list_local(values.tolist()))
+        except Exception:
+            pass
+    else:
+        try:
+            out.append(float(values))
+        except Exception:
+            pass
+    return out
+
+
+def _summarise_timings(timings: Any, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """对一组运行时采样做聚合统计（count/mean/median/std/min/max/quantiles）。"""
+    values = sorted(_to_float_list_local(timings))
+    if not values:
+        return {
+            "count": 0,
+            "mean": None,
+            "median": None,
+            "std": None,
+            "min": None,
+            "max": None,
+            "quantiles": {},
+        }
+    n = len(values)
+    mean = float(sum(values) / n)
+    median = float(values[n // 2] if n % 2 else 0.5 * (values[n // 2 - 1] + values[n // 2]))
+    std = float(math.sqrt(sum((v - mean) ** 2 for v in values) / n))
+    quantile_cfg = _get_cfg(config, "benchmark", "report_quantiles", default=[0.25, 0.5, 0.75])
+    quantiles: Dict[str, float] = {}
+    for q in _to_float_list_local(quantile_cfg):
+        quantiles[f"q{q:g}"] = float(_percentile_local(values, q))
+    return {
+        "count": int(n),
+        "mean": mean,
+        "median": median,
+        "std": std,
+        "min": float(values[0]),
+        "max": float(values[-1]),
+        "quantiles": quantiles,
+        "raw": values if bool(_get_cfg(config, "logging", "save_raw_timings", default=True)) else None,
+    }
+
+
+def _write_raw_timings(
+    payload: Dict[str, Any],
+    output_dir: str,
+    run_name: str,
+    config: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """按 logging.export_format 落盘原始运行时；返回文件路径。"""
+    if not bool(_get_cfg(config, "logging", "save_raw_timings", default=True)):
+        return None
+    export_format = str(_get_cfg(config, "logging", "export_format", default="json")).strip().lower()
+    use_ts = bool(_get_cfg(config, "logging", "timestamp_in_filename", default=True))
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S") if use_ts else ""
+    base = f"{run_name}_timings{('_' + stamp) if stamp else ''}"
+    os.makedirs(output_dir, exist_ok=True)
+    if export_format in ("csv", "tsv"):
+        sep = "," if export_format == "csv" else "\t"
+        path = os.path.join(output_dir, base + f".{export_format}")
+        rows = payload.get("rows", [])
+        keys = ["algorithm", "impl", "size", "trial", "seconds"]
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(sep.join(keys) + "\n")
+            for row in rows:
+                handle.write(sep.join(str(row.get(k, "")) for k in keys) + "\n")
+        return path
+    path = os.path.join(output_dir, base + ".json")
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2, default=str)
+    return path
+
+
+# --------------------------------------------------------------------------- #
+# 实验矩阵（config['experiment']['runs']）解析
+# --------------------------------------------------------------------------- #
+def _as_list(value: Any) -> List[Any]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return [value]
+
+
+def _load_run_matrix(config: Optional[Dict[str, Any]] = None) -> List[Any]:
+    """返回 ``config['experiment']['runs']`` 的组合列表（缺省时退化为单个全矩阵组合）。"""
+    runs = _get_cfg(config, "experiment", "runs", default=None)
+    if isinstance(runs, dict):
+        entries: List[Any] = []
+        for key, value in runs.items():
+            if isinstance(value, dict):
+                merged = dict(value)
+                merged.setdefault("name", str(key))
+                entries.append(merged)
+            else:
+                entries.append({"name": str(key), "value": value})
+        return entries if entries else [None]
+    if isinstance(runs, (list, tuple)) and len(runs) > 0:
+        return list(runs)
+    return [None]
+
+
+def _run_spec_from_entry(
+    entry: Any,
+    config: Optional[Dict[str, Any]] = None,
+    run_index: int = 0,
+) -> Dict[str, Any]:
+    """把实验矩阵中的一项组合解析成统一的运行规格。"""
+    cfg = config if isinstance(config, dict) else {}
+    spec: Dict[str, Any] = {
+        "index": int(run_index),
+        "name": f"run{int(run_index)}",
+        "algorithms": list(CANONICAL_ALGORITHMS),
+        "sizes": [int(s) for s in DEFAULT_GRAPH_SIZES],
+        "graph_classes": list(GRAPH_CLASSES),
+        "samples_per_class_per_size": int(DEFAULT_SAMPLES_PER_CLASS_PER_SIZE),
+        "seed": int(_get_cfg(cfg, "system", "seed", default=42)),
+    }
+    if entry is None:
+        return spec
+
+    if isinstance(entry, dict):
+        raw_name = (
+            entry.get("name")
+            or entry.get("run_name")
+            or entry.get("id")
+            or entry.get("label")
+        )
+        if raw_name is not None:
+            spec["name"] = str(raw_name)
+
+        algo_raw = entry.get(
+            "algorithms", entry.get("algorithm", entry.get("tasks", entry.get("task")))
+        )
+        if algo_raw is not None:
+            spec["algorithms"] = [str(a) for a in _as_list(algo_raw)]
+
+        size_raw = entry.get("sizes", entry.get("size", entry.get("n")))
+        if size_raw is not None:
+            try:
+                spec["sizes"] = [int(s) for s in _as_list(size_raw)]
+            except Exception:
+                pass
+
+        class_raw = entry.get(
+            "graph_classes", entry.get("graph_class", entry.get("classes"))
+        )
+        if class_raw is not None:
+            spec["graph_classes"] = [str(c) for c in _as_list(class_raw)]
+
+        samples_raw = entry.get(
+            "samples_per_class_per_size",
+            entry.get("samples", entry.get("num_samples_per_class")),
+        )
+        if samples_raw is not None:
+            try:
+                spec["samples_per_class_per_size"] = max(1, int(samples_raw))
+            except Exception:
+                pass
+
+        seed_raw = entry.get("seed")
+        if seed_raw is not None:
+            try:
+                spec["seed"] = int(seed_raw)
+            except Exception:
+                pass
+
+        return spec
+
+    if isinstance(entry, (list, tuple)):
+        items = list(entry)
+        if items and all(isinstance(x, str) for x in items):
+            algo_items = [x for x in items if x in CANONICAL_ALGORITHMS]
+            if algo_items:
+                spec["algorithms"] = algo_items
+            name_items = [x for x in items if x not in CANONICAL_ALGORITHMS]
+            if name_items:
+                spec["name"] = "_".join(name_items)
+            return spec
+        nums: List[int] = []
+        strs: List[str] = []
+        for x in items:
+            if isinstance(x, bool):
+                continue
+            if isinstance(x, int):
+                nums.append(int(x))
+            elif isinstance(x, float) and float(x).is_integer():
+                nums.append(int(x))
+            elif isinstance(x, str):
+                if x in CANONICAL_ALGORITHMS:
+                    spec["algorithms"] = [x]
+                else:
+                    strs.append(x)
+        if nums:
+            spec["sizes"] = nums
+        if strs:
+            spec["name"] = "_".join(strs)
+        return spec
+
+    spec["name"] = str(entry)
+    return spec
+
+
+# --------------------------------------------------------------------------- #
+# 单个组合执行
+# --------------------------------------------------------------------------- #
+def execute_run(
+    config: Optional[Dict[str, Any]],
+    spec: Dict[str, Any],
+    output_dir: str,
+) -> Dict[str, Any]:
+    """按运行规格执行一次组合：建数据集 → 跑论文方法 → 评估 → 落盘。"""
+    cfg = config if isinstance(config, dict) else {}
+    run_index = int(spec.get("index", 0))
+    run_name = str(spec.get("name") or f"run{run_index}")
+    LOGGER.info("[FR-02] 执行实验矩阵组合 #%d（%s）：%s", run_index, run_name, spec)
+
+    if EnhancedGP2CompilerWithImprovedGraphDataStructure is None:
+        raise RuntimeError("无法导入 EnhancedGP2CompilerWithImprovedGraphDataStructure")
+    compiler = EnhancedGP2CompilerWithImprovedGraphDataStructure(config=cfg)
+
+    dataset = build_dataset(
+        config=cfg,
+        compiler=compiler,
+        sizes=spec["sizes"],
+        samples_per_class_per_size=spec["samples_per_class_per_size"],
+        seed=spec.get("seed"),
+    )
+
+    allowed = [c for c in spec["graph_classes"] if c in set(GRAPH_CLASSES)]
+    if not allowed:
+        allowed = list(GRAPH_CLASSES)
+    if set(allowed) != set(GRAPH_CLASSES):
+        dataset["graphs"] = [
+            g for g in dataset.get("graphs", []) if str(g.get("class")) in set(allowed)
+        ]
+        dataset["counts"] = {c: 0 for c in allowed}
+        for g in dataset["graphs"]:
+            key = str(g.get("class"))
+            dataset["counts"][key] = dataset["counts"].get(key, 0) + 1
+        dataset["classes"] = list(allowed)
+    dataset["num_samples"] = len(dataset.get("graphs", []))
+
+    expected = len(allowed) * len([int(s) for s in spec["sizes"]]) * int(
+        spec["samples_per_class_per_size"]
+    )
+    verify_sample_count(dataset, expected=int(expected))
+
+    per_algorithm: Dict[str, Any] = {}
+    for algorithm in spec["algorithms"]:
+        algorithm = str(algorithm)
+        if not hasattr(compiler, f"rule_based_{algorithm}") or not hasattr(
+            compiler, f"imperative_{algorithm}"
+        ):
+            LOGGER.warning("跳过未知算法：%s", algorithm)
+            continue
+        per_algorithm[algorithm] = measure_algorithm(compiler, algorithm, dataset, cfg)
+
+    rule_all: List[float] = []
+    base_all: List[float] = []
+    by_size: Dict[int, List[float]] = {}
+    reference_flat: List[float] = []
+    actual_flat: List[float] = []
+    matched = 0
+    checked = 0
+    rows: List[Dict[str, Any]] = []
+    for algorithm, res in per_algorithm.items():
+        rule_vals = [float(t) for t in res.get("rule_based_timings", [])]
+        base_vals = [float(t) for t in res.get("imperative_timings", [])]
+        rule_all.extend(rule_vals)
+        base_all.extend(base_vals)
+        for size, vals in (res.get("rule_based_timings_by_size") or {}).items():
+            by_size.setdefault(int(size), []).extend([float(v) for v in vals])
+        reference_flat.extend(res.get("reference_outputs", []))
+        actual_flat.extend(res.get("actual_outputs", []))
+        matched += int(res.get("num_matched", 0))
+        checked += int(res.get("num_checked", 0))
+        for idx, val in enumerate(rule_vals):
+            rows.append({"algorithm": algorithm, "impl": "rule_based", "size": "", "trial": idx, "seconds": val})
+        for idx, val in enumerate(base_vals):
+            rows.append({"algorithm": algorithm, "impl": "imperative", "size": "", "trial": idx, "seconds": val})
+
+    metrics: Dict[str, Any] = {}
+    if _evaluate_model_impl is not None:
+        try:
+            metrics = _evaluate_model_impl(
+                predictions=None,
+                labels=None,
+                timings=rule_all,
+                baseline_timings=base_all,
+                timings_by_size=by_size,
+                reference_outputs=reference_flat or None,
+                actual_outputs=actual_flat or None,
+                config=cfg,
+                run_name=run_name,
+                num_classes=None,
+            ) or {}
+        except Exception as exc:  # pragma: no cover
+            LOGGER.warning("evaluate_model 调用失败：%s", exc)
+            metrics = {}
+    if not isinstance(metrics, dict):
+        metrics = {}
+
+    metrics.setdefault("run_name", run_name)
+    metrics.setdefault("run_index", run_index)
+    metrics.setdefault("accuracy", (float(matched) / float(checked)) if checked else None)
+    metrics.setdefault("timing_unit", str(_get_cfg(cfg, "benchmark", "timing_unit", default="seconds")))
+    metrics.setdefault("rule_based_runtime", _summarise_timings(rule_all, cfg))
+    metrics.setdefault("imperative_runtime", _summarise_timings(base_all, cfg))
+    metrics.setdefault(
+        "per_algorithm",
+        {
+            name: {
+                "rule_based_runtime": res.get("rule_based_summary"),
+                "imperative_runtime": res.get("imperative_summary"),
+                "accuracy": res.get("accuracy"),
+            }
+            for name, res in per_algorithm.items()
+        },
+    )
+
+    report_path: Optional[str] = None
+    if _generate_report_impl is not None:
+        try:
+            report_path = _generate_report_impl(
+                metrics=metrics, run_name=run_name, output_dir=output_dir, config=cfg
+            )
+        except Exception as exc:  # pragma: no cover
+            LOGGER.warning("generate_report 调用失败：%s", exc)
+            report_path = None
+
+    raw_path = _write_raw_timings(
+        {
+            "run_name": run_name,
+            "run_index": run_index,
+            "timing_unit": metrics.get("timing_unit"),
+            "rows": rows,
+            "rule_based_timings": rule_all,
+            "imperative_timings": base_all,
+            "timings_by_size": {str(k): v for k, v in by_size.items()},
+        },
+        output_dir,
+        run_name,
+        cfg,
+    )
+
+    LOGGER.info(
+        "[FR-03/%s] 完成：%d 个算法，rule_based %d 采样，imperative %d 采样，报告 %s",
+        run_name,
+        len(per_algorithm),
+        len(rule_all),
+        len(base_all),
+        report_path,
+    )
+
+    return {
+        "run_index": run_index,
+        "run_name": run_name,
+        "spec": {
+            "algorithms": list(spec.get("algorithms", [])),
+            "sizes": list(spec.get("sizes", [])),
+            "graph_classes": list(spec.get("graph_classes", [])),
+            "samples_per_class_per_size": spec.get("samples_per_class_per_size"),
+            "seed": spec.get("seed"),
+        },
+        "num_samples": len(dataset.get("graphs", [])),
+        "per_algorithm": per_algorithm,
+        "metrics": metrics,
+        "report_path": report_path,
+        "raw_timings_path": raw_path,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# 命令行入口
+# --------------------------------------------------------------------------- #
+def build_arg_parser() -> argparse.ArgumentParser:
+    """构造 argparse 解析器（包含 ``--run`` 组合选择参数）。"""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Rule-Based Graph Programs Matching the Time Complexity of "
+            "Imperative Algorithms —— 实验入口"
+        )
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=DEFAULT_CONFIG_PATH,
+        help="配置文件路径（默认 config/config.yaml）",
+    )
+    parser.add_argument(
+        "--run",
+        type=int,
+        default=None,
+        help=(
+            "实验矩阵组合下标 N：仅执行 config['experiment']['runs'][N]；"
+            "不传则按顺序执行全部组合"
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="结果输出目录（覆盖 logging.output_dir）",
+    )
+    parser.add_argument("--seed", type=int, default=None, help="随机种子（覆盖 system.seed）")
+    return parser
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """项目入口：解析命令行，按 ``--run`` 逐组合执行论文方法并产出评估结果。
+
+    使用方式::
+
+        python main.py --config config/config.yaml --run 0
+    """
+    parser = build_arg_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    config_path = args.config if args.config else DEFAULT_CONFIG_PATH
+    config = load_config_file(config_path)
+    if not isinstance(config, dict):
+        config = {}
+
+    if args.seed is not None:
+        system_cfg = config.get("system")
+        if not isinstance(system_cfg, dict):
+            system_cfg = {}
+            config["system"] = system_cfg
+        system_cfg["seed"] = int(args.seed)
+
+    output_dir = _setup_logging(config)
+    if args.output_dir:
+        output_dir = (
+            args.output_dir
+            if os.path.isabs(args.output_dir)
+            else os.path.join(_PROJECT_ROOT, args.output_dir)
+        )
+        os.makedirs(output_dir, exist_ok=True)
+
+    runs = _load_run_matrix(config)
+    if args.run is not None:
+        if args.run < 0 or args.run >= len(runs):
+            LOGGER.error(
+                "--run %d 越界：experiment.runs 共 %d 个组合（合法范围 0..%d）",
+                args.run,
+                len(runs),
+                len(runs) - 1,
+            )
+            return 2
+        selected: List[Tuple[int, Any]] = [(int(args.run), runs[int(args.run)])]
+    else:
+        selected = [(int(i), entry) for i, entry in enumerate(runs)]
+
+    LOGGER.info(
+        "[FR-04] 实验矩阵共 %d 个组合，本次执行 %d 个：%s",
+        len(runs),
+        len(selected),
+        [idx for idx, _ in selected],
+    )
+
+    results: List[Dict[str, Any]] = []
+    for run_index, entry in selected:
+        spec = _run_spec_from_entry(entry, config=config, run_index=run_index)
+        try:
+            result = execute_run(config, spec, output_dir)
+            results.append(result)
+        except Exception as exc:  # pragma: no cover
+            LOGGER.error("组合 #%d 执行失败：%s", run_index, exc, exc_info=True)
+            results.append({"run_index": run_index, "error": str(exc)})
+
+    LOGGER.info("[FR-04] 全部组合执行完毕，共 %d 个结果", len(results))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

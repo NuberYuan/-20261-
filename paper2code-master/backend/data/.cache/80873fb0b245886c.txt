@@ -1,0 +1,229 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+
+def analyze_image():
+    try:
+        image_path = sys.argv[1]
+    except IndexError:
+        result = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        print(json.dumps(result, ensure_ascii=False))
+        return
+
+    try:
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    except Exception:
+        result = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        print(json.dumps(result, ensure_ascii=False))
+        return
+
+    if img is None:
+        result = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+        print(json.dumps(result, ensure_ascii=False))
+        return
+
+    # OCR文字信息（外部提供，禁止再次OCR）
+    ocr_texts = [
+        "output",
+        "Tape",
+        "8",
+        "41",
+        "Input",
+        "Gr",
+        "id"
+    ]
+
+    ocr_combined = " ".join(ocr_texts).lower()
+
+    # 基础视觉信息提取
+    h, w = img.shape[:2] if img is not None else (0, 0)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img is not None else np.zeros((1, 1), dtype=np.uint8)
+    mean_intensity = float(np.mean(gray))
+
+    # ===== 类型判断 =====
+
+    # 关键词集合
+    architecture_keywords = [
+        "cnn", "transformer", "attention", "encoder", "decoder",
+        "block", "embedding", "classifier", "feature extractor",
+        "alexnet", "resnet", "vgg", "googlenet", "lstm", "gru",
+        "rnn", "network", "layer", "module", "pipeline", "framework",
+        "head", "backbone", "neck", "tapenet"
+    ]
+
+    experiment_keywords = [
+        "accuracy", "loss", "epoch", "precision", "recall", "f1",
+        "auc", "roc", "curve", "plot", "training", "validation",
+        "test", "baseline", "comparison", "result", "performance",
+        "metric", "score", "rate", "top-1", "top-5", "bleu",
+        "map", "iou", "error", "recall"
+    ]
+
+    dataset_keywords = [
+        "sample", "example", "dataset", "class", "label",
+        "input", "image", "data", "augmentation", "ground truth",
+        "annotation"
+    ]
+
+    # 检查OCR中出现的关键词
+    found_architecture = []
+    found_experiment = []
+    found_dataset = []
+
+    for kw in architecture_keywords:
+        if kw in ocr_combined:
+            found_architecture.append(kw)
+
+    for kw in experiment_keywords:
+        if kw in ocr_combined:
+            found_experiment.append(kw)
+
+    for kw in dataset_keywords:
+        if kw in ocr_combined:
+            found_dataset.append(kw)
+
+    # 分析OCR文本特征
+    has_input_output_flow = ("input" in ocr_combined and "output" in ocr_combined)
+    has_grid = ("grid" in ocr_combined or "gr" in ocr_combined and "id" in ocr_combined)
+    has_tape = "tape" in ocr_combined
+
+    # 视觉特征分析
+    # 检测是否存在大量白色背景（典型图表/架构图特征）
+    white_ratio = float(np.sum(gray > 200)) / float(gray.size) if gray.size > 0 else 0.0
+
+    # ===== 类型判断（按优先级） =====
+    # 优先级: experiment_result > architecture > dataset > other
+
+    final_type = "other"
+    description = ""
+    important_components = []
+    code_relevant_info = ""
+
+    # 1. 判断 experiment_result
+    is_experiment = False
+    if found_experiment:
+        is_experiment = True
+    # 检测是否为图表：高白色占比 + 数据流标签可能暗示实验图
+    # 但本图OCR中主要是流程标签，没有实验指标关键词
+
+    # 2. 判断 architecture
+    is_architecture = False
+    if found_architecture:
+        is_architecture = True
+    if has_input_output_flow and (has_tape or has_grid):
+        is_architecture = True
+
+    # 3. 判断 dataset
+    is_dataset = False
+    if found_dataset and not is_architecture and not is_experiment:
+        is_dataset = True
+
+    # 冲突处理：experiment_result > architecture > dataset > other
+    if is_experiment:
+        final_type = "experiment_result"
+        description = "展示实验结果和性能对比"
+        # 填充组件
+        model_names = []
+        metric_names = []
+        known_models = ["alexnet", "resnet", "vgg", "googlenet", "cnn", "transformer", "lstm", "gru", "rnn", "tapenet"]
+        known_metrics = ["accuracy", "loss", "precision", "recall", "f1", "auc", "epoch"]
+        for kw in found_experiment:
+            if kw in known_models:
+                model_names.append(kw)
+            if kw in known_metrics:
+                metric_names.append(kw)
+        important_components = model_names + metric_names
+        code_relevant_info = "需要实现模型训练和评估流程，记录各项实验指标"
+
+    elif is_architecture:
+        final_type = "architecture"
+        description = "展示模型网络结构和数据流关系"
+
+        # 识别真实组件
+        components = []
+
+        # 从OCR文本中提取真实出现的组件
+        ocr_upper = " ".join(ocr_texts)
+
+        known_components = [
+            "CNN", "Transformer", "Attention", "Encoder", "Decoder",
+            "Block", "Embedding", "Classifier", "Feature Extractor",
+            "AlexNet", "ResNet", "VGG", "GoogLeNet", "LSTM", "GRU",
+            "RNN", "TapeNet"
+        ]
+
+        for comp in known_components:
+            if comp.lower() in ocr_combined:
+                components.append(comp)
+
+        # 根据OCR文本中出现的流程标签识别结构组件
+        if "input" in ocr_combined:
+            components.append("Input Grid")
+        if "tape" in ocr_combined:
+            components.append("Tape")
+        if "output" in ocr_combined:
+            components.append("Output")
+        if has_grid and "grid" not in [c.lower() for c in components]:
+            components.append("Grid")
+
+        important_components = components
+
+        code_relevant_info = "需要实现基于Grid输入和Tape输出的处理架构，包含输入网格解析、Tape读写机制和输出生成模块"
+
+    elif is_dataset:
+        final_type = "dataset"
+        description = "展示数据样本和类别示例"
+        important_components = []
+        code_relevant_info = "需要实现数据加载和预处理流程"
+
+    else:
+        # 尝试基于流程图特征做最后判断
+        if has_input_output_flow:
+            final_type = "architecture"
+            description = "展示模型网络结构和数据流关系"
+            components = []
+            if "input" in ocr_combined:
+                components.append("Input Grid")
+            if "tape" in ocr_combined:
+                components.append("Tape")
+            if "output" in ocr_combined:
+                components.append("Output")
+            important_components = components
+            code_relevant_info = "需要实现基于Grid输入和Tape输出的处理架构，包含输入网格解析、Tape读写机制和输出生成模块"
+        else:
+            final_type = "other"
+            description = "无法确定图片类型"
+            important_components = []
+            code_relevant_info = ""
+
+    result = {
+        "type": final_type,
+        "description": description,
+        "important_components": important_components,
+        "code_relevant_information": code_relevant_info
+    }
+
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    analyze_image()
+```

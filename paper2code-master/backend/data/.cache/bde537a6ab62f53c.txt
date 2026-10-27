@@ -1,0 +1,14 @@
+```json
+{
+  "type": "figure",
+  "description": "医学图像分割的定性结果对比图，展示三种数据集（Polyp息肉、Liver肝脏、Nuclei细胞核）上 U-Net、wide U-Net 和 UNet++ 三种模型的分割掩码与 Ground Truth 的视觉对比。",
+  "important_components": [
+    "行标签：Polyp（息肉内窥镜图像）、Liver（肝脏CT图像）、Nuclei（细胞核显微图像）",
+    "列标签：Image（原始输入图像）、Ground Truth（真实标注掩码）、U-Net、wide U-Net、UNet++",
+    "二值分割掩码（白色为前景目标区域，黑色为背景）",
+    "三种对比基线模型：U-Net、wide U-Net、UNet++",
+    "3行×5列的图像网格布局"
+  ],
+  "code_relevant_information": "该图为语义/实例分割任务的可视化评估，涉及三个数据集：Polyp（结肠息肉内窥镜图像，目标为息肉区域）、Liver（腹部CT切片，目标为肝脏区域）、Nuclei（荧光/相差显微图像，目标为细胞核区域）。任务为二值分割（前景/背景），输出为与输入同尺寸的二值掩码。复现时需实现三个模型：(1) U-Net——标准编码器-解码器结构，带跳跃连接；(2) wide U-Net——加宽的 U-Net（增加每层通道数）；(3) UNet++——嵌套稠密跳跃连接的 U-Net 变体。编码器常用 backbone 为 ResNet34 或 VGG。输出层通常为 1 通道 sigmoid（二值分割），损失函数常用 BCE + Dice Loss 或二元交叉熵。评估指标（图中未显示数值）通常为 Dice 系数、IoU、Precision/Recall。由图可见 UNet++ 在 Polyp 上预测更准确（减少假阳性），在 Nuclei 上各模型均产生少量过分割/欠分割差异。"
+}
+```

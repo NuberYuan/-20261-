@@ -6,7 +6,7 @@ structure_detect_paper.json → key_information.json
 整合:
   1. 文本信息提取 (InformationExtractor + LLM)
   2. 表格分析 (TableAnalyzer: LLM 解析表格内容)
-  3. 图片分析 (FigureAnalyzer: OCR → FigureCodeGenerator → CodeExecutor)
+  3. 图片分析 (FigureAnalyzer: base64 → 视觉 LLM 直接分析)
 
 三路互不依赖，由 execute_step3 并行调度后合并。各分析器内部逻辑不变。
 
@@ -108,24 +108,12 @@ def _analyze_tables(paper: dict) -> dict:
 
 
 def _analyze_figures(paper: dict, output_path: str) -> Optional[list]:
-    code_gen_prompt_path = PROMPTS_DIR / "figure_code_generator_prompt.txt"
-    if not code_gen_prompt_path.exists():
-        logger.error(f"Figure code generator prompt file not found: {code_gen_prompt_path}")
-        return None
-
-    with open(code_gen_prompt_path, "r", encoding="utf-8") as f:
-        code_gen_prompt = f.read()
-
-    generated_dir = str(Path(output_path).resolve().parent / "generated")
-    figure_analyzer = FigureAnalyzer(code_gen_prompt, generated_dir)
+    figure_analyzer = FigureAnalyzer()
 
     images = paper.get("images", [])
     valid_images = [img for img in images if img.get("path")]
 
     if valid_images:
-        # 预加载 EasyOCR 模型，避免多线程并行时多个线程同时触发懒加载
-        _ = figure_analyzer.ocr_analyzer.reader
-
         def _analyze_one(image: dict) -> dict:
             image_path = image.get("path")
             logger.info(f"分析图片: {image_path}")

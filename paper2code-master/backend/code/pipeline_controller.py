@@ -44,9 +44,7 @@ LOG_FILE = LOG_DIR / "app.log"
 # 步骤定义: (key, 人类可读标签, 输出文件相对 paper 目录的路径)
 STEP_DEFINITIONS = [
     ("step1",   "Step1  PDF → raw JSON",      "step1/raw_paper.json"),
-    ("step2_1", "Step2.1 JSON 清洗",          "step2/cleaned_paper.json"),
-    ("step2_2", "Step2.2 JSON 修复",          "step2/repaired_paper.json"),
-    ("step2_3", "Step2.3 结构检测",           "step2/structure_detect_paper.json"),
+    ("step2",   "Step2  JSON 清洗+修复+结构检测", "step2/structure_detect_paper.json"),
     ("step3",   "Step3  关键信息提取 (LLM)",   "step3/key_information.json"),
     ("step4",   "Step4  需求分析",             "step4/requirements_summary.yaml"),
     ("step5",   "Step5  工程设计 (LLM)",       "step5/project_analysis.yaml"),
@@ -356,11 +354,7 @@ class PipelineController:
                         "--out", p["raw_json"],
                         "--images-dir", p["images_dir"],
                         "--tables-dir", p["tables_dir"]],
-            "step2_1": ["step2.step2_1_clean_json", "--in", p["raw_json"],
-                        "--out", p["cleaned_json"]],
-            "step2_2": ["step2.step2_2_repair_json", "--in", p["cleaned_json"],
-                        "--out", p["repaired_json"]],
-            "step2_3": ["step2.step2_3_detect_structure", "--in", p["repaired_json"],
+            "step2":   ["step2.main", "--in", p["raw_json"],
                         "--out", p["structure_detect"]],
             "step3":   ["step3.step3_extract_information", "--in", p["structure_detect"],
                         "--out", p["key_information"]],

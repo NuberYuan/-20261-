@@ -10,7 +10,7 @@
 
 import json
 from step5.base_analyzer import BaseAnalyzer
-from llm_utils import chat_with_text
+from llm_manager import llm_call, parse_llm_json
 from logger import logger
 
 
@@ -132,7 +132,7 @@ class SpecAnalyzer(BaseAnalyzer):
             "code_requirements": {},
         }
 
-    def analyze(self) -> dict:
+    def analyze(self, skip_llm: bool = False) -> dict:
         """覆盖: 规则提取后再调LLM细化code_requirements"""
         result = self.extract_by_rules()
 
@@ -200,12 +200,10 @@ class SpecAnalyzer(BaseAnalyzer):
 ⚠️ 特别注意：config/config.yaml 中的 scheduler.step_size 必须是训练参数表中指定的确切值，不要自己估算。"""
 
         try:
-            resp = chat_with_text(prompt).strip()
-            if resp.startswith("```"):
-                lines = resp.split("\n")
-                lines = [l for l in lines if not l.startswith("```")]
-                resp = "\n".join(lines)
-            llm = json.loads(resp)
+            resp = llm_call(prompt, task_type="light").strip()
+            llm = parse_llm_json(resp)
+            if "error" in llm:
+                raise ValueError(llm["error"])
 
             if "code_requirements" in llm:
                 # 基本校验：确保是 dict
@@ -214,10 +212,11 @@ class SpecAnalyzer(BaseAnalyzer):
                     result["code_requirements"] = cr
                 else:
                     logger.warning("  LLM返回的 code_requirements 为空或格式错误")
-        except json.JSONDecodeError as e:
-            logger.warning(f"  LLM细化 JSON 解析失败: {e}")
         except Exception as e:
             logger.warning(f"  LLM细化失败: {e}")
+
+        # Layer 3: 后验证（基类的三层防幻觉机制）
+        self._validate(result)
 
         from datetime import datetime
         result["_meta"] = {

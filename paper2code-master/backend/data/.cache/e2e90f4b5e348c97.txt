@@ -1,0 +1,17 @@
+{
+  "table_id": "table_2",
+  "table_type": "other",
+  "caption_summary": "Bullet-list fragment describing input symbol representations for arithmetic tasks (addition, 3-digit numbers, single-digit multiplication) and mentioning Q-learning, with no tabular numeric data.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": ["Q-LEARNING"],
+    "best_result": {"method": "N/A", "metric": "N/A", "value": null},
+    "key_values": [
+      {"label": "input symbols; for addition would involve two (value 104)", "value": "104"},
+      {"label": "long numbers; for (value 3) digit numbers", "value": "3"},
+      {"label": "long numbers and for single digit multiplication would involve a single", "value": "single digit"},
+      {"label": "Q-LEARNING (mentioned item)", "value": "Q-LEARNING"}
+    ]
+  },
+  "table_summary": "This is not a quantitative results table but a bullet-list excerpt describing the input representation for arithmetic tasks: addition involving two numbers (with the number 104 appearing, likely a digit/length count), three-digit numbers, and single-digit multiplication involving a single symbol, followed by a reference to Q-learning. No metrics, method comparisons, or numerical experiment outcomes are present, so no best result can be determined."
+}

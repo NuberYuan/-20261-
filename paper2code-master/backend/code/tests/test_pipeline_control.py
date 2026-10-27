@@ -29,7 +29,7 @@ class TestRunRemainingSteps(unittest.TestCase):
     def test_continues_after_success_until_complete(self):
         seq = [
             {"status": "success", "step": "step1"},
-            {"status": "success", "step": "step2_1"},
+            {"status": "success", "step": "step2"},
             {"status": "complete", "step": None},
         ]
         it = iter(seq)
@@ -41,7 +41,7 @@ class TestRunRemainingSteps(unittest.TestCase):
     def test_continues_after_skipped(self):
         seq = [
             {"status": "skipped", "step": "step1"},
-            {"status": "success", "step": "step2_1"},
+            {"status": "success", "step": "step2"},
             {"status": "complete", "step": None},
         ]
         it = iter(seq)
@@ -77,7 +77,7 @@ class TestStepTimeouts(unittest.TestCase):
 
     def test_fast_steps_stay_300s(self):
         self.assertEqual(step_timeout_seconds("step1"), 300)
-        self.assertEqual(step_timeout_seconds("step2_1"), 300)
+        self.assertEqual(step_timeout_seconds("step2"), 300)
 
 
 class TestPublicPipelineStatus(unittest.TestCase):
@@ -86,7 +86,7 @@ class TestPublicPipelineStatus(unittest.TestCase):
             "completed": ["step1"],
             "total": 10,
             "running": False,
-            "last_result": {"status": "error", "step": "step2_1", "error": "exit 1"},
+            "last_result": {"status": "error", "step": "step2", "error": "exit 1"},
         })
         self.assertEqual(status, "failed")
 
@@ -104,7 +104,7 @@ class TestPublicPipelineStatus(unittest.TestCase):
             "completed": ["step1"],
             "total": 10,
             "running": True,
-            "last_result": {"status": "error", "step": "step2_1"},
+            "last_result": {"status": "error", "step": "step2"},
         })
         self.assertEqual(status, "processing")
 

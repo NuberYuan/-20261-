@@ -1,9 +1,5 @@
-try:
-    from .u_net import UNet
-except ImportError:
-    try:
-        from models.u_net import UNet
-    except ImportError:
-        from u_net import UNet
+"""models package: re-export key symbols for convenient imports."""
 
-__all__ = ["UNet"]
+from .densenet import Densenet
+
+__all__ = ["Densenet"]

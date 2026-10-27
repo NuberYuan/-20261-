@@ -1,0 +1,24 @@
+paper_name: 论文4
+project_name: RULEBASED_GRAPH_PROGRAMS_MATCHING_THE_TIME_COMPLEX
+root_structure:
+  directories:
+  - evaluation
+  - src
+  - config
+  files:
+    evaluation:
+    - evaluate.py
+    - compare.py
+    src:
+    - enhancedgp2compilerwithimprovedgraphdatastructure.py
+    config:
+    - config.yaml
+    .:
+    - main.py
+    - requirements.txt
+    - README.md
+module_mapping:
+  evaluation: 评估与对比
+  src: 算法/方法实现
+  config: YAML 配置
+  entry_point: main.py

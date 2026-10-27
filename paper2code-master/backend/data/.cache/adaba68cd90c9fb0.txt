@@ -1,0 +1,126 @@
+"""training/train.py — 模型训练流程。
+
+本模块实现训练流程的三个核心入口（与自动检查要求一致）：
+
+* :func:`initialize_model` —— 按 ``config/config.yaml`` 构建 AlexNet / GoogLeNet，
+  并处理 ``scratch``（kaiming_normal 从头初始化）与 ``transfer``（ImageNet 预训练
+  权重 + 重置分类头）两种训练模式。
+* :func:`train_model` —— 完整的训练 / 验证循环（cross-entropy + SGD + StepLR），
+  支持 leaf-based 数据划分、验证集评估、最优模型选择与 early stopping。
+* :func:`save_model` —— 按 ``checkpoint.filename_template`` 保存 checkpoint。
+
+模型结构严格复用 ``models/alexnet.py`` 中的 ``Alexnet`` / ``build_alexnet``；
+数据加载严格复用 ``data/dataset.py`` 中的 ``PlantVillageDataset``。
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import warnings
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset
+
+logger = logging.getLogger(__name__)
+
+# --------------------------------------------------------------------------- #
+# 外部依赖：严格复用已生成代码中的类名 / 工厂函数名
+# --------------------------------------------------------------------------- #
+try:  # data/dataset.py
+    from data.dataset import PlantVillageDataset
+except Exception:  # pragma: no cover - 作为包导入时的回退
+    try:
+        from ..data.dataset import PlantVillageDataset
+    except Exception:  # pragma: no cover
+        PlantVillageDataset = None
+
+try:  # models/alexnet.py
+    from models.alexnet import Alexnet, build_alexnet
+    from models.alexnet import load_config as _external_load_config
+except Exception:  # pragma: no cover
+    try:
+        from ..models.alexnet import Alexnet, build_alexnet
+        from ..models.alexnet import load_config as _external_load_config
+    except Exception:  # pragma: no cover
+        Alexnet = None
+        build_alexnet = None
+        _external_load_config = None
+
+try:
+    import yaml
+except Exception:  # pragma: no cover
+    yaml = None
+
+
+# --------------------------------------------------------------------------- #
+# 与 config/config.yaml 对齐的常量（仅在 config 缺失时兜底）
+# --------------------------------------------------------------------------- #
+DEFAULT_MODEL_NAME = "googlenet"            # model.default
+SUPPORTED_MODELS: Tuple[str, ...] = ("alexnet", "googlenet")
+DEFAULT_TRAINING_MODE = "transfer"          # training.training_mode
+SUPPORTED_TRAINING_MODES: Tuple[str, ...] = ("scratch", "transfer")
+
+DEFAULT_NUM_CLASSES = 38                    # model.num_classes / data.num_classes
+DEFAULT_DROPOUT_RATIO = 0.5                 # model.dropout_ratio
+DEFAULT_IMAGE_SIZE = 256                    # data.image_size
+DEFAULT_BATCH_SIZE_PER_MODEL: Dict[str, int] = {"googlenet": 24, "alexnet": 100}
+DEFAULT_BATCH_SIZE = 24                     # training.batch_size
+DEFAULT_EPOCHS = 30                         # training.epochs
+
+DEFAULT_LOSS_NAME = "cross_entropy"
+DEFAULT_LABEL_SMOOTHING = 0.0
+DEFAULT_OPTIMIZER_NAME = "SGD"
+DEFAULT_LR = 0.005                          # training.optimizer.lr
+DEFAULT_MOMENTUM = 0.9
+DEFAULT_WEIGHT_DECAY = 0.0005
+DEFAULT_NESTEROV = False
+
+DEFAULT_SCHEDULER_NAME = "StepLR"
+DEFAULT_STEP_SIZE = 10                      # training.scheduler.step_size
+DEFAULT_GAMMA = 0.1                         # training.scheduler.gamma
+
+DEFAULT_DATASET_VERSION = "color"           # version_selector.default
+DEFAULT_ROOT_DIR = "data/raw/plantvillage"  # data.root_dir
+DEFAULT_TRAIN_RATIO = 0.8                   # split_strategy.default_train_ratio
+DEFAULT_VAL_SPLIT_RATIO = 0.2               # split_strategy.val_split_ratio
+DEFAULT_SEED = 42                           # split_strategy.seed / experiment.seed
+
+DEFAULT_CHECKPOINT_DIR = "outputs/checkpoints"
+DEFAULT_FILENAME_TEMPLATE = "{model}_{training_mode}_{dataset_version}_{train_ratio}.pth"
+DEFAULT_BEST_METRIC = "val_accuracy"
+DEFAULT_AUX_LOSS_WEIGHT = 0.3               # GoogLeNet 辅助分类头损失权重
+
+MODEL_NAME_ALIASES: Dict[str, str] = {
+    "alexnet": "alexnet",
+    "alex_net": "alexnet",
+    "googlenet": "googlenet",
+    "google_net": "googlenet",
+    "googlenetv1": "googlenet",
+}
+
+
+# --------------------------------------------------------------------------- #
+# config/config.yaml 读取工具（与 models/alexnet.py 的 load_config 保持一致）
+# --------------------------------------------------------------------------- #
+def _resolve_config_path(explicit: Union[str, Path, None] = None) -> Optional[Path]:
+    if explicit is not None:
+        p = Path(explicit)
+        return p if p.is_file() else None
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parents[1] / "config" / "config.yaml",
+        here.parents[1] / "config.yaml",
+        Path.cwd() / "config" / "config.yaml",
+        Path.cwd() / "config.yaml",
+    ]
+    for cand in candidates:
+        if cand.is_file():
+            return cand
+    return None
+
+
+def load_config(config: Union[

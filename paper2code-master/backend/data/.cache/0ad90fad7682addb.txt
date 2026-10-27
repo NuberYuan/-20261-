@@ -1,0 +1,311 @@
+project:
+  name: plant_disease_detection_deep_learning
+  paper: Using Deep Learning for Image-Based Plant Disease Detection
+  paper_title_full: "Using Deep Learning for Image-Based Plant Disease Detection"
+  framework: PyTorch
+  framework_version: ">=1.10"
+  task: image_classification
+  description: "基于深度卷积神经网络（AlexNet / GoogLeNet）的图像型植物病害检测（38 类作物-病害组合分类）"
+  tags:
+    - plant_disease_detection
+    - image_classification
+    - transfer_learning
+    - alexnet
+    - googlenet
+
+data_source: external_dataset
+acquisition: local_path
+
+data:
+  root_dir: data/raw/plantvillage
+  versions:
+    - color
+    - grayscale
+    - segmented
+  version_key: dataset_version
+  image_size: 256
+  image_size_hw:
+    - 256
+    - 256
+  resize_mode: bilinear
+  channels: 3
+  mean:
+    - 0.485
+    - 0.456
+    - 0.406
+  std:
+    - 0.229
+    - 0.224
+    - 0.225
+  normalize: true
+  normalization_note: "工程决策（论文未给出均值/方差）：默认使用 ImageNet 统计量，与 transfer 模式预训练权重一致；grayscale 版本使用 data.grayscale.mean/std"
+  num_images: 54306
+  num_classes: 38
+  num_crop_species: 14
+  num_disease_categories: 26
+  class_mode: single_label
+  interpolation: bilinear
+  color:
+    status: resolved
+    path: data/raw/plantvillage/color
+    description: "RGB 彩色原图版本（论文中表现最好的版本）"
+    channels: 3
+    mean:
+      - 0.485
+      - 0.456
+      - 0.406
+    std:
+      - 0.229
+      - 0.224
+      - 0.225
+  grayscale:
+    status: resolved
+    path: data/raw/plantvillage/grayscale
+    description: "灰度版本（论文中表现最弱的版本）"
+    channels: 1
+    mean:
+      - 0.5
+    std:
+      - 0.5
+  segmented:
+    status: resolved
+    path: data/raw/plantvillage/segmented
+    description: "背景分割后（仅保留叶片区域）的版本，论文中表现介于 color 与 grayscale 之间"
+    channels: 3
+    mean:
+      - 0.5
+      - 0.5
+      - 0.5
+    std:
+      - 0.5
+      - 0.5
+      - 0.5
+
+version_selector:
+  config_key: dataset_version
+  values:
+    - color
+    - grayscale
+    - segmented
+  default: color
+  note: "通过 config.yaml 的 dataset_version 字段切换预处理版本"
+
+split_strategy:
+  method: leaf_based_split
+  train_test_splits:
+    - 0.8
+    - 0.6
+    - 0.5
+    - 0.4
+    - 0.2
+  default_train_ratio: 0.8
+  seed: 42
+  shuffle: true
+  stratified: false
+  leaf_mapping_constraint: "同一片叶子的多张图片必须保持在同一个集合中（all images of the same leaf go either in the training set or the testing set）"
+  leaf_mapping_available: true
+  leaf_mapping_coverage:
+    mapped_images: 41112
+    total_images: 54306
+    note: "mappings available for 41,112 out of 54,306 images"
+  val_split_ratio: 0.2
+  val_split_source: from_train_set
+  val_split_note: "FR-03 工程偏离（engineering deviation from paper）：论文仅使用 train/test 二路划分，无独立验证集；为支持 early stopping 与最优模型选择，从训练集中按 80/20 二次划分验证集"
+  strict_mode_no_val: true
+
+reproduction_mode: engineering
+reproduction_modes_available:
+  - engineering
+  - strict
+reproduction_mode_notes:
+  engineering: "train -> val -> best -> test：从训练集划分验证集、每 epoch 验证、按 val_accuracy 选择最优模型"
+  strict: "train -> 训练结束 -> test：不划分验证集、不做验证、只保存最终模型"
+
+model:
+  architectures:
+    - alexnet
+    - googlenet
+  default: googlenet
+  num_classes: 38
+  input_size:
+    - 3
+    - 256
+    - 256
+  dropout_ratio: 0.5
+  weight_init: kaiming_normal
+  weight_init_note: "scratch 模式使用 kaiming_normal 初始化；transfer 模式使用 ImageNet 预训练权重"
+  alexnet:
+    framework_name: torchvision.models.alexnet
+    classifier_reset_layer: classifier.6
+    in_features: 4096
+    out_features: 38
+    aux_classifiers: []
+  googlenet:
+    framework_name: torchvision.models.googlenet
+    aux_logits: true
+    classifier_reset_layer: fc
+    in_features: 1024
+    out_features: 38
+    aux_classifiers:
+      - aux1.fc2
+      - aux2.fc2
+
+training_modes:
+  scratch:
+    description: "从头训练：所有层随机初始化"
+    pretrained: false
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+  transfer:
+    description: "迁移学习：加载 ImageNet 预训练权重，重置最后一层"
+    pretrained: true
+    pretrained_source: torchvision.models (ImageNet)
+    reset_layers:
+      - "classifier.6 (fc8, in_features=4096, out_features=38)"
+      - "fc (主分类器, out_features=38)"
+      - "aux1.fc2 (辅助分类器1, out_features=38)"
+      - "aux2.fc2 (辅助分类器2, out_features=38)"
+    freeze_backbone:
+      value: false
+      decision_type: engineering_decision
+      engineering_default: false
+      note: "此项为纯工程决策（论文未提及），默认不冻结（全量微调），因为目标域与 ImageNet 差异较大；可选策略 (a) 不冻结 fine-tuning，(b) 冻结 backbone 只训练重置的分类层"
+    note: "论文报告的对比结果仅供对照，最终结论必须由代码从实际评估结果动态计算，禁止在报告/注释中写死结论性措辞"
+
+training:
+  training_mode: transfer
+  batch_size_per_model:
+    googlenet: 24
+    alexnet: 100
+  batch_size: 24
+  batch_size_note: "论文显式指定 batch_size：GoogLeNet 24，AlexNet 100；实际运行以 batch_size_per_model 为准"
+  epochs: 30
+  image_size: 256
+  loss_function:
+    name: cross_entropy
+    variant: softmax_cross_entropy
+    label_smoothing: 0.0
+    note: "inferred from softmax layer"
+  optimizer:
+    name: SGD
+    full_name: Stochastic Gradient Descent
+    lr: 0.005
+    momentum: 0.9
+    weight_decay: 0.0005
+    nesterov: false
+  scheduler:
+    name: StepLR
+    step_size: 10
+    gamma: 0.1
+    note: "每 10 个 epoch 将学习率乘以 0.1；PyTorch StepLR 与此行为等价"
+  early_stopping:
+    enabled: false
+    patience: null
+    monitor: val_accuracy
+    note: "论文未使用 early stopping（NOT_FOUND），默认关闭"
+  val_interval_epochs: 1
+  grad_clip: null
+  amp: false
+
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: null
+  save_optimizer_state: true
+  resume_from: null
+  dir: outputs/checkpoints
+  filename_template: "{model}_{training_mode}_{dataset_version}_{train_ratio}.pth"
+  note: "论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。严格复现论文时应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）"
+
+inference:
+  device: cuda
+  batch_size: null
+  image_size: 256
+  topk: 5
+  output_dir: outputs/inference
+
+experiment:
+  name: plant_disease_detection
+  output_dir: outputs/experiments
+  seed: 42
+  grid_axes:
+    model:
+      - alexnet
+      - googlenet
+    training_mode:
+      - scratch
+      - transfer
+    dataset_version:
+      - color
+      - grayscale
+      - segmented
+    train_ratio:
+      - 0.8
+      - 0.6
+      - 0.5
+      - 0.4
+      - 0.2
+  runs:
+    - {id: run_001, model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_002, model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_003, model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_004, model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_005, model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_006, model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_007, model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_008, model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_009, model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_010, model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_011, model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_012, model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_013, model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_014, model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_015, model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_016, model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_017, model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_018, model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_019, model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_020, model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_021, model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_022, model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_023, model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_024, model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_025, model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_026, model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_027, model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_028, model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_029, model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_030, model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_031, model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_032, model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_033, model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_034, model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_035, model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_036, model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_037, model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_038, model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_039, model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_040, model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_041, model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_042, model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_043, model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_044, model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_045, model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_046, model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_047, model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_048, model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_049, model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_050, model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_051, model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_052, model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_053, model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_054, model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_055, model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.2, data_source: external_dataset, acquisition: local_path}
+    - {id: run_056, model: alexnet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.8, data_source: external_dataset, acquisition: local_path}
+    - {id: run_057, model: alexnet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.6, data_source: external_dataset, acquisition: local_path}
+    - {id: run_058, model: alexnet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.5, data_source: external_dataset, acquisition: local_path}
+    - {id: run_059, model: alexnet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.4, data_source: external_dataset, acquisition: local_path}
+    - {id: run_060, model:

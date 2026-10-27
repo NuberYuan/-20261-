@@ -111,6 +111,7 @@ class CodeValidator:
         self.config = None          # config.yaml 内容（dict），用于配置引用检查
         self.config_keys = set()    # config.yaml 顶层 key
         self.symbols = {}           # file -> {"classes": set, "functions": set}
+        self.expected_runs = 0      # Step5 实验矩阵组合数，驱动入口 --run 检查
 
     # ============================================================
     # 状态注入
@@ -120,6 +121,17 @@ class CodeValidator:
         """注入 config.yaml 内容，启用配置引用检查。"""
         self.config = config_dict or {}
         self.config_keys = set(self.config.keys())
+
+    def set_expected_runs(self, count: int):
+        """注入预期实验组合数（来自 Step5 experiment_design）。
+
+        实验矩阵 >1 个组合时，入口必须支持 --run N 逐组合执行；
+        否则 Step8 只能整矩阵一把跑，60 组合矩阵直接断掉。
+        """
+        try:
+            self.expected_runs = int(count or 0)
+        except (TypeError, ValueError):
+            self.expected_runs = 0
 
     def register(self, file: str, code: str):
         """登记已生成文件的类/函数符号，供跨文件 import 检查。"""
@@ -146,6 +158,7 @@ class CodeValidator:
         checks["config_refs"] = self._check_config_refs(file, code, errors)
         checks["function_interface"] = self._check_function_interface(code, errors)
         checks["conclusions"] = self._check_conclusions(file, code, errors)
+        checks["entry_run_arg"] = self._check_entry_run_arg(file, code, errors)
 
         return {
             "status": "passed" if not errors else "failed",
@@ -355,6 +368,127 @@ class CodeValidator:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         }
 
+    # ============================================================
+    # 接口摘要（供生成/修复 prompt 替代完整依赖源码）
+    # ============================================================
+
+    @staticmethod
+    def _unparse(node) -> str:
+        try:
+            return ast.unparse(node)
+        except Exception:
+            return "..."
+
+    @staticmethod
+    def _decorator_name(dec) -> str:
+        if isinstance(dec, ast.Name):
+            return dec.id
+        if isinstance(dec, ast.Attribute):
+            return dec.attr
+        return ""
+
+    @classmethod
+    def interface_digest(cls, code: str, max_doc: int = 80) -> str:
+        """提取 .py 文件的公开接口摘要：类（含方法签名）+ 顶层函数签名 + 常量名。
+
+        只含名字、签名（含默认值）与文档首行，不含任何实现体。
+        生成/修复 prompt 用它替代依赖文件完整源码：对齐接口只需签名，
+        完整源码会让 prompt 膨胀数倍。
+        """
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return ""
+
+        def doc_line(node) -> str:
+            doc = (ast.get_docstring(node) or "").strip()
+            if not doc:
+                return ""
+            first = doc.splitlines()[0].strip()
+            return first[:max_doc - 1] + "…" if len(first) > max_doc else first
+
+        def render_def(node, indent="") -> list:
+            out = []
+            for dec in node.decorator_list:
+                name = cls._decorator_name(dec)
+                if name:
+                    out.append(f"{indent}@{name}")
+            ret = f" -> {cls._unparse(node.returns)}" if node.returns is not None else ""
+            prefix = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
+            doc = doc_line(node)
+            suffix = f'  """{doc}"""' if doc else ""
+            out.append(
+                f"{indent}{prefix} {node.name}({cls._unparse(node.args)}){ret}:{suffix}"
+            )
+            return out
+
+        def render_const(target, value_node, indent="") -> str:
+            value = cls._unparse(value_node) if isinstance(value_node, ast.Constant) else "..."
+            return f"{indent}{target} = {value}"
+
+        lines = []
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                bases = ""
+                if node.bases:
+                    bases = "(" + ", ".join(cls._unparse(b) for b in node.bases) + ")"
+                doc = doc_line(node)
+                suffix = f'  """{doc}"""' if doc else ""
+                lines.append(f"class {node.name}{bases}:{suffix}")
+                methods = [i for i in node.body
+                           if isinstance(i, (ast.FunctionDef, ast.AsyncFunctionDef))]
+                for item in node.body:
+                    if isinstance(item, ast.Assign):
+                        for t in item.targets:
+                            if isinstance(t, ast.Name):
+                                lines.append(render_const(t.id, item.value, indent="    "))
+                    elif isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name):
+                        lines.append(render_const(item.target.id, item.value, indent="    "))
+                for item in methods:
+                    lines.extend(render_def(item, indent="    "))
+                if not methods:
+                    lines.append("    pass")
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                lines.extend(render_def(node))
+            elif isinstance(node, ast.Assign):
+                for t in node.targets:
+                    if isinstance(t, ast.Name) and t.id.isupper():
+                        lines.append(render_const(t.id, node.value))
+            elif (isinstance(node, ast.AnnAssign)
+                  and isinstance(node.target, ast.Name) and node.target.id.isupper()):
+                lines.append(render_const(node.target.id, node.value))
+        return "\n".join(lines)
+
+    @staticmethod
+    def config_digest(code: str, max_depth: int = 4) -> str:
+        """提取 YAML 配置的键树摘要（点号路径 + 标量取值），替代完整配置文件进 prompt。"""
+        try:
+            cfg = yaml.safe_load(code)
+        except yaml.YAMLError:
+            return ""
+        if not isinstance(cfg, dict):
+            return ""
+        lines = []
+
+        def walk(d, prefix, depth):
+            for k, v in d.items():
+                full = f"{prefix}.{k}" if prefix else str(k)
+                if isinstance(v, dict):
+                    if depth < max_depth:
+                        walk(v, full, depth + 1)
+                    else:
+                        lines.append(f"{full}: <nested>")
+                elif isinstance(v, list):
+                    if len(v) <= 4 and all(not isinstance(x, (dict, list)) for x in v):
+                        lines.append(f"{full}: {v}")
+                    else:
+                        lines.append(f"{full}: [{len(v)} 项]")
+                else:
+                    lines.append(f"{full}: {v}")
+
+        walk(cfg, "", 0)
+        return "\n".join(lines)
+
     @staticmethod
     def _sig_from_node(node) -> dict:
         """从单个 FunctionDef/AsyncFunctionDef 节点提取签名 dict。"""
@@ -552,8 +686,59 @@ class CodeValidator:
         return ok
 
     # ============================================================
-    # 项目级检查（所有文件生成后调用）
+    # 8. 入口 --run 参数检查
     # ============================================================
+
+    ENTRY_FILES = ("main.py", "run.py")
+
+    @staticmethod
+    def supports_run_arg(code: str) -> bool:
+        """AST 检查入口代码是否接受 --run 参数（argparse add_argument(\"--run\", ...)）。"""
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if isinstance(func, ast.Attribute) and func.attr == "add_argument":
+                for arg in node.args:
+                    if isinstance(arg, ast.Constant) and str(arg.value) == "--run":
+                        return True
+                for kw in node.keywords:
+                    if (isinstance(kw.value, ast.Constant)
+                            and str(kw.value.value) == "--run"):
+                        return True
+        return False
+
+    def _check_entry_run_arg(self, file: str, code: str, errors: list) -> bool:
+        """入口文件在多实验组合时必须支持 --run N，否则 Step8 实验矩阵无法逐组合执行。
+
+        触发条件：文件是 main.py/run.py，且实验矩阵 >1 个组合
+        （来自 Step5 experiment_design 的 expected_runs，或 config.yaml 的
+        experiment.runs）。单组合/无组合项目不要求，避免过度约束。
+        """
+        base = file.replace("\\", "/").rsplit("/", 1)[-1]
+        if base not in self.ENTRY_FILES:
+            return True
+
+        run_count = self.expected_runs
+        if not run_count and isinstance(self.config, dict):
+            runs = (self.config.get("experiment") or {}).get("runs")
+            if isinstance(runs, list):
+                run_count = len(runs)
+        if run_count <= 1:
+            return True
+
+        if self.supports_run_arg(code):
+            return True
+        errors.append(
+            f"{file} 缺少 --run 参数: 实验矩阵有 {run_count} 个组合，入口必须支持 "
+            f"`--run N`（argparse add_argument(\"--run\", ...)）按 config['experiment']"
+            f"['runs'][N] 逐组合执行，否则只能整矩阵一把跑"
+        )
+        return False
 
     def validate_project(self, plan_files: list, generated: dict, brief: dict) -> dict:
         """跨文件/项目级检查，返回 {检查名: {status, ...}}。

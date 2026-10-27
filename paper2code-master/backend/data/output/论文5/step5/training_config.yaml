@@ -32,13 +32,13 @@ training_modes:
     reset_layers: []
     freeze_backbone: false
 training:
-  batch_size: 64 (Electricity), 128 (Traffic), 128 (Retail), 64 (Volatility)
+  batch_size: '64'
   batch_size_note: 论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。
   epochs: '30'
   image_size: NOT_FOUND
   optimizer:
     name: NOT_FOUND
-    lr: '0.01'
+    lr: '0.001'
     momentum: NOT_FOUND
     weight_decay: NOT_FOUND
   scheduler:
@@ -46,11 +46,10 @@ training:
     step_size: NOT_FOUND
     gamma: NOT_FOUND
     note: 论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略。
-  loss_function: 'Quantile loss: QL(y, yhat, q) = q(y-yhat)_+ + (1-q)(yhat-y)_+, summed
-    across all quantile outputs q in {0.1, 0.5, 0.9} and horizons tau=1,...,tau_max,
-    divided by M*tau_max. Test q-Risk = 2 * sum_{yt in Omega_tilde} sum_{tau=1}^{tau_max}
-    QL(yt, yhat(q,t-tau,tau),q) / sum_{tau=1}^{tau_max}|yt|.'
-  dropout_ratio: 0.1 (Electricity), 0.3 (Traffic), 0.1 (Retail), 0.3 (Volatility)
+  loss_function: 'Quantile loss (QL), summed across all quantile outputs: L(Ω, W)
+    = Σ Σ Σ QL(yt, ŷ(q, t-τ, τ), q) / (M τmax), where QL(y, ŷ, q) = q(y - ŷ)+ + (1
+    - q)(ŷ - y)+'
+  dropout_ratio: '0.1'
   early_stopping: NOT_FOUND
 checkpoint:
   save_best: true
@@ -71,11 +70,12 @@ inference:
   device: cuda
   batch_size: NOT_FOUND
 reproducibility_notes:
-- Full benchmark result tables and ablation study details are not included in the
-  provided excerpt
-- Programming framework and optimizer are not explicitly specified in the provided
-  excerpt
-- Multiple datasets require different optimal hyperparameters
-- Quantile loss and q-Risk evaluation need careful implementation
-- Variable selection and interpretable multi-head attention require reproducing complex
-  gating and attention mechanics
+- Implementing the Interpretable Multi-Head Attention with shared value weights and
+  additive head aggregation
+- Properly wiring four different static context vectors (cs, ce, cc, ch) into different
+  parts of the network
+- Implementing decoder masking for causal information flow in self-attention
+- Handling the LSTM encoder-decoder with differing numbers of past and future inputs
+- Reproducing exact results requires the same random search hyperparameter optimization
+  process
+- The programming framework is not explicitly stated in the paper

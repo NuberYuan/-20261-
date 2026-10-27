@@ -1,25 +1,25 @@
 {
   "title": "UNet++: A Nested U-Net Architecture for Medical Image Segmentation",
-  "research_problem": "Existing encoder-decoder segmentation models with plain skip connections fuse semantically dissimilar feature maps from encoder and decoder, which may limit segmentation accuracy; medical image segmentation demands higher accuracy than natural images because even marginal segmentation errors can affect clinical interpretation and downstream computer-generated diagnosis.",
-  "motivation": "Plain skip connections directly combine high-resolution encoder feature maps with semantically rich decoder feature maps, resulting in fusion of semantically dissimilar feature maps. The authors hypothesize that the network would deal with an easier learning task when feature maps from decoder and encoder are semantically similar, and that gradually enriching encoder feature maps before fusion can better recover fine-grained details of foreground objects.",
-  "main_contribution": "The paper proposes UNet++, a medical image segmentation architecture based on nested and dense skip connections. It introduces redesigned skip pathways with dense convolution blocks to bridge the semantic gap between encoder and decoder feature maps, and deep supervision to enable model pruning and improved accuracy. UNet++ with deep supervision achieves average IoU gains of 3.9 and 3.4 points over U-Net and wide U-Net respectively.",
+  "research_problem": "Medical image segmentation demands higher accuracy than natural image segmentation. Even marginal segmentation errors in medical images can lead to poor clinical outcomes, such as exclusion of subtle spiculation patterns around a nodule indicating malignancy or erroneous measurement of nodule growth resulting in incorrect Lung-RADS category assignment. It is therefore desired to devise more effective image segmentation architectures that can effectively recover the fine details of the target objects in medical images.",
+  "motivation": "Plain skip connections in U-Net directly fast-forward high-resolution feature maps from the encoder to the decoder network, resulting in the fusion of semantically dissimilar feature maps. The hypothesis is that the model can more effectively capture fine-grained details of the foreground objects when high-resolution feature maps from the encoder network are gradually enriched prior to fusion with the corresponding semantically rich feature maps from the decoder network.",
+  "main_contribution": "UNet++, a deeply-supervised encoder-decoder network where the encoder and decoder subnetworks are connected through a series of nested, dense skip pathways that reduce the semantic gap between feature maps. UNet++ with deep supervision achieves an average IoU gain of 3.9 and 3.4 points over U-Net and wide U-Net respectively across four medical image segmentation tasks.",
   "methodology": {
     "method_name": "UNet++",
-    "core_idea": "UNet++ is a deeply-supervised encoder-decoder network where encoder and decoder sub-networks are connected through a series of nested, dense skip pathways. The dense convolutional blocks on skip pathways bring the semantic level of encoder feature maps closer to that of the decoder feature maps prior to fusion.",
-    "pipeline": "Start with an encoder sub-network or backbone. Connect encoder and decoder through nested dense skip pathways. Each skip pathway consists of a dense convolution block whose number of convolution layers depends on the pyramid level. Nodes at level j=0 receive only one input from the previous encoder layer; nodes at level j=1 receive two inputs from the encoder sub-network at two consecutive levels; nodes at level j>1 receive j+1 inputs from previous nodes in the same skip pathway and the upsampled output from the lower skip pathway. Add deep supervision by appending a 1x1 convolution layer followed by a sigmoid activation function to each target node {x0,j | j in {1,2,3,4}}. Generate four full-resolution segmentation maps. In accurate mode average outputs from all segmentation branches; in fast mode select only one segmentation branch for pruned inference.",
-    "model": "UNet++",
+    "core_idea": "Redesigned nested dense skip pathways that bridge the semantic gap between encoder and decoder feature maps prior to fusion, combined with deep supervision for model pruning and improved accuracy.",
+    "pipeline": "Encoder subnetwork extracts features via downsampling layers. Skip pathways contain dense convolution blocks whose number of convolution layers depends on the pyramid level. Each convolution layer is preceded by a concatenation layer that fuses the output from the previous convolution layer of the same dense block with the corresponding upsampled output of the lower dense block. Decoder subnetwork receives enriched feature maps. Deep supervision attaches 1×1 convolution + sigmoid to nodes {x0,j | j ∈{1,2,3,4}}. Four segmentation maps are generated and averaged for final output.",
+    "model": "UNet++, U-Net, wide U-Net",
     "model_architecture": {
-      "input": "Input sizes per dataset: cell nuclei 96×96, colon polyp 224×224, liver 512×512, lung nodule 64×64×64",
-      "output": "Full-resolution segmentation maps at multiple semantic levels; deep supervision generates four segmentation maps, which are averaged to generate the final segmentation map",
-      "feature_extraction": "Encoder sub-network or backbone followed by decoder sub-network; connectivities transformed by nested dense skip pathways. All convolutional layers along a skip pathway Xi,j use k kernels of size 3×3 or 3×3×3 for 3D lung nodule segmentation, where k = 32 × 2^i.",
-      "classification": "For deep supervision, a 1×1 convolutional layer followed by a sigmoid activation function was appended to each of the target nodes {x0,j | j ∈ {1,2,3,4}}.",
+      "input": "96×96 (cell nuclei), 224×224 (colon polyp), 512×512 (liver), 64×64×64 (lung nodule)",
+      "output": "Four segmentation maps given an input image, which will be further averaged to generate the final segmentation map",
+      "feature_extraction": "Encoder subnetwork with downsampling layers; nested dense convolutional blocks on skip pathways; k kernels of size 3×3 (or 3×3×3 for 3D lung nodule segmentation) where k = 32 × 2^i",
+      "classification": "1×1 convolutional layer followed by a sigmoid activation function appended to each of the target nodes: {x0,j | j ∈{1, 2, 3, 4}}",
       "pretrained_model": "NOT_FOUND",
-      "special_modules": "Nested dense skip pathways with dense convolution blocks; deep supervision with multiple segmentation heads; model pruning enabled by selecting segmentation branches.",
+      "special_modules": "Dense convolution blocks on skip pathways (green and blue in Fig. 1a), deep supervision branches (red in Fig. 1a), upsampling layers U(·), concatenation layers",
       "alexnet": "NOT_FOUND",
       "googlenet": "NOT_FOUND",
       "resnet": "NOT_FOUND",
       "vgg": "NOT_FOUND",
-      "densenet": "NOT_FOUND",
+      "densenet": "Inspired by DenseNet architecture, Li et al. proposed Hdenseunet for liver and liver tumor segmentation",
       "mobilenet": "NOT_FOUND",
       "efficientnet": "NOT_FOUND",
       "transformer": "NOT_FOUND",
@@ -27,13 +27,13 @@
     }
   },
   "dataset": {
-    "dataset_name": "cell nuclei, colon polyp, liver, lung nodule",
-    "dataset_source": "Data Science Bowl 2018; ASU-Mayo; MICCAI 2018 LiTS Challenge; LIDC-IDRI",
-    "dataset_size": "cell nuclei: 670; colon polyp: 7,379; liver: 331; lung nodule: 1,012",
-    "number_of_classes": "NOT_FOUND",
-    "data_type": "Medical imaging: microscopy images, RGB video, CT scans",
+    "dataset_name": "cell nuclei (Data Science Bowl 2018), colon polyp (ASU-Mayo), liver (MICCAI 2018 LiTS Challenge), lung nodule (LIDC-IDRI)",
+    "dataset_source": "Data Science Bowl 2018, ASU-Mayo [10,11], MICCAI 2018 LiTS Challenge, LIDC-IDRI [1]",
+    "dataset_size": "cell nuclei: 670 images; colon polyp: 7,379 images; liver: 331 images; lung nodule: 1,012 images",
+    "number_of_classes": "2 (binary segmentation)",
+    "data_type": "cell nuclei: microscopy images 96×96; colon polyp: RGB video frames 224×224; liver: CT scans 512×512; lung nodule: CT scans 64×64×64",
     "train_test_split": "NOT_FOUND",
-    "preprocessing": "NOT_FOUND"
+    "preprocessing": "NOT_FOUND (paper states: For further details about datasets and the corresponding data preprocessing, we refer the readers to the supplementary material)"
   },
   "implementation_details": {
     "programming_framework": "NOT_FOUND",
@@ -41,62 +41,89 @@
     "learning_rate": "4",
     "batch_size": "NOT_FOUND",
     "epoch": "NOT_FOUND",
-    "loss_function": "binary cross-entropy + dice coefficient",
-    "hardware": "one NVIDIA TITAN X (Pascal) with 12 GB memory",
-    "training_strategy": "Adam optimizer with a learning rate of 3e-4. Monitored Dice coefficient and Intersection over Union (IoU). Used early-stop mechanism on the validation set. All convolutional layers along a skip pathway Xi,j use k kernels of size 3×3 (or 3×3×3 for 3D lung nodule segmentation) where k = 32 × 2^i. Deep supervision uses a 1×1 convolutional layer followed by sigmoid appended to target nodes {x0,j | j ∈ {1,2,3,4}}. The loss at each supervised level combines binary cross-entropy and Dice coefficient; in the loss formula Yb and Yb_hat are flattened ground truths and predicted probabilities of the b-th image, and N indicates the batch size. UNet++ generates four segmentation maps given an input image, further averaged to generate the final segmentation map."
+    "loss_function": "a combination of binary crossentropy and dice coefficient",
+    "hardware": "NVIDIA TITAN X (Pascal) with 12 GB memory (for inference time measurement)",
+    "training_strategy": "Early stop mechanism on the validation set. All convolutional layers along a skip pathway use k kernels of size 3×3 (or 3×3×3 for 3D lung nodule segmentation) where k = 32 × 2^i. Deep supervision loss: L(Y,Ŷ) = -1/N Σ [1/2 · Y_b · log Ŷ_b + 2 · Y_b · Ŷ_b / (Y_b + Ŷ_b)]. Four segmentation maps generated and averaged."
   },
   "experiment": {
     "evaluation_metrics": "Dice coefficient, Intersection over Union (IoU)",
     "baseline_methods": "U-Net, wide U-Net",
-    "comparison_results": "U-Net: 7.76M params, IoU 90.77 on cell nuclei, 30.08 on colon polyp, 76.62 on liver, 71.47 on lung nodule. Wide U-Net: 9.13M params, IoU 90.92 on cell nuclei, 30.14 on colon polyp, 76.58 on liver, 73.38 on lung nodule. UNet++ without deep supervision: 9.04M params, IoU 92.63 on cell nuclei, 33.45 on colon polyp, 79.70 on liver, 76.44 on lung nodule. UNet++ with deep supervision: 9.04M params, IoU 92.52 on cell nuclei, 32.12 on colon polyp, 82.90 on liver, 77.21 on lung nodule.",
-    "ablation_study": "Deep supervision ablation: UNet++ without deep supervision achieves average improvement of 2.8 and 3.3 points in IoU over U-Net and wide U-Net; UNet++ with deep supervision exhibits average improvement of 0.6 points over UNet++ without deep supervision. Model pruning ablation: UNet++ L3 achieves on average 32.2% reduction in inference time while degrading IoU by only 0.6 points; more aggressive pruning further reduces inference time but at the cost of significant accuracy degradation.",
-    "important_results": "UNet++ with deep supervision achieved an average IoU gain of 3.9 and 3.4 points over U-Net and wide U-Net, respectively. UNet++ without deep supervision achieved significant performance gain over both U-Net and wide U-Net, yielding average improvement of 2.8 and 3.3 points in IoU. Deep supervision gave marked improvement for liver and lung nodule segmentation, but improvement vanished for cell nuclei and colon polyp segmentation. UNet++ L3 achieved on average 32.2% reduction in inference time while degrading IoU by only 0.6 points."
+    "comparison_results": "U-Net: cell nuclei 90.77, colon polyp 30.08, liver 76.62, lung nodule 71.47 (7.76M params). Wide U-Net: cell nuclei 90.92, colon polyp 30.14, liver 76.58, lung nodule 73.38 (9.13M params). UNet++ w/o DS: cell nuclei 92.63, colon polyp 33.45, liver 79.70, lung nodule 76.44 (9.04M params). UNet++ w/ DS: cell nuclei 92.52, colon polyp 32.12, liver 82.90, lung nodule 77.21 (9.04M params).",
+    "ablation_study": "1) UNet++ without deep supervision vs UNet++ with deep supervision: deep supervision leads to marked improvement for liver and lung nodule segmentation but improvement vanishes for cell nuclei and colon polyp segmentation. Average improvement of 0.6 IoU points over UNet++ without DS. 2) Model pruning: UNet++ L3 achieves on average 32.2% reduction in inference time while degrading IoU by only 0.6 points. More aggressive pruning further reduces inference time but at the cost of significant accuracy degradation.",
+    "important_results": "UNet++ without deep supervision achieves average improvement of 2.8 and 3.3 IoU points over U-Net and wide U-Net respectively. UNet++ with deep supervision achieves average IoU gain of 3.9 and 3.4 points over U-Net and wide U-Net respectively. Wide U-Net consistently outperforms U-Net except for liver segmentation. UNet++ L3 achieves 32.2% reduction in inference time with only 0.6 IoU points degradation."
   },
   "reproduction_requirements": {
     "required_modules": [
-      "Nested dense skip pathways with dense convolution blocks",
-      "Deep supervision with 1×1 convolution + sigmoid segmentation heads at nodes x0,j for j=1,2,3,4",
-      "Encoder-decoder backbone consistent with original U-Net"
+      "Encoder-decoder architecture",
+      "Nested dense convolutional blocks on skip pathways",
+      "Deep supervision branches (1×1 conv + sigmoid)",
+      "Upsampling layers",
+      "Concatenation layers",
+      "Adam optimizer",
+      "Binary crossentropy + dice coefficient loss",
+      "Early stopping on validation set"
     ],
     "important_parameters": {
-      "optimizer": "Adam",
       "learning_rate": "3e-4",
-      "kernel_size": "3×3 (or 3×3×3 for 3D lung nodule segmentation)",
-      "k_kernels": "32 × 2^i",
-      "deep_supervision_target_nodes": "{x0,j | j ∈ {1,2,3,4}}",
-      "loss_function": "binary cross-entropy + dice coefficient",
-      "segmentation_maps_averaging": "average of four segmentation maps"
+      "optimizer": "Adam",
+      "kernel_size": "3×3 (3×3×3 for 3D)",
+      "num_kernels": "k = 32 × 2^i",
+      "loss_function": "binary crossentropy + dice coefficient",
+      "deep_supervision": "1×1 convolutional layer followed by sigmoid on nodes {x0,j | j ∈{1,2,3,4}}",
+      "U-Net kernels": "32, 64, 128, 256, 512",
+      "wide U-Net kernels": "35, 70, 140, 280, 560"
     },
     "possible_difficulties": [
-      "Batch size is not explicitly specified in the main paper",
-      "Training epoch count is not provided; training uses early stopping on validation set",
-      "Data preprocessing details are deferred to supplementary material",
-      "No deep learning framework is explicitly stated in the paper"
+      "Train/test split details not provided in main paper (in supplementary material)",
+      "Data preprocessing details not provided in main paper (in supplementary material)",
+      "Batch size not specified",
+      "Number of epochs not specified (early stopping used)",
+      "Programming framework not specified",
+      "Exact implementation of dense convolution block concatenation and upsampling requires careful attention to Equation 1"
     ]
   },
   "figures": [
     {
       "figure_number": "Figure 1",
       "type": "model_architecture",
-      "description": "UNet++ architecture overview. (a) UNet++ consists of an encoder and decoder connected through a series of nested dense convolutional blocks. Black indicates original U-Net, green and blue show dense convolution blocks on skip pathways, and red indicates deep supervision. (b) Detailed analysis of the first skip pathway. (c) UNet++ can be pruned at inference time if trained with deep supervision."
+      "description": "(a) UNet++ consists of an encoder and decoder that are connected through a series of nested dense convolutional blocks. Black indicates the original U-Net, green and blue show dense convolution blocks on the skip pathways, and red indicates deep supervision. (b) Detailed analysis of the first skip pathway of UNet++. (c) UNet++ can be pruned at inference time if trained with deep supervision.",
+      "_comment_curve": "",
+      "x_axis": "",
+      "y_axis": "",
+      "trend": "",
+      "conclusion": "",
+      "_comment_data": "",
+      "data_characteristics": "",
+      "categories": "",
+      "visual_features": ""
     },
     {
       "figure_number": "Figure 2",
-      "type": "experiment_result",
-      "description": "Qualitative comparison between U-Net, wide U-Net, and UNet++, showing segmentation results for polyp, liver, and cell nuclei datasets (2D-only for distinct visualization).",
-      "x_axis": "NOT_FOUND",
-      "y_axis": "NOT_FOUND",
-      "trend": "UNet++ segmentation masks appear more accurate in qualitative examples compared with U-Net and wide U-Net.",
-      "conclusion": "UNet++ produces better qualitative segmentation results than U-Net and wide U-Net on the shown polyp, liver, and cell nuclei examples."
+      "type": "comparison_chart",
+      "description": "Qualitative comparison between U-Net, wide U-Net, and UNet++, showing segmentation results for polyp, liver, and cell nuclei datasets (2D only for a distinct visualization).",
+      "_comment_curve": "",
+      "x_axis": "Models (U-Net, Wide U-Net, UNet++)",
+      "y_axis": "Segmentation masks overlaid on input images",
+      "trend": "UNet++ produces more accurate segmentation masks with finer details",
+      "conclusion": "UNet++ generates segmentation masks with finer details compared to U-Net and wide U-Net",
+      "_comment_data": "",
+      "data_characteristics": "",
+      "categories": "",
+      "visual_features": ""
     },
     {
       "figure_number": "Figure 3",
-      "type": "comparison_chart",
+      "type": "experiment_result",
       "description": "Complexity, speed, and accuracy of UNet++ after pruning on (a) cell nuclei, (b) colon polyp, (c) liver, and (d) lung nodule segmentation tasks. The inference time is the time taken to process 10k test images using one NVIDIA TITAN X (Pascal) with 12 GB memory.",
-      "x_axis": "UNet++ pruning level",
-      "y_axis": "IoU (%) and inference time (seconds for 10k test images)",
-      "trend": "UNet++ L3 achieves on average 32.2% reduction in inference time while degrading IoU by only 0.6 points; more aggressive pruning further reduces inference time but with significant accuracy degradation.",
-      "conclusion": "Moderate pruning at level L3 reduces inference time substantially with only small IoU degradation."
+      "_comment_curve": "",
+      "x_axis": "Pruning level (UNet++ Li)",
+      "y_axis": "IoU, inference time, complexity",
+      "trend": "UNet++ L3 achieves on average 32.2% reduction in inference time while degrading IoU by only 0.6 points. More aggressive pruning further reduces inference time but at the cost of significant accuracy degradation.",
+      "conclusion": "UNet++ L3 is a good trade-off between speed and accuracy with 32.2% inference time reduction and only 0.6 IoU degradation",
+      "_comment_data": "",
+      "data_characteristics": "",
+      "categories": "",
+      "visual_features": ""
     }
   ],
   "table_analysis": {
@@ -105,30 +132,49 @@
   },
   "image_analysis": [
     {
-      "type": "other",
-      "description": "无法确定图片类型",
-      "important_components": [],
-      "code_relevant_information": "",
+      "type": "diagram",
+      "description": "该图展示了一个二维三角网格（triangular grid）状态更新架构：状态节点 x^{i,j} 在网格中按行/列传播，红色连线表示损失 L，绿色箭头表示来自下方对角线的上采样/注入信号，蓝色虚线表示同一行内的密集（dense）递推连接；右列展示了逐级缩小训练规模的课程学习（curriculum）示意图。",
+      "important_components": [
+        "状态节点 x^{i,j}（i 为行/尺度索引，j 为列/时间步索引），最大为 x^{0,0} 到 x^{4,0} 及 x^{0,4}",
+        "灰色对角带（coarse-to-fine 输入注入带），包含 x^{0,0}, x^{1,0}, x^{2,0}, x^{3,0}, x^{4,0}",
+        "绿色圆环节点 x^{0,1}, x^{0,2}, x^{0,3}, x^{1,1}, x^{1,2}, x^{2,1}（被红色损失 L 监督的输出节点）",
+        "红色损失连线 L（连接多个输出节点，表示多点/中间监督）",
+        "绿色斜向上箭头：从下方对角线节点经上采样 U(·) 注入",
+        "蓝色虚线箭头：同一行内节点的水平密集连接（信息累积）",
+        "更新公式 H[x^{0,0}, x^{0,1}, ..., U(x^{1,j})]",
+        "右列四个子图：随训练进程三角形规模递减的课程学习/逐步展开示意"
+      ],
+      "code_relevant_information": "核心状态更新公式：x^{0,1} = H[x^{0,0}, U(x^{1,0})]；x^{0,2} = H[x^{0,0}, x^{0,1}, U(x^{1,1})]；x^{0,3} = H[x^{0,0}, x^{0,1}, x^{0,2}, U(x^{1,2})]；x^{0,4} = H[x^{0,0}, x^{0,1}, x^{0,2}, x^{0,3}, U(x^{1,3})]。即每个输出节点由 H 函数（共享的变换/转移函数，实现为 RNN cell 或 MLP）计算，输入为：(a) 同一行所有先前状态的密集拼接（dense/skip connection 累积），(b) 下一对角线节点经上采样变换 U(·) 后的特征注入。网格为下三角结构，行索引 i=0..4，第 i 行有 (5-i) 个节点；对角线节点 x^{i,0} 为直接输入（灰色带），行内传播 + 对角注入构成 coarse-to-fine 的层级生成/预测过程。损失 L 同时作用于多个被绿色标注的节点（多位置中间监督）。右侧子图说明训练采用 curriculum learning：从 1 层 1 个输出节点逐步扩展到 4 层三角形，每次缩小/扩大三角形规模以稳定训练。复现要点：实现带 dense 累积的递推单元 H、上采样注入模块 U、多输出共享损失 L、以及按三角形规模递增的课程训练调度。",
       "id": "image_1",
       "page": 3
     },
     {
-      "type": "other",
-      "description": "无法确定图片类型",
-      "important_components": [],
-      "code_relevant_information": "",
+      "type": "figure",
+      "description": "医学图像分割的定性结果对比图，展示三种数据集（Polyp息肉、Liver肝脏、Nuclei细胞核）上 U-Net、wide U-Net 和 UNet++ 三种模型的分割掩码与 Ground Truth 的视觉对比。",
+      "important_components": [
+        "行标签：Polyp（息肉内窥镜图像）、Liver（肝脏CT图像）、Nuclei（细胞核显微图像）",
+        "列标签：Image（原始输入图像）、Ground Truth（真实标注掩码）、U-Net、wide U-Net、UNet++",
+        "二值分割掩码（白色为前景目标区域，黑色为背景）",
+        "三种对比基线模型：U-Net、wide U-Net、UNet++",
+        "3行×5列的图像网格布局"
+      ],
+      "code_relevant_information": "该图为语义/实例分割任务的可视化评估，涉及三个数据集：Polyp（结肠息肉内窥镜图像，目标为息肉区域）、Liver（腹部CT切片，目标为肝脏区域）、Nuclei（荧光/相差显微图像，目标为细胞核区域）。任务为二值分割（前景/背景），输出为与输入同尺寸的二值掩码。复现时需实现三个模型：(1) U-Net——标准编码器-解码器结构，带跳跃连接；(2) wide U-Net——加宽的 U-Net（增加每层通道数）；(3) UNet++——嵌套稠密跳跃连接的 U-Net 变体。编码器常用 backbone 为 ResNet34 或 VGG。输出层通常为 1 通道 sigmoid（二值分割），损失函数常用 BCE + Dice Loss 或二元交叉熵。评估指标（图中未显示数值）通常为 Dice 系数、IoU、Precision/Recall。由图可见 UNet++ 在 Polyp 上预测更准确（减少假阳性），在 Nuclei 上各模型均产生少量过分割/欠分割差异。",
       "id": "image_2",
       "page": 6
     },
     {
-      "type": "experiment_result",
-      "description": "展示UNet++不同参数规模模型的推理时间对比",
+      "type": "chart",
+      "description": "四个子图(a)-(d)展示了UNet++不同深度/规模变体（L1至L4）在四个数据集上的推理时间（Inference Time, s）与推理mIoU（Inference mIoU, %）的散点对比图，用于分析模型参数量、推理速度与精度之间的权衡关系。",
       "important_components": [
-        "UNet++",
-        "Inference Time",
-        "Param"
+        "UNet++ L1: 绿色圆形，Param = 0.1M",
+        "UNet++ L2: 红色三角形，Param = 0.5M",
+        "UNet++ L3: 黄色正方形，Param = 2.2M",
+        "UNet++ L4: 蓝色五边形，Param = 9.0M",
+        "X轴: Inference Time (s)（(a)(b)(c)范围0-60，(d)范围0-1200）",
+        "Y轴: Inference mIoU (%)（(a)90-95，(b)20-40，(c)70-90，(d)70-80）",
+        "子图(a)(b)(c)(d)分别对应四个不同数据集/任务"
       ],
-      "code_relevant_information": "需要实现UNet++模型的不同参数配置，并进行推理时间测试",
+      "code_relevant_information": "模型为UNet++系列的四种规模变体：L1参数量0.1M、L2参数量0.5M、L3参数量2.2M、L4参数量9.0M。复现代码时需按此参数量规模构建UNet++的嵌套深度结构（L1-L4对应不同的嵌套层数/跳连接深度），并报告两项指标：推理时间（秒）和推理mIoU（%）。近似数据点：(a) L1≈(15s, 91.5%)，L2≈(22s, 92.2%)，L3≈(36s, 92.2%)，L4≈(52s, 92.5%)；(b) L1≈(15s, 25%)，L2≈(25s, 27.5%)，L3≈(36s, 30%)，L4≈(52s, 32%)；(c) L1≈(14s, 76%)，L2≈(24s, 81.8%)，L3≈(36s, 82.8%)，L4≈(52s, 82.8%)；(d) L1≈(200s, 72%)，L2≈(380s, 76.8%)，L3≈(550s, 77%)，L4≈(830s, 77.2%)。趋势表明参数量越大推理时间越长、mIoU总体提升但边际收益递减。评测协议为语义分割mIoU指标，推理时间需在同一硬件上测量以保证公平对比。",
       "id": "image_3",
       "page": 7
     }
@@ -137,25 +183,44 @@
     {
       "figure_number": "Figure 1",
       "type": "model_architecture",
-      "description": "UNet++ architecture overview. (a) UNet++ consists of an encoder and decoder connected through a series of nested dense convolutional blocks. Black indicates original U-Net, green and blue show dense convolution blocks on skip pathways, and red indicates deep supervision. (b) Detailed analysis of the first skip pathway. (c) UNet++ can be pruned at inference time if trained with deep supervision."
+      "description": "(a) UNet++ consists of an encoder and decoder that are connected through a series of nested dense convolutional blocks. Black indicates the original U-Net, green and blue show dense convolution blocks on the skip pathways, and red indicates deep supervision. (b) Detailed analysis of the first skip pathway of UNet++. (c) UNet++ can be pruned at inference time if trained with deep supervision.",
+      "_comment_curve": "",
+      "x_axis": "",
+      "y_axis": "",
+      "trend": "",
+      "conclusion": "",
+      "_comment_data": "",
+      "data_characteristics": "",
+      "categories": "",
+      "visual_features": ""
     },
     {
       "figure_number": "Figure 2",
-      "type": "experiment_result",
-      "description": "Qualitative comparison between U-Net, wide U-Net, and UNet++, showing segmentation results for polyp, liver, and cell nuclei datasets (2D-only for distinct visualization).",
-      "x_axis": "NOT_FOUND",
-      "y_axis": "NOT_FOUND",
-      "trend": "UNet++ segmentation masks appear more accurate in qualitative examples compared with U-Net and wide U-Net.",
-      "conclusion": "UNet++ produces better qualitative segmentation results than U-Net and wide U-Net on the shown polyp, liver, and cell nuclei examples."
+      "type": "comparison_chart",
+      "description": "Qualitative comparison between U-Net, wide U-Net, and UNet++, showing segmentation results for polyp, liver, and cell nuclei datasets (2D only for a distinct visualization).",
+      "_comment_curve": "",
+      "x_axis": "Models (U-Net, Wide U-Net, UNet++)",
+      "y_axis": "Segmentation masks overlaid on input images",
+      "trend": "UNet++ produces more accurate segmentation masks with finer details",
+      "conclusion": "UNet++ generates segmentation masks with finer details compared to U-Net and wide U-Net",
+      "_comment_data": "",
+      "data_characteristics": "",
+      "categories": "",
+      "visual_features": ""
     },
     {
       "figure_number": "Figure 3",
-      "type": "comparison_chart",
+      "type": "experiment_result",
       "description": "Complexity, speed, and accuracy of UNet++ after pruning on (a) cell nuclei, (b) colon polyp, (c) liver, and (d) lung nodule segmentation tasks. The inference time is the time taken to process 10k test images using one NVIDIA TITAN X (Pascal) with 12 GB memory.",
-      "x_axis": "UNet++ pruning level",
-      "y_axis": "IoU (%) and inference time (seconds for 10k test images)",
-      "trend": "UNet++ L3 achieves on average 32.2% reduction in inference time while degrading IoU by only 0.6 points; more aggressive pruning further reduces inference time but with significant accuracy degradation.",
-      "conclusion": "Moderate pruning at level L3 reduces inference time substantially with only small IoU degradation."
+      "_comment_curve": "",
+      "x_axis": "Pruning level (UNet++ Li)",
+      "y_axis": "IoU, inference time, complexity",
+      "trend": "UNet++ L3 achieves on average 32.2% reduction in inference time while degrading IoU by only 0.6 points. More aggressive pruning further reduces inference time but at the cost of significant accuracy degradation.",
+      "conclusion": "UNet++ L3 is a good trade-off between speed and accuracy with 32.2% inference time reduction and only 0.6 IoU degradation",
+      "_comment_data": "",
+      "data_characteristics": "",
+      "categories": "",
+      "visual_features": ""
     }
   ]
 }

@@ -1,0 +1,180 @@
+"""Training pipeline for the plant-disease detection reproduction (Step 5).
+
+Implements the model-training flow required by FR-06 / FR-07 / FR-08:
+
+* FR-06 - two independent training modes, ``scratch`` and ``transfer``, selected through the
+  ``training_mode`` enum (never through a single ``pretrained`` boolean, because the two
+  initialisation strategies are fundamentally different).
+* FR-07 - Stochastic Gradient Descent (lr=0.005, momentum=0.9, weight_decay=0.0005) for 30
+  epochs with softmax cross-entropy loss and a StepLR(step_size=10, gamma=0.1) schedule.
+* FR-08 - saving of the best model weights (selected by validation accuracy, engineering
+  deviation from the paper) and of the final model weights.
+
+Paper protocol note (FR-03): the paper only uses train/test splits. When
+``reproduction_mode == 'engineering'`` a validation set is carved out of the training set
+(80/20, leaf-constraint aware) and used for best-checkpoint selection. In ``strict`` mode no
+validation split exists, ``val_loader`` stays ``None`` and the validation branch is skipped.
+"""
+
+import argparse
+import json
+import logging
+import os
+import random
+import sys
+import time
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+import torch
+import torch.nn as nn
+import yaml
+from torch.utils.data import DataLoader, Dataset, TensorDataset
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from data.dataset import PlantVillageDataset
+from models.alexnet import Alexnet
+from models.googlenet import Googlenet
+
+LOGGER = logging.getLogger(__name__)
+if not LOGGER.handlers:
+    _STREAM_HANDLER = logging.StreamHandler(stream=sys.stdout)
+    _STREAM_HANDLER.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s"))
+    LOGGER.addHandler(_STREAM_HANDLER)
+LOGGER.setLevel(logging.INFO)
+
+_DEFAULT_CONFIG_PATH = os.path.join(_PROJECT_ROOT, "config", "config.yaml")
+
+DEFAULT_NUM_CLASSES = 38
+DEFAULT_EPOCHS = 30
+DEFAULT_LR = 0.005
+DEFAULT_MOMENTUM = 0.9
+DEFAULT_WEIGHT_DECAY = 0.0005
+DEFAULT_NESTEROV = False
+DEFAULT_STEP_SIZE = 10
+DEFAULT_GAMMA = 0.1
+DEFAULT_BATCH_SIZE_GOOGLENET = 24
+DEFAULT_BATCH_SIZE_ALEXNET = 100
+DEFAULT_DROPOUT_RATIO = 0.5
+DEFAULT_IMAGE_SIZE = 256
+DEFAULT_SEED = 42
+DEFAULT_NUM_WORKERS = 4
+DEFAULT_LOG_INTERVAL = 50
+
+_TRAINING_MODES = ("scratch", "transfer")
+
+
+# --------------------------------------------------------------------------- #
+# Configuration helpers
+# --------------------------------------------------------------------------- #
+def load_config(config: Optional[Union[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Return the project configuration as a plain dictionary.
+
+    ``config`` may be ``None`` (default ``config/config.yaml`` is read), a path to a YAML file
+    or an already loaded dictionary.  Every ``open()`` of a YAML file uses ``encoding='utf-8'``.
+    """
+    if isinstance(config, dict):
+        return config
+    if config is None:
+        config = _DEFAULT_CONFIG_PATH
+    if isinstance(config, (str, os.PathLike)):
+        path = os.fspath(config)
+        if not os.path.isfile(path):
+            LOGGER.warning("Config file %s not found; falling back to built-in defaults.", path)
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                loaded = yaml.safe_load(handle)
+            return loaded if isinstance(loaded, dict) else {}
+        except Exception as exc:  # pragma: no cover - defensive
+            LOGGER.warning("Failed to read config %s (%s); using defaults.", path, exc)
+            return {}
+    return {}
+
+
+def _cfg_get(config: Optional[Dict[str, Any]], dotted_key: str, default: Any = None) -> Any:
+    """Read a value from a config dict, supporting both nested and dotted keys."""
+    if not isinstance(config, dict):
+        return default
+    if dotted_key in config:
+        return config[dotted_key]
+    node: Any = config
+    for part in dotted_key.split("."):
+        if isinstance(node, dict) and part in node:
+            node = node[part]
+        else:
+            return default
+    return node
+
+
+def _to_float(value: Any, default: float, low: Optional[float] = None, high: Optional[float] = None) -> float:
+    """Coerce ``value`` to a finite float inside the optional ``[low, high]`` range."""
+    fallback = float(default)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if result != result:  # NaN
+        return fallback
+    if low is not None and result < low:
+        return fallback
+    if high is not None and result > high:
+        return fallback
+    return result
+
+
+def _to_int(value: Any, default: int, low: int = 0) -> int:
+    """Coerce ``value`` to an int >= ``low``."""
+    fallback = int(default)
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return result if result >= low else fallback
+
+
+def _to_bool(value: Any, default: bool) -> bool:
+    """Coerce YAML-ish values to ``bool``."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("true", "yes", "1", "y"):
+            return True
+        if lowered in ("false", "no", "0", "n"):
+            return False
+    return bool(default)
+
+
+# --------------------------------------------------------------------------- #
+# Reproducibility / device helpers
+# --------------------------------------------------------------------------- #
+def set_seed(seed: int = DEFAULT_SEED, deterministic: bool = True) -> int:
+    """Seed python / torch RNGs and configure cuDNN for deterministic behaviour."""
+    seed = _to_int(seed, DEFAULT_SEED, low=0)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = bool(deterministic)
+    torch.backends.cudnn.benchmark = not bool(deterministic)
+    return seed
+
+
+def resolve_device(device: Optional[Union[str, torch.device]] = None,
+                   config: Optional[Union[str, Dict[str, Any]]] = None) -> torch.device:
+    """Resolve the torch device, falling back to CPU when CUDA is unavailable."""
+    cfg = load_config(config)
+    if isinstance(device, torch.device):
+        return device
+    if device is None:
+        device = _cfg_get(cfg, "inference.device", None) or _cfg_get(cfg, "system.device", "cuda")
+    device_str = str(device).strip().lower()
+    if device_str.startswith("cuda"):
+        if torch.cuda.is_available():
+            gpu_id = _cfg_get(cfg, "system.gpu_id", None)
+            if gpu

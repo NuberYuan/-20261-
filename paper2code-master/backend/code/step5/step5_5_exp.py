@@ -168,6 +168,54 @@ class ExperimentAnalyzer(BaseAnalyzer):
     # 实验矩阵
     # =========================
 
+    @staticmethod
+    def _extract_known_extremes(comparison: str) -> dict:
+        """按句提取 Best / Worst / 真实场景结果，避免跨句括号混记。
+
+        旧实现用跨句正则 Best.*?(\\d+\\.?\\d*%).*?\\(([^)]+)\\)，会把 Best 句的
+        accuracy 误配到后面真实场景句的括号说明（如 "121 images"），把测试集成绩
+        标成真实场景成绩。现在要求百分比与配置名出自同一句。
+        """
+        import re
+        out = {
+            "known_best": "NOT_FOUND",
+            "known_worst": "NOT_FOUND",
+            "known_real_world": "NOT_FOUND",
+        }
+        if not comparison or comparison == "NOT_FOUND":
+            return out
+
+        cfg_re = re.compile(r"[A-Za-z][A-Za-z0-9-]*(?:(?:::|:)[A-Za-z0-9-]+)+")
+        pct_re = re.compile(r"(\d+\.?\d*)%")
+
+        def fmt(pcts: list, cfg: str, scope_note: str) -> str:
+            # 主指标取 overall accuracy：Best/Worst 句在句尾，真实场景句在句首
+            pct = pcts[0] if "real-world" in scope_note else pcts[-1]
+            extra = [p for p in pcts if p != pct]
+            s = f"{pct}%"
+            if cfg:
+                s += f" — {cfg}"
+            s += f" ({scope_note}"
+            if extra:
+                s += f"; also {'/'.join(extra)}%"
+            return s + ")"
+
+        for sent in re.split(r"(?<=[.!?])\s+", str(comparison)):
+            pcts = pct_re.findall(sent)
+            if not pcts:
+                continue
+            m_cfg = cfg_re.search(sent)
+            cfg = m_cfg.group(0) if m_cfg else ""
+            low = sent.lower()
+            if re.search(r"\bbest\b", low):
+                out["known_best"] = fmt(pcts, cfg, "accuracy, from Best sentence")
+            elif re.search(r"\bworst\b", low):
+                out["known_worst"] = fmt(pcts, cfg, "accuracy, from Worst sentence")
+            elif re.search(r"real[- ]world|真实场景", low):
+                out["known_real_world"] = fmt(
+                    pcts, cfg, "accuracy on real-world images")
+        return out
+
     def _build_experiment_matrix(self) -> dict:
         """
         将 ablation 因子展开为可执行的实验组合矩阵。
@@ -175,6 +223,7 @@ class ExperimentAnalyzer(BaseAnalyzer):
         Architectures × TrainingModes × DataTypes × TrainTestSplits
 
         矩阵让代码生成 Agent 知道需要跑哪些组合，而不是隐式依赖散文描述。
+        同时展开为 experiment.runs 列表，供 Step7 注入 config.yaml、Step8 直接读取。
         """
         meth = self.key_info.get("methodology", {})
         arch = meth.get("model_architecture", {})
@@ -232,13 +281,31 @@ class ExperimentAnalyzer(BaseAnalyzer):
             * len(data_types) * len(splits)
         )
 
-        # 从 comparison_results 提取已知的最佳/最差值
+        # 从 comparison_results 提取已知的最佳/最差值（按子句解析，避免跨句混记）
         exp = self.key_info.get("experiment", {})
         comparison = str(exp.get("comparison_results", ""))
-        best_match = re.search(r'Best.*?(\d+\.?\d*%).*?\(([^)]+)\)',
-                               comparison, re.IGNORECASE)
-        worst_match = re.search(r'Worst.*?(\d+\.?\d*%).*?\(([^)]+)\)',
-                                comparison, re.IGNORECASE)
+        known = self._extract_known_extremes(comparison)
+
+        # 展开为 experiment.runs 列表（Step8 直接消费）
+        runs = []
+        if total_configs > 0:
+            run_idx = 0
+            for model in architectures:
+                for mode in training_modes:
+                    for dtype in data_types:
+                        for split in splits:
+                            run_idx += 1
+                            train_ratio = (
+                                round(int(split.split("-")[0]) / 100, 2)
+                                if split != "NOT_FOUND" else 0.8
+                            )
+                            runs.append({
+                                "id": f"run_{run_idx:03d}",
+                                "model": model,
+                                "training_mode": mode.lower(),
+                                "dataset_version": dtype.lower(),
+                                "train_ratio": train_ratio,
+                            })
 
         return {
             "dimensions": {
@@ -248,14 +315,10 @@ class ExperimentAnalyzer(BaseAnalyzer):
                 "train_test_splits": splits,
             },
             "total_configurations": total_configs,
-            "known_best": (
-                f"{best_match.group(1)} — {best_match.group(2)}"
-                if best_match else "NOT_FOUND"
-            ),
-            "known_worst": (
-                f"{worst_match.group(1)} — {worst_match.group(2)}"
-                if worst_match else "NOT_FOUND"
-            ),
+            "runs": runs,
+            "known_best": known["known_best"],
+            "known_worst": known["known_worst"],
+            "known_real_world": known["known_real_world"],
             "run_all": 0 < total_configs <= 4,
             "recommended_subset": (
                 []

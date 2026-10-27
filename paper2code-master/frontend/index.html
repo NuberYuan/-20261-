@@ -3,82 +3,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>论文复现验证系统 - 纸上得来终觉浅</title>
+    <title>论文复现系统—paper2code</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
+        :root {
+            --bg-base: #f0f2f7;
+            --bg-card: rgba(255,255,255,0.88);
+            --border-light: rgba(0,0,0,0.06);
+            --text-primary: #1a1d26;
+            --text-secondary: #5b6178;
+            --text-muted: #8e95a9;
+            --accent: #4361ee;
+            --accent-light: #dbe4ff;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
         body {
-            padding: 24px;
-            font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
-            background: #f0f4f8;
-            color:#6e8dbe
+            padding: 14px;
+            font-family: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: var(--bg-base);
+            color: var(--text-secondary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            height: 100vh;
+            overflow: hidden;
         }
         .app-container {
             max-width: 1600px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
             margin: 0 auto;
         }
 
         .app-header {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            background: linear-gradient(135deg, #0f172a 0%, #172039 50%, #1e293b 100%);
             color: #fff;
-            padding: 28px 36px;
-            border-radius: 16px;
-            margin-bottom: 28px;
+            padding: 18px 32px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 14px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
+            flex-shrink: 0;
             gap: 16px;
-            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
+            box-shadow: 0 8px 32px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(255,255,255,0.04) inset;
+            position: relative;
+            overflow: hidden;
+        }
+        .app-header::before {
+            content: '';
+            position: absolute;
+            top: -40%;
+            right: -10%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(67,97,238,0.15) 0%, rgba(59,130,246,0.05) 50%, transparent 70%);
+            pointer-events: none;
+        }
+        .app-header::after {
+            content: '';
+            position: absolute;
+            bottom: -30%;
+            left: 20%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 70%);
+            pointer-events: none;
         }
 
         /*头部*/
-        .app-header h1 {
-            font-size: 26px;
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-        .app-header h1 small {
-            font-weight: 400;
-            font-size: 16px;
-            color: #668bbe;
-            margin-left: 14px;
-        }
-         .header-status {
+        .header-left {
             display: flex;
             align-items: center;
-            gap: 18px;
-            font-size: 14px;
+            position: relative;
+            z-index: 1;
+        }
+        .header-title {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+        .header-title .title-main {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #fff 0%, #a5b4fc 50%, #93c5fd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.2;
+        }
+        .header-title .title-brand {
+            font-size: 13px;
+            font-weight: 500;
+            color: #64748b;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            position: relative;
+            padding-left: 14px;
+        }
+        .header-title .title-brand::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 16px;
+            background: #4361ee;
+            border-radius: 2px;
+        }
+        .header-subtitle {
+            font-size: 11px;
+            font-weight: 400;
+            color: #64748b;
+            letter-spacing: 1px;
+            margin-top: 2px;
+        }
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 11px;
+            position: relative;
+            z-index: 1;
         }
         .status-dot {
             display: inline-block;
-            width: 10px;
-            height: 10px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            background: #d490c0;
+            background: #4ade80;
             margin-right: 6px;
-            animation: pulse-dot 1.8s ease-in-out infinite;
+            animation: pulse-dot 2s ease-in-out infinite;
+            box-shadow: 0 0 8px rgba(74,222,128,0.4);
         }
         @keyframes pulse-dot {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 0.5; transform: scale(0.85); }
         }
         .header-status .badge {
-            background: rgba(255,255,255,0.12);
-            padding: 4px 14px;
+            background: rgba(255,255,255,0.07);
+            padding: 5px 14px;
             border-radius: 20px;
-            font-size: 13px;
+            font-size: 12px;
+            letter-spacing: 0.3px;
+            border: 1px solid rgba(255,255,255,0.06);
+            backdrop-filter: blur(4px);
         }
 
         /*主布局*/
         .main-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
+            grid-template-columns: 3fr 2fr;
+            gap: 14px;
+            flex: 1;
+            min-height: 0;
         }
 
         @media (max-width: 1200px) {
@@ -89,72 +186,89 @@
 
         /*卡片通用*/
         .card {
-            background: #ffffff;
-            border-radius: 14px;
-            padding: 24px 28px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-            border: 1px solid #e9edf2;
-            transition: box-shadow 0.2s;
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            padding: 18px 22px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-light);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transition: box-shadow var(--transition), transform var(--transition);
+            display: flex;
+            flex-direction: column;
+            overflow: visible;
+            clip-path: inset(0 round var(--radius-lg));
+            min-height: 0;
         }
         .card:hover {
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+            box-shadow: var(--shadow-lg);
         }
 
         .card-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 18px;
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
             gap: 10px;
-            color: #0f172a;
+            color: var(--text-primary);
+            letter-spacing: 0.2px;
         }
         .card-title .step-tag {
-            background: #dbeafe;
-            color: #8398cf;
-            font-size: 12px;
+            background: var(--accent-light);
+            color: var(--accent);
+            font-size: 11px;
             font-weight: 600;
-            padding: 2px 12px;
+            padding: 3px 12px;
             border-radius: 20px;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.5px;
         }
 
         /*输入区域*/
         .input-group {
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 8px;
+            flex-shrink: 0;
         }
 
         .input-row {
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             align-items: center;
             gap: 12px;
         }
         .input-row label {
-            font-weight: 500;
-            font-size: 14px;
-            min-width: 70px;
-            color: #475569;
+            font-weight: 600;
+            font-size: 12px;
+            width: 60px;
+            min-width: 60px;
+            flex-shrink: 0;
+            color: var(--text-secondary);
+            letter-spacing: 0.2px;
         }
 
         .input-row input[type="text"],
-        .input-row input[type="file"] {
+        .input-row input[type="file"],
+        .input-row select {
             flex: 1;
-            min-width: 180px;
-            padding: 10px 14px;
-            border: 1.5px solid #d1d9e6;
-            border-radius: 10px;
+            min-width: 0;
+            padding: 7px 12px;
+            border: 1.5px solid #e0e4ec;
+            border-radius: var(--radius-sm);
             font-size: 14px;
-            background: #fafcff;
-            transition: border 0.2s;
+            font-family: inherit;
+            background: #f8f9fc;
+            transition: all var(--transition);
+            color: var(--text-primary);
         }
         .input-row input[type="text"]:focus,
-        .input-row input[type="file"]:focus {
+        .input-row input[type="file"]:focus,
+        .input-row select:focus {
             outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+            border-color: var(--accent);
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
         }
 
         .btn-group {
@@ -167,110 +281,119 @@
         .btn {
             padding: 10px 24px;
             border: none;
-            border-radius: 10px;
+            border-radius: var(--radius-sm);
             font-size: 14px;
             font-weight: 600;
+            font-family: inherit;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all var(--transition);
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            letter-spacing: 0.2px;
+            position: relative;
+            overflow: hidden;
         }
         .btn:active {
             transform: scale(0.97);
         }
 
         .btn-primary {
-            background: #1e293b;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
             color: #fff;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
         }
         .btn-primary:hover {
-            background: #0f172a;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.3);
         }
 
         .btn-success {
-            background: #16a34a;
+            background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
             color: #fff;
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
         }
         .btn-success:hover {
-            background: #15803d;
-            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+            box-shadow: 0 4px 16px rgba(22, 163, 74, 0.35);
         }
 
         .btn-info {
-            background: #0891b2;
+            background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
             color: #fff;
+            box-shadow: 0 2px 8px rgba(8, 145, 178, 0.2);
         }
         .btn-info:hover {
-            background: #0e7490;
-            box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3);
+            box-shadow: 0 4px 16px rgba(8, 145, 178, 0.35);
         }
 
         .btn-outline {
             background: transparent;
-            color: #1e293b;
-            border: 1.5px solid #d1d9e6;
+            color: var(--text-primary);
+            border: 1.5px solid #e0e4ec;
         }
         .btn-outline:hover {
-            background: #f1f5f9;
-            border-color: #94a3b8;
+            background: #f4f5f9;
+            border-color: #c0c7d6;
         }
 
         .btn-danger {
-            background: #dc2626;
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
             color: #fff;
+            box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
         }
         .btn-danger:hover {
-            background: #b91c1c;
-            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+            box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
         }
 
         .btn-sm {
             padding: 6px 14px;
-            font-size: 13px;
+            font-size: 12px;
+            border-radius: 6px;
         }
 
         /*论文处理步骤指示器 - 完整8步*/
         .step-indicator {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 2px;
             flex-wrap: wrap;
-            padding: 12px 0 4px 0;
+            padding: 8px 0 4px 0;
         }
         .step-pill {
-            background: #e9edf2;
-            color: #475569;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 12px;
+            background: #eef0f5;
+            color: var(--text-muted);
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 10px;
             font-weight: 500;
-            transition: all 0.3s;
+            transition: all 0.25s ease;
             white-space: nowrap;
+            letter-spacing: 0;
         }
         .step-pill.active {
-            background: #1e293b;
+            background: var(--accent);
             color: #fff;
+            box-shadow: 0 2px 8px rgba(67,97,238,0.3);
         }
         .step-pill.done {
-            background: #bbf7d0;
+            background: #dcfce7;
             color: #166534;
         }
         .step-pill.failed {
-            background: #fecaca;
+            background: #fee2e2;
             color: #991b1b;
         }
         .step-arrow {
-            color: #94a3b8;
+            color: #c0c7d6;
+            font-size: 10px;
             font-weight: 300;
-            font-size: 11px;
+            font-size: 9px;
         }
 
         /*列表区域*/
         .result-area {
-            min-height: 320px;
-            max-height: 600px;
+            flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding-right: 4px;
         }
@@ -287,15 +410,20 @@
         }
 
         .item-card {
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 16px 18px;
-            margin-bottom: 14px;
-            border-left: 4px solid #3b82f6;
-            transition: background 0.15s;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px) saturate(1.6);
+            -webkit-backdrop-filter: blur(20px) saturate(1.6);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            transition: all var(--transition);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.02) inset;
         }
         .item-card:hover {
-            background: #f1f5f9;
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.09), 0 2px 6px rgba(0, 0, 0, 0.04);
+            transform: translateY(-1px);
         }
 
         .item-header {
@@ -307,40 +435,43 @@
         }
         .item-id {
             font-weight: 600;
-            color: #0f172a;
-            font-size: 14px;
+            color: var(--text-primary);
+            font-size: 13px;
+            letter-spacing: 0.2px;
         }
         .item-id span {
-            color: #64748b;
+            color: var(--text-muted);
             font-weight: 400;
         }
 
         .item-actions {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             flex-wrap: wrap;
         }
 
         .item-title {
             font-weight: 600;
-            font-size: 16px;
-            margin: 6px 0 4px 0;
-            color: #0f172a;
+            font-size: 15px;
+            margin: 8px 0 4px 0;
+            color: var(--text-primary);
+            line-height: 1.4;
         }
         .item-meta {
-            font-size: 13px;
-            color: #475569;
+            font-size: 12px;
+            color: var(--text-muted);
             display: flex;
             flex-wrap: wrap;
-            gap: 16px;
-            margin-top: 4px;
+            gap: 8px;
+            margin-top: 6px;
         }
         .item-meta .tag {
-            background: #e9edf2;
-            padding: 0 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            color: #334155;
+            background: #eef0f5;
+            padding: 2px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            letter-spacing: 0.1px;
         }
 
         /*步骤进度条*/
@@ -352,21 +483,25 @@
         }
         .step-progress-item {
             flex: 1;
-            min-width: 60px;
-            height: 8px;
-            border-radius: 4px;
-            background: #e9edf2;
-            transition: all 0.3s;
+            min-width: 40px;
+            height: 4px;
+            border-radius: 2px;
+            background: #e8eaf0;
+            transition: all 0.3s ease;
         }
         .step-progress-item.done {
-            background: #16a34a;
+            background: linear-gradient(90deg, #22c55e, #16a34a);
         }
         .step-progress-item.active {
-            background: #3b82f6;
-            animation: pulse-bar 1s ease-in-out infinite;
+
+
+
+            
+            background: linear-gradient(90deg, #60a5fa, var(--accent));
+            animation: pulse-bar 1.2s ease-in-out infinite;
         }
         .step-progress-item.failed {
-            background: #dc2626;
+            background: #ef4444;
             animation: none;
         }
         @keyframes pulse-bar {
@@ -378,29 +513,34 @@
             margin-top: 10px;
             background: none;
             border: none;
-            color: #3b82f6;
-            font-size: 13px;
+            color: var(--accent);
+            font-size: 12px;
             cursor: pointer;
             padding: 4px 0;
+            font-family: inherit;
+            letter-spacing: 0.2px;
+            transition: opacity var(--transition);
         }
         .item-detail-toggle:hover {
-            text-decoration: underline;
+            opacity: 0.75;
         }
 
         .item-detail-json {
             display: none;
-            background: #0f172a;
-            color: #e2e8f0;
-            padding: 14px 16px;
-            border-radius: 10px;
+            background: #1a1d26;
+            color: #c9d1e0;
+            padding: 16px 18px;
+            border-radius: var(--radius-sm);
             font-size: 12px;
             font-family: "JetBrains Mono", "Consolas", monospace;
             white-space: pre-wrap;
             word-break: break-all;
-            max-height: 400px;
-            overflow: auto;
+            max-height: 220px;
+            overflow-y: auto;
+            overflow-x: hidden;
             margin-top: 10px;
-            line-height: 1.6;
+            line-height: 1.7;
+            border: 1px solid rgba(255,255,255,0.06);
         }
         .item-detail-json.open {
             display: block;
@@ -408,74 +548,175 @@
 
         .empty-state {
             text-align: center;
-            color: #94a3b8;
-            padding: 50px 20px;
-            font-size: 15px;
+            color: var(--text-muted);
+            padding: 60px 20px;
+            font-size: 14px;
+            letter-spacing: 0.2px;
         }
         .empty-state .icon {
-            font-size: 40px;
+            font-size: 48px;
             display: block;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
+            opacity: 0.6;
         }
 
         /*统计条*/
         .stats-bar {
             display: flex;
-            gap: 24px;
+            gap: 20px;
             flex-wrap: wrap;
-            padding: 12px 0 6px 0;
-            font-size: 14px;
-            color: #475569;
-            border-top: 1px solid #e9edf2;
+            padding: 14px 0 6px 0;
+            font-size: 13px;
+            color: var(--text-muted);
+            border-top: 1px solid #eef0f5;
             margin-top: 16px;
+            flex-shrink: 0;
         }
         .stats-bar strong {
-            color: #0f172a;
+            color: var(--text-primary);
+            font-weight: 600;
         }
-        
+
         /*修复统计栏对齐*/
         .stats-bar span {
             display: inline-flex;
             align-items: center;
-            min-width: 120px;
+            min-width: 110px;
         }
 
         /*日志区（右侧辅助）*/
         .log-area {
-            background: #0f172a;
-            color: #cbd5e1;
-            border-radius: 12px;
-            padding: 16px 20px;
+            background: #1a1d26;
+            color: #b0b8cc;
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
             font-family: "JetBrains Mono", "Consolas", monospace;
-            font-size: 13px;
-            max-height: 180px;
+            font-size: 11px;
+            flex: 1;
+            min-height: 0;
             overflow-y: auto;
-            line-height: 1.7;
-            margin-top: 18px;
+            line-height: 1.6;
+            margin-top: 12px;
+            border: 1px solid rgba(255,255,255,0.04);
         }
         .log-area .log-time {
-            color: #64748b;
+            color: #5b6178;
             margin-right: 12px;
         }
         .log-area .log-info {
-            color: #60a5fa;
+            color: #7c9aff;
         }
         .log-area .log-success {
             color: #4ade80;
         }
         .log-area .log-error {
-            color: #f87171;
+            color: #fb7185;
         }
+
+        /* API Key 弹窗 */
+        .key-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px; height: 28px;
+            border-radius: 6px;
+            border: 1px solid var(--border-light);
+            background: transparent;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 6px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .key-btn:hover { background: var(--accent-light); border-color: var(--accent); }
+        .key-btn.has-key { color: #4ade80; border-color: #4ade80; background: rgba(74,222,128,0.08); }
+        .key-btn.no-key { color: #fb7185; border-color: #fb7185; background: rgba(251,113,133,0.08); }
+
+        .key-popover {
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            width: 340px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            padding: 16px 18px;
+            z-index: 1000;
+            display: none;
+        }
+        .key-popover.show { display: block; }
+        .key-popover-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .key-popover input[type="password"],
+        .key-popover input[type="text"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            font-size: 13px;
+            background: var(--bg-main);
+            color: var(--text-primary);
+            outline: none;
+            margin-bottom: 8px;
+            box-sizing: border-box;
+        }
+        .key-popover input:focus { border-color: var(--accent); }
+        .key-popover-hint {
+            font-size: 11px;
+            color: #8e95a9;
+            margin-bottom: 10px;
+        }
+        .key-popover-hint a { color: var(--accent); text-decoration: none; }
+        .key-popover-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .key-popover-actions button {
+            padding: 5px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid var(--border-light);
+            background: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .key-popover-actions button:hover { background: var(--accent-light); }
+        .key-popover-actions .btn-save { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .key-popover-actions .btn-save:hover { opacity: 0.85; }
+
+        .input-row-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+        }
+        .input-row-wrapper select { flex: 1; min-width: 0; }
 
         /*响应式微调*/
         @media (max-width: 600px) {
-            body { padding: 12px; }
+            body { padding: 12px; height: auto; overflow: auto; }
+            .app-container { height: auto; }
+            .main-grid { flex: none; }
+            .card { padding: 18px 16px; height: auto; overflow: visible; }
+            .result-area { min-height: 200px; max-height: 600px; }
+            .log-area { max-height: 180px; }
             .app-header { padding: 18px 20px; flex-direction: column; align-items: flex-start; }
-            .app-header h1 { font-size: 20px; }
-            .app-header h1 small { display: block; margin-left: 0; margin-top: 4px; }
-            .card { padding: 18px 16px; }
+            .header-title .title-main { font-size: 22px; }
+            .header-title .title-brand { font-size: 15px; }
+            .header-subtitle { font-size: 12px; }
             .input-row { flex-direction: column; align-items: stretch; }
-            .input-row label { min-width: auto; }
+            .input-row label { width: auto; min-width: auto; }
         }
 
         /* ★ 输出面板样式 */
@@ -485,56 +726,85 @@
             justify-content: space-between;
             gap: 4px;
             margin-bottom: 16px;
-            border-bottom: 2px solid #e5e7eb;
+            border-bottom: 1px solid #eef0f5;
             padding-bottom: 0;
         }
         .output-tab {
             background: none;
             border: none;
-            padding: 8px 16px;
-            font-size: 14px;
+            padding: 10px 18px;
+            font-size: 13px;
             cursor: pointer;
-            color: #64748b;
+            color: var(--text-muted);
             border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            transition: all 0.2s;
+            margin-bottom: -1px;
+            transition: all var(--transition);
+            font-family: inherit;
+            letter-spacing: 0.2px;
         }
         .output-tab:hover {
-            color: #1e293b;
+            color: var(--text-primary);
         }
         .output-tab.active {
-            color: #2563eb;
-            border-bottom-color: #2563eb;
+            color: var(--accent);
+            border-bottom-color: var(--accent);
             font-weight: 600;
         }
         .output-content {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 16px;
+            background: #f9fafc;
+            border: 1px solid #eef0f5;
+            border-radius: var(--radius-sm);
+            padding: 18px;
             font-size: 13px;
-            line-height: 1.6;
+            line-height: 1.7;
             white-space: pre-wrap;
             word-break: break-word;
             max-height: 50vh;
             overflow-y: auto;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-family: "JetBrains Mono", "Consolas", monospace;
+            color: var(--text-secondary);
         }
         .output-content h4 {
-            font-size: 14px;
-            color: #1e293b;
-            margin: 12px 0 6px 0;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 14px 0 6px 0;
             font-family: inherit;
+            letter-spacing: 0.3px;
         }
         .output-content h4:first-child { margin-top: 0; }
         .output-content .dep-item {
             display: inline-block;
-            background: #e0f2fe;
-            color: #0369a1;
-            padding: 2px 10px;
-            border-radius: 12px;
+            background: #eef0f5;
+            color: var(--accent);
+            padding: 3px 12px;
+            border-radius: 6px;
             margin: 3px 4px;
             font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.2px;
+            border: 1px solid rgba(67,97,238,0.1);
+        }
+
+        /*全局滚动条美化*/
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d0d5e0;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #b0b8cc;
+        }
+
+        /*进度条动画优化*/
+        #progress-bar {
+            background: linear-gradient(90deg, var(--accent), #22c55e) !important;
         }
     </style>
 </head>
@@ -544,14 +814,16 @@
 
     <!-- ===== HEADER ===== -->
     <header class="app-header">
-        <h1>
-            📄 论文复现验证系统
-            <small>纸上得来终觉浅 · 基于 CodeArts 代码智能体</small>
-        </h1>
+        <div class="header-left">
+            <div class="header-title">
+                <span class="title-main">论文复现系统</span>
+                <span class="title-brand">paper2code</span>
+            </div>
+        </div>
         <div class="header-status">
             <span><span class="status-dot"></span> 系统运行中</span>
-            <span class="badge">🔬 实验阶段 v1.0</span>
-            <span class="badge">📊 已处理 <span id="paper-count-badge">0</span> 篇</span>
+            <span class="badge">实验阶段 v1.0</span>
+            <span class="badge">已处理 <span id="paper-count-badge">0</span> 篇</span>
         </div>
     </header>
 
@@ -561,63 +833,106 @@
         <!-- ===== LEFT: 输入 & 控制 ===== -->
         <div class="card">
             <div class="card-title">
-                🧪 论文处理控制台
+                论文处理控制台
                 <span class="step-tag">Step 1 – 8</span>
             </div>
 
             <div class="input-group">
 
-                <!-- DeepSeek API Key -->
+                <!-- 强模型（复杂任务） -->
                 <div class="input-row">
-                    <label>🔑 API Key</label>
-                    <input type="text" id="apikey-input" placeholder="DeepSeek API Key（留空使用默认）" style="flex:1;" />
-                    <button class="btn btn-secondary" id="apikey-save-btn" style="padding: 6px 12px; font-size: 13px; margin-left: 8px;">保存</button>
+                    <label title="Step3 信息提取、Step7 代码生成">强模型</label>
+                    <div class="input-row-wrapper">
+                        <select id="model-heavy">
+                            <option value="deepseek">DeepSeek-V4-Pro</option>
+                            <option value="mimo">小米 MiMo-V2.6-Pro</option>
+                            <option value="qwen">通义千问 Qwen</option>
+                            <option value="claude">Claude Sonnet 4</option>
+                            <option value="gpt">GPT-4o</option>
+                            <option value="gemini">Gemini 2.5 Pro</option>
+                            <option value="kimi">Kimi K2</option>
+                        </select>
+                        <button class="key-btn no-key" id="key-btn-heavy" title="设置强模型 API Key">🔑</button>
+                        <div class="key-popover" id="key-popover-heavy">
+                            <div class="key-popover-title">🔑 强模型 API Key</div>
+                            <div class="key-popover-hint" id="key-hint-heavy"></div>
+                            <input type="password" id="key-input-heavy" placeholder="输入 API Key..." />
+                            <div class="key-popover-actions">
+                                <button onclick="closeKeyPopover('heavy')">取消</button>
+                                <button class="btn-save" onclick="saveModelKey('heavy')">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                    <span style="font-size:11px;color:#8e95a9;margin-left:4px;">信息提取 · 代码生成</span>
                 </div>
-                <div style="font-size: 12px; color: #888; margin-bottom: 8px; padding-left: 60px;">
-                    ℹ️ 本项目使用 DeepSeek-V4-Pro (deepseek-v4-pro)。前往 <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a> 获取 Key。
+
+                <!-- 弱模型（简单任务） -->
+                <div class="input-row">
+                    <label title="Step5 工程设计补全">轻模型</label>
+                    <div class="input-row-wrapper">
+                        <select id="model-light">
+                            <option value="deepseek">DeepSeek-V4-Pro</option>
+                            <option value="mimo">小米 MiMo-V2.6-Pro</option>
+                            <option value="qwen">通义千问 Qwen</option>
+                            <option value="claude">Claude Sonnet 4</option>
+                            <option value="gpt">GPT-4o</option>
+                            <option value="gemini">Gemini 2.5 Pro</option>
+                            <option value="kimi">Kimi K2</option>
+                        </select>
+                        <button class="key-btn no-key" id="key-btn-light" title="设置轻模型 API Key">🔑</button>
+                        <div class="key-popover" id="key-popover-light">
+                            <div class="key-popover-title">🔑 轻模型 API Key</div>
+                            <div class="key-popover-hint" id="key-hint-light"></div>
+                            <input type="password" id="key-input-light" placeholder="输入 API Key..." />
+                            <div class="key-popover-actions">
+                                <button onclick="closeKeyPopover('light')">取消</button>
+                                <button class="btn-save" onclick="saveModelKey('light')">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                    <span style="font-size:11px;color:#8e95a9;margin-left:4px;">工程设计 · 可用轻量模型</span>
                 </div>
+
+                <!-- 全局默认（兼容旧逻辑） -->
+                <input type="hidden" id="model-select" value="mimo" />
 
                 <!-- 文件上传 -->
                 <div class="input-row">
-                    <label>📎 PDF</label>
+                    <label>PDF</label>
                     <input type="file" id="file-input" accept=".pdf" />
                 </div>
 
                 <!-- 操作按钮 - 合并为一个上传按钮 -->
                 <div class="btn-group">
-                    <button class="btn btn-primary" id="upload-btn" style="padding: 12px 32px; font-size: 15px;">
-                        📤 上传
+                    <button class="btn btn-primary" id="upload-btn" style="padding: 7px 24px; font-size: 13px;">
+                        上传
                     </button>
                 </div>
 
                 <!-- 步骤指示器（动态更新 - 完整8步） -->
                 <div class="step-indicator" id="step-indicator">
-                    <span class="step-pill" data-step="step1">1 PDF→JSON</span>
+                    <span class="step-pill" data-step="step1">1 PDF解析</span>
                     <span class="step-arrow">→</span>
-                    <span class="step-pill" data-step="step2_1">2.1 清洗</span>
+                    <span class="step-pill" data-step="step2">2 JSON清洗</span>
                     <span class="step-arrow">→</span>
-                    <span class="step-pill" data-step="step2_2">2.2 修复</span>
+                    <span class="step-pill" data-step="step3">3 信息提取</span>
                     <span class="step-arrow">→</span>
-                    <span class="step-pill" data-step="step2_3">2.3 结构</span>
+                    <span class="step-pill" data-step="step4">4 需求分析</span>
                     <span class="step-arrow">→</span>
-                    <span class="step-pill" data-step="step3">3 提取</span>
+                    <span class="step-pill" data-step="step5">5 工程设计</span>
                     <span class="step-arrow">→</span>
-                    <span class="step-pill" data-step="step4">4 需求</span>
+                    <span class="step-pill" data-step="step6">6 项目整合</span>
                     <span class="step-arrow">→</span>
-                    <span class="step-pill" data-step="step5">5 设计</span>
+                    <span class="step-pill" data-step="step7">7 代码生成</span>
                     <span class="step-arrow">→</span>
-                    <span class="step-pill" data-step="step6">6 整合</span>
-                    <span class="step-arrow">→</span>
-                    <span class="step-pill" data-step="step7">7 代码</span>
-                    <span class="step-arrow">→</span>
-                    <span class="step-pill" data-step="step8">8 执行</span>
+                    <span class="step-pill" data-step="step8">8 实验执行</span>
                     <span class="step-arrow">→</span>
                     <span class="step-pill" data-step="completed">✓ 完成</span>
                 </div>
 
                 <!-- 处理进度条 -->
-                <div id="progress-container" style="display:none; margin-top:12px;">
-                    <div style="display:flex; justify-content:space-between; font-size:13px; color:#475569; margin-bottom:4px;">
+                <div id="progress-container" style="display:none; margin-top:6px;">
+                    <div style="display:flex; justify-content:space-between; font-size:11px; color:#475569; margin-bottom:2px;">
                         <span id="progress-label">处理中...</span>
                         <span id="progress-percent">0%</span>
                     </div>
@@ -627,8 +942,8 @@
                 </div>
 
                 <!-- 小提示 -->
-                <div style="font-size:13px; color:#64748b; background:#f1f5f9; padding:10px 14px; border-radius:10px; margin-top:6px;">
-                    💡 点击"上传"按钮，上传PDF后系统将自动执行 Step1-8 完整流水线
+                <div style="font-size:11px; color:#64748b; background:#f1f5f9; padding:6px 10px; border-radius:8px; margin-top:4px;">
+                    上传 PDF 后自动执行 Step1-8 完整流水线
                 </div>
             </div>
 
@@ -641,16 +956,16 @@
         <!-- ===== RIGHT: 列表展示 ===== -->
         <div class="card">
             <div class="card-title">
-                📋 论文列表
+                论文列表
                 <span class="step-tag" id="list-count">0 篇</span>
                 <span style="margin-left:auto; font-size:13px; font-weight:400; color:#64748b;">
-                    <button class="btn btn-danger btn-sm" id="clear-all-btn" style="padding:4px 14px;">🗑 清空</button>
+                    <button class="btn btn-danger btn-sm" id="clear-all-btn" style="padding:4px 14px;">清空</button>
                 </span>
             </div>
 
             <div class="result-area" id="result-box">
                 <div class="empty-state">
-                    <span class="icon">📭</span>
+                    <span class="icon">—</span>
                     暂无论文记录<br />
                     上传 PDF 或添加文本，系统将自动解析
                 </div>
@@ -658,10 +973,10 @@
 
             <!-- 统计 - 已修复对齐 -->
             <div class="stats-bar">
-                <span>📄 总条目：<strong id="stat-total">0</strong></span>
-                <span>📎 含附件：<strong id="stat-with-file">0</strong></span>
-                <span>✅ 已完成：<strong id="stat-parsed">0</strong></span>
-                <span>❌ 失败：<strong id="stat-failed">0</strong></span>
+                <span>总条目：<strong id="stat-total">0</strong></span>
+                <span>含附件：<strong id="stat-with-file">0</strong></span>
+                <span>已完成：<strong id="stat-parsed">0</strong></span>
+                <span>失败：<strong id="stat-failed">0</strong></span>
             </div>
         </div>
 
@@ -669,17 +984,18 @@
     <!-- end main-grid -->
 
     <!-- ★ 输出面板 -->
-    <div class="card" id="outputPanel" style="display:none; margin-top:24px;">
+    <div class="card" id="outputPanel" style="display:none; margin-top:24px; flex-shrink:0; height:auto; overflow:visible;">
         <div class="card-title" style="justify-content:space-between; align-items:center;">
-            <span id="outputPanelTitle">📊 输出</span>
+            <span id="outputPanelTitle">输出</span>
+            <button class="btn btn-outline btn-sm" onclick="closeOutputModal()">✕ 关闭</button>
         </div>
         <div class="output-tabs">
             <div style="display:flex; gap:4px;">
-                <button class="output-tab active" onclick="switchOutputTab('config', this)">⚙️ 实验配置</button>
-                <button class="output-tab" onclick="switchOutputTab('deps', this)">📦 依赖</button>
-                <button class="output-tab" onclick="switchOutputTab('result', this)">🧪 运行结果</button>
+                <button class="output-tab active" onclick="switchOutputTab('config', this)">实验配置</button>
+                <button class="output-tab" onclick="switchOutputTab('deps', this)">依赖</button>
+                <button class="output-tab" onclick="switchOutputTab('result', this)">运行结果</button>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="exportPaperOutput()">⬇️ 导出</button>
+            <button class="btn btn-primary btn-sm" onclick="exportPaperOutput()">导出</button>
         </div>
         <div id="outputContent" class="output-content">加载中...</div>
     </div>
@@ -692,8 +1008,9 @@
     const baseUrl = "http://localhost:3000";
 
     // DOM 引用
-    const apikeyInput = document.getElementById('apikey-input');
-    const apikeySaveBtn = document.getElementById('apikey-save-btn');
+    const modelSelect = document.getElementById('model-select');
+    const modelHeavy = document.getElementById('model-heavy');
+    const modelLight = document.getElementById('model-light');
     const fileInput = document.getElementById('file-input');
     const uploadBtn = document.getElementById('upload-btn');
     const resultBox = document.getElementById('result-box');
@@ -717,17 +1034,21 @@
 
     // 步骤顺序映射
     const STEP_ORDER = {
-        'step1': 0, 'step2_1': 1, 'step2_2': 2, 'step2_3': 3,
-        'step3': 4, 'step4': 5, 'step5': 6, 'step6': 7,
-        'step7': 8, 'step8': 9, 'completed': 10
+        'step1': 0, 'step2': 1, 'step3': 2, 'step4': 3,
+        'step5': 4, 'step6': 5, 'step7': 6, 'step8': 7,
+        'completed': 8
     };
 
     // ======================== 日志工具 ========================
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
     function addLog(message, type = 'info') {
         const time = new Date().toLocaleTimeString();
         const cls = type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : 'log-info';
         const entry = document.createElement('div');
-        entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="${cls}">${message}</span>`;
+        entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="${cls}">${escapeHtml(message)}</span>`;
         logBox.appendChild(entry);
         logBox.scrollTop = logBox.scrollHeight;
         while (logBox.children.length > 100) {
@@ -799,12 +1120,25 @@
         if (label) progressLabel.textContent = label;
     }
 
+    // ======================== 辅助：安全转字符串 ========================
+    function safeString(val) {
+        if (val === null || val === undefined) return '';
+        if (typeof val === 'string') return val;
+        if (typeof val === 'number') return String(val);
+        if (Array.isArray(val)) return val.map(v => safeString(v)).join(', ');
+        if (typeof val === 'object') {
+            // 如果是对象，尝试取 title/name/text 字段
+            return val.title || val.name || val.text || JSON.stringify(val);
+        }
+        return String(val);
+    }
+
     // ======================== 渲染列表 ========================
     function renderList(data) {
         if (!data || data.length === 0) {
             resultBox.innerHTML = `
                 <div class="empty-state">
-                    <span class="icon">📭</span>
+                    <span class="icon">—</span>
                     暂无论文记录<br />
                     上传 PDF 或添加文本，系统将自动解析
                 </div>
@@ -822,40 +1156,28 @@
             const status = item.status || 'unknown';
             const paperName = item.paper_name || item.id || '';
             const stepsStatus = item.steps_status || {};
-            const stepKeys = ['step1', 'step2_1', 'step2_2', 'step2_3', 'step3', 'step4', 'step5', 'step6', 'step7', 'step8'];
+            const stepKeys = ['step1', 'step2', 'step3', 'step4', 'step5', 'step6', 'step7', 'step8'];
             const completedSteps = stepKeys.filter(s => stepsStatus[s] && stepsStatus[s].done).length;
 
             // 状态标签
             let statusBadge = '';
             if (status === 'processing') {
-                statusBadge = '<span style="font-size:12px;background:#fef3c7;padding:2px 12px;border-radius:12px;color:#92400e;">🔄 处理中</span>';
+                statusBadge = '<span style="font-size:12px;background:#fef3c7;padding:2px 12px;border-radius:12px;color:#92400e;">处理中</span>';
             } else if (status === 'completed') {
-                statusBadge = '<span style="font-size:12px;background:#bbf7d0;padding:2px 12px;border-radius:12px;color:#166534;">✅ 已完成</span>';
+                statusBadge = '<span style="font-size:12px;background:#bbf7d0;padding:2px 12px;border-radius:12px;color:#166534;">已完成</span>';
             } else if (status === 'failed') {
-                statusBadge = '<span style="font-size:12px;background:#fecaca;padding:2px 12px;border-radius:12px;color:#991b1b;">❌ 失败</span>';
+                statusBadge = '<span style="font-size:12px;background:#fecaca;padding:2px 12px;border-radius:12px;color:#991b1b;">失败</span>';
             } else {
-                statusBadge = '<span style="font-size:12px;background:#e9edf2;padding:2px 12px;border-radius:12px;color:#475569;">📋 待处理</span>';
+                statusBadge = '<span style="font-size:12px;background:#e9edf2;padding:2px 12px;border-radius:12px;color:#475569;">待处理</span>';
             }
 
-            // 元数据标签
-            let metaTags = '';
-            if (info.authors) metaTags += `<span class="tag">✍️ ${info.authors}</span>`;
-            if (info.keywords) {
-                const kw = Array.isArray(info.keywords) ? info.keywords.slice(0, 3).join(', ') : info.keywords;
-                metaTags += `<span class="tag">🏷️ ${kw}</span>`;
-            }
-            if (info.dataset) {
-                const ds = Array.isArray(info.dataset) ? info.dataset.slice(0, 2).join(', ') : String(info.dataset || '');
-                metaTags += `<span class="tag">📊 ${ds.substring(0, 30)}</span>`;
-            }
-            if (info.methodology) {
-                const mt = Array.isArray(info.methodology) ? info.methodology.slice(0, 2).join(', ') : String(info.methodology || '');
-                metaTags += `<span class="tag">🧩 ${mt.substring(0, 30)}</span>`;
-            }
-
-            const displayTitle = info.title || item.content || paperName || '未命名论文';
+            // 论文标题（安全处理）
+            const displayTitle = safeString(info.title) || safeString(item.content) || paperName || '未命名论文';
             const currentStep = item.current_step || '';
             const failedStep = item.failed_step || '';
+
+            // 源文件地址显示
+            const fileName = hasFile ? (filePath.split('/').pop() || filePath.split('\\').pop() || filePath) : '';
 
             const stepProgressItems = stepKeys
                 .map(step => {
@@ -865,35 +1187,38 @@
                     return `<div class="step-progress-item ${done ? 'done' : ''} ${isActive ? 'active' : ''} ${isFailed ? 'failed' : ''}"></div>`;
                 }).join('');
 
+            const safeName = escapeHtml(paperName);
+            const safeNameAttr = safeName.replace(/'/g, '&#39;');
             html += `
-                <div class="item-card" data-id="${paperName}">
-                    <div class="item-header">
-                        <span class="item-id">📄 ${paperName}</span>
-                        <div class="item-actions">
-                            ${statusBadge}
-                            ${status === 'failed' ? `<button class="btn btn-success btn-sm" onclick="startProcess('${paperName}')" style="margin-left:6px;">🔄 重试</button>` : (status !== 'completed' ? `<button class="btn btn-success btn-sm" onclick="startProcess('${paperName}')" style="margin-left:6px;">🚀 处理</button>` : '')}
-                            ${status === 'completed' ? `<button class="btn btn-outline btn-sm" onclick="showOutputPanel('${paperName}')" style="margin-left:6px;">📦 输出</button>` : ''}
-                            ${status === 'completed' ? `<a class="btn btn-outline btn-sm" href="${baseUrl}/download/${encodeURIComponent(paperName)}" target="_blank" style="margin-left:6px;">⬇️ ZIP</a>` : ''}
-                            <button class="btn btn-outline btn-sm" onclick="runNextStep('${paperName}')" title="运行下一步">▶️ 下一步</button>
-                            <button class="btn btn-danger btn-sm" onclick="deleteItem('${paperName}')">删除</button>
-                        </div>
+                <div class="item-card" data-id="${safeNameAttr}">
+                    <!-- 第一行：源文件名字 -->
+                    <div class="item-id" style="margin-bottom:8px;">${escapeHtml(fileName || paperName)}</div>
+                    <!-- 第二行：控制按钮 -->
+                    <div class="item-actions" style="margin-bottom:8px;">
+                        ${statusBadge}
+                        ${status === 'failed' ? `<button class="btn btn-success btn-sm act-process" data-name="${safeNameAttr}" style="margin-left:6px;">重试</button>` : (status !== 'completed' ? `<button class="btn btn-success btn-sm act-process" data-name="${safeNameAttr}" style="margin-left:6px;">处理</button>` : '')}
+                        ${status === 'completed' ? `<button class="btn btn-outline btn-sm act-output" data-name="${safeNameAttr}" style="margin-left:6px;">输出</button>` : ''}
+                        ${status === 'completed' ? `<a class="btn btn-outline btn-sm" href="${baseUrl}/download/${encodeURIComponent(paperName)}" target="_blank" style="margin-left:6px;">ZIP</a>` : ''}
+                        <button class="btn btn-outline btn-sm act-next" data-name="${safeNameAttr}" title="运行下一步">下一步</button>
+                        <button class="btn btn-danger btn-sm act-delete" data-name="${safeNameAttr}">删除</button>
                     </div>
-                    <div class="item-title">${displayTitle}</div>
+                    <!-- 第三行：论文名字 -->
+                    <div class="item-title">${escapeHtml(displayTitle)}</div>
+                    <!-- 第三行：源文件地址 -->
+                    ${hasFile ? `<div style="font-size:12px;color:#3b82f6;margin:4px 0 2px 0;word-break:break-all;">📄 ${escapeHtml(filePath)}</div>` : ''}
+                    <!-- 第四行：当前进度 -->
                     <div class="item-meta">
-                        ${metaTags}
-                        ${hasFile ? `<span class="tag" style="color:#3b82f6;">📄 ${filePath.split('/').pop() || filePath.split('\\\\').pop()}</span>` : ''}
-                        <span class="tag">📈 进度: ${completedSteps}/10</span>
+                        <span class="tag">进度: ${completedSteps}/8</span>
+                        ${status === 'processing' ? `<span class="tag" style="color:#92400e;">当前: ${escapeHtml(currentStep)}</span>` : ''}
                     </div>
-                    
                     <!-- 步骤进度条 -->
                     <div class="step-progress">
                         ${stepProgressItems}
                     </div>
-                    ${status === 'failed' ? `<div style="margin-top:8px;font-size:13px;color:#991b1b;background:#fef2f2;padding:8px 12px;border-radius:8px;">❌ ${escapeHtml(failedStep || currentStep || '未知步骤')}: ${escapeHtml(item.error || '处理失败，可点击重试继续未完成步骤')}</div>` : ''}
-                    
+                    ${status === 'failed' ? `<div style="margin-top:8px;font-size:13px;color:#991b1b;background:#fef2f2;padding:8px 12px;border-radius:8px;">ERROR:${escapeHtml(failedStep || currentStep || '未知步骤')} — ${escapeHtml(item.error || '处理失败，可点击重试继续未完成步骤')}</div>` : ''}
                     ${isParsed ? `
-                        <button class="item-detail-toggle" onclick="toggleDetail('${paperName}')">📖 查看 key_information.json</button>
-                        <div class="item-detail-json" id="detail-${paperName}">${JSON.stringify(info, null, 2)}</div>
+                        <button class="item-detail-toggle act-toggle" data-name="${safeNameAttr}">查看 key_information.json</button>
+                        <div class="item-detail-json" id="detail-${safeNameAttr.replace(/[^a-zA-Z0-9_-]/g, '_')}">${escapeHtml(JSON.stringify(info, null, 2))}</div>
                     ` : ''}
                     <hr style="margin-top:12px;border:0;border-top:1px solid #e9edf2;" />
                 </div>
@@ -901,6 +1226,22 @@
         });
 
         resultBox.innerHTML = html;
+        // 事件委托：按钮点击
+        resultBox.querySelectorAll('.act-process').forEach(btn => {
+            btn.onclick = () => startProcess(btn.dataset.name);
+        });
+        resultBox.querySelectorAll('.act-output').forEach(btn => {
+            btn.onclick = () => showOutputPanel(btn.dataset.name);
+        });
+        resultBox.querySelectorAll('.act-next').forEach(btn => {
+            btn.onclick = () => runNextStep(btn.dataset.name);
+        });
+        resultBox.querySelectorAll('.act-delete').forEach(btn => {
+            btn.onclick = () => deleteItem(btn.dataset.name);
+        });
+        resultBox.querySelectorAll('.act-toggle').forEach(btn => {
+            btn.onclick = () => toggleDetail(btn.dataset.name);
+        });
         updateStats(data);
     }
 
@@ -921,7 +1262,8 @@
 
     // ======================== 展开/收起 JSON ========================
     window.toggleDetail = function(id) {
-        const el = document.getElementById(`detail-${id}`);
+        const safeId = String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const el = document.getElementById(`detail-${safeId}`);
         if (el) el.classList.toggle('open');
     };
 
@@ -944,7 +1286,7 @@
 
     // ======================== 清空全部 ========================
     clearAllBtn.onclick = async function() {
-        if (!confirm('⚠️ 确定清空所有论文记录吗？（不可恢复）')) return;
+        if (!confirm('确定清空所有论文记录吗？（不可恢复）')) return;
         try {
             const res = await fetch(`${baseUrl}/clear`, { method: 'DELETE' });
             const json = await res.json();
@@ -986,47 +1328,196 @@
         }
     }
 
-    // ======================== ★ API Key 保存 ========================
-    apikeySaveBtn.onclick = async function() {
-        const key = apikeyInput.value.trim();
-        if (!key) { alert('请输入 API Key'); return; }
+    // ======================== ★ API Key 弹窗（按模型管理） ========================
+    const MODEL_HINTS = {
+        'deepseek': { text: 'DeepSeek-V4-Pro', url: 'https://platform.deepseek.com', urlText: 'platform.deepseek.com' },
+        'mimo':     { text: '小米 MiMo-V2.6-Pro', url: 'https://api.xiaomimimo.com', urlText: 'api.xiaomimimo.com' },
+        'qwen':     { text: '通义千问 Qwen', url: 'https://dashscope.console.aliyun.com', urlText: 'dashscope.console.aliyun.com' },
+        'claude':   { text: 'Claude Sonnet 4', url: 'https://console.anthropic.com', urlText: 'console.anthropic.com' },
+        'gpt':      { text: 'GPT-4o', url: 'https://platform.openai.com', urlText: 'platform.openai.com' },
+        'gemini':   { text: 'Gemini 2.5 Pro', url: 'https://aistudio.google.com', urlText: 'aistudio.google.com' },
+        'kimi':     { text: 'Kimi K2', url: 'https://platform.moonshot.cn', urlText: 'platform.moonshot.cn' },
+    };
+
+    // 当前各模型的 Key 状态（从后端加载）
+    const modelKeyStatus = { heavy: false, light: false };
+
+    function openKeyPopover(taskType) {
+        const selectEl = taskType === 'heavy' ? modelHeavy : modelLight;
+        const modelKey = selectEl.value;
+        const hint = MODEL_HINTS[modelKey];
+        const hintEl = document.getElementById(`key-hint-${taskType}`);
+        const popover = document.getElementById(`key-popover-${taskType}`);
+        const input = document.getElementById(`key-input-${taskType}`);
+
+        if (hint) {
+            hintEl.innerHTML = `${hint.text} — 前往 <a href="${hint.url}" target="_blank">${hint.urlText}</a> 获取 Key`;
+        }
+        input.value = '';
+        input.type = 'password';
+        popover.classList.add('show');
+        input.focus();
+    }
+
+    function closeKeyPopover(taskType) {
+        document.getElementById(`key-popover-${taskType}`).classList.remove('show');
+    }
+
+    async function saveModelKey(taskType) {
+        const selectEl = taskType === 'heavy' ? modelHeavy : modelLight;
+        const modelKey = selectEl.value;
+        const input = document.getElementById(`key-input-${taskType}`);
+        const key = input.value.trim();
+
+        if (!key) {
+            addLog('API Key 不能为空', 'error');
+            return;
+        }
+
         try {
+            // 保存到后端（按模型存储）
             const res = await fetch(`${baseUrl}/settings/apikey`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_key: key })
+                body: JSON.stringify({ api_key: key, model_key: modelKey, persist: true })
             });
             const json = await res.json();
             if (json.code === 200) {
-                addLog('✅ API Key 已保存', 'success');
-                apikeyInput.value = '';
-                loadApiKey();
+                addLog(`${MODEL_HINTS[modelKey]?.text || modelKey} API Key 已保存`, 'success');
+                modelKeyStatus[taskType] = true;
+                updateKeyBtnStyle(taskType);
+                closeKeyPopover(taskType);
             } else {
-                addLog(`❌ 保存失败: ${json.msg}`, 'error');
+                addLog(`保存失败: ${json.msg}`, 'error');
             }
         } catch (e) {
             addLog(`网络异常: ${e.message}`, 'error');
         }
-    };
+    }
 
-    // 加载当前 API Key（脱敏显示在 placeholder）
-    async function loadApiKey() {
+    function updateKeyBtnStyle(taskType) {
+        const btn = document.getElementById(`key-btn-${taskType}`);
+        if (modelKeyStatus[taskType]) {
+            btn.classList.remove('no-key');
+            btn.classList.add('has-key');
+            btn.title = 'API Key 已配置（点击修改）';
+        } else {
+            btn.classList.remove('has-key');
+            btn.classList.add('no-key');
+            btn.title = '未配置 API Key（点击设置）';
+        }
+    }
+
+    // 绑定钥匙按钮点击
+    document.getElementById('key-btn-heavy').addEventListener('click', () => openKeyPopover('heavy'));
+    document.getElementById('key-btn-light').addEventListener('click', () => openKeyPopover('light'));
+
+    // 点击外部关闭弹窗
+    document.addEventListener('click', function(e) {
+        ['heavy', 'light'].forEach(t => {
+            const popover = document.getElementById(`key-popover-${t}`);
+            const btn = document.getElementById(`key-btn-${t}`);
+            if (popover.classList.contains('show') && !popover.contains(e.target) && e.target !== btn) {
+                closeKeyPopover(t);
+            }
+        });
+    });
+
+    // 加载后端 API Key 状态
+    async function loadApiKeyStatus() {
         try {
             const res = await fetch(`${baseUrl}/settings/apikey`);
             const json = await res.json();
-            if (json.code === 200 && json.api_key) {
-                apikeyInput.placeholder = `当前: ${json.api_key}`;
+            if (json.code === 200) {
+                // 后端返回脱敏的 key，非空说明已配置
+                const hasKey = json.api_key && json.api_key !== '***';
+                ['heavy', 'light'].forEach(t => {
+                    modelKeyStatus[t] = hasKey;
+                    updateKeyBtnStyle(t);
+                });
             }
         } catch (e) {}
     }
-    loadApiKey();
+    loadApiKeyStatus();
+
+    // ======================== ★ 模型选择 ========================
+
+    // 为下拉框填充模型选项
+    function populateModelSelect(selectEl, models, selectedKey) {
+        selectEl.innerHTML = '';
+        for (const [key, info] of Object.entries(models || {})) {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = info.name;
+            selectEl.appendChild(opt);
+        }
+        if (selectedKey && models[selectedKey]) {
+            selectEl.value = selectedKey;
+        }
+    }
+
+    // 加载当前模型设置（动态构建双下拉列表）
+    async function loadModelSetting() {
+        try {
+            // 加载全局模型列表
+            const res = await fetch(`${baseUrl}/settings/model`);
+            const json = await res.json();
+            if (json.code === 200) {
+                const models = json.models || {};
+                // 填充两个下拉框
+                populateModelSelect(modelHeavy, models, json.selected);
+                populateModelSelect(modelLight, models, json.selected);
+                modelSelect.value = json.selected;
+            }
+            // 加载任务模型配置
+            const taskRes = await fetch(`${baseUrl}/settings/task-models`);
+            const taskJson = await taskRes.json();
+            if (taskJson.code === 200) {
+                const tm = taskJson.task_models || {};
+                if (tm.heavy) modelHeavy.value = tm.heavy.model_key;
+                if (tm.light) modelLight.value = tm.light.model_key;
+            }
+        } catch (e) {}
+    }
+    loadModelSetting();
+
+    // 切换任务模型
+    async function setTaskModel(taskType, modelKey) {
+        try {
+            const res = await fetch(`${baseUrl}/settings/task-models`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task_type: taskType, model_key: modelKey })
+            });
+            const json = await res.json();
+            if (json.code === 200) {
+                addLog(`${json.msg}`, 'success');
+            } else {
+                addLog(`切换失败: ${json.msg}`, 'error');
+            }
+        } catch (e) {
+            addLog(`网络异常: ${e.message}`, 'error');
+        }
+    }
+
+    modelHeavy.onchange = function() {
+        setTaskModel('heavy', modelHeavy.value);
+        // 切换模型时重置 Key 状态提示
+        modelKeyStatus.heavy = false;
+        updateKeyBtnStyle('heavy');
+    };
+    modelLight.onchange = function() {
+        setTaskModel('light', modelLight.value);
+        modelKeyStatus.light = false;
+        updateKeyBtnStyle('light');
+    };
 
     // ======================== ★ 输出面板 ========================
     let _currentOutputPaper = '';
 
     window.showOutputPanel = async function(paperName) {
         _currentOutputPaper = paperName;
-        document.getElementById('outputPanelTitle').textContent = `📊 ${paperName} 输出`;
+        document.getElementById('outputPanelTitle').textContent = `${paperName} 输出`;
         document.getElementById('outputPanel').style.display = 'block';
         document.getElementById('outputPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
         // 默认加载第一个 tab
@@ -1063,7 +1554,7 @@
                 // 论文简报放在最前面
                 if (json.data?.brief) {
                     const b = json.data.brief;
-                    html += '<h4>📄 论文简报</h4>';
+                    html += '<h4>论文简报</h4>';
                     if (b.title) html += '标题: ' + escapeHtml(b.title) + '\n';
                     if (b.research_problem) html += '研究问题: ' + escapeHtml(b.research_problem) + '\n';
                     if (b.methodology) html += '核心方法: ' + escapeHtml(b.methodology) + '\n';
@@ -1071,11 +1562,11 @@
                 }
                 // 执行规范
                 if (json.data?.execution_spec) {
-                    html += '<h4>📋 执行规范</h4>' + escapeHtml(json.data.execution_spec);
+                    html += '<h4>执行规范</h4>' + escapeHtml(json.data.execution_spec);
                 }
                 // 完整配置（可折叠）
                 if (json.data?.config_yaml) {
-                    html += '<h4>⚙️ 完整配置 (config.yaml)</h4>';
+                    html += '<h4>完整配置 (config.yaml)</h4>';
                     html += '<details><summary style="cursor:pointer;color:#3b82f6;">点击展开完整配置</summary>';
                     html += '<div style="margin-top:8px;">' + escapeHtml(json.data.config_yaml) + '</div></details>';
                 }
@@ -1084,7 +1575,7 @@
                 const raw = json.data || '';
                 if (!raw || raw.trim() === '') { content.textContent = '暂无依赖'; return; }
                 const deps = raw.split('\n').map(s => s.trim()).filter(Boolean);
-                content.innerHTML = '<h4>📦 Python 依赖</h4>' +
+                content.innerHTML = '<h4>Python 依赖</h4>' +
                     deps.map(d => `<span class="dep-item">${escapeHtml(d)}</span>`).join('');
             } else if (tab === 'result') {
                 const r = json.data;
@@ -1093,7 +1584,7 @@
                 if (r.generation_report) {
                     const gr = r.generation_report;
                     const gen = gr.generation || gr;
-                    html += '<h4>🔧 代码生成</h4>';
+                    html += '<h4>代码生成</h4>';
                     html += `状态: ${gen.status || '未知'}\n`;
                     if (gen.total_files !== undefined) html += `总文件: ${gen.total_files}  成功: ${gen.generated_files || gen.success_files || 0}  失败: ${gen.failed_files || 0}\n`;
                     // 沙箱测试
@@ -1112,7 +1603,7 @@
                 if (r.execution_report) {
                     const er = r.execution_report;
                     const exec = er.execution || er;
-                    html += '<h4>🧪 实验执行</h4>';
+                    html += '<h4>实验执行</h4>';
                     const total = exec.total || 0;
                     const success = (er.success || []).length;
                     const failed = (er.failed || []).length;
@@ -1133,12 +1624,12 @@
                         });
                     }
                 } else {
-                    html += '<h4>🧪 实验执行</h4>尚未执行\n';
+                    html += '<h4>实验执行</h4>尚未执行\n';
                 }
                 // 执行计划详情
                 if (r.execution_plan) {
                     const ep = r.execution_plan;
-                    html += '<h4>📊 资源检查</h4>';
+                    html += '<h4>资源检查</h4>';
                     if (ep.environment) {
                         const env = ep.environment;
                         html += `Python: ${env.python_version || '?'}  `;
@@ -1151,7 +1642,7 @@
                 if (r.logs && r.logs.length > 0) {
                     const important = r.logs.filter(l => l.includes('WARNING') || l.includes('ERROR') || l.includes('失败') || l.includes('成功'));
                     if (important.length > 0) {
-                        html += '<h4>⚠️ 关键日志</h4>' + escapeHtml(important.slice(-15).join('\n'));
+                        html += '<h4>关键日志</h4>' + escapeHtml(important.slice(-15).join('\n'));
                     }
                 }
                 content.innerHTML = html || '暂无结果';
@@ -1159,11 +1650,6 @@
         } catch (e) {
             content.textContent = `加载失败: ${e.message}`;
         }
-    }
-
-    function escapeHtml(str) {
-        if (!str) return '';
-        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
     function downloadFile(filename, content, mimeType) {
@@ -1474,10 +1960,8 @@
         const labels = {
             'starting': '正在初始化...',
             'step1': 'Step1: PDF解析中...',
-            'step2_1': 'Step2.1: JSON清洗中...',
-            'step2_2': 'Step2.2: 断词修复中...',
-            'step2_3': 'Step2.3: 结构检测中...',
-            'step3': 'Step3: LLM关键信息提取中（耗时较长）...',
+            'step2': 'Step2: JSON清洗中...',
+            'step3': 'Step3: 信息提取中（LLM，耗时较长）...',
             'step4': 'Step4: 需求分析中...',
             'step5': 'Step5: 工程设计中（LLM）...',
             'step6': 'Step6: 项目整合中...',
@@ -1510,10 +1994,10 @@
         }
     }, 30000);
 
-    console.log('📄 论文复现验证系统已启动 (支持 Step1-8)');
-    console.log('📌 Express 后端:', baseUrl);
-    console.log('🔗 Flask API: http://localhost:5000');
-    console.log('💡 点击"上传"按钮即可开始完整流程');
+    console.log('论文复现系统—paper2code 已启动 (支持 Step1-8)');
+    console.log('Express 后端:', baseUrl);
+    console.log('Flask API: http://localhost:5000');
+    console.log('点击"上传"按钮即可开始完整流程');
 </script>
 
 </body>

@@ -1,35 +1,40 @@
 paper_name: 论文5
 pipeline:
-- Input static metadata, past-observed inputs and future-known inputs. Apply variable
-  selection to static, past and future inputs. Encode static covariates into context
-  vectors cs, ce, cc, ch. Process selected temporal features with LSTM encoder-decoder
-  locality enhancement. Apply static enrichment, temporal self-attention and positionwise
-  feedforward layers. Generate quantile forecasts via linear transformation. Train
-  by jointly minimizing quantile loss across all quantiles and horizons.
+- Input static covariates, known future inputs, and past observed inputs. Encode static
+  covariates via GRN encoders to produce context vectors (cs, ce, cc, ch). Apply variable
+  selection networks to static, past, and future inputs to select relevant features.
+  Feed transformed inputs through an LSTM encoder-decoder (sequence-to-sequence layer)
+  for locality enhancement. Apply static enrichment layer with GRN using context ce.
+  Apply interpretable multi-head self-attention with decoder masking. Apply position-wise
+  feedforward GRN layer with gated residual connection. Generate quantile outputs
+  via linear transformation for specified quantiles.
 experiments:
 - name: main_experiment
-  description: NOT_FOUND
+  description: TFT demonstrates significant performance improvements over existing
+    benchmarks on Electricity, Traffic, Retail, and Volatility datasets. Specific
+    benchmark comparison numbers were truncated in the provided text.
 evaluation:
   primary_metric: NOT_FOUND
   secondary_metrics:
-  - q-Risk
-  - P50 risk
-  - P90 risk
-  - normalized quantile losses
+  - Normalized quantile loss (q-Risk) for P50 and P90
 comparison:
   baselines:
   - DeepAR
-  - Deep State-Space Models
+  - DSSM
   - ConvTrans
   - MQRNN
-  ablation_factors: []
+  - and other multihorizon forecasting benchmarks
+  ablation_factors:
+  - Table B.4
+  - Power Usage/Occupancy/Realised Vol
+  - 0.437 past, 0.718 future
+  - 0.285 past, 0.781 future
+  - 0.069, 0.635, 0.913
 experiment_matrix:
   dimensions:
     architectures:
-    - Temporal Fusion Transformer
-    - Gated Residual Network
-    - Interpretable Multi-Head Attention
     - LSTM encoder-decoder
+    - Interpretable Multi-Head Attention
     training_modes:
     - Scratch
     data_types:
@@ -43,20 +48,97 @@ experiment_matrix:
     - 2000-01
     - 2019-06
     - 2016-2017
-  total_configurations: 32
+  total_configurations: 16
+  runs:
+  - id: run_001
+    model: LSTM encoder-decoder
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.14
+  - id: run_002
+    model: LSTM encoder-decoder
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.14
+  - id: run_003
+    model: LSTM encoder-decoder
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.08
+  - id: run_004
+    model: LSTM encoder-decoder
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.15
+  - id: run_005
+    model: LSTM encoder-decoder
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.15
+  - id: run_006
+    model: LSTM encoder-decoder
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.0
+  - id: run_007
+    model: LSTM encoder-decoder
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.19
+  - id: run_008
+    model: LSTM encoder-decoder
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.16
+  - id: run_009
+    model: Interpretable Multi-Head Attention
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.14
+  - id: run_010
+    model: Interpretable Multi-Head Attention
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.14
+  - id: run_011
+    model: Interpretable Multi-Head Attention
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.08
+  - id: run_012
+    model: Interpretable Multi-Head Attention
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.15
+  - id: run_013
+    model: Interpretable Multi-Head Attention
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.15
+  - id: run_014
+    model: Interpretable Multi-Head Attention
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.0
+  - id: run_015
+    model: Interpretable Multi-Head Attention
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.19
+  - id: run_016
+    model: Interpretable Multi-Head Attention
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 20.16
   known_best: NOT_FOUND
   known_worst: NOT_FOUND
+  known_real_world: NOT_FOUND
   run_all: false
   recommended_subset:
-  - Temporal Fusion Transformer::Scratch::default::2014-01
-  - Gated Residual Network::Scratch::default::2014-01
-  note: 共 32 个实验组合。90%+ 场景下只需跑推荐子集确认趋势，CI/CD 中跑全部组合验证稳定性。
-important_results: 'TFT demonstrates significant performance improvements over existing
-  benchmarks on a variety of real-world datasets. For the Electricity dataset, the
-  optimal TFT model trains in slightly over 6 hours on an NVIDIA Tesla V100 GPU, each
-  epoch being roughly 52 mins, and batched inference on the entire validation dataset
-  of 50,000 samples takes 8 minutes. TFT enables three interpretability use cases:
-  identifying globally important variables, persistent temporal patterns, and significant
-  events. Variable importance results include Electricity static ID 1.000, past power
-  usage 0.342/0.359/0.366, future hour-of-day 0.718/0.738/0.739; Traffic past occupancy
-  0.471/0.473/0.483; Volatility past realized volatility 0.620/0.647/0.714.'
+  - LSTM encoder-decoder::Scratch::default::2014-01
+  - Interpretable Multi-Head Attention::Scratch::default::2014-01
+  note: 共 16 个实验组合。90%+ 场景下只需跑推荐子集确认趋势，CI/CD 中跑全部组合验证稳定性。
+important_results: TFT optimal model for Electricity takes slightly over 6 hours to
+  train on NVIDIA Tesla V100 (each epoch roughly 52 mins). Batched inference on 50,000
+  validation samples takes 8 minutes. TFT achieves significant performance improvements
+  over existing benchmarks on all four real-world datasets.

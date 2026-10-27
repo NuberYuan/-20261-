@@ -1,0 +1,251 @@
+"""models/alexnet.py
+=============================================================================
+AlexNet model definition for the reproduction of
+"Using Deep Learning for Image-Based Plant Disease Detection".
+
+FR-04: the model must accept the pre-processed images (256 x 256 RGB tensors)
+and output one logit per class (38 classes in the adapted AlexNet, i.e. the
+final fully connected layer fc8 has 38 outputs).
+
+Design constraints respected by this file
+-----------------------------------------
+* The architecture is *exactly* ``torchvision.models.AlexNet`` (5 conv layers,
+  3 fully connected layers, ReLU after the first 7 layers, LRN / pooling after
+  conv1 & conv2, pooling after conv5, dropout p=0.5 inside the classifier).
+  The class simply inherits from the torchvision implementation so that the
+  ImageNet pre-trained weights can be loaded 1:1 without any shape mismatch
+  (transfer learning is handled by ``training/train.py::initialize_model``).
+* No extra layers are added on top of the torchvision structure.
+* The model class only defines the structure (randomly initialised).  Weight
+  initialisation / pre-trained loading / ``training_mode`` (scratch|transfer)
+  logic lives in ``training/train.py`` and is NOT done here.
+* ``num_classes`` and ``dropout`` are read from ``config/config.yaml``
+  (``model.num_classes``, ``model.alexnet.dropout_ratio`` / ``model.dropout_ratio``
+  / ``training.dropout_ratio``).  Hard-coded values are used ONLY as a last
+  resort fallback when the key is missing or null in the config file; the
+  fallback values are derived from the paper (38 classes, dropout 0.5) and are
+  documented below.
+=============================================================================
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+import torch
+import torch.nn.functional as F
+import yaml
+from torch import nn
+from torchvision.models import AlexNet as _TorchvisionAlexNet
+
+__all__ = ["Alexnet", "load_config", "DEFAULT_NUM_CLASSES", "DEFAULT_DROPOUT"]
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Last-resort fallback defaults (only used when config/config.yaml is missing
+# or the relevant key is null).  Source of these values = the paper:
+#   * num_classes : 38 -> 14 crop species x 26 diseases / healthy status
+#                   (fc8 of the adapted AlexNet has 38 outputs).
+#   * dropout     : 0.5 -> dropout rate described in the paper
+#                   (``model.alexnet.dropout_ratio`` / ``training.dropout_ratio``).
+# ---------------------------------------------------------------------------
+DEFAULT_NUM_CLASSES = 38
+DEFAULT_DROPOUT = 0.5
+
+# Expected image input (RGB, 3 channels, 256 x 256 as per config['data']).
+DEFAULT_IN_CHANNELS = 3
+
+_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "config.yaml"
+
+
+# ---------------------------------------------------------------------------
+# Config helpers
+# ---------------------------------------------------------------------------
+def load_config(config_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
+    """Load ``config/config.yaml`` (UTF-8) and return it as a dictionary.
+
+    If the file does not exist an empty dictionary is returned so that the
+    module keeps working with the documented paper defaults.
+    """
+    path = Path(config_path) if config_path is not None else _DEFAULT_CONFIG_PATH
+    if not path.is_file():
+        logger.warning("config file not found at %s; falling back to paper defaults", path)
+        return {}
+    with open(path, "r", encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _resolve_config(
+    config: Optional[Union[str, Path, Dict[str, Any]]],
+) -> Dict[str, Any]:
+    """Accept a dict, a path or ``None`` and always return a config dictionary."""
+    if config is None:
+        return load_config()
+    if isinstance(config, dict):
+        return config
+    return load_config(config)
+
+
+def _nested_get(cfg: Dict[str, Any], *keys: str, default: Any = None) -> Any:
+    """Safely walk nested dictionaries; return ``default`` on missing/null keys."""
+    node: Any = cfg
+    for key in keys:
+        if not isinstance(node, dict) or key not in node:
+            return default
+        node = node[key]
+    return default if node is None else node
+
+
+def _resolve_value(arg_value: Any, cfg_value: Any, default: Any) -> Any:
+    """Priority: explicit argument > config value > documented fallback."""
+    if arg_value is not None:
+        return arg_value
+    if cfg_value is not None:
+        return cfg_value
+    return default
+
+
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+class Alexnet(_TorchvisionAlexNet):
+    """AlexNet adapted for image-based plant disease detection.
+
+    Structure (identical to ``torchvision.models.AlexNet``):
+        * 5 convolutional layers (conv1..conv5); conv1/conv2 are followed by a
+          normalisation (Local Response Normalisation) and a max-pooling layer,
+          conv3/conv4 have no pooling, conv5 is followed by a pooling layer;
+        * 3 fully connected layers (fc6, fc7, fc8) with ReLU after fc6 and fc7
+          and dropout (p = 0.5) before fc6 and fc7;
+        * fc8 outputs one raw logit per class (38 in the adapted version).
+
+    The forward pass returns raw logits; softmax cross-entropy
+    (``torch.nn.CrossEntropyLoss``) is applied by the training loop.
+
+    Parameters
+    ----------
+    num_classes:
+        Number of output classes.  ``None`` (default) means "read it from
+        ``config/config.yaml`` -> ``model.num_classes``"; if that key is missing
+        or null the paper default (38) is used.  A concrete positive integer is
+        always handed to ``nn.Linear`` (never ``None``).
+    dropout:
+        Dropout probability used inside the classifier.  ``None`` (default)
+        means "read it from ``model.alexnet.dropout_ratio`` (fallbacks:
+        ``model.dropout_ratio``, ``training.dropout_ratio``)"; if missing/null
+        the paper default (0.5) is used.
+    config:
+        Optional config dictionary, or a path to a YAML file.  When ``None``
+        the project config ``config/config.yaml`` is loaded automatically.
+
+    Notes
+    -----
+    * This class ONLY defines the architecture (random initialisation).  It does
+      not contain any ``training_mode`` branch and never loads a state dict;
+      pre-trained ImageNet weights / ``classifier.6`` reset are handled in
+      ``training/train.py::initialize_model`` (FR-06).
+    * No layers are added or removed with respect to the torchvision model, so
+      ImageNet pre-trained weights can be loaded with ``strict=True`` after the
+      final layer has been replaced (``classifier.6`` -> 38 outputs).
+    """
+
+    def __init__(
+        self,
+        num_classes: Optional[int] = None,
+        dropout: Optional[float] = None,
+        config: Optional[Union[str, Path, Dict[str, Any]]] = None,
+    ) -> None:
+        cfg = _resolve_config(config)
+
+        # ---- shape parameters from config/config.yaml (with safe fallbacks) ----
+        cfg_num_classes = _nested_get(cfg, "model", "num_classes")
+        cfg_dropout = _nested_get(cfg, "model", "alexnet", "dropout_ratio")
+        if cfg_dropout is None:
+            cfg_dropout = _nested_get(cfg, "model", "dropout_ratio")
+        if cfg_dropout is None:
+            cfg_dropout = _nested_get(cfg, "training", "dropout_ratio")
+
+        resolved_num_classes = int(
+            _resolve_value(num_classes, cfg_num_classes, DEFAULT_NUM_CLASSES)
+        )
+        resolved_dropout = float(_resolve_value(dropout, cfg_dropout, DEFAULT_DROPOUT))
+
+        # ---- sanity checks (never hand None / invalid values to nn.Linear) ----
+        if resolved_num_classes <= 0:
+            logger.warning(
+                "invalid num_classes=%s; falling back to %d",
+                resolved_num_classes,
+                DEFAULT_NUM_CLASSES,
+            )
+            resolved_num_classes = int(DEFAULT_NUM_CLASSES)
+        if not (0.0 <= resolved_dropout < 1.0):
+            logger.warning(
+                "invalid dropout=%s; falling back to %s",
+                resolved_dropout,
+                DEFAULT_DROPOUT,
+            )
+            resolved_dropout = float(DEFAULT_DROPOUT)
+
+        # ---- build the torchvision AlexNet structure ----
+        try:
+            super().__init__(num_classes=resolved_num_classes, dropout=resolved_dropout)
+        except TypeError:
+            # Very old torchvision versions without the `dropout` argument.
+            super().__init__(num_classes=resolved_num_classes)
+            for module in self.modules():
+                if isinstance(module, nn.Dropout):
+                    module.p = resolved_dropout
+
+        # Plain metadata attributes (not layers) kept for convenience/logging.
+        self.num_classes = resolved_num_classes
+        self.dropout = resolved_dropout
+
+    # ------------------------------------------------------------------
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass: features -> (avgpool) -> flatten -> classifier.
+
+        Parameters
+        ----------
+        x:
+            Input batch of pre-processed images, shape ``(N, C, H, W)`` with
+            ``C = 3`` and ``H = W = 256`` (see ``config['data']``).
+
+        Returns
+        -------
+        torch.Tensor
+            Raw logits of shape ``(N, num_classes)`` (38 by default).
+        """
+        if x.dim() != 4:
+            raise ValueError(
+                "Alexnet.forward expects a 4-D tensor (N, C, H, W), got shape "
+                f"{tuple(x.shape)}"
+            )
+
+        x = self.features(x)
+
+        if hasattr(self, "avgpool") and self.avgpool is not None:
+            x = self.avgpool(x)
+        else:  # pragma: no cover - only for very old torchvision builds
+            x = F.adaptive_avg_pool2d(x, (6, 6))
+
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+
+
+# ---------------------------------------------------------------------------
+# Smoke test (FR-04 acceptance: instantiation + forward pass)
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":  # pragma: no cover
+    model = Alexnet()
+    dummy = torch.randn(2, DEFAULT_IN_CHANNELS, 256, 256)
+    output = model(dummy)
+    assert output.shape == (2, model.num_classes), output.shape
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"Alexnet forward OK -> output shape {tuple(output.shape)}, "
+          f"num_classes={model.num_classes}, dropout={model.dropout}, "
+          f"parameters={n_params}")

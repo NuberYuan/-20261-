@@ -1,16 +1,16 @@
 paper_name: 论文3
 models:
-- name: UNet++
-  type: other
-  code_class_name: UNet
-  input: 'Input sizes per dataset: cell nuclei 96×96, colon polyp 224×224, liver 512×512,
-    lung nodule 64×64×64'
-  output: Full-resolution segmentation maps at multiple semantic levels; deep supervision
-    generates four segmentation maps, which are averaged to generate the final segmentation
-    map
-  num_classes: NOT_FOUND
+- name: Densenet
+  type: CNN
+  code_class_name: Densenet
+  input: 96×96 (cell nuclei), 224×224 (colon polyp), 512×512 (liver), 64×64×64 (lung
+    nodule)
+  output: Four segmentation maps given an input image, which will be further averaged
+    to generate the final segmentation map
+  num_classes: 2 (binary segmentation)
   pretrained: NOT_FOUND
-  architecture_summary: NOT_FOUND
+  architecture_summary: Inspired by DenseNet architecture, Li et al. proposed Hdenseunet
+    for liver and liver tumor segmentation
   architecture:
     total_layers: NOT_FOUND
     param_count: NOT_FOUND

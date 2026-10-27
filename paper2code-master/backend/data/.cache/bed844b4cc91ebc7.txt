@@ -1,0 +1,23 @@
+```json
+{
+  "type": "chart",
+  "description": "这是一个训练曲线图，展示了两种深度学习架构（AlexNet 和 GoogLeNet）在 30 个 epoch 内的 Mean-F1-Score 变化趋势，包含多条曲线（多次实验/交叉验证）及置信带。",
+  "important_components": [
+    "X轴: Epochs（范围 0-30）",
+    "Y轴: Mean-F1-Score（范围 0.55-1.00）",
+    "图例: Deep Learning Architecture — AlexNet（蓝色）、GoogLeNet（绿色）",
+    "多条重复实验曲线（约20条）",
+    "曲线波动/置信区间带",
+    "浅灰色网格背景"
+  ],
+  "code_relevant_information": {
+    "模型对比": "AlexNet 与 GoogLeNet 两个经典 CNN 架构用于同一分类任务的性能比较。",
+    "评价指标": "Mean-F1-Score（多类 F1 分数的宏平均或加权平均），随 epoch 变化。",
+    "训练设置": "共 30 个 epoch；约 10 epoch 处出现明显的 F1 跳升（疑似学习率调度/衰减点，如在 epoch 10 处 lr 减半）。",
+    "最终性能": "GoogLeNet 收敛于约 0.955-0.975 Mean-F1，AlexNet 收敛于约 0.945-0.955；GoogLeNet 略优。",
+    "重复实验": "每种架构运行约 20 次（多条半透明曲线），用于评估训练稳定性和方差；复现时需设置随机种子多次运行。",
+    "收敛行为": "前 5 epoch 内 F1 快速上升（0.60→0.85+），epoch 10 处小幅跃升后趋于平稳。",
+    "复现建议": "使用 torchvision 中的 AlexNet 和 GoogLeNet（可预训练微调），训练 30 epochs，记录每 epoch 的 Mean-F1，绘图时使用 seaborn 风格（浅灰网格）并叠加多次运行的半透明曲线。"
+  }
+}
+```

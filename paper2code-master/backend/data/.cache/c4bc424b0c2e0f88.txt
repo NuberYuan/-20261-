@@ -1,0 +1,490 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""项目入口（Phase 4）：执行论文方法并产出 runtime measurements 评估。
+
+论文: Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms
+
+入口流程：
+  1) 解析 ``config/config.yaml``（FR-01 数据集构造所需的图参数、种子等）
+  2) 加载/构造 various graph classes 合成数据集并校验样本数（FR-01）
+  3) 执行论文方法 ``EnhancedGP2CompilerWithImprovedGraphDataStructure``（FR-02）
+  4) 在测试集上计算 runtime measurements 等评估指标（FR-03 / FR-04）
+
+命令行：
+    python main.py --config config/config.yaml --run 0
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import math
+import os
+import random
+import sys
+import time
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+DEFAULT_CONFIG_PATH: str = os.path.join(_PROJECT_ROOT, "config", "config.yaml")
+LOGGER = logging.getLogger("rule_based_graph_programs.main")
+
+try:
+    import yaml  # type: ignore
+except Exception:  # pragma: no cover - yaml 属于可选依赖，缺失时走兜底配置
+    yaml = None
+
+try:
+    from evaluation.evaluate import (
+        evaluate_model as _evaluate_model_impl,
+        generate_report as _generate_report_impl,
+        load_config as _eval_load_config,
+    )
+except Exception:  # pragma: no cover - 评估模块缺失时使用本地兜底实现
+    _evaluate_model_impl = None
+    _generate_report_impl = None
+    _eval_load_config = None
+
+try:
+    from src.enhancedgp2compilerwithimprovedgraphdatastructure import (
+        EnhancedGP2CompilerWithImprovedGraphDataStructure,
+    )
+except Exception:  # pragma: no cover
+    EnhancedGP2CompilerWithImprovedGraphDataStructure = None  # type: ignore
+
+
+# --------------------------------------------------------------------------- #
+# 模块级默认值（config/config.yaml 未提供对应的键，故在此给出可复现的默认参数）
+# --------------------------------------------------------------------------- #
+DEFAULT_GRAPH_SIZES: Tuple[int, ...] = (32, 64, 128, 256, 512)
+DEFAULT_SAMPLES_PER_CLASS_PER_SIZE: int = 2
+GRAPH_CLASSES: Tuple[str, ...] = ("path", "cycle", "star", "erdos_renyi")
+ER_EDGE_PROBABILITY: float = 0.05
+CANONICAL_ALGORITHMS: Tuple[str, ...] = (
+    "reachability",
+    "shortest_path",
+    "connected_components",
+)
+
+
+# --------------------------------------------------------------------------- #
+# 配置读取辅助
+# --------------------------------------------------------------------------- #
+def _get_cfg(config: Optional[Dict[str, Any]], *keys: str, default: Any = None) -> Any:
+    """逐级安全取值：先按嵌套字典查找，再按点分扁平键查找。"""
+    if not isinstance(config, dict) or not keys:
+        return default
+    node: Any = config
+    for key in keys:
+        if isinstance(node, dict) and key in node:
+            node = node[key]
+        else:
+            node = None
+            break
+    if node is not None:
+        return node
+    flat_key = ".".join(keys)
+    if flat_key in config and config[flat_key] is not None:
+        return config[flat_key]
+    return default
+
+
+def load_config_file(config_path: str = DEFAULT_CONFIG_PATH) -> Dict[str, Any]:
+    """读取 ``config/config.yaml``；优先使用 evaluation.load_config，失败时本地解析。"""
+    if _eval_load_config is not None:
+        try:
+            cfg = _eval_load_config(config_path)
+            if isinstance(cfg, dict) and cfg:
+                return cfg
+        except Exception as exc:  # pragma: no cover
+            LOGGER.warning("evaluation.load_config 失败（%s），改用本地解析", exc)
+    if yaml is not None and os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as handle:
+                cfg = yaml.safe_load(handle)
+            if isinstance(cfg, dict):
+                return cfg
+        except Exception as exc:  # pragma: no cover
+            LOGGER.warning("读取 %s 失败：%s", config_path, exc)
+    LOGGER.warning("未获得有效配置，使用空配置 + 模块级默认值继续执行")
+    return {}
+
+
+def _setup_logging(config: Optional[Dict[str, Any]] = None) -> str:
+    """按配置初始化日志并创建结果目录，返回结果输出目录。"""
+    level_name = str(_get_cfg(config, "logging", "level", default="INFO")).upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    output_dir_raw = str(_get_cfg(config, "logging", "output_dir", default="results"))
+    output_dir = output_dir_raw if os.path.isabs(output_dir_raw) else os.path.join(_PROJECT_ROOT, output_dir_raw)
+    os.makedirs(output_dir, exist_ok=True)
+
+    handlers: List[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+    log_file_raw = _get_cfg(config, "logging", "log_file", default="logs/run.log")
+    if log_file_raw:
+        log_path = str(log_file_raw)
+        if not os.path.isabs(log_path):
+            log_path = os.path.join(_PROJECT_ROOT, log_path)
+        os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+        handlers.append(logging.FileHandler(log_path, encoding="utf-8"))
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        handlers=handlers,
+        force=True,
+    )
+    return output_dir
+
+
+# --------------------------------------------------------------------------- #
+# FR-01：加载 / 构造 various graph classes 数据集
+# --------------------------------------------------------------------------- #
+def build_path_graph(n: int) -> Dict[int, List[int]]:
+    """构造 n 个节点的路径图（邻接表）。"""
+    size = max(1, int(n))
+    adjacency: Dict[int, List[int]] = {i: [] for i in range(size)}
+    for i in range(size - 1):
+        adjacency[i].append(i + 1)
+        adjacency[i + 1].append(i)
+    return adjacency
+
+
+def build_cycle_graph(n: int) -> Dict[int, List[int]]:
+    """构造 n 个节点的圈图（n < 3 时退化为路径图）。"""
+    size = max(1, int(n))
+    if size < 3:
+        return build_path_graph(size)
+    adjacency = build_path_graph(size)
+    adjacency[0].append(size - 1)
+    adjacency[size - 1].append(0)
+    return adjacency
+
+
+def build_star_graph(n: int) -> Dict[int, List[int]]:
+    """构造 n 个节点的星型图（0 号节点为中心）。"""
+    size = max(1, int(n))
+    adjacency: Dict[int, List[int]] = {i: [] for i in range(size)}
+    for i in range(1, size):
+        adjacency[0].append(i)
+        adjacency[i].append(0)
+    return adjacency
+
+
+def build_graph(
+    class_name: str,
+    n: int,
+    seed: int = 42,
+    p: float = ER_EDGE_PROBABILITY,
+    compiler: Any = None,
+) -> Dict[int, List[int]]:
+    """按图类别构造单个图，返回 ``Dict[int, List[int]]`` 邻接表。"""
+    name = str(class_name).strip().lower()
+    if name in ("path", "line"):
+        return build_path_graph(n)
+    if name == "cycle":
+        return build_cycle_graph(n)
+    if name == "star":
+        return build_star_graph(n)
+    if name in ("erdos_renyi", "er", "random"):
+        if compiler is None:
+            raise ValueError("构造 erdos_renyi 图需要 EnhancedGP2CompilerWithImprovedGraphDataStructure 实例")
+        return compiler.generate_erdos_renyi_graph(int(n), float(p), seed=int(seed))
+    raise ValueError(f"未知图类别: {class_name}")
+
+
+def build_edge_weights(
+    graph: Dict[int, List[int]],
+    rng: random.Random,
+    weight_min: float = 1.0,
+    weight_max: float = 10.0,
+    weight_integer: bool = True,
+) -> Dict[Tuple[int, int], float]:
+    """为无向图的每条边生成权重，双向键 ``(u, v)`` 与 ``(v, u)`` 均写入。"""
+    lo = float(weight_min)
+    hi = float(weight_max)
+    if hi < lo:
+        lo, hi = hi, lo
+    weights: Dict[Tuple[int, int], float] = {}
+    for u, neighbours in graph.items():
+        for v in neighbours:
+            key_a = (int(u), int(v))
+            key_b = (int(v), int(u))
+            if key_a in weights and key_b in weights:
+                continue
+            if weight_integer:
+                value = float(rng.randint(int(lo), int(hi)))
+            else:
+                value = float(rng.uniform(lo, hi))
+            weights[key_a] = value
+            weights[key_b] = value
+    return weights
+
+
+def build_dataset(
+    config: Optional[Dict[str, Any]] = None,
+    compiler: Any = None,
+    sizes: Optional[Sequence[int]] = None,
+    samples_per_class_per_size: Optional[int] = None,
+    seed: Optional[int] = None,
+) -> Dict[str, Any]:
+    """构造 various graph classes 合成数据集（data_source=synthetic）。"""
+    cfg = config if isinstance(config, dict) else {}
+    if compiler is None:
+        if EnhancedGP2CompilerWithImprovedGraphDataStructure is None:
+            raise RuntimeError("无法导入 EnhancedGP2CompilerWithImprovedGraphDataStructure")
+        compiler = EnhancedGP2CompilerWithImprovedGraphDataStructure(config=cfg)
+
+    if seed is None:
+        seed = int(_get_cfg(cfg, "system", "seed", default=42))
+    size_list = [int(s) for s in (sizes if sizes is not None else DEFAULT_GRAPH_SIZES)]
+    samples = int(
+        samples_per_class_per_size
+        if samples_per_class_per_size is not None
+        else DEFAULT_SAMPLES_PER_CLASS_PER_SIZE
+    )
+    samples = max(1, samples)
+
+    weighted = bool(_get_cfg(cfg, "graph", "weighted", default=False))
+    weight_min = float(_get_cfg(cfg, "graph", "weight_min", default=1))
+    weight_max = float(_get_cfg(cfg, "graph", "weight_max", default=10))
+    weight_integer = bool(_get_cfg(cfg, "graph", "weight_integer", default=True))
+    edge_probability = float(ER_EDGE_PROBABILITY)
+
+    rng = random.Random(int(seed))
+    graphs: List[Dict[str, Any]] = []
+    counts: Dict[str, int] = {name: 0 for name in GRAPH_CLASSES}
+
+    for class_idx, class_name in enumerate(GRAPH_CLASSES):
+        for size_idx, n in enumerate(size_list):
+            for sample_idx in range(samples):
+                sample_seed = int(seed) + class_idx * 100003 + size_idx * 1009 + sample_idx
+                adjacency = build_graph(
+                    class_name, n, seed=sample_seed, p=edge_probability, compiler=compiler
+                )
+                weights = (
+                    build_edge_weights(
+                        adjacency, rng, weight_min, weight_max, weight_integer
+                    )
+                    if weighted
+                    else None
+                )
+                graphs.append(
+                    {
+                        "graph": adjacency,
+                        "weights": weights,
+                        "class": class_name,
+                        "size": int(n),
+                        "seed": sample_seed,
+                    }
+                )
+                counts[class_name] += 1
+
+    dataset: Dict[str, Any] = {
+        "graphs": graphs,
+        "counts": counts,
+        "classes": list(GRAPH_CLASSES),
+        "sizes": list(size_list),
+        "samples_per_class_per_size": samples,
+        "num_samples": len(graphs),
+        "seed": int(seed),
+        "weighted": bool(weighted),
+        "compiler": compiler,
+    }
+    return dataset
+
+
+def verify_sample_count(dataset: Dict[str, Any], expected: Optional[int] = None) -> bool:
+    """校验加载/构造后的样本数（FR-01 验收）。"""
+    graphs = dataset.get("graphs", []) if isinstance(dataset, dict) else []
+    actual = len(graphs)
+    if expected is None:
+        expected = (
+            len(dataset.get("classes", GRAPH_CLASSES))
+            * len(dataset.get("sizes", DEFAULT_GRAPH_SIZES))
+            * int(dataset.get("samples_per_class_per_size", DEFAULT_SAMPLES_PER_CLASS_PER_SIZE))
+        )
+    ok = int(actual) == int(expected)
+    if ok:
+        LOGGER.info("[FR-01] 数据集样本数校验通过：%d 个样本（各类别计数 %s）", actual, dataset.get("counts"))
+    else:
+        LOGGER.error("[FR-01] 数据集样本数不一致：实际 %d，期望 %d", actual, expected)
+    return ok
+
+
+# --------------------------------------------------------------------------- #
+# FR-02：执行论文方法（Enhanced GP 2 compiler with improved graph data structure）
+# --------------------------------------------------------------------------- #
+def _resolve_timer(timer_name: Any) -> Callable[[], float]:
+    candidate = str(timer_name or "time.perf_counter")
+    if "." in candidate:
+        candidate = candidate.split(".")[-1]
+    func = getattr(time, candidate, None)
+    return func if callable(func) else time.perf_counter
+
+
+def _time_trials(
+    func: Callable[..., Any],
+    args: Tuple[Any, ...],
+    num_trials: int,
+    warmup_runs: int,
+    timer: Callable[[], float],
+    timeout_seconds: float,
+) -> Tuple[List[float], Any, bool]:
+    """执行 warmup + num_trials 次计时，返回 (运行时列表, 最后一次输出, 是否超时)。"""
+    result: Any = None
+    for _ in range(max(0, int(warmup_runs))):
+        result = func(*args)
+    timings: List[float] = []
+    timed_out = False
+    wall_start = timer()
+    for _ in range(max(1, int(num_trials))):
+        t0 = timer()
+        result = func(*args)
+        elapsed = timer() - t0
+        timings.append(float(elapsed))
+        if timeout_seconds > 0.0 and (timer() - wall_start) > timeout_seconds:
+            timed_out = True
+            break
+    return timings, result, timed_out
+
+
+def _same_partition(reference: Dict[Any, Any], actual: Dict[Any, Any]) -> bool:
+    """判断两个连通分量标号是否给出相同的划分（标号可不同）。"""
+    if set(reference.keys()) != set(actual.keys()):
+        return False
+    forward: Dict[Any, Any] = {}
+    backward: Dict[Any, Any] = {}
+    for node in reference:
+        ref_label = reference[node]
+        act_label = actual[node]
+        if ref_label in forward and forward[ref_label] != act_label:
+            return False
+        forward[ref_label] = act_label
+        if act_label in backward and backward[act_label] != ref_label:
+            return False
+        backward[act_label] = ref_label
+    return True
+
+
+def outputs_match(algorithm: str, reference: Any, actual: Any) -> bool:
+    """按算法语义比较规则式程序输出与命令式基线输出。"""
+    if not isinstance(reference, dict) or not isinstance(actual, dict):
+        return reference == actual
+    if str(algorithm) == "connected_components":
+        return _same_partition(reference, actual)
+    if str(algorithm) == "shortest_path":
+        if set(reference.keys()) != set(actual.keys()):
+            return False
+        for key in reference:
+            ref_val = float(reference[key])
+            act_val = float(actual[key])
+            if not (math.isfinite(ref_val) and math.isfinite(act_val)):
+                if ref_val != act_val:
+                    return False
+                continue
+            if abs(ref_val - act_val) > 1e-9 * max(1.0, abs(ref_val)):
+                return False
+        return True
+    return dict(reference) == dict(actual)
+
+
+def _flatten_outputs(outputs: Any) -> List[float]:
+    """把单个图的输出展平成 float 列表，便于评估模块做逐元素比较。"""
+    if not isinstance(outputs, dict):
+        return []
+    flat: List[float] = []
+    for key in sorted(outputs.keys()):
+        value = outputs[key]
+        if isinstance(value, bool):
+            flat.append(1.0 if value else 0.0)
+        else:
+            try:
+                flat.append(float(value))
+            except Exception:
+                flat.append(0.0)
+    return flat
+
+
+def _build_call(
+    compiler: Any,
+    algorithm: str,
+    item: Dict[str, Any],
+    config: Optional[Dict[str, Any]] = None,
+    baseline: bool = False,
+) -> Tuple[Callable[..., Any], Tuple[Any, ...]]:
+    """组装 (函数, 位置参数)；函数名与依赖文件接口保持一致。"""
+    graph = item["graph"]
+    weights = item.get("weights")
+    prefix = "imperative_" if baseline else "rule_based_"
+    func = getattr(compiler, f"{prefix}{algorithm}")
+
+    if algorithm == "reachability":
+        source = int(_get_cfg(config, "algorithm", "reachability", "source_vertex", default=0))
+        source = 0 if not graph else min(max(0, source), max(graph.keys()))
+        return func, (graph, source)
+    if algorithm == "shortest_path":
+        source = int(_get_cfg(config, "algorithm", "shortest_path", "source_vertex", default=0))
+        source = 0 if not graph else min(max(0, source), max(graph.keys()))
+        if weights is None:
+            return func, (graph, source)
+        return func, (graph, source, weights)
+    return func, (graph,)
+
+
+def measure_algorithm(
+    compiler: Any,
+    algorithm: str,
+    dataset: Dict[str, Any],
+    config: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """在数据集上对规则式图程序与命令式基线分别计时（FR-02 + FR-03）。"""
+    cfg = config if isinstance(config, dict) else {}
+    num_trials = max(1, int(_get_cfg(cfg, "benchmark", "num_trials", default=10)))
+    warmup_runs = max(0, int(_get_cfg(cfg, "benchmark", "warmup_runs", default=3)))
+    timer = _resolve_timer(_get_cfg(cfg, "benchmark", "timer", default="time.perf_counter"))
+    timing_unit = str(_get_cfg(cfg, "benchmark", "timing_unit", default="seconds"))
+    verify = bool(_get_cfg(cfg, "benchmark", "verify_correctness", default=True))
+    timeout_seconds = float(_get_cfg(cfg, "benchmark", "timeout_seconds", default=600))
+
+    rule_by_size: Dict[int, List[float]] = {}
+    base_by_size: Dict[int, List[float]] = {}
+    rule_timings: List[float] = []
+    base_timings: List[float] = []
+    reference_flat: List[float] = []
+    actual_flat: List[float] = []
+    checked = 0
+    matched = 0
+    timeouts = 0
+
+    for item in dataset.get("graphs", []):
+        graph = item["graph"]
+        size = int(item.get("size", len(graph)))
+        rule_func, rule_args = _build_call(compiler, algorithm, item, cfg, baseline=False)
+        base_func, base_args = _build_call(compiler, algorithm, item, cfg, baseline=True)
+
+        rule_times, rule_out, rule_timeout = _time_trials(
+            rule_func, rule_args, num_trials, warmup_runs, timer, timeout_seconds
+        )
+        base_times, base_out, base_timeout = _time_trials(
+            base_func, base_args, num_trials, warmup_runs, timer, timeout_seconds
+        )
+        if rule_timeout or base_timeout:
+            timeouts += 1
+
+        rule_by_size.setdefault(size, []).extend(rule_times)
+        base_by_size.setdefault(size, []).extend(base_times)
+        rule_timings.extend(rule_times)
+        base_timings.extend(base_times)
+
+        if verify:
+            checked += 1
+            if outputs_match(algorithm, base_out, rule_out):
+                matched += 1
+            reference_flat.extend(_flatten_outputs(base_out))
+            actual_flat.extend

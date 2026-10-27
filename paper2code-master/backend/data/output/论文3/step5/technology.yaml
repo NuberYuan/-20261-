@@ -8,21 +8,26 @@ programming_framework_mentioned: NOT_FOUND
 model_backbone:
   names:
   - UNet++
+  - U-Net
+  - wide U-Net
+  - densenet
   source: 论文提到
 architecture_details:
-  note: NOT_FOUND
+  note: Redesigned nested dense skip pathways that bridge the semantic gap between
+    encoder and decoder feature maps prior to fusion, combined with deep supervision
+    for model pruning and improved accuracy.
 training:
   optimizer:
     type: Adam
   loss:
-    type: binary cross-entropy + dice coefficient
+    type: a combination of binary crossentropy and dice coefficient
   scheduler:
     type: NOT_FOUND
 pretrained_weights:
   used: false
   source: NOT_FOUND
-special_modules: Nested dense skip pathways with dense convolution blocks; deep supervision
-  with multiple segmentation heads; model pruning enabled by selecting segmentation
-  branches.
+special_modules: Dense convolution blocks on skip pathways (green and blue in Fig.
+  1a), deep supervision branches (red in Fig. 1a), upsampling layers U(·), concatenation
+  layers
 hardware:
-  mentioned: one NVIDIA TITAN X (Pascal) with 12 GB memory
+  mentioned: NVIDIA TITAN X (Pascal) with 12 GB memory (for inference time measurement)

@@ -1,0 +1,204 @@
+```python
+import sys
+import os
+import json
+import re
+import numpy as np
+import cv2
+
+def main():
+    try:
+        image_path = sys.argv[1]
+    except Exception:
+        image_path = ""
+
+    ocr_text = "1.0\nDataset Type\n0.5\nColor\nGrayScale\nSegmented\n0.4\nEpochs"
+
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+
+    img = None
+    white_ratio = 0.0
+    h = w = 0
+
+    try:
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("decode failed")
+        h, w = img.shape[:2]
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        if h * w > 0:
+            white_ratio = float(np.sum(gray > 200)) / float(h * w)
+    except Exception:
+        pass
+
+    ocr_lower = ocr_text.lower()
+    ocr_lines = [line.strip() for line in ocr_text.split('\n') if line.strip()]
+
+    numeric_tokens = re.findall(r'^\d+\.?\d*$', ocr_text, re.MULTILINE)
+    has_axis_numbers = len(numeric_tokens) >= 2
+
+    exp_kw = [
+        "epoch", "epochs", "accuracy", "loss", "precision", "recall",
+        "f1", "f1-score", "auc", "training", "validation", "performance",
+        "curve", "comparison", "results", "baseline", "top-1", "top-5"
+    ]
+    arch_kw = [
+        "cnn", "transformer", "attention", "encoder", "decoder", "block",
+        "embedding", "classifier", "feature extractor", "alexnet", "resnet",
+        "vgg", "googlenet", "conv", "pool", "layer", "relu", "softmax",
+        "dropout", "lstm", "gru", "bilstm", "rnn", "densenet", "mobilenet",
+        "efficientnet", "bert", "gpt"
+    ]
+    ds_kw = [
+        "dataset", "sample", "data sample", "input example",
+        "class image", "label", "training set", "test set"
+    ]
+
+    has_exp = any(kw in ocr_lower for kw in exp_kw)
+    has_arch = any(kw in ocr_lower for kw in arch_kw)
+    has_ds = any(kw in ocr_lower for kw in ds_kw)
+
+    strong_exp = False
+    if "epoch" in ocr_lower:
+        strong_exp = True
+    if any(kw in ocr_lower for kw in ["accuracy", "loss", "precision", "recall", "f1", "auc"]):
+        strong_exp = True
+
+    chart_like = has_axis_numbers and white_ratio > 0.4
+
+    img_type = "other"
+
+    if strong_exp or (has_exp and chart_like):
+        img_type = "experiment_result"
+    elif has_arch and not strong_exp:
+        img_type = "architecture"
+    elif has_ds and not strong_exp and not has_arch:
+        img_type = "dataset"
+    elif chart_like and not has_arch:
+        img_type = "experiment_result"
+
+    if img_type == "experiment_result":
+        components = []
+
+        metric_map = {
+            "accuracy": "Accuracy", "loss": "Loss", "precision": "Precision",
+            "recall": "Recall", "f1-score": "F1-score", "f1": "F1-score",
+            "auc": "AUC", "top-1": "Top-1 Accuracy", "top-5": "Top-5 Accuracy"
+        }
+        for key, val in metric_map.items():
+            if key in ocr_lower and val not in components:
+                components.append(val)
+
+        model_name_map = {
+            "alexnet": "AlexNet", "resnet": "ResNet", "vgg": "VGG",
+            "googlenet": "GoogLeNet", "transformer": "Transformer",
+            "cnn": "CNN", "lstm": "LSTM", "gru": "GRU",
+            "densenet": "DenseNet", "mobilenet": "MobileNet",
+            "efficientnet": "EfficientNet", "bert": "BERT"
+        }
+        for key, val in model_name_map.items():
+            if key in ocr_lower and val not in components:
+                components.append(val)
+
+        skip_lower = {"epoch", "epochs", "dataset type", "accuracy", "loss",
+                      "precision", "recall", "f1", "f1-score", "auc",
+                      "training", "validation", "test", "performance"}
+        for line in ocr_lines:
+            if not re.match(r'^\d+\.?\d*$', line) and line.lower() not in skip_lower:
+                if line not in components and len(line) > 1:
+                    components.append(line)
+
+        if "epoch" in ocr_lower:
+            desc = "展示不同数据集类型在训练过程中的性能变化曲线"
+            parts = [c for c in components if c not in ("Accuracy", "Loss")]
+            if parts:
+                code_info = (
+                    "需要实现训练循环和评估模块，分别对"
+                    + "、".join(parts)
+                    + "等数据类型进行训练，在每个Epoch记录性能指标并绘制对比曲线"
+                )
+            else:
+                code_info = "需要实现训练循环，在每个Epoch记录性能指标并绘制对比曲线"
+        else:
+            desc = "展示实验结果和性能指标比较"
+            code_info = "需要实现实验评估模块，输出各项性能指标用于对比分析"
+
+        result = {
+            "type": "experiment_result",
+            "description": desc,
+            "important_components": components,
+            "code_relevant_information": code_info
+        }
+
+    elif img_type == "architecture":
+        components = []
+        arch_map = {
+            "alexnet": "AlexNet", "resnet": "ResNet", "vgg": "VGG",
+            "googlenet": "GoogLeNet", "transformer": "Transformer",
+            "cnn": "CNN", "attention": "Attention Module",
+            "encoder": "Encoder", "decoder": "Decoder",
+            "block": "Block", "embedding": "Embedding",
+            "classifier": "Classifier", "feature extractor": "Feature Extractor",
+            "lstm": "LSTM", "gru": "GRU", "bilstm": "BiLSTM",
+            "densenet": "DenseNet", "mobilenet": "MobileNet",
+            "efficientnet": "EfficientNet", "bert": "BERT", "gpt": "GPT"
+        }
+        for key, val in arch_map.items():
+            if key in ocr_lower and val not in components:
+                components.append(val)
+
+        if components:
+            code_info = "需要实现以下模型组件：" + "、".join(components)
+        else:
+            code_info = "需要实现论文中描述的模型网络结构"
+
+        result = {
+            "type": "architecture",
+            "description": "展示模型网络结构和数据流关系",
+            "important_components": components,
+            "code_relevant_information": code_info
+        }
+
+    elif img_type == "dataset":
+        desc_parts = []
+        if "sample" in ocr_lower:
+            desc_parts.append("数据样本")
+        if "class" in ocr_lower or "label" in ocr_lower:
+            desc_parts.append("类别标签")
+        if not desc_parts:
+            desc_parts.append("数据集信息")
+
+        result = {
+            "type": "dataset",
+            "description": "展示数据集样本和" + "、".join(desc_parts) + "信息",
+            "important_components": [],
+            "code_relevant_information": "需要实现数据加载和预处理模块"
+        }
+
+    try:
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+```

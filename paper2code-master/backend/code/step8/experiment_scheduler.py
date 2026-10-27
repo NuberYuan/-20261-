@@ -15,16 +15,17 @@ Step8.3: 实验调度器 (Experiment Scheduler)
     FAILED    执行失败（代码/环境问题）
 
 跳过原因的优先级（ResourceChecker.check_all 的顺序）：
-    dataset_unresolved > dataset_unavailable > gpu_unavailable
+    dataset_unresolved > dataset_unavailable
     > insufficient_cpu > insufficient_ram > insufficient_disk
     > python_version_too_low > missing_dependencies
 
 软性警告（不 SKIP，仍 RUN，记入 warnings）：
-    large_dataset            数据集总容量过大（容量不代表不可跑）
-    insufficient_gpu_memory  粗略显存估算不足（估算非精确，不硬跳）
+    large_dataset                数据集总容量过大（容量不代表不可跑）
+    gpu_unavailable_cpu_fallback 要求 GPU 但机器无 GPU，降级 CPU 运行（慢）
+    insufficient_gpu_memory      粗略显存估算不足（估算非精确，不硬跳）
 
 注：除 dataset 外，其余维度（GPU/CPU/RAM/Disk/Python/Dependencies）仅在实验声明了
-对应需求时才可能不满足；GPU 非必需，未声明 GPU 需求时无 GPU 也能 RUN。
+对应需求时才可能不满足；GPU 不可用不 SKIP（生成代码带 CUDA→CPU 回退，降级仍可 RUN）。
 
 除决策外，本模块还把 Step7 的 execution_spec 解析成"入口 + 命令"预填进每个 RUN 实验
 的 execution 段（build_command），使 execution_plan.yaml 成为 Runner 的单一执行来源

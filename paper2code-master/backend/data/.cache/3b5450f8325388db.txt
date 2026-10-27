@@ -1,0 +1,260 @@
+```json
+{
+  "code_requirements": {
+    "data/dataset.py": {
+      "description": "PlantVillage数据集加载与预处理模块。支持color/grayscale/segmented三种视觉表示，支持多种train/test分割比例（80-20, 60-40, 50-50, 40-60, 20-80），确保同一叶片图像在相同集合中。所有图像resize到256x256像素。",
+      "classes": [
+        {
+          "name": "PlantVillageDataset",
+          "parent_class": "torch.utils.data.Dataset",
+          "methods": [
+            {
+              "name": "__init__",
+              "params": ["root_dir: str", "split: str ('train' or 'test')", "representation: str ('color', 'grayscale', 'segmented')", "split_ratio: float (e.g., 0.8 for 80-20)", "transform: Optional[Callable]"],
+              "description": "初始化数据集。遍历root_dir下的类别目录（38个子目录，每目录对应一个类别），读取所有图像文件路径。将文件路径按文件名中叶片ID（去重标识）分组，确保同叶片图像在同一集合。按split_ratio将组分配到train/test。存储图像路径列表和对应标签索引。设置transform（默认Resize(256,256) + ToTensor + Normalize(ImageNet均值/标准差)）。"
+            },
+            {
+              "name": "__len__",
+              "params": [],
+              "description": "返回当前数据集中样本数量。",
+              "return": "int"
+            },
+            {
+              "name": "__getitem__",
+              "params": ["idx: int"],
+              "description": "根据索引加载图像（PIL Image），应用representation对应的预处理（color→RGB不变，grayscale→转灰度后复制3通道，segmented→使用分割后的背景去除图像），然后应用transform。返回(transformed_image, label_index)。"
+            }
+          ],
+          "functions": [
+            {
+              "name": "build_class_mapping",
+              "params": ["root_dir: str"],
+              "description": "扫描root_dir下的所有类别子目录名，按字母序建立class_name→class_index的映射字典（38个类）。返回(class_to_idx, idx_to_class)。",
+              "return": "Tuple[Dict[str,int], Dict[int,str]]"
+            },
+            {
+              "name": "group_by_leaf_id",
+              "params": ["file_paths: List[str]"],
+              "description": "根据图像文件名中的叶片标识（如文件名去扩展名后取前缀，或基于文件名的聚类规则）将图像分组。确保同一叶片的所有图像在train或test的同一侧。返回分组列表 List[List[str]]。"
+            },
+            {
+              "name": "split_dataset",
+              "params": ["groups: List[List[str]]", "split_ratio: float", "seed: int"],
+              "description": "使用固定seed的随机shuffle将groups按split_ratio分为train_groups和test_groups。返回(train_paths, train_labels, test_paths, test_labels)。"
+            },
+            {
+              "name": "get_transforms",
+              "params": ["representation: str"],
+              "description": "根据representation返回对应的torchvision.transforms.Compose。color: Resize(256,256)+ToTensor+Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])。grayscale: Resize(256,256)+Grayscale(num_output_channels=3)+ToTensor+Normalize。segmented: Resize(256,256)+ToTensor+Normalize。"
+            }
+          ],
+          "pseudocode": "class PlantVillageDataset(Dataset):\n    def __init__(root_dir, split, representation, split_ratio, transform=None):\n        self.class_to_idx, self.idx_to_class = build_class_mapping(root_dir)\n        all_files = list all image files under root_dir with labels\n        groups = group_by_leaf_id(all_files)\n        train_groups, test_groups = split_dataset(groups, split_ratio, seed=42)\n        self.files, self.labels = (train_groups if split=='train' else test_groups)\n        self.transform = transform or get_transforms(representation)\n    def __getitem__(idx):\n        img = PIL.Image.open(self.files[idx])\n        if representation == 'grayscale': img = img.convert('L').convert('RGB')\n        if self.transform: img = self.transform(img)\n        return img, self.labels[idx]"
+    },
+    "models/alexnet.py": {
+      "description": "AlexNet模型定义，适配植物病害分类（38类）。5个卷积层+3个全连接层+softmax。支持transfer learning（ImageNet预训练权重，仅重置fc8）和from scratch训练。",
+      "classes": [
+        {
+          "name": "Alexnet",
+          "parent_class": "torch.nn.Module",
+          "methods": [
+            {
+              "name": "__init__",
+              "params": ["num_classes: int = 38", "pretrained: bool = False", "freeze_features: bool = False"],
+              "description": "定义AlexNet架构：conv1(3→64,k=11,s=4,p=2)+ReLU+BN+MaxPool(3,2) → conv2(64→192,k=5,p=2)+ReLU+BN+MaxPool(3,2) → conv3(192→384,k=3,p=1)+ReLU → conv4(384→256,k=3,p=1)+ReLU → conv5(256→256,k=3,p=1)+ReLU+MaxPool(3,2) → Flatten → fc6(256*6*6→4096)+ReLU+Dropout(0.5) → fc7(4096→4096)+ReLU+Dropout(0.5) → fc8(4096→num_classes)。若pretrained=True，加载torchvision.models.alexnet预训练权重到conv1-conv5和fc6-fc7（映射层名），然后重置fc8的权重和bias（nn.init.normal_(std=0.01)）。",
+              "return": "None"
+            },
+            {
+              "name": "forward",
+              "params": ["x: torch.Tensor"],
+              "description": "前向传播：依次通过conv1→relu→bn1→pool1→conv2→relu→bn2→pool2→conv3→relu→conv4→relu→conv5→relu→pool5→flatten→fc6→relu→dropout→fc7→relu→dropout→fc8。输出logits（未经过softmax）。"
+            },
+            {
+              "name": "get_classifier_params",
+              "params": [],
+              "description": "返回fc8层的参数列表，便于单独设置学习率或在transfer learning时仅更新分类层。"
+            }
+          ],
+          "functions": [
+            {
+              "name": "alexnet_38",
+              "params": ["pretrained: bool", "num_classes: int = 38"],
+              "description": "工厂函数，创建Alexnet实例。若pretrained=True则加载ImageNet权重并重置fc8。返回Alexnet模型。",
+              "return": "Alexnet"
+            },
+            {
+              "name": "reset_classifier",
+              "params": ["model: Alexnet", "num_classes: int"],
+              "description": "重置fc8层权重：nn.init.normal_(fc8.weight, std=0.01), nn.init.constant_(fc8.bias, 0)。"
+            }
+          ],
+          "pseudocode": "class Alexnet(nn.Module):\n    def __init__(num_classes=38, pretrained=False):\n        features = Sequential(Conv2d(3,64,11,4,2), ReLU, BatchNorm2d(64), MaxPool2d(3,2),\n            Conv2d(64,192,5,pad=2), ReLU, BatchNorm2d(192), MaxPool2d(3,2),\n            Conv2d(192,384,3,pad=1), ReLU,\n            Conv2d(384,256,3,pad=1), ReLU,\n            Conv2d(256,256,3,pad=1), ReLU, MaxPool2d(3,2))\n        classifier = Sequential(Flatten, Linear(256*6*6,4096), ReLU, Dropout(0.5),\n            Linear(4096,4096), ReLU, Dropout(0.5), Linear(4096,num_classes))\n        if pretrained: load imagenet weights; reset fc8\n    def forward(x): x = features(x); x = classifier(x); return x"
+    },
+    "models/googlenet.py": {
+      "description": "GoogLeNet模型定义，适配植物病害分类（38类）。22层，9个Inception模块，使用并行1x1/3x3/5x5卷积+maxpooling。支持transfer learning（ImageNet预训练权重，仅重置loss{1,2,3}/classifier层）。",
+      "classes": [
+        {
+          "name": "InceptionModule",
+          "parent_class": "torch.nn.Module",
+          "methods": [
+            {
+              "name": "__init__",
+              "params": ["in_channels: int", "ch1x1: int", "ch3x3_reduce: int", "ch3x3: int", "ch5x5_reduce: int", "ch5x5: int", "pool_proj: int"],
+              "description": "定义Inception模块：分支1(1x1 conv) → 分支2(1x1 conv reduce + 3x3 conv) → 分支3(1x1 conv reduce + 5x5 conv) → 分支4(3x3 maxpool + 1x1 conv)。filter concatenation层将4个分支输出在channel维度拼接。"
+            },
+            {
+              "name": "forward",
+              "params": ["x: torch.Tensor"],
+              "description": "并行计算4个分支并concatenate输出。"
+            }
+          ]
+        },
+        {
+          "name": "Googlenet",
+          "parent_class": "torch.nn.Module",
+          "methods": [
+            {
+              "name": "__init__",
+              "params": ["num_classes: int = 38", "pretrained: bool = False", "aux_logits: bool = True"],
+              "description": "定义完整GoogLeNet：conv1(3→64,7x7,s=2,p=3)+ReLU+MaxPool(3,2)+LRN → conv2(64→64,1x1)+ReLU → conv3(64→192,3x3,p=1)+ReLU+LRN+MaxPool(3,2) → Inception3a→Inception3b+MaxPool → Inception4a→Inception4b→Inception4c→Inception4d→Inception4e+MaxPool → Inception5a→Inception5b → AdaptiveAvgPool(1,1) → Dropout(0.4) → fc(num_classes)。包含aux1(Inception4a后,256→num_classes)和aux2(Inception4d后,576→num_classes)辅助分类器，训练时用于辅助梯度。若pretrained=True，加载torchvision.models.googlenet预训练权重，重置fc/aux1/aux2分类层（loss{1,2,3}/classifier对应aux2、aux1、fc）。",
+              "return": "None"
+            },
+            {
+              "name": "forward",
+              "params": ["x: torch.Tensor"],
+              "description": "前向传播。训练模式下返回(main_output, aux1_output, aux2_output)；eval模式下仅返回main_output。main_output经过fc输出num_classes维logits。"
+            }
+          ],
+          "functions": [
+            {
+              "name": "googlenet_38",
+              "params": ["pretrained: bool", "num_classes: int = 38", "aux_logits: bool = True"],
+              "description": "工厂函数。创建Googlenet实例。若pretrained=True，加载ImageNet预训练权重并重置所有分类层（fc, aux1, aux2）。"
+            },
+            {
+              "name": "inception_block",
+              "params": ["in_channels: int", "out_channels: dict"],
+              "description": "辅助函数，创建InceptionModule实例。"
+            }
+          ],
+          "pseudocode": "class Googlenet(nn.Module):\n    def __init__(num_classes=38, pretrained=False):\n        conv1 = Conv2d(3,64,7,stride=2,padding=3)\n        # ... inception modules 3a,3b,4a,4b,4c,4d,4e,5a,5b\n        aux1 = Sequential(AdaptiveAvgPool2d(4), Conv2d(512,128,1), Linear(128*4*4,1024), Linear(1024,num_classes))\n        aux2 = Sequential(AdaptiveAvgPool2d(4), Conv2d(528,128,1), Linear(128*4*4,1024), Linear(1024,num_classes))\n        fc = Linear(1024, num_classes)\n        if pretrained: load imagenet weights; reset fc, aux1, aux2 classifiers\n    def forward(x):\n        # ... pass through conv and inception modules\n        main = fc(pool5_output)\n        if training: return (main, aux1(x_aux1), aux2(x_aux2))\n        return main"
+    },
+    "training/train.py": {
+      "description": "训练循环模块。支持AlexNet和GoogLeNet模型，支持transfer learning和from-scratch训练。每30个epoch训练，每epoch末计算mean F1, mean precision, mean recall, overall accuracy。使用SGD优化器。GoogLeNet使用辅助loss（auxiliary losses weighted 0.3）。",
+      "functions": [
+        {
+          "name": "train_epoch",
+          "params": ["model: nn.Module", "train_loader: DataLoader", "optimizer: Optimizer", "criterion: nn.Module", "device: torch.device", "model_name: str"],
+          "description": "执行单个epoch训练。遍历train_loader，前向传播计算loss。GoogLeNet额外计算auxiliary losses：total_loss = main_loss + 0.3*aux1_loss + 0.3*aux2_loss。反向传播，optimizer.step()。收集所有predictions和targets用于epoch末指标计算。返回(epoch_loss, all_predictions, all_targets)。",
+          "return": "Tuple[float, List[int], List[int]]"
+        },
+        {
+          "name": "validate",
+          "params": ["model: nn.Module", "val_loader: DataLoader", "criterion: nn.Module", "device: torch.device", "model_name: str"],
+          "description": "在验证集上评估。model.eval()+torch.no_grad()。前向传播，计算loss，收集predictions和targets。返回(val_loss, all_predictions, all_targets)。",
+          "return": "Tuple[float, List[int], List[int]]"
+        },
+        {
+          "name": "train",
+          "params": ["config: dict", "device: torch.device"],
+          "description": "主训练流程。根据config选择模型（AlexNet/GoogLeNet）和训练模式（transfer_learning/from_scratch）。构建train_loader和test_loader。初始化optimizer=SGD(lr=0.005, momentum=0.9, weight_decay=0.0005)。初始化scheduler=StepLR(step_size=10, gamma=0.1)。循环30 epochs：每epoch调用train_epoch和validate，计算并记录4个指标（mean F1, mean precision, mean recall, accuracy），scheduler.step()。保存最佳模型（按mean F1 score）。返回训练历史和最终评估结果。",
+          "return": "Dict[str, Any]"
+        }
+      ],
+      "uses": ["models.alexnet", "models.googlenet", "data.dataset", "utils.metrics", "torch", "torch.optim", "torch.optim.lr_scheduler"],
+      "pseudocode": "def train(config, device):\n    # Build datasets and dataloaders\n    train_dataset = PlantVillageDataset(root, 'train', representation, split_ratio)\n    test_dataset = PlantVillageDataset(root, 'test', representation, split_ratio)\n    train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True)\n    test_loader = DataLoader(test_dataset, batch_size=config['batch_size'], shuffle=False)\n    # Build model\n    if model_name == 'alexnet': model = alexnet_38(pretrained=transfer_learning)\n    else: model = googlenet_38(pretrained=transfer_learning)\n    model.to(device)\n    # Optimizer & Scheduler\n    optimizer = SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)\n    scheduler = StepLR(optimizer, step_size=10, gamma=0.1)\n    criterion = CrossEntropyLoss()\n    # Training loop (30 epochs)\n    for epoch in range(30):\n        train_loss, train_preds, train_targets = train_epoch(model, train_loader, optimizer, criterion, device)\n        val_loss, val_preds, val_targets = validate(model, test_loader, criterion, device)\n        metrics = compute_metrics(val_preds, val_targets)  # f1, precision, recall, accuracy\n        scheduler.step()\n        # Save best model by mean F1\n    return history"
+    },
+    "evaluation/evaluate.py": {
+      "description": "评估模块。在测试集和真实世界图像上评估模型性能。计算mean F1, mean precision, mean recall, overall accuracy。支持Top-5预测评估和crop-conditional评估。用于对比不同实验配置（模型×表示×训练模式×数据分割）。",
+      "functions": [
+        {
+          "name": "evaluate_model",
+          "params": ["model: nn.Module", "test_loader: DataLoader", "device: torch.device", "num_classes: int = 38"],
+          "description": "在测试集上全面评估。model.eval()+no_grad。收集所有预测概率、预测标签和真实标签。调用utils.metrics计算mean F1, mean precision, mean recall, overall accuracy。同时计算Top-1和Top-5准确率。返回完整评估指标字典。",
+          "return": "Dict[str, float]"
+        },
+        {
+          "name": "evaluate_real_world",
+          "params": ["model: nn.Module", "image_paths: List[str]", "true_labels: List[int]", "device: torch.device", "crop_info: Optional[List[str]] = None"],
+          "description": "在真实世界图像上评估。加载图像，resize到256x256，预处理后推理。计算overall accuracy。若提供crop_info（作物信息），使用crop-conditional评估（限制预测到该作物的类别子集）。计算Top-5准确率。返回评估指标。",
+          "return": "Dict[str, float]"
+        },
+        {
+          "name": "compare_experiments",
+          "params": ["results: List[Dict[str, Any]]"],
+          "description": "对比多组实验结果。按mean F1 score排序，输出各配置的最佳表现和排序。验证实验结论：Color>Segmented>Grayscale, GoogLeNet>AlexNet, TransferLearning>Scratch。"
+        },
+        {
+          "name": "evaluate_epoch",
+          "params": ["model: nn.Module", "data_loader: DataLoader", "device: torch.device", "criterion: nn.Module"],
+          "description": "每epoch末调用，计算当前epoch的mean F1, mean precision, mean recall, accuracy并返回。"
+        }
+      ],
+      "uses": ["utils.metrics", "data.dataset", "torch", "sklearn.metrics"],
+      "pseudocode": "def evaluate_model(model, test_loader, device, num_classes=38):\n    model.eval()\n    all_preds, all_targets, all_probs = [], [], []\n    with torch.no_grad():\n        for images, targets in test_loader:\n            outputs = model(images)\n            probs = softmax(outputs, dim=1)\n            preds = argmax(probs, dim=1)\n            all_preds.extend(preds)\n            all_targets.extend(targets)\n            all_probs.extend(probs)\n    f1 = f1_score(all_targets, all_preds, average='macro')\n    precision = precision_score(all_targets, all_preds, average='macro')\n    recall = recall_score(all_targets, all_preds, average='macro')\n    accuracy = accuracy_score(all_targets, all_preds)\n    top5_acc = top_k_accuracy(all_targets, all_probs, k=5)\n    return {'mean_f1': f1, 'mean_precision': precision, 'mean_recall': recall, 'accuracy': accuracy, 'top5_accuracy': top5_acc}"
+    },
+    "utils/metrics.py": {
+      "description": "指标计算工具模块。提供mean F1 score, mean precision, mean recall, overall accuracy, Top-K准确率等指标的计算函数。指标均为macro平均（每个类别的指标取均值）。",
+      "functions": [
+        {
+          "name": "compute_metrics",
+          "params": ["predictions: List[int]", "targets: List[int]", "num_classes: int = 38"],
+          "description": "计算四项核心指标：mean_f1（macro F1）, mean_precision（macro precision）, mean_recall（macro recall）, accuracy（overall accuracy）。使用sklearn.metrics的f1_score, precision_score, recall_score, accuracy_score，average='macro'。返回指标字典。",
+          "return": "Dict[str, float]"
+        },
+        {
+          "name": "compute_per_class_metrics",
+          "params": ["predictions: List[int]", "targets: List[int]", "class_names: List[str]"],
+          "description": "计算每个类别的precision, recall, f1-score。返回每个类别的指标字典。"
+        },
+        {
+          "name": "top_k_accuracy",
+          "params": ["targets: List[int]", "probabilities: np.ndarray", "k: int = 5"],
+          "description": "计算Top-K准确率：将概率矩阵每行降序排列取前k个索引，检查真实标签是否在前k中。返回Top-K准确率。",
+          "return": "float"
+        },
+        {
+          "name": "compute_confusion_matrix",
+          "params": ["predictions: List[int]", "targets: List[int]", "num_classes: int = 38"],
+          "description": "计算混淆矩阵，返回np.ndarray。"
+        },
+        {
+          "name": "aggregate_epoch_metrics",
+          "params": ["epoch_metrics: List[Dict[str, float]]"],
+          "description": "聚合多epoch指标历史，计算每项指标的mean和std。用于最终报告。"
+        }
+      ],
+      "uses": ["sklearn.metrics", "numpy"],
+      "pseudocode": "def compute_metrics(predictions, targets, num_classes=38):\n    f1 = f1_score(targets, predictions, average='macro', zero_division=0)\n    precision = precision_score(targets, predictions, average='macro', zero_division=0)\n    recall = recall_score(targets, predictions, average='macro', zero_division=0)\n    acc = accuracy_score(targets, predictions)\n    return {'mean_f1': f1, 'mean_precision': precision, 'mean_recall': recall, 'accuracy': acc}\n\ndef top_k_accuracy(targets, probabilities, k=5):\n    top_k_preds = np.argsort(probabilities, axis=1)[:, -k:]\n    correct = sum(1 for i, t in enumerate(targets) if t in top_k_preds[i])\n    return correct / len(targets)"
+    },
+    "config/config.yaml": {
+      "description": "YAML配置文件，定义所有实验参数。包含数据集路径、模型选择、训练超参数、分割比例等。",
+      "pseudocode": "experiment:\n  name: plant_disease_detection\n  seed: 42\n\ndataset:\n  root_dir: 'data/plantvillage'\n  representation: 'color'  # color, grayscale, segmented\n  split_ratio: 0.8  # 0.8, 0.6, 0.5, 0.4, 0.2\n  num_classes: 38\n  image_size: [256, 256]\n  mean: [0.485, 0.456, 0.406]\n  std: [0.229, 0.224, 0.225]\n\nmodel:\n  name: 'googlenet'  # alexnet, googlenet\n  pretrained: true  # transfer learning vs from scratch\n  freeze_features: false\n\ntraining:\n  batch_size: 24  # 24 for GoogLeNet, 100 for AlexNet\n  epochs: 30\n  optimizer:\n    type: 'SGD'\n    learning_rate: 0.005\n    momentum: 0.9\n    weight_decay: 0.0005\n  scheduler:\n    name: 'StepLR'\n    step_size: 10\n    gamma: 0.1\n  loss:\n    type: 'CrossEntropyLoss'\n    aux_weight: 0.3  # auxiliary loss weight for GoogLeNet\n\nevaluation:\n  metrics: ['mean_f1', 'mean_precision', 'mean_recall', 'accuracy', 'top5_accuracy']\n  save_best_by: 'mean_f1'\n  output_dir: 'outputs'\n\ndevice: 'cuda'  # cuda or cpu"
+    },
+    "main.py": {
+      "description": "项目入口脚本。解析配置文件，设置随机种子，选择设备（CUDA/CPU），构建数据集，创建模型，启动训练和评估流程。支持命令行覆盖配置参数。",
+      "functions": [
+        {
+          "name": "parse_args",
+          "params": [],
+          "description": "解析命令行参数：--config路径（默认config/config.yaml）、--model（alexnet/googlenet）、--pretrained（true/false）、--representation（color/grayscale/segmented）、--split_ratio（float）、--batch_size（int）、--epochs（int）、--output_dir（str）。允许覆盖config中的值。"
+        },
+        {
+          "name": "main",
+          "params": [],
+          "description": "主函数：加载config，设置seed，选择device。调用training.train.train执行训练。调用evaluation.evaluate.evaluate_model进行最终评估。输出所有指标到终端并保存到output_dir下的结果文件（JSON格式）。打印论文对比目标：GoogLeNet::TransferLearning::Color::80-20应达到~99.35% accuracy。"
+        }
+      ],
+      "uses": ["config.config (yaml)", "training.train", "evaluation.evaluate", "utils.metrics", "torch"],
+      "pseudocode": "def main():\n    args = parse_args()\n    config = load_yaml(args.config)\n    # Override config with CLI args\n    set_seed(config['experiment']['seed'])\n    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')\n    # Train\n    history = training.train.train(config, device)\n    # Evaluate\n    results = evaluation.evaluate.evaluate_model(history['best_model'], history['test_loader'], device)\n    # Save results\n    save_json(results, output_dir / 'results.json')\n    print(f\"Mean F1: {results['mean_f1']}, Accuracy: {results['accuracy']}\")\n\nif __name__ == '__main__':\n    main()"
+    },
+    "requirements.txt": {
+      "description": "Python依赖列表。",
+      "content": "torch>=1.10.0\ntorchvision>=0.11.0\nnumpy>=1.21.0\npyyaml>=5.4.0\nscikit-learn>=0.24.0\npillow>=8.0.0\ntqdm>=4.62.0"
+    },
+    "README.md": {
+      "description": "项目说明文档。包含论文信息、复现目标、数据集准备说明（PlantVillage手动下载）、安装步骤、运行命令、预期结果对比。",
+      "sections": ["Project Overview", "Paper Reference", "Dataset Preparation", "Installation", "Configuration", "Training", "Evaluation", "Expected Results", "Reproducing Key Experiments"]
+    }
+  }
+}
+```

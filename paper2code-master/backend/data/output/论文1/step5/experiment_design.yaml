@@ -1,0 +1,372 @@
+paper_name: 论文1
+pipeline:
+- 'Collect 54,306 images from the PlantVillage dataset. Resize all images to 256x256
+  pixels. Prepare three versions of the dataset: color, grayscale, and segmented.
+  Split data into train/test sets with multiple ratios while ensuring images of the
+  same leaf stay in the same set. Train AlexNet and GoogLeNet models using either
+  transfer learning (resetting final classification layer) or training from scratch.
+  Train each model for 30 epochs with standardized hyperparameters. Evaluate using
+  mean F1 score, mean precision, mean recall, and overall accuracy at the end of every
+  epoch. Use final mean F1 score for comparison across all experimental configurations.'
+experiments:
+- name: main_experiment
+  description: 'Best performance: GoogLeNet::TransferLearning::Color::80-20 with mean
+    F1 score 0.9934 and overall accuracy 99.35%. Worst performance: AlexNet::TrainingFromScratch::GrayScale::80-20
+    with mean F1 score 0.8524 and overall accuracy 85.53%. GoogLeNet consistently
+    outperforms AlexNet. Transfer learning always yields better results than training
+    from scratch. Color > Segmented > Grayscale in terms of performance. On real-world
+    images (121 images from trusted online sources), GoogLeNet:Segmented:TransferLearning:80-20
+    achieves 31.40% accuracy, 47.93% when crop information is provided, 52.89% top-5
+    accuracy. In n>=2 case (33 classes, 9 crops): random accuracy 0.273, model accuracy
+    0.478. In n>=3 case (25 classes, 5 crops): random accuracy 0.2, model accuracy
+    0.411.'
+evaluation:
+  primary_metric: F1
+  secondary_metrics:
+  - Mean F1 score
+  - mean precision
+  - mean recall
+  - overall accuracy
+comparison:
+  baselines:
+  - Random guessing (2.63% overall accuracy on 38 classes)
+  ablation_factors:
+  - mean F1-Score 0.9820
+experiment_matrix:
+  dimensions:
+    architectures:
+    - Alexnet
+    - Googlenet
+    training_modes:
+    - Scratch
+    - Transfer
+    data_types:
+    - Color
+    - Grayscale
+    - Segmented
+    train_test_splits:
+    - 80-20
+    - 60-40
+    - 50-50
+    - 40-60
+    - 20-80
+  total_configurations: 60
+  runs:
+  - id: run_001
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.8
+  - id: run_002
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.6
+  - id: run_003
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.5
+  - id: run_004
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.4
+  - id: run_005
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.2
+  - id: run_006
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.8
+  - id: run_007
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.6
+  - id: run_008
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.5
+  - id: run_009
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.4
+  - id: run_010
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.2
+  - id: run_011
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.8
+  - id: run_012
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.6
+  - id: run_013
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.5
+  - id: run_014
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.4
+  - id: run_015
+    model: Alexnet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.2
+  - id: run_016
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.8
+  - id: run_017
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.6
+  - id: run_018
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.5
+  - id: run_019
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.4
+  - id: run_020
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.2
+  - id: run_021
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.8
+  - id: run_022
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.6
+  - id: run_023
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.5
+  - id: run_024
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.4
+  - id: run_025
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.2
+  - id: run_026
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.8
+  - id: run_027
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.6
+  - id: run_028
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.5
+  - id: run_029
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.4
+  - id: run_030
+    model: Alexnet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.2
+  - id: run_031
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.8
+  - id: run_032
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.6
+  - id: run_033
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.5
+  - id: run_034
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.4
+  - id: run_035
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: color
+    train_ratio: 0.2
+  - id: run_036
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.8
+  - id: run_037
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.6
+  - id: run_038
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.5
+  - id: run_039
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.4
+  - id: run_040
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: grayscale
+    train_ratio: 0.2
+  - id: run_041
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.8
+  - id: run_042
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.6
+  - id: run_043
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.5
+  - id: run_044
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.4
+  - id: run_045
+    model: Googlenet
+    training_mode: scratch
+    dataset_version: segmented
+    train_ratio: 0.2
+  - id: run_046
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.8
+  - id: run_047
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.6
+  - id: run_048
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.5
+  - id: run_049
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.4
+  - id: run_050
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: color
+    train_ratio: 0.2
+  - id: run_051
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.8
+  - id: run_052
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.6
+  - id: run_053
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.5
+  - id: run_054
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.4
+  - id: run_055
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: grayscale
+    train_ratio: 0.2
+  - id: run_056
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.8
+  - id: run_057
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.6
+  - id: run_058
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.5
+  - id: run_059
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.4
+  - id: run_060
+    model: Googlenet
+    training_mode: transfer
+    dataset_version: segmented
+    train_ratio: 0.2
+  known_best: 99.35% — 121 images from trusted online sources
+  known_worst: 85.53% — 121 images from trusted online sources
+  run_all: false
+  recommended_subset:
+  - Alexnet::Scratch::Color::80-20
+  - Alexnet::Transfer::Color::80-20
+  - Googlenet::Scratch::Color::80-20
+  - Googlenet::Transfer::Color::80-20
+  note: 共 60 个实验组合。90%+ 场景下只需跑推荐子集确认趋势，CI/CD 中跑全部组合验证稳定性。
+important_results: 'The best performing model (GoogLeNet::TransferLearning::Color::80-20)
+  achieves a mean F1 score of 0.9934 and overall accuracy of 99.35% on the PlantVillage
+  dataset. On real-world images collected from trusted online sources (121 images),
+  the model trained using GoogLeNet:Segmented:TransferLearning:80-20 achieves 31.40%
+  overall accuracy (random baseline: 2.63%). When crop information is provided, accuracy
+  increases to 47.93%. Top-5 predictions contain correct class in 52.89% of cases.
+  Even training on only 20% data achieves 98.21% accuracy with GoogLeNet::TransferLearning::Color::20-80.
+  Performance order: Color > Segmented > Grayscale. GoogLeNet > AlexNet. Transfer
+  Learning > Training from Scratch.'

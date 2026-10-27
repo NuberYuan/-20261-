@@ -1,0 +1,259 @@
+"""Model package for image-based plant disease detection.
+
+This package aggregates the model classes defined in the individual model
+files so that the rest of the project can import them from a single place:
+
+    from models import Alexnet, Googlenet
+    from models import build_model
+
+Implementation notes
+--------------------
+* FR-06: weight initialisation is controlled by the ``training_mode``
+  enum ('scratch' / 'transfer') instead of a single ``pretrained``
+  boolean, because the two initialisation paths are logically different.
+* All numeric hyper-parameters are resolved through safe
+  ``config.get(key, default)`` style look-ups on ``config/config.yaml``;
+  no key is assumed to exist and missing keys fall back to defaults.
+* No empirical conclusion is hard-coded in this module: any model
+  comparison must be computed at run time from the actual evaluation
+  metrics produced by the training/evaluation pipeline.
+"""
+
+from __future__ import annotations
+
+import inspect
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple, Type, Union
+
+try:  # PyYAML is expected in the training environment
+    import yaml
+except Exception:  # pragma: no cover - keeps the package importable
+    yaml = None
+
+from .alexnet import Alexnet
+from .googlenet import Googlenet
+
+__all__ = [
+    "Alexnet",
+    "Googlenet",
+    "MODEL_REGISTRY",
+    "SUPPORTED_MODELS",
+    "SUPPORTED_TRAINING_MODES",
+    "DEFAULT_NUM_CLASSES",
+    "DEFAULT_CONFIG_PATH",
+    "load_config",
+    "get_model_class",
+    "build_model",
+]
+
+# Name -> class mapping used by the registry-based factory.
+MODEL_REGISTRY = {
+    "alexnet": Alexnet,
+    "googlenet": Googlenet,
+}
+
+SUPPORTED_MODELS = ("alexnet", "googlenet")
+
+# FR-06: initialisation is selected with an enum, not with a boolean flag.
+SUPPORTED_TRAINING_MODES = ("scratch", "transfer")
+
+# PlantVillage-style label count used only as a last-resort fallback.
+DEFAULT_NUM_CLASSES = 38
+
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "config.yaml"
+
+_CONFIG_NUM_CLASS_KEYS = ("num_classes", "n_classes", "num_class")
+
+
+def load_config(config: Optional[Union[dict, str, Path]] = None) -> Dict[str, Any]:
+    """Return the project configuration as a plain dictionary.
+
+    Parameters
+    ----------
+    config:
+        ``None`` -> read ``config/config.yaml`` from the project root,
+        a ``dict`` -> returned unchanged,
+        a path -> that YAML file is loaded.
+
+    The path is validated step by step (``is_file``) before it is opened and
+    every failure degrades to an empty dictionary so the caller can always
+    fall back to its own defaults.
+    """
+    if isinstance(config, dict):
+        return config
+
+    if config is None:
+        path = DEFAULT_CONFIG_PATH
+    else:
+        path = Path(config)
+
+    if not path.is_file():
+        return {}
+
+    if yaml is None:
+        return {}
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            loaded = yaml.safe_load(handle)
+    except Exception:
+        return {}
+
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _lookup_config(config: Dict[str, Any], keys: Tuple[str, ...], default: Any) -> Any:
+    """Safely search ``config`` (and one level of nested dicts) for ``keys``.
+
+    Only existing keys are read, so no top-level key of ``config.yaml`` is
+    assumed to be present.
+    """
+    if not isinstance(config, dict):
+        return default
+
+    for key in keys:
+        if key in config and config[key] is not None:
+            return config[key]
+
+    for value in config.values():
+        if isinstance(value, dict):
+            for key in keys:
+                if key in value and value[key] is not None:
+                    return value[key]
+
+    return default
+
+
+def get_model_class(name: str = "alexnet") -> Type:
+    """Return the model class registered under ``name``."""
+    if not isinstance(name, str):
+        raise TypeError(
+            "model name must be a string, one of {}".format(", ".join(SUPPORTED_MODELS))
+        )
+
+    key = name.strip().lower()
+    if key not in MODEL_REGISTRY:
+        raise ValueError(
+            "unknown model {!r}; supported models are: {}".format(
+                name, ", ".join(SUPPORTED_MODELS)
+            )
+        )
+
+    return MODEL_REGISTRY[key]
+
+
+def _resolve_num_classes(num_classes: Any, config: Dict[str, Any]) -> int:
+    """Resolve a strictly positive integer number of output classes."""
+    if num_classes is None:
+        resolved = _lookup_config(config, _CONFIG_NUM_CLASS_KEYS, DEFAULT_NUM_CLASSES)
+    else:
+        resolved = num_classes
+
+    try:
+        resolved_int = int(resolved)
+    except (TypeError, ValueError):
+        if num_classes is None:
+            resolved_int = DEFAULT_NUM_CLASSES
+        else:
+            raise ValueError("num_classes must be an integer, got {!r}".format(num_classes))
+
+    if resolved_int <= 0:
+        raise ValueError("num_classes must be > 0, got {}".format(resolved_int))
+
+    return resolved_int
+
+
+def _instantiate(model_cls: Type, candidates: Dict[str, Any]) -> Any:
+    """Instantiate ``model_cls`` passing only keyword arguments it accepts.
+
+    Keeps the factory tolerant to slightly different constructor signatures
+    (e.g. ``num_classes`` vs ``n_classes``) without hiding real errors.
+    """
+    try:
+        signature = inspect.signature(model_cls)
+    except (TypeError, ValueError):
+        signature = None
+
+    if signature is None:
+        try:
+            return model_cls(**candidates)
+        except TypeError:
+            return model_cls()
+
+    accepted = {
+        parameter.name
+        for parameter in signature.parameters.values()
+        if parameter.kind
+        in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    }
+    has_var_keyword = any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
+
+    if has_var_keyword:
+        filtered = candidates
+    else:
+        filtered = {key: value for key, value in candidates.items() if key in accepted}
+
+    return model_cls(**filtered)
+
+
+def build_model(
+    name: str = "alexnet",
+    training_mode: str = "scratch",
+    num_classes: Optional[int] = None,
+    config: Optional[Union[dict, str, Path]] = None,
+) -> Any:
+    """Build a model instance.
+
+    Parameters
+    ----------
+    name:
+        One of ``SUPPORTED_MODELS`` ('alexnet', 'googlenet').
+    training_mode:
+        ``'scratch'`` for random initialisation or ``'transfer'`` for
+        transfer learning (FR-06). No ``pretrained`` boolean is used.
+    num_classes:
+        Number of output classes. When ``None`` it is read from the
+        configuration and finally falls back to ``DEFAULT_NUM_CLASSES``.
+    config:
+        Configuration dict or path to a YAML file; ``None`` loads
+        ``config/config.yaml`` from the project root.
+    """
+    model_cls = get_model_class(name)
+
+    if not isinstance(training_mode, str):
+        raise TypeError(
+            "training_mode must be a string, one of {}".format(
+                ", ".join(SUPPORTED_TRAINING_MODES)
+            )
+        )
+
+    mode = training_mode.strip().lower()
+    if mode not in SUPPORTED_TRAINING_MODES:
+        raise ValueError(
+            "unknown training_mode {!r}; supported modes are: {}".format(
+                training_mode, ", ".join(SUPPORTED_TRAINING_MODES)
+            )
+        )
+
+    cfg = load_config(config)
+    resolved_num_classes = _resolve_num_classes(num_classes, cfg)
+
+    candidates = {
+        "num_classes": resolved_num_classes,
+        "n_classes": resolved_num_classes,
+        "num_class": resolved_num_classes,
+        "classes": resolved_num_classes,
+        "training_mode": mode,
+        "mode": mode,
+        "init_mode": mode,
+    }
+
+    # Forward the configuration only when the constructor accepts it and the
+    # configuration actually holds data (otherwise the class defaults apply).
+    if isinstance(cfg, dict) and len(cfg) > 0:
+        candidates["config"] = cfg
+
+    return _instantiate(model_cls, candidates)

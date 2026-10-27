@@ -1,0 +1,14 @@
+```json
+{
+  "type": "chart",
+  "description": "一张训练曲线图，展示了三种数据集类型（Color、GrayScale、Segmented）在30个epoch内Mean-F1-Score的变化情况，每种类型有多条折线（多次运行/交叉验证），并在约第10-11 epoch处出现明显的评分跳升。",
+  "important_components": [
+    "X轴：Epochs（范围0~30）",
+    "Y轴：Mean-F1-Score（范围0.4~1.0）",
+    "图例 Dataset Type：Color（蓝色）、GrayScale（绿色）、Segmented（红色）",
+    "多条半透明训练曲线（多次实验/随机种子运行）",
+    "第10-11 epoch处的F1跳升拐点"
+  ],
+  "code_relevant_information": "实验对比三种输入数据预处理方式：彩色图(Color)、灰度图(GrayScale)、分割图(Segmented)。评估指标为Mean-F1-Score（多分类/多目标平均F1）。训练总轮数为30 epochs。曲线在第10-11 epoch附近突然提升（约从0.88-0.92跳至0.95-0.98），暗示该处存在学习率调度（如StepLR衰减）、模型解冻或训练阶段切换等操作，复现时需在epoch≈10处设置相应学习率下降/阶段切换。Color与Segmented最终F1约0.96-0.98，GrayScale略低（约0.93-0.95）。每种数据类型绘制多条曲线，表明实验重复多次（不同随机种子或折），复现时应报告均值与波动范围。图风格为seaborn默认样式（浅灰网格背景），可用matplotlib/seaborn绘制。"
+}
+```

@@ -1,3 +1,10 @@
 {
-  "api_key": "sk-b80ebe7b0e6e45fc91027d6fd72e271d"
+  "api_keys": {
+    "mimo": "sk-c2pyvify8cjtbe3njia9veg8yf77iivucjxjjf25e1mjt094"
+  },
+  "selected_model": "mimo",
+  "task_models": {
+    "heavy": "mimo",
+    "light": "mimo"
+  }
 }

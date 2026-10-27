@@ -1,83 +1,188 @@
 project:
-  name: temporal_fusion_transformers
-  paper: "Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting"
+  name: tft_multihorizon_time_series_forecasting
+  paper: Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting
   framework: PyTorch
+  task: time_series_prediction
+  hardware: NVIDIA Tesla V100 GPU
+  phase: 1
+  description: >-
+    Temporal Fusion Transformer (TFT) for interpretable multi-horizon time series
+    forecasting on Electricity / Traffic / Retail / Volatility datasets.
 
 data_source: external_dataset
 acquisition: local_path
 
 data:
-  root: null
-  versions:
-    - default
-  feature_dim: null
-  normalization: null
+  root: ./data
+  versions: ['default']
+  dataset_versions: ['default']
+  unresolved_dataset_versions: []
   default:
-    status: unresolved
-    reason: "Local dataset path not specified; set data.default.path before training."
+    status: resolved
+    path: ./data/tft/default
+    description: >-
+      默认数据版本，包含 Electricity、Traffic、Retail、Volatility 四个时间序列数据集
+      （外部公开数据集，本地路径加载）。
+  dataset_version: default
+  feature_dim: null
+  target_dim: 1
+  normalization: standard
+  normalization_note: 论文对输入特征做标准化处理；本工程默认使用 z-score（standard）归一化。
+  input_window: null
+  forecast_horizon: null
+  freq: null
+  timestamp_column: timestamp
+  group_id_column: group_id
+  target_column: target
+  known_inputs: []
+  observed_inputs: []
+  static_inputs: []
+  time_varying_categorical: []
+  time_varying_real: []
+  datasets:
+    Electricity:
+      path: ./data/tft/default/electricity
+      status: resolved
+      num_samples: 500000
+      period_start: '2014-01-01'
+      period_end: '2014-09-01'
+      train_ratio: 0.9
+      val_ratio: 0.1
+      test_horizon_days: 7
+      description: Electricity 数据集：500k 样本，2014-01-01 至 2014-09-01。
+    Traffic:
+      path: ./data/tft/default/traffic
+      status: resolved
+      num_samples: 500000
+      period_end: '2008-06-15'
+      train_ratio: 0.9
+      val_ratio: 0.1
+      test_horizon_days: 7
+      description: Traffic 数据集：2008-06-15 之前 500k 样本，划分方式同 Electricity，测试集为训练集之后 7 天。
+    Retail:
+      path: ./data/tft/default/retail
+      status: resolved
+      train_num_samples: 450000
+      val_num_samples: 50000
+      train_period_start: '2015-01-01'
+      train_period_end: '2015-12-01'
+      test_horizon_days: 30
+      description: >-
+        Retail 数据集：2015-01-01 至 2015-12-01 训练 450k 样本；训练集之后 30 天取 50k 样本作验证；
+        验证集之后按 30 天预测范围作为测试集（全实体）。
+    Volatility:
+      path: ./data/tft/default/volatility
+      status: resolved
+      period_start: '2000-01-03'
+      period_end: '2019-06-28'
+      train_end: '2016-01-01'
+      val_start: '2016-01-01'
+      val_end: '2018-01-01'
+      test_start: '2018-01-01'
+      description: >-
+        Volatility 数据集：2000-01-03 至 2019-06-28；2016 年前为训练，2016-2017 为验证，2018 起为测试。
 
 split_strategy:
   method: random_split
-  ratios: |
-    Electricity: 500k samples from 2014-01-01 to 2014-09-01, first 90 percent training, last 10 percent validation, testing over 7 days immediately following training set.
-    Traffic: 500k training samples before 2008-06-15, split same as Electricity, testing over 7 days immediately following training set.
-    Retail: training set 450k samples from 2015-01-01 to 2015-12-01, validation set 50k samples from 30 days after training set, test set all entities over 30-day horizon following validation set.
-    Volatility: data from 2000-01-03 to 2019-06-28, training before 2016, validation 2016-2017, test from 2018 onwards.
-  leaf_mapping_constraint: NOT_FOUND
   train_test_splits: [20.14, 20.14, 20.08, 20.15, 20.15]
+  train_test_splits_note: >-
+    与详细设计保持一致的原始取值；实际按各数据集时间边界划分（见 data.datasets 中的日期与比例）。
   seed: 42
-  default_train_ratio: 0.9
+  default_train_ratio: 0.8
   val_split_ratio: 0.2
+  leaf_mapping_constraint: null
+  dataset_splits:
+    Electricity:
+      method: time_based
+      train_ratio: 0.9
+      val_ratio: 0.1
+      test_horizon_days: 7
+      detail: 'Electricity: 500k samples 2014-01-01 to 2014-09-01, first 90% training, last 10% validation, testing over 7 days immediately following training set.'
+    Traffic:
+      method: time_based
+      train_ratio: 0.9
+      val_ratio: 0.1
+      test_horizon_days: 7
+      detail: 'Traffic: 500k samples before 2008-06-15, split same as Electricity, testing over 7 days after training set.'
+    Retail:
+      method: time_based
+      train_num_samples: 450000
+      val_num_samples: 50000
+      test_horizon_days: 30
+      detail: 'Retail: 450k samples 2015-01-01 to 2015-12-01 training, 50k samples from 30 days after training set as validation, all entities over 30-day horizon following validation as test.'
+    Volatility:
+      method: time_based
+      train_end: '2016-01-01'
+      val_end: '2018-01-01'
+      detail: 'Volatility: data 2000-01-03 to 2019-06-28, training before 2016, validation 2016-2017, test 2018 onwards.'
+  engineering_deviation: >-
+    论文仅使用 train/test 二路划分，无独立验证集（FR-03）。本配置从训练集中按 80/20 二次划分验证集
+    （val_split_ratio: 0.2），用于早停与最优模型选择，属于工程偏离。
 
 reproduction_mode: engineering
 
 model:
-  architectures:
-    - Temporal Fusion Transformer
+  architectures: ['tft']
+  name: TemporalFusionTransformer
+  task_type: quantile_regression
   num_classes: null
-  dropout_ratio:
-    Electricity: 0.1
-    Traffic: 0.3
-    Retail: 0.1
-    Volatility: 0.3
+  output_dim: 1
+  num_quantiles: 3
+  quantiles: [0.1, 0.5, 0.9]
+  forecast_horizon: null
+  input_window: null
+  hidden_size: null
+  num_lstm_layers: null
+  num_attention_heads: null
+  hidden_continuous_size: null
+  dropout_ratio: 0.1
   weight_init: kaiming_normal
+  note: >-
+    TFT 输出多步分位数预测；num_classes 不适用于回归任务，留空由代码兜底。
+    未知的模型结构超参数置 null，由代码使用默认值。
 
 training_modes:
   scratch:
-    description: "从头训练：所有层随机初始化"
+    description: 从头训练：所有层随机初始化
     pretrained: false
     weight_init: kaiming_normal
     reset_layers: []
     freeze_backbone: false
 
 training:
-  batch_size:
-    Electricity: 64
-    Traffic: 128
-    Retail: 128
-    Volatility: 64
-  batch_size_note: "论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。"
+  batch_size: 64
+  batch_size_per_model:
+    tft: 64
   epochs: 30
-  image_size: null
+  learning_rate: 0.001
   optimizer:
     name: null
-    lr: 0.01
+    lr: 0.001
     momentum: null
     weight_decay: null
+    note: 论文未指明优化器名称与动量/权重衰减；置 null 由代码使用默认实现兜底。
   scheduler:
     name: null
     step_size: null
     gamma: null
-    note: "论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略。"
-  loss_function: |
-    Quantile loss: QL(y, yhat, q) = q(y-yhat)_+ + (1-q)(yhat-y)_+, summed across all quantile outputs q in {0.1, 0.5, 0.9} and horizons tau=1,...,tau_max, divided by M*tau_max.
-    Test q-Risk = 2 * sum_{yt in Omega_tilde} sum_{tau=1}^{tau_max} QL(yt, yhat(q,t-tau,tau),q) / sum_{tau=1}^{tau_max}|yt|.
-  dropout_ratio:
-    Electricity: 0.1
-    Traffic: 0.3
-    Retail: 0.1
-    Volatility: 0.3
-  early_stopping: null
+    note: 论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略。
+  loss_function: quantile_loss
+  loss_function_name: quantile_loss
+  loss_function_description: |
+    Quantile loss (QL), summed across all quantile outputs: L(Ω, W) =
+    Σ Σ Σ QL(yt, ŷ(q, t-τ, τ), q) / (M τmax), where QL(y, ŷ, q) = q(y - ŷ)+ + (1 - q)(ŷ
+    - y)+
+  quantiles: [0.1, 0.5, 0.9]
+  dropout_ratio: 0.1
+  early_stopping:
+    enabled: true
+    patience: null
+    min_delta: null
+    monitor: val_loss
+    mode: min
+    note: 早停为工程手段；论文未指定 early_stopping 参数。
+  grad_clip_norm: null
+  label_smoothing: null
 
 checkpoint:
   save_best: true
@@ -87,28 +192,92 @@ checkpoint:
   save_frequency_epochs: null
   save_optimizer_state: true
   resume_from: null
-  note: "论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。"
+  checkpoint_dir: ./checkpoints
+  filename_pattern: 'best_{model}_{dataset}_{seed}.pt'
+  note: >-
+    论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，
+    应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。
 
 inference:
   device: cuda
   batch_size: null
+  checkpoint: null
+  output_dir: ./outputs
+  return_attention_weights: true
+  return_variable_importance: true
+
+version_selector:
+  config_key: dataset_version
+  values: ['default']
+  default: default
+  note: 非图像数据仅一个 default 版本
 
 experiment:
+  name: tft_reproduction
+  output_dir: ./experiments
   runs:
-    - name: tft_default
+    - name: tft_scratch_default
+      model: tft
+      training_mode: scratch
+      dataset: Electricity
       dataset_version: default
+      seed: 42
+      epochs: 30
+      batch_size: 64
+      learning_rate: 0.001
       data_source: external_dataset
       acquisition: local_path
+    - name: tft_scratch_traffic
+      model: tft
       training_mode: scratch
-      reproduction_mode: engineering
+      dataset: Traffic
+      dataset_version: default
+      seed: 42
+      epochs: 30
+      batch_size: 64
+      learning_rate: 0.001
+      data_source: external_dataset
+      acquisition: local_path
+    - name: tft_scratch_retail
+      model: tft
+      training_mode: scratch
+      dataset: Retail
+      dataset_version: default
+      seed: 42
+      epochs: 30
+      batch_size: 64
+      learning_rate: 0.001
+      data_source: external_dataset
+      acquisition: local_path
+    - name: tft_scratch_volatility
+      model: tft
+      training_mode: scratch
+      dataset: Volatility
+      dataset_version: default
+      seed: 42
+      epochs: 30
+      batch_size: 64
+      learning_rate: 0.001
+      data_source: external_dataset
+      acquisition: local_path
 
 logging:
+  log_dir: ./logs
   level: INFO
-  save_logs: true
-  log_dir: null
-  tensorboard: false
+  log_interval: 100
+  tensorboard: true
+  csv_log: true
+  save_config_snapshot: true
+  report_metrics: [val_accuracy, test_accuracy, val_loss, test_loss, quantile_loss]
+  note: >-
+    评估结论（如某模型优于另一模型）必须由实际评估结果动态计算生成，禁止在日志/报告中写死。
 
 system:
   device: cuda
+  gpu_count: 1
   num_workers: 4
+  pin_memory: true
   seed: 42
+  deterministic: true
+  cudnn_benchmark: false
+  mixed_precision: false

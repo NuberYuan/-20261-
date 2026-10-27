@@ -1,0 +1,304 @@
+project:
+  name: plant_disease_detection
+  paper: "Using Deep Learning for Image-Based Plant Disease Detection"
+  framework: PyTorch
+  task: image_classification
+  description: "Image-based plant disease classification on PlantVillage (color / grayscale / segmented image versions), comparing AlexNet and GoogLeNet under training-from-scratch and transfer-learning modes across multiple train-test split ratios."
+  reference_note: "Paper reports best result: GoogLeNet / transfer learning / color / 80-20 split (mean F1 0.9934, overall accuracy 99.35%). All comparative conclusions must be recomputed from actual evaluation outputs at runtime, never hard-coded."
+
+data:
+  root: ./data
+  dataset_name: PlantVillage
+  source_description: "54,306 labelled images covering 38 classes (crop species x disease/healthy status); leaf-level identity mappings available for 41,112 images."
+  total_images: 54306
+  leaf_mapping_images: 41112
+  num_classes: 38
+  versions:
+    - color
+    - grayscale
+    - segmented
+  version_selector_key: dataset_version
+  default_version: color
+  unresolved_dataset_versions: []
+  color:
+    status: resolved
+    path: ./data/color
+    description: "Original RGB colour images of PlantVillage, one folder per class, 38 classes."
+  grayscale:
+    status: resolved
+    path: ./data/grayscale
+    description: "Grayscale conversion of the PlantVillage colour images, one folder per class, 38 classes."
+  segmented:
+    status: resolved
+    path: ./data/segmented
+    description: "Background-segmented PlantVillage images (leaf region isolated from background), one folder per class, 38 classes."
+  real_world_images:
+    path: ./data/real_world
+    num_images: 121
+    description: "121 trusted online images used only for external inference evaluation; never used for training or model selection."
+  image_size: 256
+  image_size_hw: [256, 256]
+  resize:
+    height: 256
+    width: 256
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+  normalize: true
+  normalization_note: "mean/std are engineering defaults (ImageNet statistics); the paper does not specify normalization constants."
+  channels: 3
+  interpolation: bilinear
+  augmentation:
+    enabled: false
+    note: "Paper does not describe training-time data augmentation; disabled to stay close to the original protocol."
+
+split_strategy:
+  method: leaf_based_split
+  ratios: "Multiple train-test splits: 80-20, 60-40, 50-50, 40-60, 20-80. Images of the same leaf (mappings available for 41,112 out of 54,306 images) always go either in the training set or the testing set."
+  leaf_mapping_constraint: "All images belonging to the same leaf must be assigned to the same set (train or test); never split across sets."
+  leaf_mapping_file: ./data/leaf_mappings.csv
+  leaf_mapping_available_for: 41112
+  total_images: 54306
+  train_test_splits: [0.8, 0.6, 0.5, 0.4, 0.2]
+  train_test_split_labels:
+    0.8: "80-20"
+    0.6: "60-40"
+    0.5: "50-50"
+    0.4: "40-60"
+    0.2: "20-80"
+  default_train_ratio: 0.8
+  seed: 42
+  stratify_by_class: true
+  val_split_ratio: 0.2
+  val_split_source: train
+  val_split_note: "ENGINEERING DEVIATION FROM PAPER (FR-03): the paper only uses train/test splits and has no independent validation set. A 80/20 split of the training set is created for validation (used for early stopping / best-model selection) in reproduction_mode 'engineering'. In 'strict' mode no validation split is created."
+  val_split_respects_leaf_constraint: true
+
+reproduction_mode: engineering
+reproduction_modes:
+  engineering:
+    description: "train -> val -> best -> test: split a validation set from the training set (80/20, leaf-constraint aware), validate every epoch, keep the best checkpoint by val_accuracy, then evaluate once on the test set."
+    use_validation: true
+    select_best_by: val_accuracy
+  strict:
+    description: "train -> test: train on the full training set, no validation split, no per-epoch validation, only the final model is saved and evaluated on the test set (strict reproduction of the paper protocol)."
+    use_validation: false
+    select_best_by: null
+
+model:
+  architectures:
+    - googlenet
+    - alexnet
+  default: googlenet
+  num_classes: 38
+  in_channels: 3
+  input_size: [256, 256]
+  dropout_ratio: 0.5
+  weight_init: kaiming_normal
+  pretrained_source: "torchvision.models (ImageNet)"
+  reset_layers:
+    alexnet:
+      - name: classifier.6
+        description: "fc8, in_features=4096, out_features=38"
+        in_features: 4096
+        out_features: 38
+    googlenet:
+      - name: fc
+        description: "main classifier, out_features=38"
+        out_features: 38
+      - name: aux1.fc2
+        description: "auxiliary classifier 1, out_features=38"
+        out_features: 38
+      - name: aux2.fc2
+        description: "auxiliary classifier 2, out_features=38"
+        out_features: 38
+  googlenet:
+    aux_logits: true
+    dropout_ratio: 0.5
+    init_weights: false
+  alexnet:
+    dropout_ratio: 0.5
+
+training_modes:
+  active: transfer
+  scratch:
+    description: "Training from scratch: all layers randomly initialised (kaiming_normal)."
+    pretrained: false
+    pretrained_source: null
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+  transfer:
+    description: "Transfer learning: load ImageNet-pretrained weights, reset and re-initialise the final classification layers."
+    pretrained: true
+    pretrained_source: "torchvision.models (ImageNet)"
+    weight_init: kaiming_normal
+    reset_layers:
+      - "classifier.6 (fc8, in_features=4096, out_features=38)"
+      - "fc (main classifier, out_features=38)"
+      - "aux1.fc2 (auxiliary classifier 1, out_features=38)"
+      - "aux2.fc2 (auxiliary classifier 2, out_features=38)"
+    freeze_backbone: false
+    freeze_backbone_note: "ENGINEERING DECISION (paper does not specify, value unknown). Default is NOT freezing (full fine-tuning) because the target domain differs substantially from ImageNet. Strategy (a) no freeze (fine-tuning): all layers trained, slower convergence but usually better — recommended; strategy (b) freeze backbone: only the reset classifier layers are trained, faster but may under-fit."
+  use_mode_enum_not_bool: true
+  note: "A single pretrained=True/False flag is insufficient because scratch and transfer initialisation logic differ; use the training_mode enum (scratch / transfer) instead of a boolean (FR-06)."
+
+training:
+  batch_size:
+    googlenet: 24
+    alexnet: 100
+  batch_size_note: "Paper specifies batch_size 24 for GoogLeNet and 100 for AlexNet; use the per-model table above."
+  epochs: 30
+  image_size: 256
+  num_workers: 4
+  pin_memory: true
+  shuffle_train: true
+  drop_last: false
+  optimizer:
+    name: SGD
+    full_name: Stochastic Gradient Descent
+    lr: 0.005
+    momentum: 0.9
+    weight_decay: 0.0005
+    nesterov: false
+  scheduler:
+    name: StepLR
+    step_size: 10
+    gamma: 0.1
+    note: "Multiply the learning rate by 0.1 every 10 epochs; PyTorch StepLR(step_size=10, gamma=0.1) reproduces this behaviour exactly."
+  loss_function: cross_entropy
+  loss_function_note: "Softmax cross-entropy (inferred from the softmax layer described in the paper); implemented with torch.nn.CrossEntropyLoss on raw logits."
+  label_smoothing: 0.0
+  dropout_ratio: 0.5
+  early_stopping:
+    enabled: false
+    patience: null
+    note: "Paper reports no early stopping; keep disabled for faithful reproduction."
+  gradient_clip_norm: null
+  mixed_precision: false
+  log_interval: 50
+
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: null
+  save_optimizer_state: true
+  resume_from: null
+  dir: ./checkpoints
+  filename_pattern: "{model}_{training_mode}_{dataset_version}_{train_test_split}_best.pth"
+  note: "The paper has no independent validation set, so selecting on val_accuracy is an engineering deviation. In strict reproduction mode only the final model is saved (best_metric is ignored). Directly selecting on test_accuracy is not recommended because it leaks test information."
+
+inference:
+  device: cuda
+  batch_size: null
+  batch_size_note: "Inference batch size is not specified by the paper; code should fall back with cfg.get('inference', {}).get('batch_size') or a default such as 32."
+  top_k: 5
+  save_predictions: true
+  output_dir: ./outputs/predictions
+  real_world_eval:
+    enabled: true
+    num_images: 121
+    trusted_online_sources: true
+    use_crop_information: true
+    note: "Real-world evaluation protocol from the paper: top-1 accuracy with and without crop information, plus top-5 accuracy."
+
+experiment:
+  name: plant_disease_detection_reproduction
+  output_dir: ./outputs
+  metrics:
+    - overall_accuracy
+    - mean_f1
+    - per_class_f1
+    - macro_precision
+    - macro_recall
+    - top5_accuracy
+  aggregation_note: "Report overall accuracy and mean (macro) F1 score per run; all cross-model / cross-mode / cross-version comparisons must be computed dynamically from these metrics."
+  runs:
+    - {run_id: googlenet_scratch_color_80_20, name: "googlenet::scratch::color::80-20", model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.8, train_test_split: "80-20", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_color_60_40, name: "googlenet::scratch::color::60-40", model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.6, train_test_split: "60-40", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_color_50_50, name: "googlenet::scratch::color::50-50", model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.5, train_test_split: "50-50", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_color_40_60, name: "googlenet::scratch::color::40-60", model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.4, train_test_split: "40-60", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_color_20_80, name: "googlenet::scratch::color::20-80", model: googlenet, training_mode: scratch, dataset_version: color, train_ratio: 0.2, train_test_split: "20-80", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_grayscale_80_20, name: "googlenet::scratch::grayscale::80-20", model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.8, train_test_split: "80-20", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_grayscale_60_40, name: "googlenet::scratch::grayscale::60-40", model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.6, train_test_split: "60-40", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_grayscale_50_50, name: "googlenet::scratch::grayscale::50-50", model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.5, train_test_split: "50-50", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_grayscale_40_60, name: "googlenet::scratch::grayscale::40-60", model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.4, train_test_split: "40-60", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_grayscale_20_80, name: "googlenet::scratch::grayscale::20-80", model: googlenet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.2, train_test_split: "20-80", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_segmented_80_20, name: "googlenet::scratch::segmented::80-20", model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.8, train_test_split: "80-20", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_segmented_60_40, name: "googlenet::scratch::segmented::60-40", model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.6, train_test_split: "60-40", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_segmented_50_50, name: "googlenet::scratch::segmented::50-50", model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.5, train_test_split: "50-50", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_segmented_40_60, name: "googlenet::scratch::segmented::40-60", model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.4, train_test_split: "40-60", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_scratch_segmented_20_80, name: "googlenet::scratch::segmented::20-80", model: googlenet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.2, train_test_split: "20-80", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_color_80_20, name: "googlenet::transfer::color::80-20", model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.8, train_test_split: "80-20", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_color_60_40, name: "googlenet::transfer::color::60-40", model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.6, train_test_split: "60-40", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_color_50_50, name: "googlenet::transfer::color::50-50", model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.5, train_test_split: "50-50", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_color_40_60, name: "googlenet::transfer::color::40-60", model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.4, train_test_split: "40-60", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_color_20_80, name: "googlenet::transfer::color::20-80", model: googlenet, training_mode: transfer, dataset_version: color, train_ratio: 0.2, train_test_split: "20-80", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_grayscale_80_20, name: "googlenet::transfer::grayscale::80-20", model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.8, train_test_split: "80-20", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_grayscale_60_40, name: "googlenet::transfer::grayscale::60-40", model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.6, train_test_split: "60-40", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_grayscale_50_50, name: "googlenet::transfer::grayscale::50-50", model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.5, train_test_split: "50-50", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_grayscale_40_60, name: "googlenet::transfer::grayscale::40-60", model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.4, train_test_split: "40-60", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_grayscale_20_80, name: "googlenet::transfer::grayscale::20-80", model: googlenet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.2, train_test_split: "20-80", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_segmented_80_20, name: "googlenet::transfer::segmented::80-20", model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.8, train_test_split: "80-20", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_segmented_60_40, name: "googlenet::transfer::segmented::60-40", model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.6, train_test_split: "60-40", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_segmented_50_50, name: "googlenet::transfer::segmented::50-50", model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.5, train_test_split: "50-50", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_segmented_40_60, name: "googlenet::transfer::segmented::40-60", model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.4, train_test_split: "40-60", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: googlenet_transfer_segmented_20_80, name: "googlenet::transfer::segmented::20-80", model: googlenet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.2, train_test_split: "20-80", batch_size: 24, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_color_80_20, name: "alexnet::scratch::color::80-20", model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.8, train_test_split: "80-20", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_color_60_40, name: "alexnet::scratch::color::60-40", model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.6, train_test_split: "60-40", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_color_50_50, name: "alexnet::scratch::color::50-50", model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.5, train_test_split: "50-50", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_color_40_60, name: "alexnet::scratch::color::40-60", model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.4, train_test_split: "40-60", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_color_20_80, name: "alexnet::scratch::color::20-80", model: alexnet, training_mode: scratch, dataset_version: color, train_ratio: 0.2, train_test_split: "20-80", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_grayscale_80_20, name: "alexnet::scratch::grayscale::80-20", model: alexnet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.8, train_test_split: "80-20", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_grayscale_60_40, name: "alexnet::scratch::grayscale::60-40", model: alexnet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.6, train_test_split: "60-40", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_grayscale_50_50, name: "alexnet::scratch::grayscale::50-50", model: alexnet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.5, train_test_split: "50-50", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_grayscale_40_60, name: "alexnet::scratch::grayscale::40-60", model: alexnet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.4, train_test_split: "40-60", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_grayscale_20_80, name: "alexnet::scratch::grayscale::20-80", model: alexnet, training_mode: scratch, dataset_version: grayscale, train_ratio: 0.2, train_test_split: "20-80", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_segmented_80_20, name: "alexnet::scratch::segmented::80-20", model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.8, train_test_split: "80-20", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_segmented_60_40, name: "alexnet::scratch::segmented::60-40", model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.6, train_test_split: "60-40", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_segmented_50_50, name: "alexnet::scratch::segmented::50-50", model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.5, train_test_split: "50-50", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_segmented_40_60, name: "alexnet::scratch::segmented::40-60", model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.4, train_test_split: "40-60", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_scratch_segmented_20_80, name: "alexnet::scratch::segmented::20-80", model: alexnet, training_mode: scratch, dataset_version: segmented, train_ratio: 0.2, train_test_split: "20-80", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_color_80_20, name: "alexnet::transfer::color::80-20", model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.8, train_test_split: "80-20", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_color_60_40, name: "alexnet::transfer::color::60-40", model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.6, train_test_split: "60-40", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_color_50_50, name: "alexnet::transfer::color::50-50", model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.5, train_test_split: "50-50", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_color_40_60, name: "alexnet::transfer::color::40-60", model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.4, train_test_split: "40-60", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_color_20_80, name: "alexnet::transfer::color::20-80", model: alexnet, training_mode: transfer, dataset_version: color, train_ratio: 0.2, train_test_split: "20-80", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_grayscale_80_20, name: "alexnet::transfer::grayscale::80-20", model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.8, train_test_split: "80-20", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_grayscale_60_40, name: "alexnet::transfer::grayscale::60-40", model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.6, train_test_split: "60-40", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_grayscale_50_50, name: "alexnet::transfer::grayscale::50-50", model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.5, train_test_split: "50-50", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_grayscale_40_60, name: "alexnet::transfer::grayscale::40-60", model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.4, train_test_split: "40-60", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_grayscale_20_80, name: "alexnet::transfer::grayscale::20-80", model: alexnet, training_mode: transfer, dataset_version: grayscale, train_ratio: 0.2, train_test_split: "20-80", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_segmented_80_20, name: "alexnet::transfer::segmented::80-20", model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.8, train_test_split: "80-20", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_segmented_60_40, name: "alexnet::transfer::segmented::60-40", model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.6, train_test_split: "60-40", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_segmented_50_50, name: "alexnet::transfer::segmented::50-50", model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.5, train_test_split: "50-50", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_segmented_40_60, name: "alexnet::transfer::segmented::40-60", model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.4, train_test_split: "40-60", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+    - {run_id: alexnet_transfer_segmented_20_80, name: "alexnet::transfer::segmented::20-80", model: alexnet, training_mode: transfer, dataset_version: segmented, train_ratio: 0.2, train_test_split: "20-80", batch_size: 100, data_source: external_dataset, acquisition: local_path}
+
+logging:
+  dir: ./logs
+  level: INFO
+  log_file: train.log
+  csv_log: true
+  json_log: true
+  tensorboard: true
+  tensorboard_dir: ./runs
+  log_interval: 50
+  save_confusion_matrix: true
+  report_dir: ./outputs/reports
+
+system:
+  device: cuda
+  gpu_id: 0
+  num_workers: 4
+  pin_memory: true
+  seed: 42
+  deterministic: true
+  cudnn_benchmark: false
+  mixed_precision: false
+  cluster: "EPFL GPU cluster computing resources"
+  output_root: ./outputs
+
+data_source: external_dataset
+acquisition: local_path

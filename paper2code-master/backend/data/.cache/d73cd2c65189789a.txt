@@ -1,0 +1,182 @@
+```python
+"""Phase 5 - evaluation and report generation for the PlantVillage reproduction.
+
+Paper: *Using Deep Learning for Image-Based Plant Disease Detection*
+Task : image_classification (PyTorch, EPFL GPU cluster computing resources)
+
+Public API
+----------
+``evaluate_model``
+    Run a trained plant-disease classifier on a data loader and compute the
+    metrics required by FR-09 (Mean F1 score, mean precision, mean recall,
+    overall accuracy) plus the confusion matrix used by the auxiliary plots.
+``generate_report``
+    Write the textual / JSON report of a single run and, when matplotlib is
+    available, the auxiliary charts required by FR-10.
+
+Design notes
+------------
+* matplotlib is only a visual-aid dependency: it is imported inside a
+  ``try / except`` block and every plotting helper degrades gracefully to
+  ``None`` when it is missing.  Metric computation and the text report are
+  always produced, with or without matplotlib.
+* No conclusion about model quality is hard-coded anywhere.  The reference
+  values quoted inside ``config/config.yaml`` (``project.reference_note``) are
+  parsed at runtime and compared with the numbers actually measured by the
+  current run; every delta / tolerance verdict is recomputed at run time.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import math
+import os
+import re
+import sys
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+import yaml
+
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+
+LOGGER = logging.getLogger(__name__)
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+
+# --------------------------------------------------------------------------- #
+# Optional project dependencies (must never break the import of this module).
+# --------------------------------------------------------------------------- #
+try:
+    from utils.metrics import compute_metrics as _compute_metrics
+except Exception as _exc:  # pragma: no cover - defensive import
+    LOGGER.warning("utils.metrics.compute_metrics unavailable: %s", _exc)
+    _compute_metrics = None
+
+try:
+    from training.train import load_config as _train_load_config
+except Exception as _exc:  # pragma: no cover - defensive import
+    LOGGER.warning("training.train.load_config unavailable: %s", _exc)
+    _train_load_config = None
+
+try:
+    from training.train import build_criterion as _train_build_criterion
+except Exception as _exc:  # pragma: no cover - defensive import
+    LOGGER.warning("training.train.build_criterion unavailable: %s", _exc)
+    _train_build_criterion = None
+
+try:
+    from models.alexnet import Alexnet
+except Exception as _exc:  # pragma: no cover - defensive import
+    LOGGER.warning("models.alexnet.Alexnet unavailable: %s", _exc)
+    Alexnet = None
+
+try:
+    from models.googlenet import Googlenet
+except Exception as _exc:  # pragma: no cover - defensive import
+    LOGGER.warning("models.googlenet.Googlenet unavailable: %s", _exc)
+    Googlenet = None
+
+
+# --------------------------------------------------------------------------- #
+# Module constants
+# --------------------------------------------------------------------------- #
+DEFAULT_NUM_CLASSES = 38
+DEFAULT_THRESHOLD = 0.5
+DEFAULT_LOG_INTERVAL = 50
+DEFAULT_SEED = 42
+DEFAULT_REFERENCE_TOLERANCE = 0.01
+DEFAULT_REPORT_DIR = os.path.join("outputs", "reports")
+_DEFAULT_CONFIG_RELATIVE_PATH = os.path.join("config", "config.yaml")
+
+_HEADLINE_KEYS: Tuple[str, ...] = (
+    "mean_f1",
+    "mean_precision",
+    "mean_recall",
+    "overall_accuracy",
+)
+
+_HEADLINE_LABELS: Dict[str, str] = {
+    "mean_f1": "Mean F1 score",
+    "mean_precision": "Mean precision",
+    "mean_recall": "Mean recall",
+    "overall_accuracy": "Overall accuracy",
+}
+
+_METRIC_ALIASES: Dict[str, Tuple[str, ...]] = {
+    "mean_f1": ("mean_f1", "mean_f1_score", "mean_f1score", "macro_f1", "f1", "f1_score"),
+    "mean_precision": ("mean_precision", "mean_precision_score", "macro_precision", "precision"),
+    "mean_recall": ("mean_recall", "mean_recall_score", "macro_recall", "recall"),
+    "overall_accuracy": (
+        "overall_accuracy",
+        "overall_acc",
+        "accuracy",
+        "acc",
+        "top1_accuracy",
+        "top_1_accuracy",
+    ),
+}
+
+
+# --------------------------------------------------------------------------- #
+# Configuration helpers
+# --------------------------------------------------------------------------- #
+def _candidate_config_paths() -> List[str]:
+    """Return existing-file candidates for ``config/config.yaml`` (priority order)."""
+    candidates: List[str] = []
+    env_path = os.environ.get("PLANT_DISEASE_CONFIG")
+    if env_path:
+        candidates.append(env_path)
+    candidates.append(os.path.join(_PROJECT_ROOT, "config", "config.yaml"))
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates.append(os.path.join(os.path.dirname(here), "config", "config.yaml"))
+    candidates.append(os.path.join(here, "config", "config.yaml"))
+    candidates.append(os.path.join(os.getcwd(), "config", "config.yaml"))
+    candidates.append(_DEFAULT_CONFIG_RELATIVE_PATH)
+
+    ordered: List[str] = []
+    seen: set = set()
+    for path in candidates:
+        if not path:
+            continue
+        key = os.path.normpath(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(path)
+    return ordered
+
+
+def load_config(config: Optional[Union[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Return the project configuration as a plain dictionary."""
+    if isinstance(config, dict):
+        return dict(config)
+
+    if isinstance(config, (str, os.PathLike)):
+        path = os.fspath(config)
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    loaded = yaml.safe_load(handle) or {}
+                if isinstance(loaded, dict):
+                    return loaded
+                LOGGER.warning("Configuration file %s did

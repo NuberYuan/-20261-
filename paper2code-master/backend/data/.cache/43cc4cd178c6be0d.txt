@@ -1,0 +1,7 @@
+```json
+{
+  "data_source": "external_dataset",
+  "acquisition": "local_path",
+  "data_source_note": "论文明确依赖 PlantVillage 公开数据集（54,306 张植物叶片图像），需从 PlantVillage 项目获取后提供本地路径，不属于任何库内置自动下载的数据集。"
+}
+```

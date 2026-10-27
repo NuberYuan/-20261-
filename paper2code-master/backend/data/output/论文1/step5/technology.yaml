@@ -1,0 +1,46 @@
+paper_name: 论文1
+framework:
+  recommended: PyTorch
+  candidates:
+  - PyTorch
+  source: 复现代码统一使用 PyTorch；论文原文框架见 programming_framework_mentioned
+programming_framework_mentioned: 'Caffe (own fork of Caffe: https://github.com/salathegroup/caffe)'
+model_backbone:
+  names:
+  - AlexNet
+  - GoogLeNet
+  source: 论文提到
+architecture_details:
+  alexnet: AlexNet consists of 5 convolution layers, followed by 3 fully connected
+    layers, and finally ending with a softmax layer. The first two convolution layers
+    (conv{1,2}) are each followed by a normalization and a pooling layer, and the
+    last convolution layer (conv5) is followed by a single pooling layer. The final
+    fully connected layer (fc8) has 38 outputs in the adapted version. All of the
+    first 7 layers have a ReLU nonlinearity activation unit. The first two fully connected
+    layers (fc{6,7}) have a
+  googlenet: 'GoogLeNet is a much deeper and wider architecture with 22 layers, while
+    still having considerably lower number of parameters (5 million parameters) in
+    the network than AlexNet (60 million parameters). A total of 9 inception modules
+    is used. The inception module uses parallel 1x1, 3x3 and 5x5 convolutions along
+    with a maxpooling layer in parallel. 1x1 convolutions are added before the 3x3,
+    5x5 convolutions (and also after the maxpooling layer) for dimensionality reduction.
+    A filter concatenation '
+training:
+  optimizer:
+    type: Stochastic Gradient Descent
+  loss:
+    type: softmax cross-entropy (inferred from softmax layer)
+  scheduler:
+    type: StepLR
+pretrained_weights:
+  used: true
+  source: ImageNet pretrained weights for transfer learning. In case of transfer learning,
+    they do not limit the learning of the rest of the layers and instead just reset
+    the weights of layer fc8 in case of AlexNet; in case of GoogLeNet, they similarly
+    do not limit the learning of the rest of the layers but instead just reset the
+    weights of the loss{1,2,3}/classifier layers.
+special_modules: 'AlexNet: Dropout layers associated with first two fully connected
+  layers (fc{6,7}) with dropout ratio of 0.5. GoogLeNet: Inception modules (9 total),
+  1x1 convolutions for dimensionality reduction, filter concatenation layers.'
+hardware:
+  mentioned: EPFL GPU cluster computing resources

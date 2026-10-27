@@ -1,0 +1,5 @@
+Test 1 - Key for mimo: sk-c2pyv...t094
+Test 2 - Auth header starts with Bearer: True
+Test 2 - Auth key: sk-c2pyv...t094
+Test 3 - Different system -> different cache: True
+Test 3 - Same system -> same cache: True

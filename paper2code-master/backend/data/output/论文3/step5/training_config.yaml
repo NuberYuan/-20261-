@@ -34,7 +34,8 @@ training:
   batch_size: NOT_FOUND
   batch_size_note: 论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。
   epochs: '30'
-  image_size: NOT_FOUND
+  image_size: 'cell nuclei: 96×96, colon polyp: 224×224, liver: 512×512, lung nodule:
+    64×64×64'
   optimizer:
     name: Adam
     lr: '4'
@@ -45,9 +46,9 @@ training:
     step_size: NOT_FOUND
     gamma: NOT_FOUND
     note: 论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略。
-  loss_function: binary cross-entropy + dice coefficient
+  loss_function: a combination of binary crossentropy and dice coefficient
   dropout_ratio: NOT_FOUND
-  early_stopping: NOT_FOUND
+  early_stopping: Early stop mechanism on the validation set
 checkpoint:
   save_best: true
   best_metric: val_accuracy
@@ -55,16 +56,18 @@ checkpoint:
   save_final: true
   save_frequency_epochs: NOT_FOUND
   save_optimizer_state: true
-  resume_from: null
+  resume_from: NOT_FOUND
   note: 论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。
 train_test_splits:
 - NOT_FOUND
 inference:
-  device: NOT_FOUND
+  device: NVIDIA TITAN X (Pascal) with 12 GB memory (for inference time measurement)
   batch_size: NOT_FOUND
 reproducibility_notes:
-- Batch size is not explicitly specified in the main paper
-- Training epoch count is not provided; training uses early stopping on validation
-  set
-- Data preprocessing details are deferred to supplementary material
-- No deep learning framework is explicitly stated in the paper
+- Train/test split details not provided in main paper (in supplementary material)
+- Data preprocessing details not provided in main paper (in supplementary material)
+- Batch size not specified
+- Number of epochs not specified (early stopping used)
+- Programming framework not specified
+- Exact implementation of dense convolution block concatenation and upsampling requires
+  careful attention to Equation 1

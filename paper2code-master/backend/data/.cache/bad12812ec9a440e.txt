@@ -1,0 +1,198 @@
+project:
+  name: unet_plus_plus
+  paper: "UNet++: A Nested U-Net Architecture for Medical Image Segmentation"
+  framework: PyTorch
+  task: image_classification
+  description: "UNet++ 嵌套 U-Net 结构，用于医学图像任务（本配置任务类型为 image_classification）"
+
+data_source: external_dataset
+acquisition: local_path
+
+reproduction_mode: engineering
+
+unresolved_dataset_versions:
+  - color
+  - grayscale
+  - segmented
+
+data:
+  root: ./data
+  dataset_version: color
+  versions:
+    - color
+    - grayscale
+    - segmented
+  color:
+    status: unresolved
+    reason: "论文与设计中未给出该预处理版本的数据集路径与版本号，无法解析，禁止编造路径"
+  grayscale:
+    status: unresolved
+    reason: "论文与设计中未给出该预处理版本的数据集路径与版本号，无法解析，禁止编造路径"
+  segmented:
+    status: unresolved
+    reason: "论文与设计中未给出该预处理版本的数据集路径与版本号，无法解析，禁止编造路径"
+  image_size:
+    cell_nuclei: [96, 96]
+    colon_polyp: [224, 224]
+    liver: [512, 512]
+    lung_nodule: [64, 64, 64]
+  image_size_default: [224, 224]
+  in_channels: 3
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+  normalize: true
+  note: "归一化统计量论文未给出，此处为工程默认（ImageNet 统计量）；代码可用 .get('mean', 默认值) 兜底。数据集根目录为本地路径占位，请按实际数据位置修改 data.root。"
+
+split_strategy:
+  method: random_split
+  ratios: null
+  leaf_mapping_constraint: null
+  train_test_splits: []
+  seed: 42
+  default_train_ratio: 0.8
+  val_split_ratio: 0.2
+  stratify: false
+  note: "论文未给出 train/test 划分比例；工程偏离：从训练集二次划分 80/20 作为验证集（val_split_ratio=0.2），其余 0.8 用于训练。strict 模式下不划分验证集。"
+
+model:
+  architectures:
+    - UNetPlusPlus
+  name: UNetPlusPlus
+  num_classes: 1
+  in_channels: 3
+  out_channels: 1
+  dropout_ratio: null
+  weight_init: kaiming_normal
+  nested_depth: null
+  note: "任务使用 binary crossentropy + dice 组合损失，输出为单通道 sigmoid（num_classes=1）；dropout_ratio 论文未给出，写 null，代码用 .get('dropout_ratio', 默认值) 兜底。"
+
+training_modes:
+  scratch:
+    description: "从头训练：所有层随机初始化"
+    pretrained: false
+    pretrained_weights: null
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+  transfer:
+    description: "迁移学习：加载预训练权重后微调（工程对照模式，论文未报告该设置）"
+    pretrained: true
+    pretrained_weights: null
+    weight_init: null
+    reset_layers: []
+    freeze_backbone: true
+    note: "论文设置为从头训练，transfer 模式仅为工程对照，比较结论须由实际评估结果动态计算。"
+
+training:
+  batch_size:
+    UNetPlusPlus: null
+    default: null
+    note: "论文显式指定 batch_size；设计中标注为 NOT_FOUND，故写 null。代码请用 .get('batch_size', 默认值) 兜底，禁止将 null 直接送入张量形状。"
+  epochs: 30
+  image_size:
+    cell_nuclei: [96, 96]
+    colon_polyp: [224, 224]
+    liver: [512, 512]
+    lung_nodule: [64, 64, 64]
+    default: [224, 224]
+  optimizer:
+    name: Adam
+    lr: 4.0
+    momentum: null
+    weight_decay: null
+    betas: [0.9, 0.999]
+    eps: 1e-08
+    note: "lr 按设计原样保留为 4；momentum/weight_decay 论文未给出，写 null。"
+  scheduler:
+    name: null
+    step_size: null
+    gamma: null
+    note: "论文未明确说明学习率调度器，训练时可选用 StepLR 等常见策略；相关字段写 null，代码用 .get 兜底。"
+  loss_function:
+    name: bce_dice_loss
+    description: "a combination of binary crossentropy and dice coefficient"
+    bce_weight: null
+    dice_weight: null
+    smooth: 1.0
+  dropout_ratio: null
+  early_stopping:
+    enabled: true
+    monitor: val_accuracy
+    mode: max
+    patience: null
+    note: "Early stop mechanism on the validation set（工程模式使用；strict 模式下不启用）。"
+
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: null
+  save_optimizer_state: true
+  resume_from: null
+  save_dir: ./checkpoints
+  note: "论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。"
+
+inference:
+  device: "NVIDIA TITAN X (Pascal) with 12 GB memory (for inference time measurement)"
+  batch_size: null
+  measure_time: true
+  num_warmup_runs: 10
+  note: "推理计时硬件为 NVIDIA TITAN X (Pascal) with 12 GB memory；batch_size 未给出，写 null，代码用 .get('batch_size', 默认值) 兜底。"
+
+version_selector:
+  config_key: dataset_version
+  values:
+    - color
+    - grayscale
+    - segmented
+  default: color
+  note: "通过 config.yaml 的 dataset_version 字段切换预处理版本。"
+
+experiment:
+  runs:
+    - name: unetpp_scratch_color
+      model: UNetPlusPlus
+      training_mode: scratch
+      dataset_version: color
+      data_source: external_dataset
+      acquisition: local_path
+    - name: unetpp_scratch_grayscale
+      model: UNetPlusPlus
+      training_mode: scratch
+      dataset_version: grayscale
+      data_source: external_dataset
+      acquisition: local_path
+    - name: unetpp_scratch_segmented
+      model: UNetPlusPlus
+      training_mode: scratch
+      dataset_version: segmented
+      data_source: external_dataset
+      acquisition: local_path
+    - name: unetpp_transfer_color
+      model: UNetPlusPlus
+      training_mode: transfer
+      dataset_version: color
+      data_source: external_dataset
+      acquisition: local_path
+  note: "各实验的具体比较结论由代码根据实际评估结果动态计算，严禁在报告/README/注释中写死结论性措辞。"
+
+logging:
+  log_dir: ./logs
+  output_dir: ./outputs
+  level: INFO
+  tensorboard: true
+  save_predictions: true
+  save_metrics_json: true
+
+system:
+  device: cuda
+  gpu_name: "NVIDIA TITAN X (Pascal) with 12 GB memory (for inference time measurement)"
+  num_workers: 4
+  seed: 42
+  cudnn_deterministic: true
+  cudnn_benchmark: false
+
+notes:
+  global: "NOT_FOUND 字段一律以 null 或省略键处理，代码使用 .get(key, 默认值) 兜底；严禁将字符串 'NOT_FOUND' 送入数值运算。"
+  reproduction: "engineering = train→val→best→test（划分 val、每 epoch 验证、按 val_accuracy 选最优）；strict = train→训练结束→test（不划分 val、不验证、只保存最终模型）。"

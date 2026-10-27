@@ -1,0 +1,16 @@
+{
+  "table_id": "table_6",
+  "table_type": "other",
+  "caption_summary": "Fragmentary bullet-list item (detected as a table) containing implication/typing notation such as '⇒' and 'root1(x | list)' from a formal logic/type-system rule.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": {"method": "N/A", "metric": "N/A", "value": null},
+    "key_values": [
+      {"label": "item_1", "value": "⇒"},
+      {"label": "item_2", "value": "⇒"},
+      {"label": "item_3", "value": "root1(x | list)"}
+    ]
+  },
+  "table_summary": "This 'table' is a spurious extraction from a bullet list in a logical/type-theoretic manuscript; it contains only symbolic notation (two implication arrows and a typing judgement of the form root1(x | list)). No metrics, methods, or experimental results are present, so no comparative or quantitative conclusion can be drawn. It most likely represents a fragment of a formal rule or definition rather than tabular data."
+}

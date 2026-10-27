@@ -18,7 +18,7 @@ class ResultCollector:
 
     def collect(self, plan: dict, run_results: list) -> dict:
         """聚合执行结果。状态语义（严格区分，绝不混用）：
-            SKIP    根本没执行（资源/环境不满足，reason=gpu_unavailable/dataset_*）
+            SKIP    根本没执行（资源/环境不满足，reason=dataset_*/insufficient_*）
             SUCCESS 已执行且成功
             FAILED  已执行但失败（reason=runtime_error/exit_code/timeout）
             FAILED + reason=not_executed  决定执行却未产生结果（编排异常，非 SKIP）

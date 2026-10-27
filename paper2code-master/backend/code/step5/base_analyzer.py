@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 OUTPUT_ROOT = PROJECT_ROOT / "data" / "output"
 
 from logger import logger
-from llm_utils import chat_with_text
+from llm_manager import llm_call, parse_llm_json
 
 
 class BaseAnalyzer:
@@ -150,12 +150,11 @@ class BaseAnalyzer:
 （原样保留，含 [i] 下标），value 是该路径的补全值。不要嵌套，不要重排或改写路径，
 不要输出路径之外的其他键。"""
         try:
-            resp = chat_with_text(prompt).strip()
-            if resp.startswith("```"):
-                lines = resp.split("\n")
-                lines = [l for l in lines if not l.startswith("```")]
-                resp = "\n".join(lines)
-            return json.loads(resp)
+            resp = llm_call(prompt, task_type="light").strip()
+            parsed = parse_llm_json(resp)
+            if "error" in parsed:
+                return {}
+            return parsed
         except Exception:
             return {}
 

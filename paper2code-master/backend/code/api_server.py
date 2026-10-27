@@ -12,8 +12,8 @@
   - 结果查询
 """
 
+import atexit
 import json
-import os
 import sys
 import shutil
 import threading
@@ -28,7 +28,7 @@ CODE_DIR = Path(__file__).resolve().parent
 if str(CODE_DIR) not in sys.path:
     sys.path.insert(0, str(CODE_DIR))
 
-from config import DATA_INPUT_DIR, DATA_OUTPUT_DIR, LOG_DIR, get_paper_output_dir, get_paper_paths, save_api_key, API_KEY as CURRENT_API_KEY
+from config import DATA_INPUT_DIR, DATA_OUTPUT_DIR, LOG_DIR, get_paper_output_dir, get_paper_paths, save_api_key, save_api_key_for_model, save_selected_model, save_task_model, MODELS, TASK_MODELS, TASK_MODEL_DEFAULTS
 from pipeline_controller import (
     PipelineController,
     STEP_DEFINITIONS,
@@ -55,6 +55,18 @@ _temp_manager = TempFileManager()
 _status_lock = threading.Lock()
 
 
+def _validate_paper_name(paper_name: str):
+    """校验论文名称，防止路径穿越。返回 None 表示合法，否则返回错误响应。"""
+    if not paper_name or paper_name in (".", "..") or "/" in paper_name or "\\" in paper_name or "\x00" in paper_name:
+        return jsonify({"code": 400, "msg": f"无效的论文名称: '{paper_name}'"})
+    paper_dir = get_paper_output_dir(paper_name)
+    try:
+        paper_dir.resolve().relative_to(Path(DATA_OUTPUT_DIR).resolve())
+    except ValueError:
+        return jsonify({"code": 400, "msg": f"无效的论文名称: '{paper_name}'"})
+    return None
+
+
 def get_controller(paper_name: str) -> PipelineController:
     """获取或创建指定论文的控制器"""
     with _status_lock:
@@ -62,10 +74,6 @@ def get_controller(paper_name: str) -> PipelineController:
             _controller_cache[paper_name] = PipelineController(paper_name)
         return _controller_cache[paper_name]
 
-
-def get_current_paper() -> str:
-    """获取当前论文名称（从请求参数或默认）"""
-    return request.args.get('paper', 'plant')
 
 
 # ──────────────────────────────────────────────
@@ -148,10 +156,6 @@ def _get_current_step(steps_status: dict) -> str:
         if not steps_status.get(step_key, {}).get("done", False):
             return step_key
     return "completed"
-
-
-# 步骤输出路径映射
-_OUTPUT_REL = {key: rel for key, _, rel in STEP_DEFINITIONS}
 
 
 @app.route("/add", methods=["POST"])
@@ -257,17 +261,11 @@ def upload_paper():
 @app.route("/papers/<paper_name>", methods=["DELETE"])
 def delete_paper(paper_name):
     """删除论文"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
-        # 路径遍历校验
-        if not paper_name or paper_name in (".", "..") or "/" in paper_name or "\\" in paper_name:
-            return jsonify({"code": 400, "msg": f"无效的论文名称: '{paper_name}'"})
-
         paper_dir = get_paper_output_dir(paper_name)
-        # 确保解析后的路径确实在输出目录下
-        try:
-            paper_dir.resolve().relative_to(Path(DATA_OUTPUT_DIR).resolve())
-        except ValueError:
-            return jsonify({"code": 400, "msg": f"无效的论文名称: '{paper_name}'"})
 
         # 检查是否有pipeline正在运行
         with _status_lock:
@@ -317,6 +315,9 @@ def clear_all_papers():
 @app.route("/process/<paper_name>", methods=["POST"])
 def trigger_process(paper_name):
     """触发整个流水线处理（所有未完成的步骤）"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         controller = get_controller(paper_name)
         
@@ -356,6 +357,9 @@ def trigger_process(paper_name):
 @app.route("/next/<paper_name>", methods=["POST"])
 def run_next_step(paper_name):
     """运行下一个未完成的步骤（异步执行）"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         controller = get_controller(paper_name)
 
@@ -403,6 +407,9 @@ def run_next_step(paper_name):
 @app.route("/run/<paper_name>/<step>", methods=["POST"])
 def run_specific_step(paper_name, step):
     """运行指定步骤"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         force = request.args.get('force', '0') == '1'
         controller = get_controller(paper_name)
@@ -418,6 +425,9 @@ def run_specific_step(paper_name, step):
 @app.route("/retry/<paper_name>", methods=["POST"])
 def retry_last_step(paper_name):
     """重试上一步"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         controller = get_controller(paper_name)
         result = controller.retry()
@@ -432,6 +442,9 @@ def retry_last_step(paper_name):
 @app.route("/status/<paper_name>", methods=["GET"])
 def get_status(paper_name):
     """获取处理状态 - 格式与前端期望一致"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         controller = get_controller(paper_name)
         status = controller.status()
@@ -463,6 +476,9 @@ def get_status(paper_name):
 @app.route("/steps/<paper_name>", methods=["GET"])
 def get_steps(paper_name):
     """获取所有步骤状态"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         controller = get_controller(paper_name)
         steps = [
@@ -483,6 +499,9 @@ def get_steps(paper_name):
 @app.route("/detail/<paper_name>", methods=["GET"])
 def get_detail(paper_name):
     """获取论文详情"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         paper_dir = get_paper_output_dir(paper_name)
         if not paper_dir.exists():
@@ -514,6 +533,9 @@ def get_detail(paper_name):
 @app.route("/keyinfo/<paper_name>", methods=["GET"])
 def get_keyinfo(paper_name):
     """获取关键信息"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         paper_dir = get_paper_output_dir(paper_name)
         key_info_path = paper_dir / "step3" / "key_information.json"
@@ -533,6 +555,9 @@ def get_keyinfo(paper_name):
 @app.route("/logs/<paper_name>", methods=["GET"])
 def get_logs(paper_name):
     """获取处理日志"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         log_path = LOG_DIR / "app.log"
         if not log_path.exists():
@@ -557,29 +582,149 @@ def get_logs(paper_name):
 
 @app.route("/settings/apikey", methods=["GET"])
 def get_api_key():
-    """获取当前 API Key（脱敏显示）"""
+    """获取当前 API Key（脱敏显示），返回所有已配置模型的 Key 状态"""
     import config
+    # 从 settings.json 读取所有已保存的 Key
+    api_keys = {}
+    try:
+        from config import SETTINGS_FILE
+        if SETTINGS_FILE.exists():
+            settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+            api_keys = settings.get("api_keys", {})
+    except Exception:
+        pass
+
+    # 当前活跃的 Key（根据选中模型）
     key = config.API_KEY
-    # 脱敏：只显示前7位和后4位
     if len(key) > 12:
         masked = key[:7] + "*" * (len(key) - 11) + key[-4:]
-    else:
+    elif key:
         masked = "***"
-    return jsonify({"code": 200, "api_key": masked})
+    else:
+        masked = ""
+
+    # 返回各模型的 Key 配置状态
+    keys_status = {}
+    for mk in api_keys:
+        k = api_keys[mk]
+        if len(k) > 12:
+            keys_status[mk] = k[:7] + "*" * (len(k) - 11) + k[-4:]
+        elif k:
+            keys_status[mk] = "***"
+        else:
+            keys_status[mk] = ""
+
+    return jsonify({"code": 200, "api_key": masked, "keys": keys_status})
 
 
 @app.route("/settings/apikey", methods=["POST"])
 def set_api_key():
-    """设置 API Key"""
+    """设置 API Key（按模型存储）"""
     import config
+    from config import save_api_key_for_model
     data = request.get_json(force=True) if request.is_json else request.form
     new_key = (data.get("api_key") or "").strip()
+    model_key = (data.get("model_key") or "").strip()
+    persist = data.get("persist", True)
+
     if not new_key:
         return jsonify({"code": 400, "msg": "API Key 不能为空"})
-    save_api_key(new_key)
-    config.API_KEY = new_key
-    logger.info("API Key 已更新")
-    return jsonify({"code": 200, "msg": "API Key 已保存"})
+
+    # API Key 会放入 HTTP Authorization 头，必须是 latin-1 可编码的 ASCII
+    if not new_key.isascii():
+        return jsonify({"code": 400, "msg": "API Key 只能包含 ASCII 字符（不能有中文或特殊符号）"})
+
+    if not model_key:
+        model_key = config.SELECTED_MODEL
+
+    if model_key not in MODELS:
+        return jsonify({"code": 400, "msg": f"不支持的模型: {model_key}"})
+
+    # 更新内存中的 Key（如果设置的是当前选中模型的 Key）
+    if model_key == config.SELECTED_MODEL:
+        config.API_KEY = new_key
+
+    if persist:
+        save_api_key_for_model(model_key, new_key)
+
+    logger.info("API Key 已更新: %s（%s）", model_key, "持久化" if persist else "仅内存")
+    return jsonify({"code": 200, "msg": f"{MODELS[model_key]['name']} API Key 已更新"})
+
+
+# ──────────────────────────────────────────────
+# 模型选择
+# ──────────────────────────────────────────────
+
+@app.route("/settings/model", methods=["GET"])
+def get_model():
+    """获取当前选中模型及可选模型列表"""
+    import config
+    models_info = {}
+    for key, cfg in MODELS.items():
+        models_info[key] = {
+            "name": cfg["name"],
+            "api_key_url": cfg["api_key_url"],
+            "supports_thinking": cfg.get("supports_thinking", False),
+        }
+    return jsonify({
+        "code": 200,
+        "selected": config.SELECTED_MODEL,
+        "models": models_info,
+    })
+
+
+@app.route("/settings/model", methods=["POST"])
+def set_model():
+    """切换模型"""
+    import config
+    data = request.get_json(force=True) if request.is_json else request.form
+    model_key = (data.get("model") or "").strip()
+    if model_key not in MODELS:
+        return jsonify({"code": 400, "msg": f"不支持的模型: {model_key}"})
+    save_selected_model(model_key)
+    config.SELECTED_MODEL = model_key
+    cfg = MODELS[model_key]
+    config.CHAT_URL = cfg["chat_url"]
+    config.TEXT_MODEL_NAME = cfg["model_name"]
+    logger.info(f"已切换模型: {cfg['name']} ({model_key})")
+    return jsonify({"code": 200, "msg": f"已切换到 {cfg['name']}"})
+
+
+@app.route("/settings/task-models", methods=["GET"])
+def get_task_models():
+    """获取各任务类型的模型配置"""
+    import config
+    result = {}
+    for task_type, default_key in TASK_MODEL_DEFAULTS.items():
+        model_key = config.TASK_MODELS.get(task_type, default_key)
+        cfg = MODELS.get(model_key, MODELS[default_key])
+        result[task_type] = {
+            "model_key": model_key,
+            "model_name": cfg["name"],
+        }
+    return jsonify({
+        "code": 200,
+        "task_models": result,
+        "available_models": {k: v["name"] for k, v in MODELS.items()},
+    })
+
+
+@app.route("/settings/task-models", methods=["POST"])
+def set_task_models():
+    """设置任务类型的模型"""
+    import config
+    data = request.get_json(force=True) if request.is_json else request.form
+    task_type = (data.get("task_type") or "").strip()
+    model_key = (data.get("model_key") or "").strip()
+    if task_type not in TASK_MODEL_DEFAULTS:
+        return jsonify({"code": 400, "msg": f"未知任务类型: {task_type}"})
+    if model_key not in MODELS:
+        return jsonify({"code": 400, "msg": f"不支持的模型: {model_key}"})
+    save_task_model(task_type, model_key)
+    config.TASK_MODELS[task_type] = model_key
+    cfg = MODELS[model_key]
+    logger.info(f"已设置 {task_type} 任务模型: {cfg['name']} ({model_key})")
+    return jsonify({"code": 200, "msg": f"{task_type} 任务已切换到 {cfg['name']}"})
 
 
 # ──────────────────────────────────────────────
@@ -589,6 +734,9 @@ def set_api_key():
 @app.route("/download/<paper_name>", methods=["GET"])
 def download_project(paper_name):
     """打包生成项目为 ZIP 并下载"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     import io, zipfile
     try:
         project_dir = get_paper_output_dir(paper_name) / "step7" / "generated_project"
@@ -619,6 +767,9 @@ def download_project(paper_name):
 @app.route("/result/<paper_name>", methods=["GET"])
 def get_execution_result(paper_name):
     """获取执行结果（Step8 报告 + 生成报告）"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         result = {}
 
@@ -660,6 +811,9 @@ def get_execution_result(paper_name):
 @app.route("/config/<paper_name>", methods=["GET"])
 def get_paper_config(paper_name):
     """获取实验配置（config.yaml + execution_spec.yaml + 论文简述）"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         result = {}
 
@@ -696,6 +850,9 @@ def get_paper_config(paper_name):
 @app.route("/deps/<paper_name>", methods=["GET"])
 def get_dependencies(paper_name):
     """获取依赖文件（requirements.txt）"""
+    err = _validate_paper_name(paper_name)
+    if err:
+        return err
     try:
         req_path = get_paper_output_dir(paper_name) / "step7" / "generated_project" / "requirements.txt"
         if not req_path.exists():
@@ -732,5 +889,23 @@ if __name__ == "__main__":
     print("  GET  /logs/<paper>      - 获取处理日志")
     print("  GET  /api/health        - 健康检查")
     print("=" * 60)
-    
+
+    # 退出时自动清空 settings.json 中的 API Key
+    def _clear_api_key_on_exit():
+        try:
+            from config import SETTINGS_FILE
+            if SETTINGS_FILE.exists():
+                settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+                settings.pop("api_key", None)
+                SETTINGS_FILE.write_text(
+                    json.dumps(settings, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                print("[退出] 已清空 settings.json 中的 API Key")
+        except Exception:
+            pass
+
+    # 注意：不再在退出时清空 API Key，避免重启后丢失用户配置
+    # atexit.register(_clear_api_key_on_exit)
+
     app.run(host="0.0.0.0", port=5000, debug=False)

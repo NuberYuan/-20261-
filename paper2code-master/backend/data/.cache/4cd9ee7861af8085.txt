@@ -1,0 +1,19 @@
+```json
+{
+  "type": "diagram",
+  "description": "时间序列预测任务的概念示意图，展示了预测模型的输入（历史目标值、观测输入、已知输入、静态协变量）与输出（点预测值和预测区间），以预测时刻 t 为分界线划分历史与未来时段。",
+  "important_components": [
+    "Forecast Time (t)：预测时刻分界线（绿色虚线）",
+    "Past Targets：历史目标时间序列（橙色实线）",
+    "Point Forecasts：点预测值（紫色菱形虚线）",
+    "Prediction Intervals：预测区间（紫色误差棒/箭头）",
+    "Prediction Model：预测模型（蓝色椭圆）",
+    "Static Covariates：静态协变量（灰色标签）",
+    "Observed Inputs：已观测到的输入（橙色块，仅历史部分）",
+    "Known Inputs：已知的输入（浅紫色块，覆盖历史和未来）",
+    "红色虚线箭头：历史数据流入模型的数据流",
+    "紫色虚线箭头：未来/已知输入流入模型的数据流"
+  ],
+  "code_relevant_information": "复现该预测框架时需实现以下数据流与接口：(1) 模型输入包括四类特征——Past Targets（目标变量历史值，长度为历史窗口的序列）、Observed Inputs（仅在历史时段可观测的协变量，未来时刻缺失或需预测）、Known Inputs（历史与未来时刻均提前已知的协变量，如日历/节假日特征）、Static Covariates（不随时间变化的静态特征，如类别ID、元数据）；(2) 以 Forecast Time t 为界，历史段输入模型，未来段输出预测；(3) 模型输出两类结果：Point Forecasts（每个未来时间步的点预测/期望值，图中展示约4个未来时间步）和 Prediction Uncertainty 以 Prediction Intervals 形式表示（对称误差棒，需实现分位数预测或方差估计，如分位数损失/高斯似然输出多个分位数或上下界）；(4) 已知输入需扩展到未来预测窗口，而已观测输入通常只覆盖历史窗口；(5) 典型实现对应概率时间序列预测库（如 GluonTS/N-HiTS/TFT 等）的协变量配置：past_feat_dynamic_real（观测输入）、feat_dynamic_real（已知输入）、static_feat（静态协变量）、target（过去目标）。"
+}
+```

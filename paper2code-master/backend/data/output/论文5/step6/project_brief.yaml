@@ -4,7 +4,9 @@ project:
     Forecasting
   paper_type: model_proposing
   task: time_series_prediction
-  one_liner: 复现论文中 Lstm、Transformer 在 Electricity, Traffic, Retail, Volatility 上的time_series_prediction，对比不同训练模式与数据划分下的性能。
+  one_liner: 复现论文中 Lstm、Transformer 在 Electricity (UCI Electricity Load Diagrams),
+    Traffic (UCI PEM-SF Traffic), Retail (Favorita Grocery Sales from Kaggle), Volatility
+    (Oxford-Man Institute realized library) 上的time_series_prediction，对比不同训练模式与数据划分下的性能。
 consistency_report:
   summary:
     checks_run: 18
@@ -18,7 +20,8 @@ consistency_report:
   - id: CHECK-01
     name: 数据集规模
     status: pass
-    detail: 'Step4 与 Step5 一致: [''100'', ''130'', ''370'', ''41'', ''440'', ''500'']'
+    detail: 'Step4 与 Step5 一致: [''100'', ''130'', ''370'', ''41'', ''440'', ''450'',
+      ''50'', ''500'']'
   - id: CHECK-02
     name: 类别数
     status: warning
@@ -26,16 +29,15 @@ consistency_report:
   - id: CHECK-03
     name: 学习率
     status: pass
-    detail: 'Step4 与 Step5 一致: [''0.01'']'
+    detail: 'Step4 与 Step5 一致: [''0.001'']'
   - id: CHECK-04
     name: 训练轮数
     status: fail
-    detail: '数值不一致: Step4=[''0.01'', ''0.1'', ''0.5'', ''0.9'', ''1'', ''128'', ''2'',
-      ''64''] vs Step5=[''30'']'
+    detail: '数值不一致: Step4=[''0.001'', ''1'', ''64''] vs Step5=[''30'']'
   - id: CHECK-05
     name: 批大小
     status: pass
-    detail: 'Step4 与 Step5 一致: [''128'', ''64'']'
+    detail: 'Step4 与 Step5 一致: [''64'']'
   - id: CHECK-06
     name: 训练模式（scratch/transfer）
     status: fail
@@ -92,12 +94,9 @@ consistency_report:
   - id: CONFLICT-01
     field: 训练轮数
     description: 训练轮数 在需求与设计两侧数值不一致。
-    step4_says: '使用 NOT_FOUND 优化器（lr=0.01）训练模型 NOT_FOUND 个 epoch，batch_size=64 (Electricity),
-      128 (Traffic), 128 (Retail), 64 (Volatility)，损失函数为 Quantile loss: QL(y, yhat,
-      q) = q(y-yhat)_+ + (1-q)(yhat-y)_+, summed across all quantile outputs q in
-      {0.1, 0.5, 0.9} and horizons tau=1,...,tau_max, divided by M*tau_max. Test q-Risk
-      = 2 * sum_{yt in Omega_tilde} sum_{tau=1}^{tau_max} QL(yt, yhat(q,t-tau,tau),q)
-      / sum_{tau=1}^{tau_max}|yt|.。'
+    step4_says: '使用 NOT_FOUND 优化器（lr=0.001）训练模型 NOT_FOUND 个 epoch，batch_size=64，损失函数为
+      Quantile loss (QL), summed across all quantile outputs: L(Ω, W) = Σ Σ Σ QL(yt,
+      ŷ(q, t-τ, τ), q) / (M τmax), where QL(y, ŷ, q) = q(y - ŷ)+ + (1 - q)(ŷ - y)+。'
     step5_says: '30'
     severity: high
     resolution: 以论文原文为准回查 PDF，修正不一致的一侧；无法判定时以 Step5（更接近工程实现）为准并在假设中记录。
@@ -141,27 +140,24 @@ consistency_report:
     severity: medium
     mitigation: 从论文上下文推断或使用常见默认值
   - id: GAP-07
-    field: dataset.dataset_size
-    description: '''Electricity: 370 entities, 500k samples. Traffic: 440 entities,
-      500k samples. Retail: 130k entities,'' 使用了模糊措辞 ''approximately''，具体值待确认'
+    field: training.early_stopping
+    description: early_stopping 策略（patience/触发条件）未在论文中说明
     severity: low
-    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+    mitigation: 训练到固定 epochs，或工程默认 patience=10 做早停，并在 config.yaml 显式标注
   - id: GAP-08
-    field: experiment.important_results
-    description: '''TFT demonstrates significant performance improvements over existing
-      benchmarks on a variety of real-'' 使用了模糊措辞 ''roughly''，具体值待确认'
+    field: checkpoint.save_frequency_epochs
+    description: checkpoint 保存频率（save_frequency_epochs）未在论文中说明
     severity: low
-    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+    mitigation: 工程默认每个 epoch 保存一次（或只保存 best+final），并在 config.yaml 显式标注
   - id: GAP-09
-    field: figures[0].data_characteristics
-    description: '''Shows multiple entity time series with static metadata, past observed
-      values, and known future input'' 使用了模糊措辞 ''such as''，具体值待确认'
+    field: inference.batch_size
+    description: inference.batch_size（推理批大小）未在论文中说明
     severity: low
-    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+    mitigation: 推理批大小与训练 batch_size 解耦，工程默认 32/64，config.yaml 显式标注
   - id: GAP-10
-    field: paper_figures[0].data_characteristics
-    description: '''Shows multiple entity time series with static metadata, past observed
-      values, and known future input'' 使用了模糊措辞 ''such as''，具体值待确认'
+    field: experiment.important_results
+    description: '''TFT optimal model for Electricity takes slightly over 6 hours
+      to train on NVIDIA Tesla V100 (each ep'' 使用了模糊措辞 ''roughly''，具体值待确认'
     severity: low
     mitigation: 从论文其他章节交叉验证，或标记为可配置参数
   - id: GAP-11
@@ -212,23 +208,23 @@ requirements_digest:
     维度。
   core_requirements:
   - id: FR-01
-    what: '加载/构造 Electricity, Traffic, Retail, Volatility 数据集（Electricity: 370 entities,
-      500k samples. Traffic: 440 entities, 500k samples. Retail: 130k entities, 500k
-      sam…'
+    what: 加载/构造 Electricity (UCI Electricity Load Diagrams), Traffic (UCI PEM-SF Traffic),
+      Retail (Favorita Grocery Sales from Kaggle), Volatility (Oxford-Man Institute
+      r…
     why: 论文指定数据集与预处理要求
-    acceptance: '加载后样本数应与 Electricity: 370 entities, 500k samples. Traffic: 440 entities,
-      500k samples. Retail: 130k entities, 500k samples. Volatility: 41 entities,
-      approximate…'
+    acceptance: '加载后样本数应与 Electricity: 500k samples, 370 entities; Traffic: 500k samples,
+      440 entities; Retail: 500k samples (450k training + 50k validation), 130k entities;
+      Vol…'
   - id: FR-02
-    what: '预处理步骤: Electricity: z-score normalization separately per entity for real-valued
-      inputs; inputs include electricity usage, day-of-week, hour-of-day, time index;
-      …'
+    what: '预处理步骤: Electricity: z-score normalization separately to each entity for
+      real-valued inputs. Real-valued inputs: electricity usage, day-of-week, hour-of-day,
+      tim…'
     why: 论文指定数据集与预处理要求
     acceptance: 检查输出张量的 shape 和数值范围
   - id: FR-03
-    what: '按 Electricity: 500k samples from 2014-01-01 to 2014-09-01, first 90 percent
-      training, last 10 percent validation, testing over 7 days immediately following
-      trai…'
+    what: '按 Electricity: 500k samples 2014-01-01 to 2014-09-01, first 90% training,
+      last 10% validation, testing over 7 days immediately following training set.
+      Traffic: …'
     why: 论文指定数据集与预处理要求
     acceptance: 各集合样本数符合设定比例
   - id: FR-04
@@ -242,9 +238,9 @@ requirements_digest:
     acceptance: 模型可正常实例化并通过前向传播；参数量在合理数量级范围内 （与参考实现同一量级），但不同框架实现可能导致 ±5% 差异（如归一化层、padding
       策略差异），不要求逐参数精确匹配。
   - id: FR-06
-    what: '使用 NOT_FOUND 优化器（lr=0.01）训练模型 NOT_FOUND 个 epoch，batch_size=64 (Electricity),
-      128 (Traffic), 128 (Retail), 64 (Volatility)，损失函数为 Quantile loss: QL(y, yhat,
-      q) = …'
+    what: '使用 NOT_FOUND 优化器（lr=0.001）训练模型 NOT_FOUND 个 epoch，batch_size=64，损失函数为 Quantile
+      loss (QL), summed across all quantile outputs: L(Ω, W) = Σ Σ Σ QL(yt, ŷ(q, t-τ,
+      τ)…'
     why: 论文指定的训练超参数
     acceptance: 训练 NOT_FOUND epoch 能完整跑通（无中断、无显存溢出），loss 呈下降趋势。不要求最终 accuracy 接近论文报告值（本阶段只保证训练流程正确，不包含论文原始数据集的完整复现）。
   - id: FR-07
@@ -252,20 +248,19 @@ requirements_digest:
     why: 复现实验所需
     acceptance: 加载保存的权重后可恢复推理，精度不下降
   - id: FR-08
-    what: '在测试集上计算评估指标: q-Risk, P50 risk, P90 risk, normalized quantile losses'
+    what: '在测试集上计算评估指标: Normalized quantile loss (q-Risk) for P50 and P90'
     why: 论文报告的主要结果
-    acceptance: 输出 q-Risk, P50 risk, P90 risk, normalized quantile losses 的值，与论文报告值对比
+    acceptance: 输出 Normalized quantile loss (q-Risk) for P50 and P90 的值，与论文报告值对比
   - id: FR-09
-    what: '[论文要求] 计算并报告: q-Risk, P50 risk, P90 risk, normalized quantile losses。关键发现:
-      TFT demonstrates significant performance improvements over existing benchmarks
-      on a v…'
+    what: '[论文要求] 计算并报告: Normalized quantile loss (q-Risk) for P50 and P90。关键发现: TFT
+      optimal model for Electricity takes slightly over 6 hours to train on NVIDIA
+      Tesla V10…'
     why: 论文报告的主要结果
     acceptance: '[论文要求] 评估指标值与论文报告值在容差范围内一致；[工程辅助] 图表可正确生成，不要求与论文图表逐像素一致'
   data_flow_overview: '数据依次经过: 数据加载（数据样本（张量或结构化数据）） → 数据预处理（标准化后的特征张量 (B, F)） → 模型构建（模型定义）（Quantile
-    forecasts for horizons tau=1,...,tau_max at each time step, for quantiles q in
-    {0.1, 0.5, 0.9}. Each quantile forecast is generated by a linear transformation:
-    yhat(q,t,tau)=Wq psi_tilde(t,tau)+bq.） → 模型训练（训练好的模型权重 + 训练日志） → 模型评估（评估报告（指标数值
-    + 可视化））。'
+    forecasts ŷ(q, t, τ) for τ ∈ {1, ..., τmax} using quantiles Q = {0.1, 0.5, 0.9},
+    generated via linear transformation of decoder output.） → 模型训练（训练好的模型权重 + 训练日志）
+    → 模型评估（评估报告（指标数值 + 可视化））。'
   key_interfaces:
   - from: 数据加载
     to: 数据预处理
@@ -310,13 +305,12 @@ design_digest:
     entry_point: main.py
   training_config_summary:
     optimizer: NOT_FOUND
-    learning_rate: '0.01'
-    batch_size: 64 (Electricity), 128 (Traffic), 128 (Retail), 64 (Volatility)
+    learning_rate: '0.001'
+    batch_size: '64'
     epochs: '30'
-    loss: 'Quantile loss: QL(y, yhat, q) = q(y-yhat)_+ + (1-q)(yhat-y)_+, summed across
-      all quantile outputs q in {0.1, 0.5, 0.9} and horizons tau=1,...,tau_max, divided
-      by M*tau_max. Test q-Risk = 2 * sum_{yt in Omega_tilde} sum_{tau=1}^{tau_max}
-      QL(yt, yhat(q,t-tau,tau),q) / sum_{tau=1}^{tau_max}|yt|.'
+    loss: 'Quantile loss (QL), summed across all quantile outputs: L(Ω, W) = Σ Σ Σ
+      QL(yt, ŷ(q, t-τ, τ), q) / (M τmax), where QL(y, ŷ, q) = q(y - ŷ)+ + (1 - q)(ŷ
+      - y)+'
     scheduler: NOT_FOUND (step_size=NOT_FOUND, gamma=NOT_FOUND)
 decisions:
   framework: PyTorch
@@ -330,14 +324,14 @@ decisions:
 data_dependency:
   data_source: external_dataset
   acquisition: local_path
-  note: 论文明确使用 UCI Electricity、UCI Traffic、Kaggle Favorita Retail 和 OMI realized Volatility
-    等公开真实数据集进行实验。
+  note: 论文明确使用 Electricity (UCI)、Traffic (UCI PEM-SF)、Retail (Kaggle Favorita)、Volatility
+    (Oxford-Man realized library) 四个真实外部数据集，来源需手动下载/注册获取，故为 local_path
 unresolved_dataset_versions: []
 traceability:
 - requirement_id: FR-01
   requirement_name: 数据集加载
   planned_implementation:
-  - data/dataset.py::ElectricityTrafficRetailVolatilityDataset
+  - data/dataset.py::ElectricityUCIElectricityLoadDiagramsTrafficUCIPEMSFTrafficRetailFavoritaGrocerySalesFromKaggleVolatilityOxfordManInstituteRealizedLibraryDataset
   design_ref: step5/dataset.yaml
 - requirement_id: FR-02
   requirement_name: 数据预处理
@@ -421,7 +415,7 @@ code_generation_plan:
   - file: data/dataset.py
     purpose: 实现数据集加载、预处理和划分
     classes:
-    - ElectricityTrafficRetailVolatilityDataset
+    - ElectricityUCIElectricityLoadDiagramsTrafficUCIPEMSFTrafficRetailFavoritaGrocerySalesFromKaggleVolatilityOxfordManInstituteRealizedLibraryDataset
     key_methods:
     - __init__
     - __len__
@@ -436,7 +430,7 @@ code_generation_plan:
     - FR-03
     notes: 实现数据集加载、预处理和划分。需处理 default 等版本。所有 open() 读文件必须显式 encoding='utf-8'（config.yaml
       含中文，Windows 默认 GBK 会读崩）。【version 数据流】get_dataloaders（或等价加载函数）必须接受 version 参数（默认
-      'default'），并把它原样传给 ElectricityTrafficRetailVolatilityDataset(version=...)；绝不能从
+      'default'），并把它原样传给 ElectricityUCIElectricityLoadDiagramsTrafficUCIPEMSFTrafficRetailFavoritaGrocerySalesFromKaggleVolatilityOxfordManInstituteRealizedLibraryDataset(version=...)；绝不能从
       config['data'] 读默认值写死，否则各版本实验无差别。【非图像数据】数据是图/文本/序列/表格等非图像数据，不要引入 PIL/opencv
       或图像增强；按论文的数据格式加载（如解析文本/JSON 图文件、读取序列、读取 CSV 等），并把预处理逻辑放在 preprocess_data 方法里（按论文描述实现，无图像通道/尺寸概念）。
   - file: models/lstm.py
@@ -538,7 +532,7 @@ code_generation_plan:
     depends_on: []
     satisfies_requirements:
     - FR-08
-    notes: 计算 q-Risk、P50 risk、P90 risk、normalized quantile losses。
+    notes: 计算 Normalized quantile loss (q-Risk) for P50 and P90。
   - file: config/config.yaml
     purpose: 集中管理所有配置参数
     classes: []
@@ -628,20 +622,17 @@ risks_and_notes:
   - issue: weight_decay 未在论文中指定
     severity: medium
     mitigation: 从论文上下文推断或使用常见默认值
-  - issue: '''Electricity: 370 entities, 500k samples. Traffic: 440 entities, 500k
-      samples. Retail: 130k entities,'' 使用了模糊措辞 ''approximately''，具体值待确认'
+  - issue: early_stopping 策略（patience/触发条件）未在论文中说明
     severity: low
-    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
-  - issue: '''TFT demonstrates significant performance improvements over existing
-      benchmarks on a variety of real-'' 使用了模糊措辞 ''roughly''，具体值待确认'
+    mitigation: 训练到固定 epochs，或工程默认 patience=10 做早停，并在 config.yaml 显式标注
+  - issue: checkpoint 保存频率（save_frequency_epochs）未在论文中说明
     severity: low
-    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
-  - issue: '''Shows multiple entity time series with static metadata, past observed
-      values, and known future input'' 使用了模糊措辞 ''such as''，具体值待确认'
+    mitigation: 工程默认每个 epoch 保存一次（或只保存 best+final），并在 config.yaml 显式标注
+  - issue: inference.batch_size（推理批大小）未在论文中说明
     severity: low
-    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
-  - issue: '''Shows multiple entity time series with static metadata, past observed
-      values, and known future input'' 使用了模糊措辞 ''such as''，具体值待确认'
+    mitigation: 推理批大小与训练 batch_size 解耦，工程默认 32/64，config.yaml 显式标注
+  - issue: '''TFT optimal model for Electricity takes slightly over 6 hours to train
+      on NVIDIA Tesla V100 (each ep'' 使用了模糊措辞 ''roughly''，具体值待确认'
     severity: low
     mitigation: 从论文其他章节交叉验证，或标记为可配置参数
   - issue: 论文未提供 early_stopping 的取值。
@@ -659,12 +650,9 @@ risks_and_notes:
   conflicts:
   - issue: 训练轮数 在需求与设计两侧数值不一致。
     severity: high
-    step4_says: '使用 NOT_FOUND 优化器（lr=0.01）训练模型 NOT_FOUND 个 epoch，batch_size=64 (Electricity),
-      128 (Traffic), 128 (Retail), 64 (Volatility)，损失函数为 Quantile loss: QL(y, yhat,
-      q) = q(y-yhat)_+ + (1-q)(yhat-y)_+, summed across all quantile outputs q in
-      {0.1, 0.5, 0.9} and horizons tau=1,...,tau_max, divided by M*tau_max. Test q-Risk
-      = 2 * sum_{yt in Omega_tilde} sum_{tau=1}^{tau_max} QL(yt, yhat(q,t-tau,tau),q)
-      / sum_{tau=1}^{tau_max}|yt|.。'
+    step4_says: '使用 NOT_FOUND 优化器（lr=0.001）训练模型 NOT_FOUND 个 epoch，batch_size=64，损失函数为
+      Quantile loss (QL), summed across all quantile outputs: L(Ω, W) = Σ Σ Σ QL(yt,
+      ŷ(q, t-τ, τ), q) / (M τmax), where QL(y, ŷ, q) = q(y - ŷ)+ + (1 - q)(ŷ - y)+。'
     step5_says: '30'
     resolution: 以论文原文为准回查 PDF，修正不一致的一侧；无法判定时以 Step5（更接近工程实现）为准并在假设中记录。
   - issue: 需求侧声明无独立验证集，设计侧却用验证集指标选择最优模型。
@@ -690,7 +678,7 @@ risks_and_notes:
     ''consistently outperforms'' / ''always yields better results''）。'
 _meta:
   paper_name: 论文5
-  generated_at: '2026-09-02T14:23:33.381298'
+  generated_at: '2026-10-24T16:43:31.483350'
   method: rule-driven (no LLM)
   sources:
     step4_files:

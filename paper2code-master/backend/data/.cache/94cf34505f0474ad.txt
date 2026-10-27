@@ -1,0 +1,15 @@
+```json
+{
+  "type": "chart",
+  "description": "折线图展示了两种训练机制（Finetuning 与 TrainFromScratch）在 30 个 epoch 中 Mean-F1-Score 的变化曲线，包含多次运行的细线、平均粗线及置信区间阴影带，用于对比微调与从头训练的收敛速度和最终性能。",
+  "important_components": [
+    "X轴：Epochs（1到30）",
+    "Y轴：Mean-F1-Score（范围约0.4到1.0）",
+    "图例：Training Mechanism（Finetuning 蓝色、TrainFromScratch 绿色）",
+    "多条细线：可能为多次随机种子/独立运行的单次曲线",
+    "粗实线：各机制的平均 Mean-F1-Score",
+    "阴影带：标准差或置信区间"
+  ],
+  "code_relevant_information": "复现要点：(1) 定义两种训练模式——Finetuning（加载预训练权重后训练）与 TrainFromScratch（随机初始化训练），其余超参数保持一致；(2) 训练总轮数 epochs=30，逐 epoch 记录验证/测试集的 Mean-F1-Score（多个类别或任务 F1 的均值）；(3) 对每种机制运行多次（图中约有十余条细线，推测为多个随机种子），绘制单次曲线、均值曲线和阴影置信区间（如 seaborn 的 lineplot，ci 表示标准差或 95% CI）；(4) 结果：Finetuning 初始 F1≈0.93 并迅速升至≈0.98，收敛快且方差小；TrainFromScratch 初始 F1≈0.5，约10个 epoch 后升至≈0.94 并趋于平稳，收敛慢且早期方差较大；(5) 绘图风格为 Seaborn 默认浅灰网格背景，需设置随机种子保证可复现，F1 计算需明确平均方式（macro/weighted）。"
+}
+```

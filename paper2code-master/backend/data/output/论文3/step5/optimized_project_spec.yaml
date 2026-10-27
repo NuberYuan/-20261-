@@ -1,7 +1,7 @@
 project:
   name: UNet_A_Nested_UNet_Architecture_for_Medical_Image_
   description: image_classification
-  paper_type: empirical_comparison
+  paper_type: model_proposing
 architecture:
   modules:
     data:
@@ -12,18 +12,17 @@ architecture:
     models:
       directory: models/
       files:
-      - u_net.py
-      description: '模型定义: u_net'
+      - densenet.py
+      description: '模型定义: densenet'
       classes:
-      - name: UNet
-        type: other
-        input: 'Input sizes per dataset: cell nuclei 96×96, colon polyp 224×224, liver
-          512×512, lung nodule 64×64×64'
-        output: Full-resolution segmentation maps at multiple semantic levels; deep
-          supervision generates four segmentation maps, which are averaged to generate
-          the final segmentation map
+      - name: Densenet
+        type: CNN
+        input: 96×96 (cell nuclei), 224×224 (colon polyp), 512×512 (liver), 64×64×64
+          (lung nodule)
+        output: Four segmentation maps given an input image, which will be further
+          averaged to generate the final segmentation map
         pretrained: NOT_FOUND
-        file: models/unet.py
+        file: models/densenet.py
     training:
       directory: training/
       files:
@@ -33,7 +32,6 @@ architecture:
       directory: evaluation/
       files:
       - evaluate.py
-      - compare.py
       description: 评估与对比
     utils:
       directory: utils/
@@ -50,11 +48,9 @@ dependencies:
   - README.md
   - config/config.yaml
   - data/dataset.py
-  - evaluation/compare.py
   - evaluation/evaluate.py
   - main.py
-  - models/u_net.py
-  - models/unet.py
+  - models/densenet.py
   - requirements.txt
   - training/train.py
   - utils/metrics.py
@@ -71,11 +67,13 @@ execution_flow:
 - '2. data/: 准备数据集和数据加载器'
 - '3. models/: 初始化模型'
 - '4. training/train.py: 训练循环与验证评估'
-- '5. evaluation/: 测试集评估与对比'
+- '5. evaluation/: 测试集评估'
 reproducibility_notes:
-- Batch size is not explicitly specified in the main paper
-- Training epoch count is not provided; training uses early stopping on validation
-  set
-- Data preprocessing details are deferred to supplementary material
-- No deep learning framework is explicitly stated in the paper
+- Train/test split details not provided in main paper (in supplementary material)
+- Data preprocessing details not provided in main paper (in supplementary material)
+- Batch size not specified
+- Number of epochs not specified (early stopping used)
+- Programming framework not specified
+- Exact implementation of dense convolution block concatenation and upsampling requires
+  careful attention to Equation 1
 code_requirements: {}

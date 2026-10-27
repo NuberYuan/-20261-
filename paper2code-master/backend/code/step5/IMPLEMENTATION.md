@@ -138,7 +138,7 @@
 - `_extract_pipeline(exp, meth)` — 技术 pipeline 提取（technical_pipeline → methodology.pipeline → 默认模板）。
 - `_extract_primary_metric(exp)` — 从 evaluation_metrics 匹配主指标（f1/accuracy/r2/rmse/...）。
 - `_extract_ablation_factors(exp)` — 从 ablation_study 文本结构化提取消融因子。
-- `_build_experiment_matrix()` — 展开 Architectures × TrainingModes × DataTypes × Splits 组合，计算 `total_configurations`/`run_all`/`recommended_subset`/`known_best`/`known_worst`。
+- `_build_experiment_matrix()` — 展开 Architectures × TrainingModes × DataTypes × Splits 组合，计算 `total_configurations`/`run_all`/`recommended_subset`/`known_best`/`known_worst`/`known_real_world`（由 `_extract_known_extremes` 从 comparison 句子级提取：Best/Worst/real-world 各取本句主指标，配置名含 `-` 不截断，括号附注不混入）。
 - `_parse_list(text)` — 逗号分隔列表解析。
 
 **`StructureAnalyzer`（step5_6_struct.py）**
@@ -185,7 +185,7 @@
 
 - `dataset.data_source` / `dataset.acquisition` / `dataset.data_source_note` —— 决定 data 模块走外部数据集加载还是代码内生成/环境/无数据（`_data_dependency_value`、`_data_module_spec_non_external`）。
 - `dataset.dataset_versions` —— config 的 `data.versions` 列表（`_dataset_versions`）。
-- `dataset.preprocessing.versions` 中 `segmentation_algorithm.implementation_status=NOT_FOUND` —— 识别 unresolved 版本（`_build_unresolved_dataset_versions`）。
+- `dataset.preprocessing.versions` 中 `segmentation_algorithm` 由 `_extract_segmentation_algorithm` 解析：方法已描述（color space/分量/color casts/mask 信号）但参数未公开时标 `PARTIAL`（保留 method/color_spaces/components，参数仍 NOT_FOUND），完全未描述才 `NOT_FOUND`；`NOT_FOUND` 识别 unresolved 版本（`_build_unresolved_dataset_versions`），`PARTIAL` 走「按方法描述实现或文档化兜底」而非整版缺失。
 - `dataset.split_strategy.method` —— 判断是否 leaf 分组划分（`_is_leaf_split`）。
 - `model_design.models[].type` —— `_is_torchvision_cnn()`：全部为 `CNN` 才走 torchvision 继承 + transfer 模板。
 - `model_design.models[].num_classes` / `.pretrained` / `.code_class_name` / `.name` —— 模型上下文与文件映射。

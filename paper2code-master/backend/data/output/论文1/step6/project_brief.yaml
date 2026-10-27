@@ -1,0 +1,640 @@
+project:
+  name: Using_Deep_Learning_for_ImageBased_Plant_Disease_D
+  paper_title: Using Deep Learning for Image-Based Plant Disease Detection
+  paper_type: model_proposing
+  task: image_classification
+  one_liner: 复现论文中 Alexnet、Googlenet 在 PlantVillage 上的图像分类，对比不同训练模式与数据划分下的性能。
+consistency_report:
+  summary:
+    checks_run: 20
+    checks_passed: 19
+    checks_warning: 1
+    checks_failed: 0
+    conflicts: 1
+    gaps: 4
+    assumptions: 8
+  checks:
+  - id: CHECK-01
+    name: 数据集规模
+    status: pass
+    detail: 'Step4 与 Step5 一致: [''54306'']'
+  - id: CHECK-02
+    name: 类别数
+    status: pass
+    detail: 'Step4 与 Step5 一致: [''14'', ''26'', ''38'']'
+  - id: CHECK-03
+    name: 图像尺寸
+    status: pass
+    detail: 'Step4 与 Step5 一致: [''256'']'
+  - id: CHECK-04
+    name: 学习率
+    status: pass
+    detail: 'Step4 与 Step5 一致: [''0.005'']'
+  - id: CHECK-05
+    name: 训练轮数
+    status: pass
+    detail: 'Step4 与 Step5 一致: [''30'']'
+  - id: CHECK-06
+    name: 批大小
+    status: pass
+    detail: 'Step4 与 Step5 一致: [''100'', ''24'']'
+  - id: CHECK-07
+    name: 训练模式（scratch/transfer）
+    status: pass
+    detail: Step4 与 Step5 均显式区分两种训练模式。
+  - id: CHECK-08
+    name: FR-01 → 模块覆盖
+    status: pass
+    detail: 数据集加载 映射到 Step5 模块 'data'。
+  - id: CHECK-09
+    name: FR-02 → 模块覆盖
+    status: pass
+    detail: 数据预处理 映射到 Step5 模块 'data'。
+  - id: CHECK-10
+    name: FR-03 → 模块覆盖
+    status: pass
+    detail: 数据集划分 映射到 Step5 模块 'data'。
+  - id: CHECK-11
+    name: FR-04 → 模块覆盖
+    status: pass
+    detail: Alexnet 模型实现 映射到 Step5 模块 'models'。
+  - id: CHECK-12
+    name: FR-05 → 模块覆盖
+    status: pass
+    detail: Googlenet 模型实现 映射到 Step5 模块 'models'。
+  - id: CHECK-13
+    name: FR-06 → 模块覆盖
+    status: pass
+    detail: 训练模式支持（从头训练 / 迁移学习） 映射到 Step5 模块 'training'。
+  - id: CHECK-14
+    name: FR-07 → 模块覆盖
+    status: pass
+    detail: 模型训练 映射到 Step5 模块 'training'。
+  - id: CHECK-15
+    name: FR-08 → 模块覆盖
+    status: pass
+    detail: 模型持久化 映射到 Step5 模块 'training'。
+  - id: CHECK-16
+    name: FR-09 → 模块覆盖
+    status: pass
+    detail: 模型评估 映射到 Step5 模块 'evaluation'。
+  - id: CHECK-17
+    name: FR-10 → 模块覆盖
+    status: pass
+    detail: 论文结果复现与报告 映射到 Step5 模块 'evaluation'。
+  - id: CHECK-18
+    name: 数据划分（train/test vs val）
+    status: warning
+    detail: 论文仅 train/test 二路划分，但 Step5 checkpoint.best_metric 使用 val_accuracy。
+  - id: CHECK-19
+    name: 评估指标
+    status: pass
+    detail: Step4 评估指标与 Step5 实验设计对齐（primary=F1）。
+  - id: CHECK-20
+    name: 数据流接口闭环
+    status: pass
+    detail: 4 个接口端到端链路均有对应实现文件。
+  conflicts:
+  - id: CONFLICT-01
+    field: checkpoint.best_metric
+    description: 需求侧声明无独立验证集，设计侧却用验证集指标选择最优模型。
+    step4_says: 'FR-03 output: train_loader, test_loader（论文仅 train/test，无验证集）'
+    step5_says: checkpoint.best_metric = val_accuracy
+    severity: medium
+    resolution: '方案A: 从训练集按 80/20 二次划分出验证集用于早停/模型选择（工程偏离，推荐）；方案B: 严格复现论文，直接用 test_accuracy
+      选择最优模型（不推荐，有数据泄露风险）。'
+  gaps:
+  - id: GAP-01
+    field: training_config.early_stopping
+    description: 论文未提供 early_stopping 的取值。
+    severity: low
+    mitigation: 由代码 Agent 采用合理工程默认值，并在 config.yaml 中显式标注。
+  - id: GAP-02
+    field: training_config.checkpoint.save_frequency_epochs
+    description: 论文未提供 checkpoint.save_frequency_epochs 的取值。
+    severity: low
+    mitigation: 由代码 Agent 采用合理工程默认值，并在 config.yaml 中显式标注。
+  - id: GAP-03
+    field: training_config.inference.batch_size
+    description: 论文未提供 inference.batch_size 的取值。
+    severity: low
+    mitigation: 由代码 Agent 采用合理工程默认值，并在 config.yaml 中显式标注。
+  - id: GAP-04
+    field: training_config.freeze_backbone
+    description: 论文未提供 freeze_backbone 的取值。
+    severity: low
+    mitigation: 由代码 Agent 采用合理工程默认值，并在 config.yaml 中显式标注。
+  assumptions:
+  - id: ASM-01
+    description: 预训练权重来源假设为 torchvision 官方提供的 ImageNet 权重
+    source: step4/gap_analysis.resolved_assumptions
+  - id: ASM-02
+    description: 框架推断为 PyTorch（论文可能使用其他框架，但代码采用 PyTorch 实现）
+    source: step4/gap_analysis.resolved_assumptions
+  - id: ASM-03
+    description: '论文原文使用 Caffe (own fork of Caffe: https://github.com/salathegroup/caffe)，代码工程改用
+      PyTorch 实现。此为显式工程偏离，需在 README 中说明。'
+    source: step5/technology.framework
+  - id: ASM-04
+    description: checkpoint.save_best 采用工程默认值（论文未指定）。
+    source: step5/training_config.parameter_provenance.engineering_default
+  - id: ASM-05
+    description: checkpoint.best_metric 采用工程默认值（论文未指定）。
+    source: step5/training_config.parameter_provenance.engineering_default
+  - id: ASM-06
+    description: checkpoint.save_final 采用工程默认值（论文未指定）。
+    source: step5/training_config.parameter_provenance.engineering_default
+  - id: ASM-07
+    description: checkpoint.save_optimizer_state 采用工程默认值（论文未指定）。
+    source: step5/training_config.parameter_provenance.engineering_default
+  - id: ASM-08
+    description: inference.device 采用工程默认值（论文未指定）。
+    source: step5/training_config.parameter_provenance.engineering_default
+requirements_digest:
+  summary: 本项目包含 10 个功能需求（FR-01、FR-02、FR-03、FR-04、FR-05、FR-06、FR-07、FR-08、FR-09、FR-10），涉及
+    dataset, methodology, implementation_details, reproduction_requirements, experiment
+    维度。
+  core_requirements:
+  - id: FR-01
+    what: 加载 PlantVillage 数据集（54,306 images），支持从本地路径读取原始图像文件
+    why: 论文指定数据集与预处理要求
+    acceptance: 加载后样本数应与 54,306 images 一致
+  - id: FR-02
+    what: '预处理步骤: All images resized to 256 x 256 pixels. Three versions of the dataset
+      used: color (as is), grayscale, and leaf segmented (background removed). Segmentati…'
+    why: 论文指定数据集与预处理要求
+    acceptance: 检查输出张量的 shape 和数值范围
+  - id: FR-03
+    what: '按 Multiple train-test splits: 80-20, 60-40, 50-50, 40-60, 20-80. Images
+      of the same leaf (mappings available for 41,112 out of 54,306 images) always
+      go either i…'
+    why: 论文指定数据集与预处理要求
+    acceptance: 各集合样本数符合设定比例
+  - id: FR-04
+    what: 构建 Alexnet 模型，能够接收预处理后的输入并输出预测结果
+    why: 论文对比的模型与训练策略
+    acceptance: 模型可正常实例化并通过前向传播；参数量在合理数量级范围内 （与参考实现同一量级），但不同框架实现可能导致 ±5% 差异（如归一化层、padding
+      策略差异），不要求逐参数精确匹配。
+  - id: FR-05
+    what: 构建 Googlenet 模型，能够接收预处理后的输入并输出预测结果
+    why: 论文对比的模型与训练策略
+    acceptance: 模型可正常实例化并通过前向传播；参数量在合理数量级范围内 （与参考实现同一量级），但不同框架实现可能导致 ±5% 差异（如归一化层、padding
+      策略差异），不要求逐参数精确匹配。
+  - id: FR-06
+    what: '支持两种独立的训练模式: (a) 从头训练(Scratch): 所有层随机初始化（Kaiming/Xavier），不使用预训练权重；(b) 迁移学习(Transfer):
+      加载 ImageNet 预训练权重，重置最后一层(ImageNet pretrained weights for transfer learning…'
+    why: 论文对比的模型与训练策略
+    acceptance: scratch 模式下所有权重随机且不含预训练统计量；transfer 模式下除最后一层外与预训练权重一致，最后一层为随机初始化。
+  - id: FR-07
+    what: 使用 Stochastic Gradient Descent 优化器（lr=0.005）训练模型 30 个 epoch，batch_size=24
+      (in case of GoogLeNet), 100 (in case of AlexNet)，损失函数为 softmax cross-entropy
+      (inferred…
+    why: 论文指定的训练超参数
+    acceptance: 训练 30 epoch 能完整跑通（无中断、无显存溢出），loss 呈下降趋势。不要求最终 accuracy 接近论文报告值（本阶段只保证训练流程正确，不包含论文原始数据集的完整复现）。
+  - id: FR-08
+    what: 保存训练过程中最优模型权重和最终模型权重
+    why: 复现实验所需
+    acceptance: 加载保存的权重后可恢复推理，精度不下降
+  - id: FR-09
+    what: '在测试集上计算评估指标: Mean F1 score, mean precision, mean recall, overall accuracy'
+    why: 论文报告的主要结果
+    acceptance: 输出 Mean F1 score, mean precision, mean recall, overall accuracy 的值，与论文报告值对比
+  - id: FR-10
+    what: '[论文要求] 计算并报告: Mean F1 score, mean precision, mean recall, overall accuracy。关键发现:
+      The best performing model (GoogLeNet::TransferLearning::Color::80-20) achieves
+      …'
+    why: 论文报告的主要结果
+    acceptance: '[论文要求] 评估指标值与论文报告值在容差范围内一致；[工程辅助] 图表可正确生成，不要求与论文图表逐像素一致'
+  data_flow_overview: '数据依次经过: 数据加载（原始图像 (PIL.Image / numpy.ndarray)） → 数据预处理（归一化张量
+    (B, 3, 256, 256)） → 模型构建（模型定义）（38 class probability distribution (fc8 has 38 outputs
+    in adapted AlexNet, equaling total number of classes)） → 模型训练（训练好的模型权重 + 训练日志）
+    → 模型评估（评估报告（指标数值 + 可视化））。'
+  key_interfaces:
+  - from: 数据加载
+    to: 数据预处理
+    data: 原始图像 (PIL.Image / numpy.ndarray)
+  - from: 数据预处理
+    to: 模型构建（模型定义）
+    data: 归一化张量 (B, 3, 256, 256)
+  - from: 模型构建（模型定义）
+    to: 模型训练
+    data: '38类概率分布 + (可选: 带辅助分类器模型的 aux1_logits, aux2_logits)'
+  - from: 模型训练
+    to: 模型评估
+    data: 训练好的模型权重 + 训练日志（loss/accuracy 曲线数据）
+design_digest:
+  summary: 项目采用 PyTorch 框架，实现 Alexnet, Googlenet，目录结构包含 data, models, training, evaluation,
+    utils, config 模块，入口为 main.py。
+  tech_stack:
+    framework: PyTorch
+    key_dependencies:
+    - numpy
+    - pillow
+    - pyyaml
+    - torch
+    - torchvision
+    - matplotlib
+    hardware: EPFL GPU cluster computing resources
+  models:
+  - name: Alexnet
+    type: CNN
+    file: models/alexnet.py
+    key_params: num_classes=38 classes (14 crop species and 26 diseases or absence
+      thereof), pretrained=是
+  - name: Googlenet
+    type: CNN
+    file: models/googlenet.py
+    key_params: num_classes=38 classes (14 crop species and 26 diseases or absence
+      thereof), pretrained=是
+  project_structure:
+    root_directories:
+    - data
+    - models
+    - training
+    - evaluation
+    - utils
+    - config
+    entry_point: main.py
+  training_config_summary:
+    optimizer: Stochastic Gradient Descent
+    learning_rate: '0.005'
+    batch_size: 24 (in case of GoogLeNet), 100 (in case of AlexNet)
+    epochs: '30'
+    loss: softmax cross-entropy (inferred from softmax layer)
+    scheduler: StepLR (step_size=10, gamma=0.1)
+decisions:
+  framework: PyTorch
+  data_source: external_dataset
+  acquisition: local_path
+  val_split_ratio: 0.2
+  val_split_note: 80/20 从训练集二次划分出验证集（工程默认，非论文要求）
+  training_modes:
+  - scratch
+  - transfer
+  best_metric: val_accuracy
+data_dependency:
+  data_source: external_dataset
+  acquisition: local_path
+  note: 论文明确使用 PlantVillage 公开数据集（54,306 张植物叶片图像），需手动下载后提供本地路径，非标准库内置可自动下载。
+unresolved_dataset_versions:
+- name: segmented
+  reason: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+    论文提及分割思路但未提供完整算法/参数)'
+traceability:
+- requirement_id: FR-01
+  requirement_name: 数据集加载
+  planned_implementation:
+  - data/dataset.py::PlantVillageDataset
+  design_ref: step5/dataset.yaml
+- requirement_id: FR-02
+  requirement_name: 数据预处理
+  planned_implementation:
+  - data/dataset.py::preprocess_image
+  design_ref: step5/dataset.yaml
+- requirement_id: FR-03
+  requirement_name: 数据集划分
+  planned_implementation:
+  - data/dataset.py::split_dataset
+  design_ref: step5/dataset.yaml
+- requirement_id: FR-04
+  requirement_name: Alexnet 模型实现
+  planned_implementation:
+  - models/alexnet.py::Alexnet
+  design_ref: step5/model_design.yaml
+- requirement_id: FR-05
+  requirement_name: Googlenet 模型实现
+  planned_implementation:
+  - models/googlenet.py::Googlenet
+  design_ref: step5/model_design.yaml
+- requirement_id: FR-06
+  requirement_name: 训练模式支持（从头训练 / 迁移学习）
+  planned_implementation:
+  - training/train.py::initialize_model
+  design_ref: step5/training_config.yaml
+- requirement_id: FR-07
+  requirement_name: 模型训练
+  planned_implementation:
+  - training/train.py::train_model
+  design_ref: step5/training_config.yaml
+- requirement_id: FR-08
+  requirement_name: 模型持久化
+  planned_implementation:
+  - training/train.py::save_model
+  design_ref: step5/training_config.yaml
+- requirement_id: FR-09
+  requirement_name: 模型评估
+  planned_implementation:
+  - evaluation/evaluate.py::evaluate_model
+  - utils/metrics.py::compute_metrics
+  design_ref: step5/experiment_design.yaml
+- requirement_id: FR-10
+  requirement_name: 论文结果复现与报告
+  planned_implementation:
+  - evaluation/evaluate.py::generate_report
+  design_ref: step5/experiment_design.yaml
+code_generation_plan:
+  generation_order:
+  - phase: 1
+    description: 基础配置
+    files:
+    - config/config.yaml
+    reason: 配置是所有后续模块的基础，必须先定义。
+  - phase: 2
+    description: 数据模块
+    files:
+    - data/dataset.py
+    reason: 数据加载依赖配置。
+  - phase: 3
+    description: 核心逻辑（模型/算法）
+    files:
+    - models/alexnet.py
+    - models/googlenet.py
+    - models/__init__.py
+    reason: 模型/算法是训练和评估的前提。
+  - phase: 4
+    description: 工具模块
+    files:
+    - utils/metrics.py
+    reason: 指标计算等工具函数。
+  - phase: 5
+    description: 训练与评估
+    files:
+    - training/train.py
+    - evaluation/evaluate.py
+    reason: 训练依赖模型和数据，评估依赖训练好的模型。
+  - phase: 6
+    description: 入口与文档
+    files:
+    - main.py
+    - requirements.txt
+    - README.md
+    reason: 入口文件整合所有模块，文档和依赖列表最后生成。
+  per_file_specs:
+  - file: data/dataset.py
+    purpose: 实现数据集加载、预处理和划分
+    classes:
+    - PlantVillageDataset
+    key_methods:
+    - __init__
+    - __len__
+    - __getitem__
+    - preprocess_image
+    - split_dataset
+    depends_on:
+    - config/config.yaml
+    satisfies_requirements:
+    - FR-01
+    - FR-02
+    - FR-03
+    notes: 实现数据集加载、预处理和划分。需处理 color、grayscale、segmented 等版本。所有 open() 读文件必须显式 encoding='utf-8'（config.yaml
+      含中文，Windows 默认 GBK 会读崩）。【version 数据流】get_dataloaders（或等价加载函数）必须接受 version 参数（默认
+      'color'），并把它原样传给 PlantVillageDataset(version=...)；绝不能从 config['data'] 读默认值写死，否则各版本实验无差别。图像加载用
+      PIL（Pillow，已在依赖列表），不要引入 opencv（cv2）——cv2 不在依赖列表里。【train/val/test 增强分离】训练集必须加论文指定的数据增强，验证集/测试集绝不能加。因为
+      Subset 共享同一个底层 Dataset 对象，严禁写 splits['train'].dataset.transform = ... 这种改共享对象属性的写法（后写的覆盖先写的，训练集会因此丢增强）。正确做法：底层
+      Dataset.__getitem__ 只返回原始 PIL 图 + label（不设 transform），再用轻量包装类 TransformSubset(Dataset)（持有一个
+      Subset + 一个 transform，__getitem__ 先取 (x,y) 再套 transform）分别包 train/test/val：train
+      用 get_transform(train=True)，test/val 用 get_transform(train=False)。【划分必须按对象分组】engineering
+      模式从训练集二次划分 val 时，也必须按对象 id 分组划分（同一对象的图片绝不能分到 train 和 val 两边，否则数据泄漏）。严禁用 val_rng.sample(range(len(train_indices)),
+      val_size) 这种图片级随机抽样。正确做法：先 train/test 按对象分组（split_dataset 已保证），再从 train_indices
+      里按对象二次划分——写一个按对象分组的 helper（输入 indices，用 dataset 的对象 id 映射聚合对象 id，shuffle 对象
+      id 后贪心分配直到达到 val_split_ratio 比例），返回 (val_indices, 剩余 train_indices)。【unresolved
+      版本】segmented 的数据来源/处理方法在论文中 NOT_FOUND（无完整参数）。初始化时必须读取 config['data'][version]['status']（顶层，如
+      config['data'][<version>]['status']，不是 config['data']['versions'][...]）；若 ==
+      'unresolved'，立即 raise NotImplementedError(reason)，严禁用其他版本兜底伪装。
+  - file: models/alexnet.py
+    purpose: 定义 Alexnet 模型结构
+    classes:
+    - Alexnet
+    key_methods:
+    - __init__
+    - forward
+    depends_on:
+    - config/config.yaml
+    satisfies_requirements:
+    - FR-04
+    notes: '定义 Alexnet（scratch 与 transfer 共用同一架构，二者只有权重初始化不同）。直接继承 torchvision.models
+      里对应的模型类，不要手写自定义结构（自定义结构与 torchvision 不一致会导致 transfer 预训练权重无法 1:1 加载、形状冲突或静默丢失），也不要往模型里加
+      torchvision 默认结构没有的层。num_classes、dropout_ratio、pretrained 等参数一律从 config.yaml
+      读取，不要硬编码。【形状参数 null 兜底】若 config 里的 num_classes/dropout_ratio 等形状参数是 null（论文未给具体类别数/词汇表大小），严禁把
+      None 传给 nn.Linear / nn.Embedding 等任何 torch 形状参数（会 empty(): argument ''size''
+      崩溃）；必须用从论文描述推导的具体默认值兜底（如「词汇表 = 数字位数 + 特殊符号」→ 一个具体 int），并在代码注释里写明该默认值来源。模型类只定义结构（随机初始化），不要写
+      training_mode/transfer 分支、不要在 __init__ 里 load_state_dict；权重初始化统一在 training/train.py
+      的 initialize_model 里处理。所有 open() 读 config.yaml 必须 encoding=''utf-8''。'
+  - file: models/googlenet.py
+    purpose: 定义 Googlenet 模型结构
+    classes:
+    - Googlenet
+    key_methods:
+    - __init__
+    - forward
+    depends_on:
+    - config/config.yaml
+    satisfies_requirements:
+    - FR-05
+    notes: '定义 Googlenet（scratch 与 transfer 共用同一架构，二者只有权重初始化不同）。直接继承 torchvision.models
+      里对应的模型类，不要手写自定义结构（自定义结构与 torchvision 不一致会导致 transfer 预训练权重无法 1:1 加载、形状冲突或静默丢失），也不要往模型里加
+      torchvision 默认结构没有的层。num_classes、dropout_ratio、pretrained 等参数一律从 config.yaml
+      读取，不要硬编码。【形状参数 null 兜底】若 config 里的 num_classes/dropout_ratio 等形状参数是 null（论文未给具体类别数/词汇表大小），严禁把
+      None 传给 nn.Linear / nn.Embedding 等任何 torch 形状参数（会 empty(): argument ''size''
+      崩溃）；必须用从论文描述推导的具体默认值兜底（如「词汇表 = 数字位数 + 特殊符号」→ 一个具体 int），并在代码注释里写明该默认值来源。模型类只定义结构（随机初始化），不要写
+      training_mode/transfer 分支、不要在 __init__ 里 load_state_dict；权重初始化统一在 training/train.py
+      的 initialize_model 里处理。所有 open() 读 config.yaml 必须 encoding=''utf-8''。'
+  - file: models/__init__.py
+    purpose: 模型模块的初始化文件，便于统一导入
+    classes: []
+    key_methods: []
+    depends_on: []
+    satisfies_requirements: []
+    notes: '导出各模型类，类名必须与各模型文件定义完全一致: from .alexnet import Alexnet; from .googlenet
+      import Googlenet。不要自行改名或改成其他拼写。'
+  - file: training/train.py
+    purpose: 实现模型训练流程
+    classes: []
+    key_methods:
+    - initialize_model
+    - train_model
+    - save_model
+    depends_on:
+    - config/config.yaml
+    - data/dataset.py
+    - models/alexnet.py
+    - models/googlenet.py
+    satisfies_requirements:
+    - FR-06
+    - FR-07
+    - FR-08
+    notes: 从本地 models 包导入模型类（类名见相关代码）；保存最终模型。所有 open() 读 config.yaml 必须 encoding='utf-8'。【transfer
+      预训练权重】scratch 与 transfer 必须用同一个模型类（本地 models 包的 torchvision 子类），只有权重初始化不同。transfer
+      实现：先用本地类实例化，再取 torchvision 预训练模型的 state_dict，pop 掉类别相关层后 load_state_dict(strict=False)，其余层
+      1:1 加载（子类与 torchvision 结构完全一致）。具体需要 pop 的类别相关层名见 training_config.yaml 的 training_modes.transfer.reset_layers
+      字段。严禁对结构不一致的自定义模型 load_state_dict(strict=False)（会静默丢权重）。【reproduction_mode】读
+      config['reproduction_mode']：'engineering'=train→val→best→test：从训练集二次划分 val（config.split_strategy.val_split_ratio，80/20），每
+      epoch 验证、按 val_accuracy 选最优 checkpoint；'strict'=train→最终→test：不划分 val、不验证、只保存最终模型，train_model
+      里 val_loader 可为 None 且必须能跳过验证分支。train_model 的 validate 调用必须用 if val_loader is
+      not None 守卫，不能无条件调用。【train/test 语义】论文仅 train/test 二路划分、无独立验证集，val 仅在 engineering
+      模式从训练集二次划分；test 集只用于最终评估，绝不能进入 train_loader 或 val_loader。【version 数据流】从 experiment.runs[].dataset_version
+      读取版本，调用 get_dataloaders 时显式传 version=dataset_version。
+  - file: evaluation/evaluate.py
+    purpose: 实现模型评估和报告生成
+    classes: []
+    key_methods:
+    - evaluate_model
+    - generate_report
+    depends_on:
+    - config/config.yaml
+    - training/train.py
+    - utils/metrics.py
+    - models/alexnet.py
+    - models/googlenet.py
+    satisfies_requirements:
+    - FR-09
+    - FR-10
+    notes: '计算评估指标；生成论文要求数值报告和工程辅助图表。【接口约定】generate_report 的签名是 (metrics, run_name,
+      output_dir, config)，返回单个 run 的报告路径（不要做成接收 results 字典并批量绘制对比图的函数）。本文件只提供 evaluate_model
+      / generate_report 等函数，不要写 __main__ 入口或目录扫描逻辑（入口统一在 main.py）。【绘图参数】_generate_metrics_bar_chart
+      接收完整的 metrics dict（内部一次绘制 mean_f1/precision/recall/accuracy），调用时传 metrics 整个
+      dict，严禁传 metrics[''mean_f1''] 单标量；_generate_confusion_matrix_plot 则接收 metrics[''confusion_matrix'']
+      二维数组。【matplotlib 可选】matplotlib 仅是可视化辅助依赖，目标环境可能未安装，不要假设它一定存在。文件顶部必须用 try/except
+      包裹 matplotlib 导入（try: import matplotlib; matplotlib.use(''Agg''); import matplotlib.pyplot
+      as plt except ImportError: plt = None），所有绘图函数在 plt is None 时直接跳过并返回 None，generate_report
+      在无 matplotlib 时仍输出文本报告。严禁因 matplotlib 缺失在 import 阶段或运行期崩溃——指标计算与文本报告必须无条件完成。'
+  - file: utils/metrics.py
+    purpose: 实现评估指标计算函数
+    classes: []
+    key_methods:
+    - compute_metrics
+    depends_on: []
+    satisfies_requirements:
+    - FR-09
+    notes: 计算 Mean F1 score、mean precision、mean recall、overall accuracy。
+  - file: config/config.yaml
+    purpose: 集中管理所有配置参数
+    classes: []
+    key_methods: []
+    depends_on: []
+    satisfies_requirements: []
+    notes: '包含数据路径、预处理参数、划分比例、模型参数、训练超参数等。顶层键必须包含: project（name/paper/framework: PyTorch）、data（根目录/版本/图像尺寸/mean/std/normalize）、split_strategy（train_test_splits/seed/default_train_ratio，另加
+      val_split_ratio: 0.2 即 80/20 工程偏离）、reproduction_mode（''engineering'' 或 ''strict''）、model（architectures/num_classes/dropout_ratio/weight_init）、training_modes（scratch/transfer）、training（batch_size
+      按模型分表/epochs/optimizer/scheduler）、checkpoint、inference、experiment（runs 列表）、logging、system（device/num_workers/seed）。【reproduction_mode】''engineering''=工程模式(train→val→best→test：划分
+      val、每 epoch 验证、按 val_accuracy 选最优)；''strict''=严格复现论文(train→训练结束→test：不划分 val、不验证、只保存最终模型)。data.versions
+      是版本名列表（如 [''color'', ''grayscale'', ''segmented'']）。每个版本的具体信息写在 data 段下（与 versions
+      平级）的 data.<version> 键：只有 unresolved_dataset_versions 列出的版本写 {status: unresolved,
+      reason: ...}（不要编造 path）；其余版本一律写 {status: resolved, path: ..., description: ...}，绝不要把
+      resolved 版本写成 unresolved。其余代码读取的键都必须在此列全，避免代码引用不存在的键。【NOT_FOUND 禁止入数值】凡代码会当数字消费的字段（num_classes/batch_size/epochs/learning_rate/feature_dim/dropout_ratio
+      等），论文能推导出具体值时必须写具体数字；确实未知时写 null 或省略该键（让代码用 .get(key, 默认值) 兜底），严禁写字符串 ''NOT_FOUND''，否则代码里
+      np.zeros((''NOT_FOUND'',''NOT_FOUND'')) 或 int(''NOT_FOUND'') 会崩溃。【data_source/acquisition】顶层必须写
+      data_source 和 acquisition 两个键，本论文固定为 data_source: external_dataset、acquisition:
+      local_path；同时每个 experiment.runs[] 条目也必须带 data_source 和 acquisition（值同上）。这两个键由
+      Step7 确定性注入兜底，LLM 写错也会被覆盖，但请保持一致，勿省略。'
+  - file: main.py
+    purpose: 项目入口，串联整个流程
+    classes: []
+    key_methods:
+    - main
+    depends_on:
+    - config/config.yaml
+    - data/dataset.py
+    - training/train.py
+    - evaluation/evaluate.py
+    satisfies_requirements:
+    - FR-01
+    - FR-02
+    - FR-03
+    - FR-04
+    - FR-05
+    - FR-06
+    - FR-07
+    - FR-08
+    - FR-09
+    - FR-10
+    notes: 解析配置，执行数据加载、训练、评估和报告生成。所有 open() 读 config.yaml 必须 encoding='utf-8'。【命令行参数】必须支持两个可选参数：--run
+      <int>（只运行 experiment.runs 中该下标的单个实验，省略则运行全部 runs）；--config <path>（配置文件路径，默认
+      'config/config.yaml'）。解析后若给了 --run，只执行对应下标的那一个 run 并输出其指标；若给了 --config，从该路径加载配置（否则按默认相对路径）。【接口约定】evaluation.evaluate.generate_report
+      的签名是 (metrics, run_name, output_dir, config)，返回单个 run 的报告路径；入口自行生成汇总报告，不要用错误的参数个数调用该函数。【segmented
+      跳过】执行 experiment.runs 前，先读 config['data'][version]['status']，若 dataset_version
+      的 status == 'unresolved'，跳过该 run 并记为 skipped（不是报错失败），不要尝试训练它。【reproduction_mode】把
+      config['reproduction_mode'] 传给训练逻辑（strict 时不划 val、不验证）。【version 数据流】从 experiment.runs[].dataset_version
+      读取版本，调用 get_dataloaders 时显式传 version=dataset_version。【报告目录前置初始化】report/output_dir
+      目录必须在遍历 runs 的循环之前就初始化（如 output_dir = Path('reports'); output_dir.mkdir(exist_ok=True)），汇总报告
+      summary_report.txt 也要能在一个 run 都没成功时正常生成——严禁依赖循环体内才赋值的局部变量（否则模型初始化失败的 run continue
+      后，汇总段会 UnboundLocalError）。
+  - file: requirements.txt
+    purpose: 列出项目依赖
+    classes: []
+    key_methods: []
+    depends_on: []
+    satisfies_requirements: []
+    notes: 包含 numpy, pillow, pyyaml, torch, torchvision, matplotlib。
+  - file: README.md
+    purpose: 项目说明文档
+    classes: []
+    key_methods: []
+    depends_on: []
+    satisfies_requirements: []
+    notes: "说明项目结构、运行方法和复现步骤。【项目结构】以下为本项目实际的文件结构，README 中的目录树必须与之完全一致，严禁凭空描述不存在的目录/文件（如\
+      \ configs/、setup.py、experiments/、results/、tests/、src/models/、src/training/ 等）：\n\
+      \  README.md\n  main.py\n  requirements.txt\n  config/config/config.yaml\n \
+      \ data/data/dataset.py\n  evaluation/evaluation/evaluate.py\n  models/models/__init__.py\n\
+      \  models/models/alexnet.py\n  models/models/googlenet.py\n  training/training/train.py\n\
+      \  utils/utils/metrics.py"
+risks_and_notes:
+  gaps:
+  - issue: 论文未提供 early_stopping 的取值。
+    severity: low
+    mitigation: 由代码 Agent 采用合理工程默认值，并在 config.yaml 中显式标注。
+  - issue: 论文未提供 checkpoint.save_frequency_epochs 的取值。
+    severity: low
+    mitigation: 由代码 Agent 采用合理工程默认值，并在 config.yaml 中显式标注。
+  - issue: 论文未提供 inference.batch_size 的取值。
+    severity: low
+    mitigation: 由代码 Agent 采用合理工程默认值，并在 config.yaml 中显式标注。
+  - issue: 论文未提供 freeze_backbone 的取值。
+    severity: low
+    mitigation: 由代码 Agent 采用合理工程默认值，并在 config.yaml 中显式标注。
+  conflicts:
+  - issue: 需求侧声明无独立验证集，设计侧却用验证集指标选择最优模型。
+    severity: medium
+    step4_says: 'FR-03 output: train_loader, test_loader（论文仅 train/test，无验证集）'
+    step5_says: checkpoint.best_metric = val_accuracy
+    resolution: '方案A: 从训练集按 80/20 二次划分出验证集用于早停/模型选择（工程偏离，推荐）；方案B: 严格复现论文，直接用 test_accuracy
+      选择最优模型（不推荐，有数据泄露风险）。'
+  assumptions:
+  - 预训练权重来源假设为 torchvision 官方提供的 ImageNet 权重
+  - 框架推断为 PyTorch（论文可能使用其他框架，但代码采用 PyTorch 实现）
+  - '论文原文使用 Caffe (own fork of Caffe: https://github.com/salathegroup/caffe)，代码工程改用
+    PyTorch 实现。此为显式工程偏离，需在 README 中说明。'
+  - checkpoint.save_best 采用工程默认值（论文未指定）。
+  - checkpoint.best_metric 采用工程默认值（论文未指定）。
+  - checkpoint.save_final 采用工程默认值（论文未指定）。
+  - checkpoint.save_optimizer_state 采用工程默认值（论文未指定）。
+  - inference.device 采用工程默认值（论文未指定）。
+  for_code_agent:
+  - '[FR-03] 论文仅使用 train/test 二路划分，无独立验证集。若需要 val_loader 用于早停(early stopping)或最优模型选择，应从训练集中按
+    80/20 二次划分出验证集，并标记为工程偏离(engineering deviation from paper)。'
+  - '[FR-06] ⚠ 不能使用单一的 pretrained=True/False 布尔值，因为两种模式的初始化逻辑完全不同。建议使用 training_mode
+    枚举 (scratch/transfer) 而非 pretrained 布尔。'
+  - '[checkpoint] 论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用
+    test_accuracy（不推荐，会导致数据泄露）。'
+  - '[结论] 论文的''关键发现''（如某模型优于另一模型、迁移学习优于从头训练）是论文结论，代码必须从实际评估结果动态计算比较，严禁在报告/README/注释中写死结论性措辞（如
+    ''consistently outperforms'' / ''always yields better results''）。'
+_meta:
+  paper_name: 论文1
+  generated_at: '2026-10-21T17:54:57.914705'
+  method: rule-driven (no LLM)
+  sources:
+    step4_files:
+    - acceptance_criteria
+    - data_flow
+    - functional_requirements
+    - gap_analysis
+    - requirements_summary
+    step5_files:
+    - dataset
+    - experiment_design
+    - model_design
+    - optimized_project_spec
+    - project_analysis
+    - project_structure
+    - reproduction_goal
+    - technology
+    - training_config

@@ -1,0 +1,18 @@
+{
+  "table_id": "table_3",
+  "table_type": "other",
+  "caption_summary": "Fragmented bullet list containing a short sequence of numbers (2, 0, 3, 2, 0) with no discernible labels or metric context.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": {"method": "unknown", "metric": "unknown", "value": null},
+    "key_values": [
+      {"label": "item_1", "value": "2"},
+      {"label": "item_2", "value": "0"},
+      {"label": "item_3", "value": "3"},
+      {"label": "item_4", "value": "2"},
+      {"label": "item_5", "value": "0"}
+    ]
+  },
+  "table_summary": "This entry is a fragmented bullet list extracted from the paper, containing only five unlabeled numeric values: 2, 0, 3, 2, and 0. There are no column headers, metric names, method names, or contextual labels, making it impossible to determine what these values represent (e.g., counts, class labels, hyperparameters). The content appears to be a partial or erroneous extraction rather than a meaningful data table."
+}

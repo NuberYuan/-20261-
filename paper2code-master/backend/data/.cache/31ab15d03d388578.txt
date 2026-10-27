@@ -1,0 +1,1 @@
+{"data_source": "external_dataset", "acquisition": "local_path", "data_source_note": "论文明确使用四个真实医学影像公开数据集（Data Science Bowl 2018、ASU-Mayo colon polyp、MICCAI 2018 LiTS、LIDC-IDRI），需从竞赛/挑战赛网站手动下载，无法由库自动获取。"}

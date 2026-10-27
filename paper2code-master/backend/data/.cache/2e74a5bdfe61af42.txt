@@ -1,0 +1,546 @@
+# -*- coding: utf-8 -*-
+"""data/dataset.py
+
+数据集加载、预处理与划分。
+
+配置引用（与 config/config.yaml 保持一致）：
+- data.root / data.dataset_version / data.image_size.* / data.image_size_default
+- data.in_channels / data.mean / data.std / data.normalize
+- split_strategy.default_train_ratio / split_strategy.val_split_ratio / split_strategy.seed
+- notes.reproduction: engineering = train->val->best->test；strict = train->test（不划分 val）
+"""
+
+from __future__ import annotations
+
+import os
+import random
+from typing import Any, Dict, List, Optional, Sequence, Union
+
+import numpy as np
+
+try:
+    import torch
+    import torch.nn.functional as F
+    from torch.utils.data import Dataset, Subset
+except Exception:
+    torch = None
+    F = None
+    Subset = None
+
+    class Dataset(object):
+        """torch 缺失时的占位基类，保证模块可被导入并通过静态检查。"""
+
+        pass
+
+
+try:
+    from PIL import Image
+except Exception:
+    Image = None
+
+try:
+    import yaml
+except Exception:
+    yaml = None
+
+
+DEFAULT_MEAN = [0.485, 0.456, 0.406]
+DEFAULT_STD = [0.229, 0.224, 0.225]
+DEFAULT_IMAGE_SIZE = [224, 224]
+DEFAULT_TRAIN_RATIO = 0.8
+DEFAULT_VAL_SPLIT_RATIO = 0.2
+IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff', '.gif', '.npy', '.npz')
+MASK_DIR_NAMES = (
+    'masks', 'mask', 'labels', 'label', 'segmentations',
+    'seg', 'annotations', 'ground_truth', 'targets',
+)
+SPLIT_DIR_NAMES = ('train', 'val', 'valid', 'validation', 'test', 'tests')
+IMAGE_DIR_NAMES = ('images', 'image', 'imgs', 'img', 'frames', 'volumes', 'scans', 'data')
+DATASET_VERSIONS = ('color', 'grayscale', 'segmented')
+
+
+def _flatten_dict(cfg: Any, parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
+    """把嵌套 dict 展平成 'a.b.c' 形式的键值对。"""
+    items: Dict[str, Any] = {}
+    if not isinstance(cfg, dict):
+        return items
+    for key, value in cfg.items():
+        new_key = parent_key + sep + str(key) if parent_key else str(key)
+        if isinstance(value, dict):
+            items.update(_flatten_dict(value, new_key, sep=sep))
+        else:
+            items[new_key] = value
+    return items
+
+
+def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
+    """加载 config/config.yaml，返回展平后的配置字典；失败时返回空字典。"""
+    if config_path is None:
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'config',
+            'config.yaml',
+        )
+    if yaml is None or not os.path.isfile(config_path):
+        return {}
+    try:
+        with open(config_path, 'r', encoding='utf-8') as handle:
+            loaded = yaml.safe_load(handle)
+    except Exception:
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    return _flatten_dict(loaded)
+
+
+def _cfg_get(cfg: Any, key: str, default: Any = None) -> Any:
+    """读取配置项，支持展平键与嵌套键；值为 None 时返回 default。"""
+    if not isinstance(cfg, dict):
+        return default
+    if key in cfg:
+        value = cfg[key]
+        return default if value is None else value
+    node: Any = cfg
+    for part in key.split('.'):
+        if isinstance(node, dict) and part in node:
+            node = node[part]
+        else:
+            return default
+    return default if node is None else node
+
+
+class CellNucleiDataScienceBowl2018ColonPolypASUMayoLiverMICCAI2018LiTSChallengeLungNoduleLIDCIDRIDataset(Dataset):
+    """医学图像数据集：加载、预处理（color / grayscale / segmented 三个版本）与划分。"""
+
+    def __init__(
+        self,
+        root: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        split: Optional[str] = 'all',
+        indices: Optional[Sequence[int]] = None,
+        transform: Optional[Any] = None,
+        target_transform: Optional[Any] = None,
+        task: str = 'default',
+        image_size: Optional[Sequence[int]] = None,
+        dataset_version: Optional[str] = None,
+        in_channels: Optional[int] = None,
+        normalize: Optional[bool] = None,
+        mean: Optional[Sequence[float]] = None,
+        std: Optional[Sequence[float]] = None,
+        seed: Optional[int] = None,
+        mode: str = 'engineering',
+        image_paths: Optional[Sequence[str]] = None,
+        mask_paths: Optional[Sequence[Optional[str]]] = None,
+        labels: Optional[Sequence[int]] = None,
+        download: bool = False,
+    ) -> None:
+        super(CellNucleiDataScienceBowl2018ColonPolypASUMayoLiverMICCAI2018LiTSChallengeLungNoduleLIDCIDRIDataset, self).__init__()
+
+        self.config: Dict[str, Any] = dict(config) if isinstance(config, dict) else load_config()
+
+        # ---- 路径与模式 ----
+        cfg_root = _cfg_get(self.config, 'data.root', './data')
+        self.root = os.path.expanduser(str(root if root is not None else cfg_root))
+        self.mode = str(mode).lower() if mode is not None else 'engineering'
+        self.download = bool(download)
+
+        # ---- 预处理版本（color / grayscale / segmented）----
+        version = dataset_version if dataset_version is not None else _cfg_get(
+            self.config, 'data.dataset_version', 'color'
+        )
+        version = str(version).lower()
+        self.dataset_version = version if version in DATASET_VERSIONS else 'color'
+
+        # ---- 图像尺寸 ----
+        self.task = str(task)
+        if image_size is not None:
+            self.image_size = self._to_size_list(image_size)
+        else:
+            cfg_size = _cfg_get(self.config, 'data.image_size.{}'.format(self.task), None)
+            if cfg_size is None:
+                cfg_size = _cfg_get(self.config, 'data.image_size_default', DEFAULT_IMAGE_SIZE)
+            self.image_size = self._to_size_list(cfg_size)
+
+        # ---- 通道与归一化 ----
+        cfg_in_channels = _cfg_get(self.config, 'data.in_channels', 3)
+        self.in_channels = int(in_channels if in_channels is not None else cfg_in_channels)
+
+        cfg_normalize = _cfg_get(self.config, 'data.normalize', True)
+        self.normalize = bool(normalize if normalize is not None else cfg_normalize)
+
+        self.mean = list(mean) if mean is not None else list(
+            _cfg_get(self.config, 'data.mean', DEFAULT_MEAN) or DEFAULT_MEAN
+        )
+        self.std = list(std) if std is not None else list(
+            _cfg_get(self.config, 'data.std', DEFAULT_STD) or DEFAULT_STD
+        )
+
+        # ---- 划分策略 ----
+        self.seed = int(seed if seed is not None else _cfg_get(self.config, 'split_strategy.seed', 42))
+        self.default_train_ratio = float(
+            _cfg_get(self.config, 'split_strategy.default_train_ratio', DEFAULT_TRAIN_RATIO) or DEFAULT_TRAIN_RATIO
+        )
+        self.val_split_ratio = float(
+            _cfg_get(self.config, 'split_strategy.val_split_ratio', DEFAULT_VAL_SPLIT_RATIO) or DEFAULT_VAL_SPLIT_RATIO
+        )
+
+        self.transform = transform
+        self.target_transform = target_transform
+
+        # ---- 文件收集 ----
+        if image_paths is not None:
+            self.image_paths = [str(p) for p in image_paths]
+            if mask_paths is not None:
+                self.mask_paths = [str(p) if p is not None else None for p in mask_paths]
+            else:
+                self.mask_paths = [None] * len(self.image_paths)
+            if labels is not None:
+                self.labels = [int(x) for x in labels]
+            else:
+                self.labels = [0] * len(self.image_paths)
+        else:
+            self.image_paths, self.mask_paths, self.labels = self._scan_files(self.root)
+
+        # ---- 划分索引 ----
+        self.split_indices: Dict[str, List[int]] = {}
+        self.indices: Optional[List[int]] = list(indices) if indices is not None else None
+        split_name = 'all' if split is None else str(split).lower()
+        self.split = split_name
+        if split_name in ('train', 'val', 'valid', 'validation', 'test'):
+            key = 'val' if split_name in ('valid', 'validation') else split_name
+            self.split_indices = self.split_dataset()
+            self.indices = list(self.split_indices.get(key, []))
+
+    # ------------------------------------------------------------------
+    # 基础接口
+    # ------------------------------------------------------------------
+    def __len__(self) -> int:
+        if self.indices is not None:
+            return len(self.indices)
+        return len(self.image_paths)
+
+    def __getitem__(self, index: int) -> Dict[str, Any]:
+        length = len(self)
+        if length == 0:
+            raise IndexError('empty dataset: no image files found under {}'.format(self.root))
+        if index < 0:
+            index += length
+        if index < 0 or index >= length:
+            raise IndexError('index {} out of range for dataset of size {}'.format(index, length))
+
+        real_index = self.indices[index] if self.indices is not None else index
+        path = self.image_paths[real_index]
+
+        image = self.preprocess_image(path, is_mask=False)
+        if self.transform is not None:
+            image = self.transform(image)
+
+        sample: Dict[str, Any] = {'image': image, 'index': index, 'path': path}
+
+        mask_path = None
+        if real_index < len(self.mask_paths):
+            mask_path = self.mask_paths[real_index]
+
+        if mask_path is not None:
+            mask = self.preprocess_image(mask_path, is_mask=True)
+            if self.target_transform is not None:
+                mask = self.target_transform(mask)
+            sample['mask'] = mask
+            sample['target'] = mask
+        else:
+            label = int(self.labels[real_index]) if real_index < len(self.labels) else 0
+            if self.target_transform is not None:
+                label = self.target_transform(label)
+            sample['label'] = label
+            if torch is not None:
+                sample['target'] = torch.tensor(label, dtype=torch.long)
+            else:
+                sample['target'] = label
+
+        return sample
+
+    # ------------------------------------------------------------------
+    # 预处理
+    # ------------------------------------------------------------------
+    def preprocess_image(self, image: Any, is_mask: bool = False, image_size: Optional[Sequence[int]] = None) -> Any:
+        """读取并预处理图像：版本变换 -> 尺寸对齐 -> 归一化 -> CHW 张量。"""
+        arr = self._to_array(image)
+        arr = np.asarray(arr)
+
+        if arr.ndim == 2:
+            arr = arr[..., np.newaxis]
+        elif arr.ndim == 3 and arr.shape[-1] > 4 and arr.shape[0] <= 4:
+            arr = arr.transpose(1, 2, 0)
+        elif arr.ndim == 4 and arr.shape[-1] > 4 and arr.shape[0] <= 4:
+            arr = arr.transpose(1, 2, 3, 0)
+
+        if arr.ndim not in (3, 4):
+            raise ValueError('unsupported image array shape: {}'.format(arr.shape))
+
+        arr = arr.astype(np.float32, copy=False)
+        if arr.size > 0 and float(np.nanmax(arr)) > 1.5:
+            arr = arr / 255.0
+
+        if is_mask:
+            arr = (arr > 0.5).astype(np.float32)
+        else:
+            arr = self._apply_version(arr)
+            arr = self._match_channels(arr)
+
+        target_size = self._to_size_list(image_size) if image_size is not None else self.image_size
+        arr = self._resize_array(arr, target_size, is_mask=is_mask)
+
+        if (not is_mask) and self.normalize:
+            arr = self._normalize(arr)
+
+        if arr.ndim == 4:
+            chw = np.ascontiguousarray(arr.transpose(3, 0, 1, 2))
+        else:
+            chw = np.ascontiguousarray(arr.transpose(2, 0, 1))
+
+        if torch is not None:
+            return torch.from_numpy(chw).float()
+        return chw.astype(np.float32)
+
+    # ------------------------------------------------------------------
+    # 数据划分
+    # ------------------------------------------------------------------
+    def split_dataset(
+        self,
+        dataset: Optional[Any] = None,
+        train_ratio: Optional[float] = None,
+        val_ratio: Optional[float] = None,
+        test_ratio: Optional[float] = None,
+        seed: Optional[int] = None,
+        mode: Optional[str] = None,
+        stratify: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """按 random_split 策略划分数据集。
+
+        engineering 模式：train / val / test；strict 模式：train / test（不划分 val）。
+        dataset 为空时返回索引字典，否则返回 torch Subset 字典。
+        """
+        total = len(dataset) if dataset is not None else len(self.image_paths)
+        total = int(total)
+
+        rng = random.Random(self.seed if seed is None else int(seed))
+        indices = list(range(total))
+        rng.shuffle(indices)
+
+        train_ratio_value = self.default_train_ratio if train_ratio is None else float(train_ratio)
+        if not (0.0 < train_ratio_value <= 1.0):
+            train_ratio_value = DEFAULT_TRAIN_RATIO
+
+        val_ratio_value = self.val_split_ratio if val_ratio is None else float(val_ratio)
+        if val_ratio_value < 0.0:
+            val_ratio_value = 0.0
+
+        if test_ratio is None:
+            test_ratio_value = max(0.0, 1.0 - train_ratio_value)
+        else:
+            test_ratio_value = max(0.0, float(test_ratio))
+
+        run_mode = self.mode if mode is None else str(mode).lower()
+
+        n_test = int(round(total * test_ratio_value))
+        if n_test > total:
+            n_test = total
+        n_train_pool = total - n_test
+
+        if run_mode == 'strict':
+            n_val = 0
+        else:
+            n_val = int(round(n_train_pool * val_ratio_value))
+        if n_val > n_train_pool:
+            n_val = n_train_pool
+        n_train = n_train_pool - n_val
+
+        train_indices = indices[:n_train]
+        val_indices = indices[n_train:n_train + n_val]
+        test_indices = indices[n_train + n_val:]
+
+        splits: Dict[str, List[int]] = {
+            'train': list(train_indices),
+            'val': list(val_indices),
+            'test': list(test_indices),
+        }
+        self.split_indices = splits
+
+        if dataset is None or Subset is None:
+            return splits
+
+        return {name: Subset(dataset, idx_list) for name, idx_list in splits.items()}
+
+    # ------------------------------------------------------------------
+    # 内部工具
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _to_size_list(size: Any) -> List[int]:
+        if size is None:
+            return list(DEFAULT_IMAGE_SIZE)
+        if isinstance(size, (int, float, np.integer, np.floating)):
+            value = int(size)
+            return [value, value]
+        if isinstance(size, (list, tuple, np.ndarray)):
+            values = []
+            for item in list(size):
+                if item is None:
+                    continue
+                try:
+                    values.append(int(item))
+                except Exception:
+                    continue
+            if len(values) == 0:
+                return list(DEFAULT_IMAGE_SIZE)
+            if len(values) == 1:
+                return [values[0], values[0]]
+            return values
+        return list(DEFAULT_IMAGE_SIZE)
+
+    @staticmethod
+    def _is_image_file(filename: str) -> bool:
+        return str(filename).lower().endswith(IMAGE_EXTENSIONS)
+
+    @staticmethod
+    def _stem(filename: str) -> str:
+        return os.path.splitext(os.path.basename(str(filename)))[0].lower()
+
+    def _to_array(self, image: Any) -> np.ndarray:
+        if isinstance(image, str):
+            lower = image.lower()
+            if lower.endswith('.npy') or lower.endswith('.npz'):
+                loaded = np.load(image)
+                if isinstance(loaded, np.lib.npyio.NpzFile):
+                    loaded = loaded[loaded.files[0]]
+                return np.asarray(loaded)
+            if Image is None:
+                raise ImportError('Pillow is required to read image files')
+            with Image.open(image) as img:
+                return np.asarray(img.copy())
+        if Image is not None and isinstance(image, Image.Image):
+            return np.asarray(image)
+        if torch is not None and isinstance(image, torch.Tensor):
+            return image.detach().cpu().numpy()
+        return np.asarray(image)
+
+    def _scan_files(self, root: str) -> tuple:
+        image_paths: List[str] = []
+        mask_paths: List[Optional[str]] = []
+        labels: List[int] = []
+
+        if not root or not os.path.isdir(root):
+            return image_paths, mask_paths, labels
+
+        mask_lookup: Dict[str, str] = {}
+        for dirpath, _dirnames, filenames in os.walk(root):
+            base = os.path.basename(dirpath).lower()
+            is_mask_dir = base in MASK_DIR_NAMES
+            for filename in sorted(filenames):
+                if not self._is_image_file(filename):
+                    continue
+                full_path = os.path.join(dirpath, filename)
+                if is_mask_dir:
+                    mask_lookup[self._stem(filename)] = full_path
+                else:
+                    image_paths.append(full_path)
+
+        for path in image_paths:
+            stem = self._stem(path)
+            mask_path = mask_lookup.get(stem, None)
+            mask_paths.append(mask_path)
+            labels.append(self._infer_label(path))
+
+        return image_paths, mask_paths, labels
+
+    def _infer_label(self, path: str) -> int:
+        parent = os.path.basename(os.path.dirname(path)).lower()
+        if parent in IMAGE_DIR_NAMES or parent in MASK_DIR_NAMES or parent in SPLIT_DIR_NAMES:
+            parent = os.path.basename(os.path.dirname(os.path.dirname(path))).lower()
+        if parent.isdigit():
+            return int(parent)
+        return 0
+
+    def _apply_version(self, arr: np.ndarray) -> np.ndarray:
+        version = self.dataset_version
+        channels = int(arr.shape[-1])
+        if version in ('grayscale', 'segmented'):
+            if channels >= 3:
+                gray = arr[..., 0] * 0.299 + arr[..., 1] * 0.587 + arr[..., 2] * 0.114
+            else:
+                gray = arr[..., 0]
+            if version == 'segmented':
+                gray = (gray > 0.5).astype(np.float32)
+            return gray[..., np.newaxis]
+        if channels == 1:
+            return np.repeat(arr, 3, axis=-1)
+        return arr
+
+    def _match_channels(self, arr: np.ndarray) -> np.ndarray:
+        target = int(self.in_channels)
+        if target <= 0:
+            return arr
+        channels = int(arr.shape[-1])
+        if channels == target:
+            return arr
+        if channels > target:
+            return arr[..., :target]
+        reps = [1] * arr.ndim
+        reps[-1] = int(np.ceil(target / float(channels)))
+        arr = np.tile(arr, reps)
+        return arr[..., :target]
+
+    @staticmethod
+    def _channel_stats(values: Any, channels: int) -> np.ndarray:
+        array = np.atleast_1d(np.asarray(values, dtype=np.float32)).ravel().tolist()
+        if len(array) == 0:
+            array = [0.0]
+        if len(array) < channels:
+            array = array + [array[-1]] * (channels - len(array))
+        return np.asarray(array[:channels], dtype=np.float32)
+
+    def _normalize(self, arr: np.ndarray) -> np.ndarray:
+        channels = int(arr.shape[-1])
+        mean = self._channel_stats(self.mean, channels)
+        std = self._channel_stats(self.std, channels)
+        shape = [1] * arr.ndim
+        shape[-1] = channels
+        mean = mean.reshape(shape)
+        std = std.reshape(shape)
+        return (arr - mean) / std
+
+    def _resize_array(self, arr: np.ndarray, size: Sequence[int], is_mask: bool = False) -> np.ndarray:
+        size_list = self._to_size_list(size)
+        height = int(size_list[-2])
+        width = int(size_list[-1])
+
+        if len(size_list) >= 3 and arr.ndim == 4 and torch is not None and F is not None:
+            depth = int(size_list[-3])
+            tensor = torch.from_numpy(np.ascontiguousarray(arr.transpose(3, 0, 1, 2))).float().unsqueeze(0)
+            if is_mask:
+                tensor = F.interpolate(tensor, size=(depth, height, width), mode='nearest')
+            else:
+                tensor = F.interpolate(tensor, size=(depth, height, width), mode='trilinear', align_corners=False)
+            return tensor.squeeze(0).permute(1, 2, 3, 0).cpu().numpy().astype(np.float32)
+
+        src_h = int(arr.shape[0])
+        src_w = int(arr.shape[1])
+
+        if torch is not None and F is not None and arr.ndim == 3:
+            tensor = torch.from_numpy(np.ascontiguousarray(arr.transpose(2, 0, 1))).float().unsqueeze(0)
+            if is_mask:
+                tensor = F.interpolate(tensor, size=(height, width), mode='nearest')
+            else:
+                tensor = F.interpolate(tensor, size=(height, width), mode='bilinear', align_corners=False)
+            return tensor.squeeze(0).permute(1, 2, 0).cpu().numpy().astype(np.float32)
+
+        row_idx = (np.arange(height) * (src_h / float(max(height, 1)))).astype(np.int64)
+        np.clip(row_idx, 0, max(src_h - 1, 0), out=row_idx)
+        col_idx = (np.arange(width) * (src_w / float(max(width, 1)))).astype(np.int64)
+        np.clip(col_idx, 0, max(src_w - 1, 0), out=col_idx)
+        return arr[row_idx][:, col_idx].astype(np.float32)
+
+
+__all__ = [
+    'CellNucleiDataScienceBowl2018ColonPolypASUMayoLiverMICCAI2018LiTSChallengeLungNoduleLIDCIDRIDataset',
+    'load_config',
+]

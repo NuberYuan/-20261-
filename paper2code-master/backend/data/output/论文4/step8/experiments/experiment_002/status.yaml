@@ -1,0 +1,11 @@
+experiment_id: None_None_None_80_1
+execution:
+  status: SUCCESS
+  exit_code: 0
+  started_at: '2026-10-24T16:36:50'
+  finished_at: '2026-10-24T16:36:50'
+  duration_seconds: 0.52
+  working_directory: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step7\generated_project
+logs:
+  stdout: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_002\stdout.log
+  stderr: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_002\stderr.log

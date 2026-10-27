@@ -1,0 +1,1 @@
+{"programming_framework_mentioned": "NOT_FOUND", "architecture_details.note": "Redesigned nested dense skip pathways that bridge the semantic gap between encoder and decoder feature maps prior to fusion, combined with deep supervision for model pruning and improved accuracy.", "training.scheduler.type": "NOT_FOUND", "pretrained_weights.source": "NOT_FOUND"}

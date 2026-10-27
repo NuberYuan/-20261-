@@ -1,0 +1,42 @@
+paper_name: 论文4
+pipeline:
+- GP 2 programs are compiled to C programs using the GP 2-to-C compiler. C programs
+  are transformed by GCC into platform-dependent binaries. Binaries are executed by
+  the runtime system which reads an input graph from disc.
+experiments:
+- name: main_experiment
+  description: The paper provides runtime experiments on six classes of input graphs
+    for the connectivity checking program and various classes for the acyclicity and
+    Bellman-Ford programs. Specific numerical results are in truncated figures (e.g.,
+    Figure 36 shows measured performance of bellmanford on rooted cycle graphs of
+    negative total weight).
+evaluation:
+  primary_metric: runtime measurements
+  secondary_metrics:
+  - runtime measurements
+comparison:
+  baselines: []
+  ablation_factors: []
+experiment_matrix:
+  dimensions:
+    architectures: []
+    training_modes: []
+    data_types:
+    - default
+    train_test_splits:
+    - NOT_FOUND
+  total_configurations: 0
+  runs: []
+  known_best: NOT_FOUND
+  known_worst: The worst-case complexity of matching the forward rule in the old isconnected
+    program is 2|E| + Σ_{i=1}^{|E|} i = O(|E|^2) where E is the set of edges
+  known_real_world: NOT_FOUND
+  run_all: false
+  recommended_subset: []
+  note: 无实验组合（论文无模型或无训练实验，纯理论/无数据论文）
+important_results: The first two programs run in linear time on (possibly disconnected)
+  input graphs with arbitrary node degrees. The third program runs in time O(nm) on
+  arbitrary input graphs, matching the time complexity of imperative implementations
+  of the Bellman-Ford algorithm. The worst-case complexity of matching the forward
+  rule in the old isconnected program is 2|E| + P_{i=1}^{|E|} i = O(|E|^2) where E
+  is the set of edges.

@@ -1,0 +1,212 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+
+# OCR text provided externally (do NOT call OCR again)
+OCR_TEXTS = ["output", "Tape", "Input", "Grid"]
+
+
+def get_visual_info(img):
+    """Extract basic visual information without forbidden CV operations."""
+    try:
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        white_ratio = float(np.mean(gray > 200))
+        dark_ratio = float(np.mean(gray < 80))
+        color_std = float(np.std(img.astype(np.float64)))
+    except Exception:
+        white_ratio = 0.5
+        dark_ratio = 0.3
+        color_std = 0.0
+    return white_ratio, dark_ratio, color_std
+
+
+def classify(ocr_texts, white_ratio, dark_ratio):
+    ocr_lower = " ".join(ocr_texts).lower()
+
+    # --- experiment_result keywords ---
+    exp_kw = [
+        "accuracy", "acc", "loss", "epoch", "precision", "recall", "f1",
+        "auc", "mse", "mae", "f1-score", "top-1", "top-5", "map",
+        "error rate", "bleu", "rouge", "wer", "perplexity"
+    ]
+    # --- architecture keywords ---
+    arch_kw = [
+        "cnn", "transformer", "attention", "encoder", "decoder",
+        "block", "embedding", "classifier", "feature extractor",
+        "alexnet", "resnet", "vgg", "googlenet", "lstm", "gru",
+        "rnn", "bert", "gpt", "vit", "swin", "unet", "yolo",
+        "conv", "pooling", "layer", "head", "backbone", "neck"
+    ]
+    # --- flow / component keywords ---
+    flow_kw = [
+        "input", "output", "tape", "grid", "fc", "linear",
+        "softmax", "sigmoid", "relu", "concat", "add", "norm"
+    ]
+    # --- dataset keywords ---
+    data_kw = [
+        "dataset", "sample", "class", "label", "train set",
+        "test set", "validation", "cifar", "imagenet", "mnist",
+        "coco", "voc", "pascal"
+    ]
+
+    exp_matches = [kw for kw in exp_kw if kw in ocr_lower]
+    arch_matches = [kw for kw in arch_kw if kw in ocr_lower]
+    flow_matches = [kw for kw in flow_kw if kw in ocr_lower]
+    data_matches = [kw for kw in data_kw if kw in ocr_lower]
+
+    # Conflict resolution priority: experiment_result > architecture > dataset > other
+    if exp_matches:
+        return "experiment_result", exp_matches + arch_matches, []
+
+    if arch_matches:
+        return "architecture", arch_matches + flow_matches, []
+
+    # If flow-like terms present (e.g. Input/Output + components), likely architecture
+    component_flow = [w for w in flow_matches if w not in ("input", "output", "add", "concat", "norm")]
+    has_io = ("input" in ocr_lower) and ("output" in ocr_lower)
+    if len(flow_matches) >= 2 and (has_io or len(component_flow) >= 1):
+        return "architecture", flow_matches, []
+
+    if data_matches:
+        return "dataset", data_matches, []
+
+    return "other", [], []
+
+
+def build_result(result_type, all_matches, ocr_texts, white_ratio):
+    if result_type == "experiment_result":
+        seen = set()
+        components = []
+        for m in all_matches:
+            cap = m.title() if len(m) <= 3 else m.capitalize()
+            if cap.lower() not in seen:
+                seen.add(cap.lower())
+                components.append(cap)
+        return {
+            "type": "experiment_result",
+            "description": "展示实验结果和性能指标变化",
+            "important_components": components,
+            "code_relevant_information": "需要实现模型训练和评估流程，记录并可视化相关性能指标"
+        }
+
+    if result_type == "architecture":
+        seen = set()
+        components = []
+        for m in all_matches:
+            # Preserve meaningful component names from OCR
+            original = None
+            for t in ocr_texts:
+                if t.lower() == m:
+                    original = t
+                    break
+            display = original if original else m.title()
+            if display.lower() not in seen:
+                seen.add(display.lower())
+                components.append(display)
+
+        # Build code_relevant_information
+        parts = []
+        lower_set = {c.lower() for c in components}
+        if "tape" in lower_set:
+            parts.append("Tape模块")
+        if "grid" in lower_set:
+            parts.append("Grid处理模块")
+        if "input" in lower_set and "output" in lower_set:
+            parts.append("从Input到Output的完整数据流")
+        for kw in ["cnn", "transformer", "attention", "encoder", "decoder",
+                    "conv", "pooling", "classifier", "embedding"]:
+            if kw in lower_set:
+                parts.append(kw.title() + "组件")
+
+        if parts:
+            code_info = "需要实现" + "、".join(parts)
+        else:
+            code_info = "需要实现模型网络结构和前向数据流"
+
+        return {
+            "type": "architecture",
+            "description": "展示模型网络结构和数据流关系",
+            "important_components": components,
+            "code_relevant_information": code_info
+        }
+
+    if result_type == "dataset":
+        seen = set()
+        components = []
+        for m in all_matches:
+            cap = m.title()
+            if cap.lower() not in seen:
+                seen.add(cap.lower())
+                components.append(cap)
+        return {
+            "type": "dataset",
+            "description": "展示数据样本或数据集类别信息",
+            "important_components": components,
+            "code_relevant_information": "需要加载和预处理对应数据集"
+        }
+
+    return {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+
+
+def main():
+    # 1) Get image path
+    try:
+        if len(sys.argv) < 2:
+            raise ValueError("missing image path")
+        image_path = sys.argv[1]
+    except Exception:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+        return
+
+    # 2) Read image (Chinese path support)
+    try:
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("decode failed")
+    except Exception:
+        print(json.dumps({
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }, ensure_ascii=False))
+        return
+
+    # 3) Visual info
+    try:
+        white_ratio, dark_ratio, color_std = get_visual_info(img)
+    except Exception:
+        white_ratio, dark_ratio, color_std = 0.5, 0.3, 0.0
+
+    # 4) Classify
+    try:
+        result_type, all_matches, extra = classify(OCR_TEXTS, white_ratio, dark_ratio)
+        result = build_result(result_type, all_matches, OCR_TEXTS, white_ratio)
+    except Exception:
+        result = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+    # 5) Output only JSON
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
+```

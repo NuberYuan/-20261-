@@ -9,7 +9,7 @@
   - 输出：`step3/key_information.json`（本文件即核心产物）。
 
 - **核心流程**（三路并行，最终合并进同一个 result dict）：
-  1. **正文信息提取**（`InformationExtractor`）：把 `paragraphs[].text` 拼成整段 `paper_text`，塞进 `prompts/step3_prompt.txt` 的 `{paper_text}` 占位符，调用 DeepSeek 文本模型，解析 JSON，再做「结构校验 + 修复」。
+  1. **正文信息提取**（`InformationExtractor`）：把 `paragraphs[].text` 拼成整段 `paper_text`，塞进 `prompts/step3_prompt.txt` 的 `{paper_text}` 占位符，调用 LLM 文本模型，解析 JSON，再做「结构校验 + 修复」。
   2. **表格分析**（`TableAnalyzer`）：读 `paper["tables"]`，逐表格式化后调 LLM 归类（experiment_results / ablation_study / comparison / dataset_statistics / hyperparameter_table / model_architecture / other），提取数值与 best_result，最后跨表汇总。
   3. **图片分析**（`FigureAnalyzer`）：对每张图片执行 `OCR → FigureCodeGenerator 生成 Python 分析代码 → CodeExecutor 子进程执行 → 解析 JSON` 的流水线，输出图片分类与复现相关组件。
 
@@ -19,7 +19,7 @@
   - **`NOT_FOUND` 约定**：论文未明确提到的字段统一填 `NOT_FOUND`，绝不编造；下游 Step4/5 用 `!= "NOT_FOUND"` 判断字段是否可用，缺失项由 Step5 用工程决策补齐。
   - **结构修复优于重新生成**：LLM 输出不稳定，因此 `InformationExtractor` 内置了「拍平字符串→dict、游离子字段归位、数组→对象、正则兜底搜索原文」四类修复，而不是简单地重试 LLM。
   - **「AI 生成代码再执行」的图片分析方式**：不直接让 LLM 看图，而是让 LLM 生成一段只依赖 OCR 文本 + 基础视觉信息（`numpy`/`cv2`/`PIL`）的 Python 代码，在受限子进程里执行后取 JSON。这样把「看图」拆成「OCR 给文字」+「代码给结构化判断」，规避多模态模型，也便于控制代码行为。
-  - **模型上下文假设**：`InformationExtractor` 假设 DeepSeek-chat 64K token ≈ 48K 字符，正文预留 `max_text_len=44000`，超长时保留前 75% + 后 25%（超参数多在末尾）。
+  - **模型上下文假设**：`InformationExtractor` 假设 LLM 64K token ≈ 48K 字符，正文预留 `max_text_len=44000`，超长时保留前 75% + 后 25%（超参数多在末尾）。
 
 ## 具体实现
 

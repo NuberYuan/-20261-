@@ -1,0 +1,6823 @@
+{
+  "run_name": "connected_components_random_graphs",
+  "run_index": 2,
+  "timing_unit": "seconds",
+  "rows": [
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 0,
+      "seconds": 0.00014429999282583594
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 1,
+      "seconds": 0.00014949997421354055
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 2,
+      "seconds": 0.00014860002556815743
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 3,
+      "seconds": 0.000146100006531924
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 4,
+      "seconds": 0.0001507000415585935
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 5,
+      "seconds": 0.00014159997226670384
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 6,
+      "seconds": 0.00014000001829117537
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 7,
+      "seconds": 0.00015310000162571669
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 8,
+      "seconds": 0.0001490999711677432
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 9,
+      "seconds": 0.00014369998825713992
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 10,
+      "seconds": 0.0001482999650761485
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 11,
+      "seconds": 0.0001436000457033515
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 12,
+      "seconds": 0.0001438999897800386
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 13,
+      "seconds": 0.00020549999317154288
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 14,
+      "seconds": 0.0005737000028602779
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 15,
+      "seconds": 0.0003337000380270183
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 16,
+      "seconds": 0.00033740000799298286
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 17,
+      "seconds": 0.0003336999798193574
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 18,
+      "seconds": 0.000325599976349622
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 19,
+      "seconds": 0.00029559998074546456
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 20,
+      "seconds": 0.0005655999993905425
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 21,
+      "seconds": 0.0005576999974437058
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 22,
+      "seconds": 0.0005629999795928597
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 23,
+      "seconds": 0.00056900002527982
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 24,
+      "seconds": 0.0005459999665617943
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 25,
+      "seconds": 0.0005494000506587327
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 26,
+      "seconds": 0.0005599000141955912
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 27,
+      "seconds": 0.000846399983856827
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 28,
+      "seconds": 0.0011042000260204077
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 29,
+      "seconds": 0.0006067999638617039
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 30,
+      "seconds": 0.0005598999559879303
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 31,
+      "seconds": 0.0005671000108122826
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 32,
+      "seconds": 0.0005665000062435865
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 33,
+      "seconds": 0.0005596000119112432
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 34,
+      "seconds": 0.000561599968932569
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 35,
+      "seconds": 0.0005814000032842159
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 36,
+      "seconds": 0.0006189999985508621
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 37,
+      "seconds": 0.0010107000125572085
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 38,
+      "seconds": 0.0005727999960072339
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 39,
+      "seconds": 0.0005700999754481018
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 40,
+      "seconds": 0.0022496000165119767
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 41,
+      "seconds": 0.0025661999825388193
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 42,
+      "seconds": 0.0027215000009164214
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 43,
+      "seconds": 0.00318389997119084
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 44,
+      "seconds": 0.0023185000172816217
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 45,
+      "seconds": 0.0024483000161126256
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 46,
+      "seconds": 0.003400399989914149
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 47,
+      "seconds": 0.0022926999954506755
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 48,
+      "seconds": 0.00226979999570176
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 49,
+      "seconds": 0.0025201999815180898
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 50,
+      "seconds": 0.0024234000011347234
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 51,
+      "seconds": 0.002332200005184859
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 52,
+      "seconds": 0.0026175000239163637
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 53,
+      "seconds": 0.0022706000017933547
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 54,
+      "seconds": 0.0022603999823331833
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 55,
+      "seconds": 0.0022933000000193715
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 56,
+      "seconds": 0.0024710000143386424
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 57,
+      "seconds": 0.0023985999869182706
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 58,
+      "seconds": 0.0024212999851442873
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 59,
+      "seconds": 0.0023597999825142324
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 60,
+      "seconds": 0.010316900035832077
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 61,
+      "seconds": 0.009969600010663271
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 62,
+      "seconds": 0.009171499987132847
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 63,
+      "seconds": 0.009350000007543713
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 64,
+      "seconds": 0.00919620000058785
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 65,
+      "seconds": 0.009124399977736175
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 66,
+      "seconds": 0.009301699989009649
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 67,
+      "seconds": 0.010264999989885837
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 68,
+      "seconds": 0.01007050002226606
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 69,
+      "seconds": 0.010872199956793338
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 70,
+      "seconds": 0.00965280004311353
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 71,
+      "seconds": 0.010170700028538704
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 72,
+      "seconds": 0.009361099975649267
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 73,
+      "seconds": 0.010302399983629584
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 74,
+      "seconds": 0.011008800007402897
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 75,
+      "seconds": 0.009509299998171628
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 76,
+      "seconds": 0.009840299957431853
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 77,
+      "seconds": 0.01041270000860095
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 78,
+      "seconds": 0.010968799993861467
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 79,
+      "seconds": 0.010490200016647577
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 80,
+      "seconds": 0.038814399973489344
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 81,
+      "seconds": 0.038682300015352666
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 82,
+      "seconds": 0.04012180003337562
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 83,
+      "seconds": 0.038900299987290055
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 84,
+      "seconds": 0.04175940004643053
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 85,
+      "seconds": 0.044041700020898134
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 86,
+      "seconds": 0.040953699965029955
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 87,
+      "seconds": 0.04350480000721291
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 88,
+      "seconds": 0.04492089996347204
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 89,
+      "seconds": 0.04145979997701943
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 90,
+      "seconds": 0.04281060001812875
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 91,
+      "seconds": 0.04485669999849051
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 92,
+      "seconds": 0.04522759997053072
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 93,
+      "seconds": 0.04454620002070442
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 94,
+      "seconds": 0.0412720000022091
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 95,
+      "seconds": 0.042457500007003546
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 96,
+      "seconds": 0.04387220001081005
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 97,
+      "seconds": 0.04401870002038777
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 98,
+      "seconds": 0.042244100011885166
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 99,
+      "seconds": 0.04193860001396388
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 100,
+      "seconds": 7.749994983896613e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 101,
+      "seconds": 7.71000050008297e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 102,
+      "seconds": 7.71000050008297e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 103,
+      "seconds": 7.700000423938036e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 104,
+      "seconds": 7.619999814778566e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 105,
+      "seconds": 7.690000347793102e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 106,
+      "seconds": 7.770000956952572e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 107,
+      "seconds": 7.680000271648169e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 108,
+      "seconds": 8.319999324157834e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 109,
+      "seconds": 7.969996659085155e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 110,
+      "seconds": 7.950002327561378e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 111,
+      "seconds": 7.909996202215552e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 112,
+      "seconds": 7.870001718401909e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 113,
+      "seconds": 7.90000194683671e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 114,
+      "seconds": 7.799995364621282e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 115,
+      "seconds": 7.770000956952572e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 116,
+      "seconds": 8.020002860575914e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 117,
+      "seconds": 7.989996811375022e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 118,
+      "seconds": 8.060003165155649e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 119,
+      "seconds": 8.059997344389558e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 120,
+      "seconds": 0.00030400004470720887
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 121,
+      "seconds": 0.0006220999639481306
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 122,
+      "seconds": 0.0006894000107422471
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 123,
+      "seconds": 0.0006722999969497323
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 124,
+      "seconds": 0.0003597000031732023
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 125,
+      "seconds": 0.00030069996137171984
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 126,
+      "seconds": 0.0003087000222876668
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 127,
+      "seconds": 0.0003076000139117241
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 128,
+      "seconds": 0.00030619994504377246
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 129,
+      "seconds": 0.0003087000222876668
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 130,
+      "seconds": 0.0002997000119648874
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 131,
+      "seconds": 0.0003102999762631953
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 132,
+      "seconds": 0.0003025000332854688
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 133,
+      "seconds": 0.0003100999747402966
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 134,
+      "seconds": 0.00029500003438442945
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 135,
+      "seconds": 0.00029289996018633246
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 136,
+      "seconds": 0.00029880000511184335
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 137,
+      "seconds": 0.00029749999521300197
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 138,
+      "seconds": 0.0003025000332854688
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 139,
+      "seconds": 0.00029199995333328843
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 140,
+      "seconds": 0.0011999999987892807
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 141,
+      "seconds": 0.0011672000400722027
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 142,
+      "seconds": 0.00114540004869923
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 143,
+      "seconds": 0.0012598999892361462
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 144,
+      "seconds": 0.001149199961218983
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 145,
+      "seconds": 0.0011418000212870538
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 146,
+      "seconds": 0.0012102000182494521
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 147,
+      "seconds": 0.0011693999986164272
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 148,
+      "seconds": 0.0011594999814406037
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 149,
+      "seconds": 0.0011535999947227538
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 150,
+      "seconds": 0.0011683999910019338
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 151,
+      "seconds": 0.0011628000065684319
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 152,
+      "seconds": 0.001166999980341643
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 153,
+      "seconds": 0.0011660000309348106
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 154,
+      "seconds": 0.0019685999723151326
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 155,
+      "seconds": 0.001435499987564981
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 156,
+      "seconds": 0.0011832999880425632
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 157,
+      "seconds": 0.0011375999893061817
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 158,
+      "seconds": 0.0012325000134296715
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 159,
+      "seconds": 0.0011577000259421766
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 160,
+      "seconds": 0.0058722999528981745
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 161,
+      "seconds": 0.004616399994120002
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 162,
+      "seconds": 0.005092200008220971
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 163,
+      "seconds": 0.004694800009019673
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 164,
+      "seconds": 0.004748000006657094
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 165,
+      "seconds": 0.007282800041139126
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 166,
+      "seconds": 0.004967099986970425
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 167,
+      "seconds": 0.0045698999892920256
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 168,
+      "seconds": 0.005819600017275661
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 169,
+      "seconds": 0.0048139000427909195
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 170,
+      "seconds": 0.004989600041881204
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 171,
+      "seconds": 0.0060900000389665365
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 172,
+      "seconds": 0.004660899983718991
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 173,
+      "seconds": 0.004856100014876574
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 174,
+      "seconds": 0.005556400050409138
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 175,
+      "seconds": 0.004687500011641532
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 176,
+      "seconds": 0.005127599986735731
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 177,
+      "seconds": 0.00491160003002733
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 178,
+      "seconds": 0.006336499995086342
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 179,
+      "seconds": 0.004903299966827035
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 180,
+      "seconds": 0.021853199985343963
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 181,
+      "seconds": 0.021776999987196177
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 182,
+      "seconds": 0.02137219998985529
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 183,
+      "seconds": 0.021349399990867823
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 184,
+      "seconds": 0.02114269998855889
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 185,
+      "seconds": 0.02032030001282692
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 186,
+      "seconds": 0.020219800004269928
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 187,
+      "seconds": 0.021899299987126142
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 188,
+      "seconds": 0.021335500001441687
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 189,
+      "seconds": 0.02108340000268072
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 190,
+      "seconds": 0.023335599980782717
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 191,
+      "seconds": 0.0217871000058949
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 192,
+      "seconds": 0.02077060000738129
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 193,
+      "seconds": 0.022155400016345084
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 194,
+      "seconds": 0.020745099987834692
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 195,
+      "seconds": 0.02297799999359995
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 196,
+      "seconds": 0.021126999985426664
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 197,
+      "seconds": 0.021648900001309812
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 198,
+      "seconds": 0.020574300026055425
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 199,
+      "seconds": 0.02015419997042045
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 200,
+      "seconds": 1.0499963536858559e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 201,
+      "seconds": 1.0700023267418146e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 202,
+      "seconds": 1.1499971151351929e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 203,
+      "seconds": 1.0300020221620798e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 204,
+      "seconds": 1.090002479031682e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 205,
+      "seconds": 1.0500021744519472e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 206,
+      "seconds": 1.0500021744519472e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 207,
+      "seconds": 1.0299962013959885e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 208,
+      "seconds": 1.0200019460171461e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 209,
+      "seconds": 1.0200019460171461e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 210,
+      "seconds": 1.0700023267418146e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 211,
+      "seconds": 1.0299962013959885e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 212,
+      "seconds": 1.0400020983070135e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 213,
+      "seconds": 1.0000017937272787e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 214,
+      "seconds": 1.009996049106121e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 215,
+      "seconds": 9.90001717582345e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 216,
+      "seconds": 1.0100018698722124e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 217,
+      "seconds": 9.999959729611874e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 218,
+      "seconds": 1.0100018698722124e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 219,
+      "seconds": 1.0100018698722124e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 220,
+      "seconds": 2.0299979951232672e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 221,
+      "seconds": 1.9900035113096237e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 222,
+      "seconds": 2.1099986042827368e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 223,
+      "seconds": 2.0299979951232672e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 224,
+      "seconds": 2.0000035874545574e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 225,
+      "seconds": 1.999997766688466e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 226,
+      "seconds": 1.9199971575289965e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 227,
+      "seconds": 2.0600040443241596e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 228,
+      "seconds": 1.969997538253665e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 229,
+      "seconds": 1.98000343516469e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 230,
+      "seconds": 1.9799976143985987e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 231,
+      "seconds": 1.969997538253665e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 232,
+      "seconds": 1.9700033590197563e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 233,
+      "seconds": 1.999997766688466e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 234,
+      "seconds": 1.950003206729889e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 235,
+      "seconds": 2.0499981474131346e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 236,
+      "seconds": 5.989999044686556e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 237,
+      "seconds": 2.829998265951872e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 238,
+      "seconds": 2.1400046534836292e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 239,
+      "seconds": 2.1300045773386955e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 240,
+      "seconds": 3.899994771927595e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 241,
+      "seconds": 3.890000516548753e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 242,
+      "seconds": 4.010001430287957e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 243,
+      "seconds": 3.950000973418355e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 244,
+      "seconds": 3.8700003642588854e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 245,
+      "seconds": 4.029995761811733e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 246,
+      "seconds": 3.9700011257082224e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 247,
+      "seconds": 3.8700003642588854e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 248,
+      "seconds": 3.8700003642588854e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 249,
+      "seconds": 3.9000005926936865e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 250,
+      "seconds": 4.39999857917428e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 251,
+      "seconds": 3.890000516548753e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 252,
+      "seconds": 3.91000066883862e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 253,
+      "seconds": 4.010001430287957e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 254,
+      "seconds": 4.020001506432891e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 255,
+      "seconds": 4.099996294826269e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 256,
+      "seconds": 4.020001506432891e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 257,
+      "seconds": 3.840000135824084e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 258,
+      "seconds": 3.840000135824084e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 259,
+      "seconds": 3.9700011257082224e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 260,
+      "seconds": 7.650000043213367e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 261,
+      "seconds": 8.179998258128762e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 262,
+      "seconds": 7.720000576227903e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 263,
+      "seconds": 7.800001185387373e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 264,
+      "seconds": 7.720000576227903e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 265,
+      "seconds": 7.810001261532307e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 266,
+      "seconds": 7.92999635450542e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 267,
+      "seconds": 7.639999967068434e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 268,
+      "seconds": 7.830001413822174e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 269,
+      "seconds": 7.830001413822174e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 270,
+      "seconds": 7.999996887519956e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 271,
+      "seconds": 7.920002099126577e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 272,
+      "seconds": 8.029997115954757e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 273,
+      "seconds": 8.399999933317304e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 274,
+      "seconds": 7.670000195503235e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 275,
+      "seconds": 7.720000576227903e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 276,
+      "seconds": 7.760000880807638e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 277,
+      "seconds": 7.660000119358301e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 278,
+      "seconds": 7.870001718401909e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 279,
+      "seconds": 8.209998486563563e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 280,
+      "seconds": 0.00015780003741383553
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 281,
+      "seconds": 0.0001555999624542892
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 282,
+      "seconds": 0.00019320001592859626
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 283,
+      "seconds": 0.0001718999701552093
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 284,
+      "seconds": 0.00016980001237243414
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 285,
+      "seconds": 0.0001666999887675047
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 286,
+      "seconds": 0.0001666999887675047
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 287,
+      "seconds": 0.00016760005382820964
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 288,
+      "seconds": 0.00017040001694113016
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 289,
+      "seconds": 0.00016629998572170734
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 290,
+      "seconds": 0.0003777000238187611
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 291,
+      "seconds": 0.0003850000211969018
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 292,
+      "seconds": 0.00025949999690055847
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 293,
+      "seconds": 0.00015899998834356666
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 294,
+      "seconds": 0.00016009999671950936
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 295,
+      "seconds": 0.00016200001118704677
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 296,
+      "seconds": 0.00016439997125416994
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 297,
+      "seconds": 0.00016190001042559743
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 298,
+      "seconds": 0.00016080000204965472
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 299,
+      "seconds": 0.00016410002717748284
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 300,
+      "seconds": 0.00010409997776150703
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 301,
+      "seconds": 0.00011670001549646258
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 302,
+      "seconds": 0.00012099999003112316
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 303,
+      "seconds": 0.00011480000102892518
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 304,
+      "seconds": 0.00016840000171214342
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 305,
+      "seconds": 0.0001126999850384891
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 306,
+      "seconds": 0.00011239998275414109
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 307,
+      "seconds": 0.00010880001354962587
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 308,
+      "seconds": 0.00011170003563165665
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 309,
+      "seconds": 0.00010699999984353781
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 310,
+      "seconds": 9.049999061971903e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 311,
+      "seconds": 8.999998681247234e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 312,
+      "seconds": 9.159999899566174e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 313,
+      "seconds": 8.980004349723458e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 314,
+      "seconds": 9.129999671131372e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 315,
+      "seconds": 9.44999628700316e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 316,
+      "seconds": 8.950004121288657e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 317,
+      "seconds": 9.569997200742364e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 318,
+      "seconds": 8.889997843652964e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 319,
+      "seconds": 8.830003207549453e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 320,
+      "seconds": 0.00018609996186569333
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 321,
+      "seconds": 0.00018740002997219563
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 322,
+      "seconds": 0.0005879999953322113
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 323,
+      "seconds": 0.00042999995639547706
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 324,
+      "seconds": 0.0004222000134177506
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 325,
+      "seconds": 0.0004209000035189092
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 326,
+      "seconds": 0.00044139998499304056
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 327,
+      "seconds": 0.00019130000146105886
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 328,
+      "seconds": 0.0001832999987527728
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 329,
+      "seconds": 0.00018470000941306353
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 330,
+      "seconds": 0.00018720002844929695
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 331,
+      "seconds": 0.00019759999122470617
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 332,
+      "seconds": 0.0001908999984152615
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 333,
+      "seconds": 0.00018779997481033206
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 334,
+      "seconds": 0.00018620002083480358
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 335,
+      "seconds": 0.00018559995805844665
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 336,
+      "seconds": 0.00019010005053132772
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 337,
+      "seconds": 0.00018659996567294002
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 338,
+      "seconds": 0.00018740002997219563
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 339,
+      "seconds": 0.0001870999694801867
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 340,
+      "seconds": 0.0008157000411301851
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 341,
+      "seconds": 0.0007350000087171793
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 342,
+      "seconds": 0.0007282000151462853
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 343,
+      "seconds": 0.0007735000108368695
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 344,
+      "seconds": 0.0007333999965339899
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 345,
+      "seconds": 0.000831899989861995
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 346,
+      "seconds": 0.0008936999947763979
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 347,
+      "seconds": 0.0007394999847747386
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 348,
+      "seconds": 0.0007266000029630959
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 349,
+      "seconds": 0.0007157999789342284
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 350,
+      "seconds": 0.0006844000308774412
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 351,
+      "seconds": 0.0006781000411137938
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 352,
+      "seconds": 0.0007516999612562358
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 353,
+      "seconds": 0.0007112000021152198
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 354,
+      "seconds": 0.0006993000279180706
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 355,
+      "seconds": 0.0006831999635323882
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 356,
+      "seconds": 0.0006643999950028956
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 357,
+      "seconds": 0.0006703000399284065
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 358,
+      "seconds": 0.0010105000110343099
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 359,
+      "seconds": 0.001679200038779527
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 360,
+      "seconds": 0.0034883000189438462
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 361,
+      "seconds": 0.003525500011164695
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 362,
+      "seconds": 0.003437599982134998
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 363,
+      "seconds": 0.003534700023010373
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 364,
+      "seconds": 0.0034502000198699534
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 365,
+      "seconds": 0.0036994999973103404
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 366,
+      "seconds": 0.003399499983061105
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 367,
+      "seconds": 0.0033718000049702823
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 368,
+      "seconds": 0.003729899995960295
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 369,
+      "seconds": 0.0041179999825544655
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 370,
+      "seconds": 0.005478299979586154
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 371,
+      "seconds": 0.0042224000208079815
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 372,
+      "seconds": 0.004600199987180531
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 373,
+      "seconds": 0.004599599982611835
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 374,
+      "seconds": 0.004409999994095415
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 375,
+      "seconds": 0.004887000017333776
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 376,
+      "seconds": 0.004316599981393665
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 377,
+      "seconds": 0.00477369996951893
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 378,
+      "seconds": 0.004448499996215105
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 379,
+      "seconds": 0.005414100014604628
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 380,
+      "seconds": 0.02573530003428459
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 381,
+      "seconds": 0.02704060001997277
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 382,
+      "seconds": 0.024466899980325252
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 383,
+      "seconds": 0.024349500017706305
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 384,
+      "seconds": 0.031736800039652735
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 385,
+      "seconds": 0.04175740003120154
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 386,
+      "seconds": 0.04983680002624169
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 387,
+      "seconds": 0.050010700011625886
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 388,
+      "seconds": 0.0527274000342004
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 389,
+      "seconds": 0.033305599994491786
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 390,
+      "seconds": 0.05523870000615716
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 391,
+      "seconds": 0.062493400007952005
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 392,
+      "seconds": 0.05123329994967207
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 393,
+      "seconds": 0.054229000001214445
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 394,
+      "seconds": 0.06515889998991042
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 395,
+      "seconds": 0.050316100008785725
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 396,
+      "seconds": 0.05678970000008121
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 397,
+      "seconds": 0.06886390002910048
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 398,
+      "seconds": 0.06761100003495812
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 399,
+      "seconds": 0.05673670000396669
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 0,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 1,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 2,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 3,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 4,
+      "seconds": 4.500034265220165e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 5,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 6,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 7,
+      "seconds": 4.600035026669502e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 8,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 9,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 10,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 11,
+      "seconds": 4.500034265220165e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 12,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 13,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 14,
+      "seconds": 4.300032742321491e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 15,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 16,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 17,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 18,
+      "seconds": 4.300032742321491e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 19,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 20,
+      "seconds": 8.599949069321156e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 21,
+      "seconds": 1.0200019460171461e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 22,
+      "seconds": 8.400005754083395e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 23,
+      "seconds": 9.000010322779417e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 24,
+      "seconds": 8.400005754083395e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 25,
+      "seconds": 8.79995059221983e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 26,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 27,
+      "seconds": 8.300004992634058e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 28,
+      "seconds": 8.400005754083395e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 29,
+      "seconds": 8.400005754083395e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 30,
+      "seconds": 9.000010322779417e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 31,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 32,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 33,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 34,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 35,
+      "seconds": 8.79995059221983e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 36,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 37,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 38,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 39,
+      "seconds": 8.500006515532732e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 40,
+      "seconds": 1.8199963960796595e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 41,
+      "seconds": 1.8200022168457508e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 42,
+      "seconds": 1.810002140700817e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 43,
+      "seconds": 1.799996243789792e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 44,
+      "seconds": 1.7900019884109497e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 45,
+      "seconds": 1.7899961676448584e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 46,
+      "seconds": 1.8000020645558834e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 47,
+      "seconds": 1.810002140700817e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 48,
+      "seconds": 1.799996243789792e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 49,
+      "seconds": 1.8000020645558834e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 50,
+      "seconds": 1.7099955584853888e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 51,
+      "seconds": 1.71000137925148e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 52,
+      "seconds": 1.6700010746717453e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 53,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 54,
+      "seconds": 1.650000922381878e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 55,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 56,
+      "seconds": 1.650000922381878e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 57,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 58,
+      "seconds": 2.1599989850074053e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 59,
+      "seconds": 1.7000013031065464e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 60,
+      "seconds": 8.359999628737569e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 61,
+      "seconds": 7.819995516911149e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 62,
+      "seconds": 7.6299998909235e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 63,
+      "seconds": 7.650000043213367e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 64,
+      "seconds": 7.619999814778566e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 65,
+      "seconds": 7.90000194683671e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 66,
+      "seconds": 7.989996811375022e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 67,
+      "seconds": 7.940002251416445e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 68,
+      "seconds": 8.000002708286047e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 69,
+      "seconds": 7.970002479851246e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 70,
+      "seconds": 3.389996709302068e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 71,
+      "seconds": 3.370002377778292e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 72,
+      "seconds": 3.290001768618822e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 73,
+      "seconds": 3.3299962524324656e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 74,
+      "seconds": 3.300001844763756e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 75,
+      "seconds": 3.290001768618822e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 76,
+      "seconds": 3.249995643272996e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 77,
+      "seconds": 3.270001616328955e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 78,
+      "seconds": 3.2400013878941536e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 79,
+      "seconds": 3.2599957194179296e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 80,
+      "seconds": 7.069995626807213e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 81,
+      "seconds": 7.06000137142837e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 82,
+      "seconds": 7.080001523718238e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 83,
+      "seconds": 6.900000153109431e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 84,
+      "seconds": 6.960000609979033e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 85,
+      "seconds": 6.910000229254365e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 86,
+      "seconds": 6.97999494150281e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 87,
+      "seconds": 6.800005212426186e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 88,
+      "seconds": 6.870005745440722e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 89,
+      "seconds": 6.830005440860987e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 90,
+      "seconds": 7.43999844416976e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 91,
+      "seconds": 6.930000381544232e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 92,
+      "seconds": 6.900000153109431e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 93,
+      "seconds": 6.970000686123967e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 94,
+      "seconds": 6.930000381544232e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 95,
+      "seconds": 6.960000609979033e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 96,
+      "seconds": 6.930000381544232e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 97,
+      "seconds": 6.940000457689166e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 98,
+      "seconds": 6.930000381544232e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 99,
+      "seconds": 6.960000609979033e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 100,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 101,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 102,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 103,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 104,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 105,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 106,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 107,
+      "seconds": 4.300032742321491e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 108,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 109,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 110,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 111,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 112,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 113,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 114,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 115,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 116,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 117,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 118,
+      "seconds": 4.300032742321491e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 119,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 120,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 121,
+      "seconds": 8.500006515532732e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 122,
+      "seconds": 8.400005754083395e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 123,
+      "seconds": 8.400005754083395e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 124,
+      "seconds": 8.399947546422482e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 125,
+      "seconds": 8.500006515532732e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 126,
+      "seconds": 1.3000040780752897e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 127,
+      "seconds": 8.79995059221983e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 128,
+      "seconds": 8.300004992634058e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 129,
+      "seconds": 8.200004231184721e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 130,
+      "seconds": 8.500006515532732e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 131,
+      "seconds": 2.400000812485814e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 132,
+      "seconds": 8.500006515532732e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 133,
+      "seconds": 8.199946023523808e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 134,
+      "seconds": 8.300004992634058e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 135,
+      "seconds": 8.200004231184721e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 136,
+      "seconds": 8.200004231184721e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 137,
+      "seconds": 8.400005754083395e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 138,
+      "seconds": 8.300004992634058e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 139,
+      "seconds": 8.400005754083395e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 140,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 141,
+      "seconds": 1.6700010746717453e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 142,
+      "seconds": 1.6700010746717453e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 143,
+      "seconds": 1.6300007700920105e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 144,
+      "seconds": 1.6199948731809855e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 145,
+      "seconds": 1.6300007700920105e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 146,
+      "seconds": 1.6300007700920105e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 147,
+      "seconds": 1.6400008462369442e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 148,
+      "seconds": 1.650000922381878e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 149,
+      "seconds": 1.6300007700920105e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 150,
+      "seconds": 1.680001150816679e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 151,
+      "seconds": 1.650000922381878e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 152,
+      "seconds": 1.680001150816679e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 153,
+      "seconds": 1.6799953300505877e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 154,
+      "seconds": 1.6700010746717453e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 155,
+      "seconds": 1.6400008462369442e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 156,
+      "seconds": 1.6400008462369442e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 157,
+      "seconds": 1.6400008462369442e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 158,
+      "seconds": 1.6300007700920105e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 159,
+      "seconds": 1.6499951016157866e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 160,
+      "seconds": 5.229999078437686e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 161,
+      "seconds": 5.169998621568084e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 162,
+      "seconds": 5.169998621568084e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 163,
+      "seconds": 5.169998621568084e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 164,
+      "seconds": 5.180004518479109e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 165,
+      "seconds": 5.119998240843415e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 166,
+      "seconds": 5.229999078437686e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 167,
+      "seconds": 5.15999854542315e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 168,
+      "seconds": 5.150004290044308e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 169,
+      "seconds": 5.150004290044308e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 170,
+      "seconds": 3.279995871707797e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 171,
+      "seconds": 3.1800009310245514e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 172,
+      "seconds": 3.160000778734684e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 173,
+      "seconds": 3.200001083314419e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 174,
+      "seconds": 3.1800009310245514e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 175,
+      "seconds": 3.1999952625483274e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 176,
+      "seconds": 3.200001083314419e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 177,
+      "seconds": 3.190001007169485e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 178,
+      "seconds": 3.649998689070344e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 179,
+      "seconds": 3.1800009310245514e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 180,
+      "seconds": 8.259998867288232e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 181,
+      "seconds": 0.00010130001464858651
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 182,
+      "seconds": 9.429996134713292e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 183,
+      "seconds": 8.590001380071044e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 184,
+      "seconds": 8.17000400274992e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 185,
+      "seconds": 8.080003317445517e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 186,
+      "seconds": 8.3099992480129e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 187,
+      "seconds": 8.129997877404094e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 188,
+      "seconds": 8.150003850460052e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 189,
+      "seconds": 8.259998867288232e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 190,
+      "seconds": 0.00012320000678300858
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 191,
+      "seconds": 6.669998401775956e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 192,
+      "seconds": 6.729998858645558e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 193,
+      "seconds": 6.699998630210757e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 194,
+      "seconds": 6.700004450976849e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 195,
+      "seconds": 6.78999931551516e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 196,
+      "seconds": 6.669998401775956e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 197,
+      "seconds": 6.719998782500625e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 198,
+      "seconds": 6.689998554065824e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 199,
+      "seconds": 6.700004450976849e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 200,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 201,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 202,
+      "seconds": 4.600035026669502e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 203,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 204,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 205,
+      "seconds": 4.500034265220165e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 206,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 207,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 208,
+      "seconds": 4.600035026669502e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 209,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 210,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 211,
+      "seconds": 4.600035026669502e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 212,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 213,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 214,
+      "seconds": 4.800036549568176e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 215,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 216,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 217,
+      "seconds": 4.600035026669502e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 218,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 219,
+      "seconds": 4.500034265220165e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 220,
+      "seconds": 8.90000956133008e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 221,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 222,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 223,
+      "seconds": 8.79995059221983e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 224,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 225,
+      "seconds": 8.90000956133008e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 226,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 227,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 228,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 229,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 230,
+      "seconds": 1.1499971151351929e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 231,
+      "seconds": 1.090002479031682e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 232,
+      "seconds": 1.0699965059757233e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 233,
+      "seconds": 9.400013368576765e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 234,
+      "seconds": 9.100011084228754e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 235,
+      "seconds": 9.000010322779417e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 236,
+      "seconds": 9.09995287656784e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 237,
+      "seconds": 9.200011845678091e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 238,
+      "seconds": 9.400013368576765e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 239,
+      "seconds": 9.200011845678091e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 240,
+      "seconds": 1.829996472224593e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 241,
+      "seconds": 1.850002445280552e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 242,
+      "seconds": 1.780001912266016e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 243,
+      "seconds": 1.8099963199347258e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 244,
+      "seconds": 1.7700018361210823e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 245,
+      "seconds": 2.3900007363408804e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 246,
+      "seconds": 1.8199963960796595e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 247,
+      "seconds": 1.8000020645558834e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 248,
+      "seconds": 1.7600017599761486e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 249,
+      "seconds": 1.7499958630651236e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 250,
+      "seconds": 1.8200022168457508e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 251,
+      "seconds": 1.7900019884109497e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 252,
+      "seconds": 1.8499966245144606e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 253,
+      "seconds": 1.7700018361210823e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 254,
+      "seconds": 1.750001683831215e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 255,
+      "seconds": 1.7599959392100573e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 256,
+      "seconds": 1.780001912266016e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 257,
+      "seconds": 1.7600017599761486e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 258,
+      "seconds": 1.7799960914999247e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 259,
+      "seconds": 1.7900019884109497e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 260,
+      "seconds": 3.479997394606471e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 261,
+      "seconds": 3.4400029107928276e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 262,
+      "seconds": 3.439997090026736e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 263,
+      "seconds": 3.460003063082695e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 264,
+      "seconds": 3.4299970138818026e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 265,
+      "seconds": 3.450002986937761e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 266,
+      "seconds": 3.44999716617167e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 267,
+      "seconds": 3.50000336766243e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 268,
+      "seconds": 3.460003063082695e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 269,
+      "seconds": 3.419996937736869e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 270,
+      "seconds": 3.539997851476073e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 271,
+      "seconds": 3.609998384490609e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 272,
+      "seconds": 3.550003748387098e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 273,
+      "seconds": 3.5299977753311396e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 274,
+      "seconds": 3.5100034438073635e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 275,
+      "seconds": 3.5400036722421646e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 276,
+      "seconds": 3.5299977753311396e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 277,
+      "seconds": 3.520003519952297e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 278,
+      "seconds": 3.4999975468963385e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 279,
+      "seconds": 3.509997623041272e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 280,
+      "seconds": 6.829999620094895e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 281,
+      "seconds": 6.86999992467463e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 282,
+      "seconds": 6.86999992467463e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 283,
+      "seconds": 6.78999931551516e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 284,
+      "seconds": 7.469998672604561e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 285,
+      "seconds": 6.970000686123967e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 286,
+      "seconds": 6.930000381544232e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 287,
+      "seconds": 6.829999620094895e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 288,
+      "seconds": 6.86999992467463e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 289,
+      "seconds": 6.78999931551516e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 290,
+      "seconds": 6.9500005338341e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 291,
+      "seconds": 0.00012969999806955457
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 292,
+      "seconds": 0.00011490000179037452
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 293,
+      "seconds": 8.699996396899223e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 294,
+      "seconds": 7.260002894327044e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 295,
+      "seconds": 7.269997149705887e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 296,
+      "seconds": 7.489998824894428e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 297,
+      "seconds": 6.990000838413835e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 298,
+      "seconds": 6.960000609979033e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 299,
+      "seconds": 7.14000198058784e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 300,
+      "seconds": 4.8999791033566e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 301,
+      "seconds": 4.8999791033566e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 302,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 303,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 304,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 305,
+      "seconds": 4.800036549568176e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 306,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 307,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 308,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 309,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 310,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 311,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 312,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 313,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 314,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 315,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 316,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 317,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 318,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 319,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 320,
+      "seconds": 1.2499978765845299e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 321,
+      "seconds": 1.260003773495555e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 322,
+      "seconds": 1.2200034689158201e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 323,
+      "seconds": 1.2199976481497288e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 324,
+      "seconds": 1.2200034689158201e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 325,
+      "seconds": 1.2199976481497288e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 326,
+      "seconds": 1.2199976481497288e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 327,
+      "seconds": 1.2300035450607538e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 328,
+      "seconds": 1.2199976481497288e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 329,
+      "seconds": 1.2200034689158201e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 330,
+      "seconds": 1.1700030881911516e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 331,
+      "seconds": 1.1299969628453255e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 332,
+      "seconds": 1.1700030881911516e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 333,
+      "seconds": 1.1399970389902592e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 334,
+      "seconds": 1.1400028597563505e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 335,
+      "seconds": 1.1700030881911516e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 336,
+      "seconds": 1.1499971151351929e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 337,
+      "seconds": 1.160003012046218e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 338,
+      "seconds": 1.1599971912801266e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 339,
+      "seconds": 1.1200027074664831e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 340,
+      "seconds": 4.3599982745945454e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 341,
+      "seconds": 4.090002039447427e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 342,
+      "seconds": 4.0700018871575594e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 343,
+      "seconds": 4.079996142536402e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 344,
+      "seconds": 4.0300015825778246e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 345,
+      "seconds": 4.0000013541430235e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 346,
+      "seconds": 4.029995761811733e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 347,
+      "seconds": 4.020001506432891e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 348,
+      "seconds": 4.020001506432891e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 349,
+      "seconds": 3.99000127799809e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 350,
+      "seconds": 4.1199964471161366e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 351,
+      "seconds": 4.0700018871575594e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 352,
+      "seconds": 4.080001963302493e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 353,
+      "seconds": 4.0599959902465343e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 354,
+      "seconds": 4.040001658722758e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 355,
+      "seconds": 4.050001734867692e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 356,
+      "seconds": 4.0300015825778246e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 357,
+      "seconds": 4.040001658722758e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 358,
+      "seconds": 4.0300015825778246e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 359,
+      "seconds": 4.0300015825778246e-05
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 360,
+      "seconds": 0.0001430999836884439
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 361,
+      "seconds": 0.0001344000338576734
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 362,
+      "seconds": 0.00013559998478740454
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 363,
+      "seconds": 0.00018769997404888272
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 364,
+      "seconds": 0.0001477000187151134
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 365,
+      "seconds": 0.0001748999929986894
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 366,
+      "seconds": 0.00029039999935775995
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 367,
+      "seconds": 0.0003227999550290406
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 368,
+      "seconds": 0.0003132999991066754
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 369,
+      "seconds": 0.00030429998878389597
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 370,
+      "seconds": 0.00013910001143813133
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 371,
+      "seconds": 0.00013889995170757174
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 372,
+      "seconds": 0.00013670005137100816
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 373,
+      "seconds": 0.0001343999756500125
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 374,
+      "seconds": 0.00013320002472028136
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 375,
+      "seconds": 0.00013310002395883203
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 376,
+      "seconds": 0.0001379000023007393
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 377,
+      "seconds": 0.0001330000231973827
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 378,
+      "seconds": 0.00013349996879696846
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 379,
+      "seconds": 0.00014110002666711807
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 380,
+      "seconds": 0.0005892000044696033
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 381,
+      "seconds": 0.0005990999634377658
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 382,
+      "seconds": 0.0011153999948874116
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 383,
+      "seconds": 0.0006826000171713531
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 384,
+      "seconds": 0.0005628999788314104
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 385,
+      "seconds": 0.0005629000370390713
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 386,
+      "seconds": 0.0007343000033870339
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 387,
+      "seconds": 0.0005918000242672861
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 388,
+      "seconds": 0.0005630999803543091
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 389,
+      "seconds": 0.0005526000168174505
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 390,
+      "seconds": 0.0006273000035434961
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 391,
+      "seconds": 0.0006836000247858465
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 392,
+      "seconds": 0.000618099991697818
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 393,
+      "seconds": 0.0005835999618284404
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 394,
+      "seconds": 0.000577300030272454
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 395,
+      "seconds": 0.0005781999789178371
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 396,
+      "seconds": 0.0005756000173278153
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 397,
+      "seconds": 0.0005716999876312912
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 398,
+      "seconds": 0.0005740000051446259
+    },
+    {
+      "algorithm": "connected_components",
+      "impl": "imperative",
+      "size": "",
+      "trial": 399,
+      "seconds": 0.0005921999691054225
+    }
+  ],
+  "rule_based_timings": [
+    0.00014429999282583594,
+    0.00014949997421354055,
+    0.00014860002556815743,
+    0.000146100006531924,
+    0.0001507000415585935,
+    0.00014159997226670384,
+    0.00014000001829117537,
+    0.00015310000162571669,
+    0.0001490999711677432,
+    0.00014369998825713992,
+    0.0001482999650761485,
+    0.0001436000457033515,
+    0.0001438999897800386,
+    0.00020549999317154288,
+    0.0005737000028602779,
+    0.0003337000380270183,
+    0.00033740000799298286,
+    0.0003336999798193574,
+    0.000325599976349622,
+    0.00029559998074546456,
+    0.0005655999993905425,
+    0.0005576999974437058,
+    0.0005629999795928597,
+    0.00056900002527982,
+    0.0005459999665617943,
+    0.0005494000506587327,
+    0.0005599000141955912,
+    0.000846399983856827,
+    0.0011042000260204077,
+    0.0006067999638617039,
+    0.0005598999559879303,
+    0.0005671000108122826,
+    0.0005665000062435865,
+    0.0005596000119112432,
+    0.000561599968932569,
+    0.0005814000032842159,
+    0.0006189999985508621,
+    0.0010107000125572085,
+    0.0005727999960072339,
+    0.0005700999754481018,
+    0.0022496000165119767,
+    0.0025661999825388193,
+    0.0027215000009164214,
+    0.00318389997119084,
+    0.0023185000172816217,
+    0.0024483000161126256,
+    0.003400399989914149,
+    0.0022926999954506755,
+    0.00226979999570176,
+    0.0025201999815180898,
+    0.0024234000011347234,
+    0.002332200005184859,
+    0.0026175000239163637,
+    0.0022706000017933547,
+    0.0022603999823331833,
+    0.0022933000000193715,
+    0.0024710000143386424,
+    0.0023985999869182706,
+    0.0024212999851442873,
+    0.0023597999825142324,
+    0.010316900035832077,
+    0.009969600010663271,
+    0.009171499987132847,
+    0.009350000007543713,
+    0.00919620000058785,
+    0.009124399977736175,
+    0.009301699989009649,
+    0.010264999989885837,
+    0.01007050002226606,
+    0.010872199956793338,
+    0.00965280004311353,
+    0.010170700028538704,
+    0.009361099975649267,
+    0.010302399983629584,
+    0.011008800007402897,
+    0.009509299998171628,
+    0.009840299957431853,
+    0.01041270000860095,
+    0.010968799993861467,
+    0.010490200016647577,
+    0.038814399973489344,
+    0.038682300015352666,
+    0.04012180003337562,
+    0.038900299987290055,
+    0.04175940004643053,
+    0.044041700020898134,
+    0.040953699965029955,
+    0.04350480000721291,
+    0.04492089996347204,
+    0.04145979997701943,
+    0.04281060001812875,
+    0.04485669999849051,
+    0.04522759997053072,
+    0.04454620002070442,
+    0.0412720000022091,
+    0.042457500007003546,
+    0.04387220001081005,
+    0.04401870002038777,
+    0.042244100011885166,
+    0.04193860001396388,
+    7.749994983896613e-05,
+    7.71000050008297e-05,
+    7.71000050008297e-05,
+    7.700000423938036e-05,
+    7.619999814778566e-05,
+    7.690000347793102e-05,
+    7.770000956952572e-05,
+    7.680000271648169e-05,
+    8.319999324157834e-05,
+    7.969996659085155e-05,
+    7.950002327561378e-05,
+    7.909996202215552e-05,
+    7.870001718401909e-05,
+    7.90000194683671e-05,
+    7.799995364621282e-05,
+    7.770000956952572e-05,
+    8.020002860575914e-05,
+    7.989996811375022e-05,
+    8.060003165155649e-05,
+    8.059997344389558e-05,
+    0.00030400004470720887,
+    0.0006220999639481306,
+    0.0006894000107422471,
+    0.0006722999969497323,
+    0.0003597000031732023,
+    0.00030069996137171984,
+    0.0003087000222876668,
+    0.0003076000139117241,
+    0.00030619994504377246,
+    0.0003087000222876668,
+    0.0002997000119648874,
+    0.0003102999762631953,
+    0.0003025000332854688,
+    0.0003100999747402966,
+    0.00029500003438442945,
+    0.00029289996018633246,
+    0.00029880000511184335,
+    0.00029749999521300197,
+    0.0003025000332854688,
+    0.00029199995333328843,
+    0.0011999999987892807,
+    0.0011672000400722027,
+    0.00114540004869923,
+    0.0012598999892361462,
+    0.001149199961218983,
+    0.0011418000212870538,
+    0.0012102000182494521,
+    0.0011693999986164272,
+    0.0011594999814406037,
+    0.0011535999947227538,
+    0.0011683999910019338,
+    0.0011628000065684319,
+    0.001166999980341643,
+    0.0011660000309348106,
+    0.0019685999723151326,
+    0.001435499987564981,
+    0.0011832999880425632,
+    0.0011375999893061817,
+    0.0012325000134296715,
+    0.0011577000259421766,
+    0.0058722999528981745,
+    0.004616399994120002,
+    0.005092200008220971,
+    0.004694800009019673,
+    0.004748000006657094,
+    0.007282800041139126,
+    0.004967099986970425,
+    0.0045698999892920256,
+    0.005819600017275661,
+    0.0048139000427909195,
+    0.004989600041881204,
+    0.0060900000389665365,
+    0.004660899983718991,
+    0.004856100014876574,
+    0.005556400050409138,
+    0.004687500011641532,
+    0.005127599986735731,
+    0.00491160003002733,
+    0.006336499995086342,
+    0.004903299966827035,
+    0.021853199985343963,
+    0.021776999987196177,
+    0.02137219998985529,
+    0.021349399990867823,
+    0.02114269998855889,
+    0.02032030001282692,
+    0.020219800004269928,
+    0.021899299987126142,
+    0.021335500001441687,
+    0.02108340000268072,
+    0.023335599980782717,
+    0.0217871000058949,
+    0.02077060000738129,
+    0.022155400016345084,
+    0.020745099987834692,
+    0.02297799999359995,
+    0.021126999985426664,
+    0.021648900001309812,
+    0.020574300026055425,
+    0.02015419997042045,
+    1.0499963536858559e-05,
+    1.0700023267418146e-05,
+    1.1499971151351929e-05,
+    1.0300020221620798e-05,
+    1.090002479031682e-05,
+    1.0500021744519472e-05,
+    1.0500021744519472e-05,
+    1.0299962013959885e-05,
+    1.0200019460171461e-05,
+    1.0200019460171461e-05,
+    1.0700023267418146e-05,
+    1.0299962013959885e-05,
+    1.0400020983070135e-05,
+    1.0000017937272787e-05,
+    1.009996049106121e-05,
+    9.90001717582345e-06,
+    1.0100018698722124e-05,
+    9.999959729611874e-06,
+    1.0100018698722124e-05,
+    1.0100018698722124e-05,
+    2.0299979951232672e-05,
+    1.9900035113096237e-05,
+    2.1099986042827368e-05,
+    2.0299979951232672e-05,
+    2.0000035874545574e-05,
+    1.999997766688466e-05,
+    1.9199971575289965e-05,
+    2.0600040443241596e-05,
+    1.969997538253665e-05,
+    1.98000343516469e-05,
+    1.9799976143985987e-05,
+    1.969997538253665e-05,
+    1.9700033590197563e-05,
+    1.999997766688466e-05,
+    1.950003206729889e-05,
+    2.0499981474131346e-05,
+    5.989999044686556e-05,
+    2.829998265951872e-05,
+    2.1400046534836292e-05,
+    2.1300045773386955e-05,
+    3.899994771927595e-05,
+    3.890000516548753e-05,
+    4.010001430287957e-05,
+    3.950000973418355e-05,
+    3.8700003642588854e-05,
+    4.029995761811733e-05,
+    3.9700011257082224e-05,
+    3.8700003642588854e-05,
+    3.8700003642588854e-05,
+    3.9000005926936865e-05,
+    4.39999857917428e-05,
+    3.890000516548753e-05,
+    3.91000066883862e-05,
+    4.010001430287957e-05,
+    4.020001506432891e-05,
+    4.099996294826269e-05,
+    4.020001506432891e-05,
+    3.840000135824084e-05,
+    3.840000135824084e-05,
+    3.9700011257082224e-05,
+    7.650000043213367e-05,
+    8.179998258128762e-05,
+    7.720000576227903e-05,
+    7.800001185387373e-05,
+    7.720000576227903e-05,
+    7.810001261532307e-05,
+    7.92999635450542e-05,
+    7.639999967068434e-05,
+    7.830001413822174e-05,
+    7.830001413822174e-05,
+    7.999996887519956e-05,
+    7.920002099126577e-05,
+    8.029997115954757e-05,
+    8.399999933317304e-05,
+    7.670000195503235e-05,
+    7.720000576227903e-05,
+    7.760000880807638e-05,
+    7.660000119358301e-05,
+    7.870001718401909e-05,
+    8.209998486563563e-05,
+    0.00015780003741383553,
+    0.0001555999624542892,
+    0.00019320001592859626,
+    0.0001718999701552093,
+    0.00016980001237243414,
+    0.0001666999887675047,
+    0.0001666999887675047,
+    0.00016760005382820964,
+    0.00017040001694113016,
+    0.00016629998572170734,
+    0.0003777000238187611,
+    0.0003850000211969018,
+    0.00025949999690055847,
+    0.00015899998834356666,
+    0.00016009999671950936,
+    0.00016200001118704677,
+    0.00016439997125416994,
+    0.00016190001042559743,
+    0.00016080000204965472,
+    0.00016410002717748284,
+    0.00010409997776150703,
+    0.00011670001549646258,
+    0.00012099999003112316,
+    0.00011480000102892518,
+    0.00016840000171214342,
+    0.0001126999850384891,
+    0.00011239998275414109,
+    0.00010880001354962587,
+    0.00011170003563165665,
+    0.00010699999984353781,
+    9.049999061971903e-05,
+    8.999998681247234e-05,
+    9.159999899566174e-05,
+    8.980004349723458e-05,
+    9.129999671131372e-05,
+    9.44999628700316e-05,
+    8.950004121288657e-05,
+    9.569997200742364e-05,
+    8.889997843652964e-05,
+    8.830003207549453e-05,
+    0.00018609996186569333,
+    0.00018740002997219563,
+    0.0005879999953322113,
+    0.00042999995639547706,
+    0.0004222000134177506,
+    0.0004209000035189092,
+    0.00044139998499304056,
+    0.00019130000146105886,
+    0.0001832999987527728,
+    0.00018470000941306353,
+    0.00018720002844929695,
+    0.00019759999122470617,
+    0.0001908999984152615,
+    0.00018779997481033206,
+    0.00018620002083480358,
+    0.00018559995805844665,
+    0.00019010005053132772,
+    0.00018659996567294002,
+    0.00018740002997219563,
+    0.0001870999694801867,
+    0.0008157000411301851,
+    0.0007350000087171793,
+    0.0007282000151462853,
+    0.0007735000108368695,
+    0.0007333999965339899,
+    0.000831899989861995,
+    0.0008936999947763979,
+    0.0007394999847747386,
+    0.0007266000029630959,
+    0.0007157999789342284,
+    0.0006844000308774412,
+    0.0006781000411137938,
+    0.0007516999612562358,
+    0.0007112000021152198,
+    0.0006993000279180706,
+    0.0006831999635323882,
+    0.0006643999950028956,
+    0.0006703000399284065,
+    0.0010105000110343099,
+    0.001679200038779527,
+    0.0034883000189438462,
+    0.003525500011164695,
+    0.003437599982134998,
+    0.003534700023010373,
+    0.0034502000198699534,
+    0.0036994999973103404,
+    0.003399499983061105,
+    0.0033718000049702823,
+    0.003729899995960295,
+    0.0041179999825544655,
+    0.005478299979586154,
+    0.0042224000208079815,
+    0.004600199987180531,
+    0.004599599982611835,
+    0.004409999994095415,
+    0.004887000017333776,
+    0.004316599981393665,
+    0.00477369996951893,
+    0.004448499996215105,
+    0.005414100014604628,
+    0.02573530003428459,
+    0.02704060001997277,
+    0.024466899980325252,
+    0.024349500017706305,
+    0.031736800039652735,
+    0.04175740003120154,
+    0.04983680002624169,
+    0.050010700011625886,
+    0.0527274000342004,
+    0.033305599994491786,
+    0.05523870000615716,
+    0.062493400007952005,
+    0.05123329994967207,
+    0.054229000001214445,
+    0.06515889998991042,
+    0.050316100008785725,
+    0.05678970000008121,
+    0.06886390002910048,
+    0.06761100003495812,
+    0.05673670000396669
+  ],
+  "imperative_timings": [
+    4.799978341907263e-06,
+    4.699977580457926e-06,
+    4.700035788118839e-06,
+    4.699977580457926e-06,
+    4.500034265220165e-06,
+    4.699977580457926e-06,
+    4.499976057559252e-06,
+    4.600035026669502e-06,
+    4.499976057559252e-06,
+    4.499976057559252e-06,
+    4.699977580457926e-06,
+    4.500034265220165e-06,
+    4.399975296109915e-06,
+    4.400033503770828e-06,
+    4.300032742321491e-06,
+    4.299974534660578e-06,
+    4.400033503770828e-06,
+    4.299974534660578e-06,
+    4.300032742321491e-06,
+    4.399975296109915e-06,
+    8.599949069321156e-06,
+    1.0200019460171461e-05,
+    8.400005754083395e-06,
+    9.000010322779417e-06,
+    8.400005754083395e-06,
+    8.79995059221983e-06,
+    8.800008799880743e-06,
+    8.300004992634058e-06,
+    8.400005754083395e-06,
+    8.400005754083395e-06,
+    9.000010322779417e-06,
+    8.800008799880743e-06,
+    8.800008799880743e-06,
+    8.800008799880743e-06,
+    8.700008038431406e-06,
+    8.79995059221983e-06,
+    8.800008799880743e-06,
+    8.700008038431406e-06,
+    8.600007276982069e-06,
+    8.500006515532732e-06,
+    1.8199963960796595e-05,
+    1.8200022168457508e-05,
+    1.810002140700817e-05,
+    1.799996243789792e-05,
+    1.7900019884109497e-05,
+    1.7899961676448584e-05,
+    1.8000020645558834e-05,
+    1.810002140700817e-05,
+    1.799996243789792e-05,
+    1.8000020645558834e-05,
+    1.7099955584853888e-05,
+    1.71000137925148e-05,
+    1.6700010746717453e-05,
+    1.6600009985268116e-05,
+    1.650000922381878e-05,
+    1.6600009985268116e-05,
+    1.650000922381878e-05,
+    1.6600009985268116e-05,
+    2.1599989850074053e-05,
+    1.7000013031065464e-05,
+    8.359999628737569e-05,
+    7.819995516911149e-05,
+    7.6299998909235e-05,
+    7.650000043213367e-05,
+    7.619999814778566e-05,
+    7.90000194683671e-05,
+    7.989996811375022e-05,
+    7.940002251416445e-05,
+    8.000002708286047e-05,
+    7.970002479851246e-05,
+    3.389996709302068e-05,
+    3.370002377778292e-05,
+    3.290001768618822e-05,
+    3.3299962524324656e-05,
+    3.300001844763756e-05,
+    3.290001768618822e-05,
+    3.249995643272996e-05,
+    3.270001616328955e-05,
+    3.2400013878941536e-05,
+    3.2599957194179296e-05,
+    7.069995626807213e-05,
+    7.06000137142837e-05,
+    7.080001523718238e-05,
+    6.900000153109431e-05,
+    6.960000609979033e-05,
+    6.910000229254365e-05,
+    6.97999494150281e-05,
+    6.800005212426186e-05,
+    6.870005745440722e-05,
+    6.830005440860987e-05,
+    7.43999844416976e-05,
+    6.930000381544232e-05,
+    6.900000153109431e-05,
+    6.970000686123967e-05,
+    6.930000381544232e-05,
+    6.960000609979033e-05,
+    6.930000381544232e-05,
+    6.940000457689166e-05,
+    6.930000381544232e-05,
+    6.960000609979033e-05,
+    4.400033503770828e-06,
+    4.399975296109915e-06,
+    4.400033503770828e-06,
+    4.299974534660578e-06,
+    4.399975296109915e-06,
+    4.400033503770828e-06,
+    4.499976057559252e-06,
+    4.300032742321491e-06,
+    4.399975296109915e-06,
+    4.399975296109915e-06,
+    4.400033503770828e-06,
+    4.299974534660578e-06,
+    4.599976819008589e-06,
+    4.400033503770828e-06,
+    4.399975296109915e-06,
+    4.400033503770828e-06,
+    4.299974534660578e-06,
+    4.299974534660578e-06,
+    4.300032742321491e-06,
+    4.299974534660578e-06,
+    8.600007276982069e-06,
+    8.500006515532732e-06,
+    8.400005754083395e-06,
+    8.400005754083395e-06,
+    8.399947546422482e-06,
+    8.500006515532732e-06,
+    1.3000040780752897e-05,
+    8.79995059221983e-06,
+    8.300004992634058e-06,
+    8.200004231184721e-06,
+    8.500006515532732e-06,
+    2.400000812485814e-05,
+    8.500006515532732e-06,
+    8.199946023523808e-06,
+    8.300004992634058e-06,
+    8.200004231184721e-06,
+    8.200004231184721e-06,
+    8.400005754083395e-06,
+    8.300004992634058e-06,
+    8.400005754083395e-06,
+    1.6600009985268116e-05,
+    1.6700010746717453e-05,
+    1.6700010746717453e-05,
+    1.6300007700920105e-05,
+    1.6199948731809855e-05,
+    1.6300007700920105e-05,
+    1.6300007700920105e-05,
+    1.6400008462369442e-05,
+    1.650000922381878e-05,
+    1.6300007700920105e-05,
+    1.680001150816679e-05,
+    1.650000922381878e-05,
+    1.680001150816679e-05,
+    1.6799953300505877e-05,
+    1.6700010746717453e-05,
+    1.6400008462369442e-05,
+    1.6400008462369442e-05,
+    1.6400008462369442e-05,
+    1.6300007700920105e-05,
+    1.6499951016157866e-05,
+    5.229999078437686e-05,
+    5.169998621568084e-05,
+    5.169998621568084e-05,
+    5.169998621568084e-05,
+    5.180004518479109e-05,
+    5.119998240843415e-05,
+    5.229999078437686e-05,
+    5.15999854542315e-05,
+    5.150004290044308e-05,
+    5.150004290044308e-05,
+    3.279995871707797e-05,
+    3.1800009310245514e-05,
+    3.160000778734684e-05,
+    3.200001083314419e-05,
+    3.1800009310245514e-05,
+    3.1999952625483274e-05,
+    3.200001083314419e-05,
+    3.190001007169485e-05,
+    3.649998689070344e-05,
+    3.1800009310245514e-05,
+    8.259998867288232e-05,
+    0.00010130001464858651,
+    9.429996134713292e-05,
+    8.590001380071044e-05,
+    8.17000400274992e-05,
+    8.080003317445517e-05,
+    8.3099992480129e-05,
+    8.129997877404094e-05,
+    8.150003850460052e-05,
+    8.259998867288232e-05,
+    0.00012320000678300858,
+    6.669998401775956e-05,
+    6.729998858645558e-05,
+    6.699998630210757e-05,
+    6.700004450976849e-05,
+    6.78999931551516e-05,
+    6.669998401775956e-05,
+    6.719998782500625e-05,
+    6.689998554065824e-05,
+    6.700004450976849e-05,
+    4.700035788118839e-06,
+    4.699977580457926e-06,
+    4.600035026669502e-06,
+    4.599976819008589e-06,
+    4.499976057559252e-06,
+    4.500034265220165e-06,
+    4.599976819008589e-06,
+    4.599976819008589e-06,
+    4.600035026669502e-06,
+    4.599976819008589e-06,
+    4.699977580457926e-06,
+    4.600035026669502e-06,
+    4.599976819008589e-06,
+    4.599976819008589e-06,
+    4.800036549568176e-06,
+    4.499976057559252e-06,
+    4.499976057559252e-06,
+    4.600035026669502e-06,
+    4.499976057559252e-06,
+    4.500034265220165e-06,
+    8.90000956133008e-06,
+    8.700008038431406e-06,
+    8.700008038431406e-06,
+    8.79995059221983e-06,
+    8.700008038431406e-06,
+    8.90000956133008e-06,
+    8.700008038431406e-06,
+    8.700008038431406e-06,
+    8.800008799880743e-06,
+    8.700008038431406e-06,
+    1.1499971151351929e-05,
+    1.090002479031682e-05,
+    1.0699965059757233e-05,
+    9.400013368576765e-06,
+    9.100011084228754e-06,
+    9.000010322779417e-06,
+    9.09995287656784e-06,
+    9.200011845678091e-06,
+    9.400013368576765e-06,
+    9.200011845678091e-06,
+    1.829996472224593e-05,
+    1.850002445280552e-05,
+    1.780001912266016e-05,
+    1.8099963199347258e-05,
+    1.7700018361210823e-05,
+    2.3900007363408804e-05,
+    1.8199963960796595e-05,
+    1.8000020645558834e-05,
+    1.7600017599761486e-05,
+    1.7499958630651236e-05,
+    1.8200022168457508e-05,
+    1.7900019884109497e-05,
+    1.8499966245144606e-05,
+    1.7700018361210823e-05,
+    1.750001683831215e-05,
+    1.7599959392100573e-05,
+    1.780001912266016e-05,
+    1.7600017599761486e-05,
+    1.7799960914999247e-05,
+    1.7900019884109497e-05,
+    3.479997394606471e-05,
+    3.4400029107928276e-05,
+    3.439997090026736e-05,
+    3.460003063082695e-05,
+    3.4299970138818026e-05,
+    3.450002986937761e-05,
+    3.44999716617167e-05,
+    3.50000336766243e-05,
+    3.460003063082695e-05,
+    3.419996937736869e-05,
+    3.539997851476073e-05,
+    3.609998384490609e-05,
+    3.550003748387098e-05,
+    3.5299977753311396e-05,
+    3.5100034438073635e-05,
+    3.5400036722421646e-05,
+    3.5299977753311396e-05,
+    3.520003519952297e-05,
+    3.4999975468963385e-05,
+    3.509997623041272e-05,
+    6.829999620094895e-05,
+    6.86999992467463e-05,
+    6.86999992467463e-05,
+    6.78999931551516e-05,
+    7.469998672604561e-05,
+    6.970000686123967e-05,
+    6.930000381544232e-05,
+    6.829999620094895e-05,
+    6.86999992467463e-05,
+    6.78999931551516e-05,
+    6.9500005338341e-05,
+    0.00012969999806955457,
+    0.00011490000179037452,
+    8.699996396899223e-05,
+    7.260002894327044e-05,
+    7.269997149705887e-05,
+    7.489998824894428e-05,
+    6.990000838413835e-05,
+    6.960000609979033e-05,
+    7.14000198058784e-05,
+    4.8999791033566e-06,
+    4.8999791033566e-06,
+    4.700035788118839e-06,
+    4.699977580457926e-06,
+    4.699977580457926e-06,
+    4.800036549568176e-06,
+    4.699977580457926e-06,
+    4.799978341907263e-06,
+    4.700035788118839e-06,
+    4.799978341907263e-06,
+    4.699977580457926e-06,
+    4.699977580457926e-06,
+    4.700035788118839e-06,
+    4.599976819008589e-06,
+    4.700035788118839e-06,
+    4.699977580457926e-06,
+    4.699977580457926e-06,
+    4.700035788118839e-06,
+    4.699977580457926e-06,
+    4.599976819008589e-06,
+    1.2499978765845299e-05,
+    1.260003773495555e-05,
+    1.2200034689158201e-05,
+    1.2199976481497288e-05,
+    1.2200034689158201e-05,
+    1.2199976481497288e-05,
+    1.2199976481497288e-05,
+    1.2300035450607538e-05,
+    1.2199976481497288e-05,
+    1.2200034689158201e-05,
+    1.1700030881911516e-05,
+    1.1299969628453255e-05,
+    1.1700030881911516e-05,
+    1.1399970389902592e-05,
+    1.1400028597563505e-05,
+    1.1700030881911516e-05,
+    1.1499971151351929e-05,
+    1.160003012046218e-05,
+    1.1599971912801266e-05,
+    1.1200027074664831e-05,
+    4.3599982745945454e-05,
+    4.090002039447427e-05,
+    4.0700018871575594e-05,
+    4.079996142536402e-05,
+    4.0300015825778246e-05,
+    4.0000013541430235e-05,
+    4.029995761811733e-05,
+    4.020001506432891e-05,
+    4.020001506432891e-05,
+    3.99000127799809e-05,
+    4.1199964471161366e-05,
+    4.0700018871575594e-05,
+    4.080001963302493e-05,
+    4.0599959902465343e-05,
+    4.040001658722758e-05,
+    4.050001734867692e-05,
+    4.0300015825778246e-05,
+    4.040001658722758e-05,
+    4.0300015825778246e-05,
+    4.0300015825778246e-05,
+    0.0001430999836884439,
+    0.0001344000338576734,
+    0.00013559998478740454,
+    0.00018769997404888272,
+    0.0001477000187151134,
+    0.0001748999929986894,
+    0.00029039999935775995,
+    0.0003227999550290406,
+    0.0003132999991066754,
+    0.00030429998878389597,
+    0.00013910001143813133,
+    0.00013889995170757174,
+    0.00013670005137100816,
+    0.0001343999756500125,
+    0.00013320002472028136,
+    0.00013310002395883203,
+    0.0001379000023007393,
+    0.0001330000231973827,
+    0.00013349996879696846,
+    0.00014110002666711807,
+    0.0005892000044696033,
+    0.0005990999634377658,
+    0.0011153999948874116,
+    0.0006826000171713531,
+    0.0005628999788314104,
+    0.0005629000370390713,
+    0.0007343000033870339,
+    0.0005918000242672861,
+    0.0005630999803543091,
+    0.0005526000168174505,
+    0.0006273000035434961,
+    0.0006836000247858465,
+    0.000618099991697818,
+    0.0005835999618284404,
+    0.000577300030272454,
+    0.0005781999789178371,
+    0.0005756000173278153,
+    0.0005716999876312912,
+    0.0005740000051446259,
+    0.0005921999691054225
+  ],
+  "timings_by_size": {
+    "32": [
+      0.00014429999282583594,
+      0.00014949997421354055,
+      0.00014860002556815743,
+      0.000146100006531924,
+      0.0001507000415585935,
+      0.00014159997226670384,
+      0.00014000001829117537,
+      0.00015310000162571669,
+      0.0001490999711677432,
+      0.00014369998825713992,
+      0.0001482999650761485,
+      0.0001436000457033515,
+      0.0001438999897800386,
+      0.00020549999317154288,
+      0.0005737000028602779,
+      0.0003337000380270183,
+      0.00033740000799298286,
+      0.0003336999798193574,
+      0.000325599976349622,
+      0.00029559998074546456,
+      7.749994983896613e-05,
+      7.71000050008297e-05,
+      7.71000050008297e-05,
+      7.700000423938036e-05,
+      7.619999814778566e-05,
+      7.690000347793102e-05,
+      7.770000956952572e-05,
+      7.680000271648169e-05,
+      8.319999324157834e-05,
+      7.969996659085155e-05,
+      7.950002327561378e-05,
+      7.909996202215552e-05,
+      7.870001718401909e-05,
+      7.90000194683671e-05,
+      7.799995364621282e-05,
+      7.770000956952572e-05,
+      8.020002860575914e-05,
+      7.989996811375022e-05,
+      8.060003165155649e-05,
+      8.059997344389558e-05,
+      1.0499963536858559e-05,
+      1.0700023267418146e-05,
+      1.1499971151351929e-05,
+      1.0300020221620798e-05,
+      1.090002479031682e-05,
+      1.0500021744519472e-05,
+      1.0500021744519472e-05,
+      1.0299962013959885e-05,
+      1.0200019460171461e-05,
+      1.0200019460171461e-05,
+      1.0700023267418146e-05,
+      1.0299962013959885e-05,
+      1.0400020983070135e-05,
+      1.0000017937272787e-05,
+      1.009996049106121e-05,
+      9.90001717582345e-06,
+      1.0100018698722124e-05,
+      9.999959729611874e-06,
+      1.0100018698722124e-05,
+      1.0100018698722124e-05,
+      0.00010409997776150703,
+      0.00011670001549646258,
+      0.00012099999003112316,
+      0.00011480000102892518,
+      0.00016840000171214342,
+      0.0001126999850384891,
+      0.00011239998275414109,
+      0.00010880001354962587,
+      0.00011170003563165665,
+      0.00010699999984353781,
+      9.049999061971903e-05,
+      8.999998681247234e-05,
+      9.159999899566174e-05,
+      8.980004349723458e-05,
+      9.129999671131372e-05,
+      9.44999628700316e-05,
+      8.950004121288657e-05,
+      9.569997200742364e-05,
+      8.889997843652964e-05,
+      8.830003207549453e-05
+    ],
+    "64": [
+      0.0005655999993905425,
+      0.0005576999974437058,
+      0.0005629999795928597,
+      0.00056900002527982,
+      0.0005459999665617943,
+      0.0005494000506587327,
+      0.0005599000141955912,
+      0.000846399983856827,
+      0.0011042000260204077,
+      0.0006067999638617039,
+      0.0005598999559879303,
+      0.0005671000108122826,
+      0.0005665000062435865,
+      0.0005596000119112432,
+      0.000561599968932569,
+      0.0005814000032842159,
+      0.0006189999985508621,
+      0.0010107000125572085,
+      0.0005727999960072339,
+      0.0005700999754481018,
+      0.00030400004470720887,
+      0.0006220999639481306,
+      0.0006894000107422471,
+      0.0006722999969497323,
+      0.0003597000031732023,
+      0.00030069996137171984,
+      0.0003087000222876668,
+      0.0003076000139117241,
+      0.00030619994504377246,
+      0.0003087000222876668,
+      0.0002997000119648874,
+      0.0003102999762631953,
+      0.0003025000332854688,
+      0.0003100999747402966,
+      0.00029500003438442945,
+      0.00029289996018633246,
+      0.00029880000511184335,
+      0.00029749999521300197,
+      0.0003025000332854688,
+      0.00029199995333328843,
+      2.0299979951232672e-05,
+      1.9900035113096237e-05,
+      2.1099986042827368e-05,
+      2.0299979951232672e-05,
+      2.0000035874545574e-05,
+      1.999997766688466e-05,
+      1.9199971575289965e-05,
+      2.0600040443241596e-05,
+      1.969997538253665e-05,
+      1.98000343516469e-05,
+      1.9799976143985987e-05,
+      1.969997538253665e-05,
+      1.9700033590197563e-05,
+      1.999997766688466e-05,
+      1.950003206729889e-05,
+      2.0499981474131346e-05,
+      5.989999044686556e-05,
+      2.829998265951872e-05,
+      2.1400046534836292e-05,
+      2.1300045773386955e-05,
+      0.00018609996186569333,
+      0.00018740002997219563,
+      0.0005879999953322113,
+      0.00042999995639547706,
+      0.0004222000134177506,
+      0.0004209000035189092,
+      0.00044139998499304056,
+      0.00019130000146105886,
+      0.0001832999987527728,
+      0.00018470000941306353,
+      0.00018720002844929695,
+      0.00019759999122470617,
+      0.0001908999984152615,
+      0.00018779997481033206,
+      0.00018620002083480358,
+      0.00018559995805844665,
+      0.00019010005053132772,
+      0.00018659996567294002,
+      0.00018740002997219563,
+      0.0001870999694801867
+    ],
+    "128": [
+      0.0022496000165119767,
+      0.0025661999825388193,
+      0.0027215000009164214,
+      0.00318389997119084,
+      0.0023185000172816217,
+      0.0024483000161126256,
+      0.003400399989914149,
+      0.0022926999954506755,
+      0.00226979999570176,
+      0.0025201999815180898,
+      0.0024234000011347234,
+      0.002332200005184859,
+      0.0026175000239163637,
+      0.0022706000017933547,
+      0.0022603999823331833,
+      0.0022933000000193715,
+      0.0024710000143386424,
+      0.0023985999869182706,
+      0.0024212999851442873,
+      0.0023597999825142324,
+      0.0011999999987892807,
+      0.0011672000400722027,
+      0.00114540004869923,
+      0.0012598999892361462,
+      0.001149199961218983,
+      0.0011418000212870538,
+      0.0012102000182494521,
+      0.0011693999986164272,
+      0.0011594999814406037,
+      0.0011535999947227538,
+      0.0011683999910019338,
+      0.0011628000065684319,
+      0.001166999980341643,
+      0.0011660000309348106,
+      0.0019685999723151326,
+      0.001435499987564981,
+      0.0011832999880425632,
+      0.0011375999893061817,
+      0.0012325000134296715,
+      0.0011577000259421766,
+      3.899994771927595e-05,
+      3.890000516548753e-05,
+      4.010001430287957e-05,
+      3.950000973418355e-05,
+      3.8700003642588854e-05,
+      4.029995761811733e-05,
+      3.9700011257082224e-05,
+      3.8700003642588854e-05,
+      3.8700003642588854e-05,
+      3.9000005926936865e-05,
+      4.39999857917428e-05,
+      3.890000516548753e-05,
+      3.91000066883862e-05,
+      4.010001430287957e-05,
+      4.020001506432891e-05,
+      4.099996294826269e-05,
+      4.020001506432891e-05,
+      3.840000135824084e-05,
+      3.840000135824084e-05,
+      3.9700011257082224e-05,
+      0.0008157000411301851,
+      0.0007350000087171793,
+      0.0007282000151462853,
+      0.0007735000108368695,
+      0.0007333999965339899,
+      0.000831899989861995,
+      0.0008936999947763979,
+      0.0007394999847747386,
+      0.0007266000029630959,
+      0.0007157999789342284,
+      0.0006844000308774412,
+      0.0006781000411137938,
+      0.0007516999612562358,
+      0.0007112000021152198,
+      0.0006993000279180706,
+      0.0006831999635323882,
+      0.0006643999950028956,
+      0.0006703000399284065,
+      0.0010105000110343099,
+      0.001679200038779527
+    ],
+    "256": [
+      0.010316900035832077,
+      0.009969600010663271,
+      0.009171499987132847,
+      0.009350000007543713,
+      0.00919620000058785,
+      0.009124399977736175,
+      0.009301699989009649,
+      0.010264999989885837,
+      0.01007050002226606,
+      0.010872199956793338,
+      0.00965280004311353,
+      0.010170700028538704,
+      0.009361099975649267,
+      0.010302399983629584,
+      0.011008800007402897,
+      0.009509299998171628,
+      0.009840299957431853,
+      0.01041270000860095,
+      0.010968799993861467,
+      0.010490200016647577,
+      0.0058722999528981745,
+      0.004616399994120002,
+      0.005092200008220971,
+      0.004694800009019673,
+      0.004748000006657094,
+      0.007282800041139126,
+      0.004967099986970425,
+      0.0045698999892920256,
+      0.005819600017275661,
+      0.0048139000427909195,
+      0.004989600041881204,
+      0.0060900000389665365,
+      0.004660899983718991,
+      0.004856100014876574,
+      0.005556400050409138,
+      0.004687500011641532,
+      0.005127599986735731,
+      0.00491160003002733,
+      0.006336499995086342,
+      0.004903299966827035,
+      7.650000043213367e-05,
+      8.179998258128762e-05,
+      7.720000576227903e-05,
+      7.800001185387373e-05,
+      7.720000576227903e-05,
+      7.810001261532307e-05,
+      7.92999635450542e-05,
+      7.639999967068434e-05,
+      7.830001413822174e-05,
+      7.830001413822174e-05,
+      7.999996887519956e-05,
+      7.920002099126577e-05,
+      8.029997115954757e-05,
+      8.399999933317304e-05,
+      7.670000195503235e-05,
+      7.720000576227903e-05,
+      7.760000880807638e-05,
+      7.660000119358301e-05,
+      7.870001718401909e-05,
+      8.209998486563563e-05,
+      0.0034883000189438462,
+      0.003525500011164695,
+      0.003437599982134998,
+      0.003534700023010373,
+      0.0034502000198699534,
+      0.0036994999973103404,
+      0.003399499983061105,
+      0.0033718000049702823,
+      0.003729899995960295,
+      0.0041179999825544655,
+      0.005478299979586154,
+      0.0042224000208079815,
+      0.004600199987180531,
+      0.004599599982611835,
+      0.004409999994095415,
+      0.004887000017333776,
+      0.004316599981393665,
+      0.00477369996951893,
+      0.004448499996215105,
+      0.005414100014604628
+    ],
+    "512": [
+      0.038814399973489344,
+      0.038682300015352666,
+      0.04012180003337562,
+      0.038900299987290055,
+      0.04175940004643053,
+      0.044041700020898134,
+      0.040953699965029955,
+      0.04350480000721291,
+      0.04492089996347204,
+      0.04145979997701943,
+      0.04281060001812875,
+      0.04485669999849051,
+      0.04522759997053072,
+      0.04454620002070442,
+      0.0412720000022091,
+      0.042457500007003546,
+      0.04387220001081005,
+      0.04401870002038777,
+      0.042244100011885166,
+      0.04193860001396388,
+      0.021853199985343963,
+      0.021776999987196177,
+      0.02137219998985529,
+      0.021349399990867823,
+      0.02114269998855889,
+      0.02032030001282692,
+      0.020219800004269928,
+      0.021899299987126142,
+      0.021335500001441687,
+      0.02108340000268072,
+      0.023335599980782717,
+      0.0217871000058949,
+      0.02077060000738129,
+      0.022155400016345084,
+      0.020745099987834692,
+      0.02297799999359995,
+      0.021126999985426664,
+      0.021648900001309812,
+      0.020574300026055425,
+      0.02015419997042045,
+      0.00015780003741383553,
+      0.0001555999624542892,
+      0.00019320001592859626,
+      0.0001718999701552093,
+      0.00016980001237243414,
+      0.0001666999887675047,
+      0.0001666999887675047,
+      0.00016760005382820964,
+      0.00017040001694113016,
+      0.00016629998572170734,
+      0.0003777000238187611,
+      0.0003850000211969018,
+      0.00025949999690055847,
+      0.00015899998834356666,
+      0.00016009999671950936,
+      0.00016200001118704677,
+      0.00016439997125416994,
+      0.00016190001042559743,
+      0.00016080000204965472,
+      0.00016410002717748284,
+      0.02573530003428459,
+      0.02704060001997277,
+      0.024466899980325252,
+      0.024349500017706305,
+      0.031736800039652735,
+      0.04175740003120154,
+      0.04983680002624169,
+      0.050010700011625886,
+      0.0527274000342004,
+      0.033305599994491786,
+      0.05523870000615716,
+      0.062493400007952005,
+      0.05123329994967207,
+      0.054229000001214445,
+      0.06515889998991042,
+      0.050316100008785725,
+      0.05678970000008121,
+      0.06886390002910048,
+      0.06761100003495812,
+      0.05673670000396669
+    ]
+  }
+}

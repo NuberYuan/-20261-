@@ -80,11 +80,25 @@ class CodeContextBuilder:
         return [fr_map.get(i, {"id": i, "what": "", "acceptance": ""}) for i in ids]
 
     def _related_code(self, file: str, spec: dict, generated: dict) -> dict:
-        """提取该文件依赖的、已经生成的代码。"""
+        """提取该文件依赖的已生成代码的「接口摘要」（签名级，非完整源码）。
+
+        生成/修复 prompt 只需对齐名字与调用签名；完整源码会让 prompt 膨胀数倍，
+        拖慢 prefill 并推高成本。.py 给类/函数签名摘要，.yaml 给键树摘要，
+        文档类依赖（.md/.txt）不进 prompt。
+        """
         related = {}
         for dep in spec.get("depends_on", []) or []:
-            if dep in generated:
-                related[dep] = generated[dep]
+            code = generated.get(dep)
+            if code is None:
+                continue
+            if dep.endswith((".yaml", ".yml")):
+                digest = CodeValidator.config_digest(code)
+            elif dep.endswith(".py"):
+                digest = CodeValidator.interface_digest(code)
+            else:
+                continue
+            if digest:
+                related[dep] = digest
         return related
 
     # ============================================================
@@ -144,8 +158,22 @@ class CodeContextBuilder:
             "datasets": ds.get("datasets", []),
             "dataset_versions": ds.get("dataset_versions", []),
             "preprocessing": ds.get("preprocessing", {}),
-            "split_strategy": ds.get("split_strategy", {}),
+            "split_strategy": self._split_strategy_with_leaf(ds),
         }
+
+    def _split_strategy_with_leaf(self, ds: dict) -> dict:
+        """split_strategy + leaf_mapping 依赖（Step6 登记，leaf_based_split 时存在）。
+
+        让 config.yaml / dataset.py 在生成期就知道映射文件路径与缺失处理约定，
+        避免 dataset.py 捏造路径或静默回退随机划分。
+        """
+        ss = dict(ds.get("split_strategy", {}) or {})
+        leaf = self.brief.get("data_dependency", {}).get("leaf_mapping")
+        if isinstance(leaf, dict) and leaf.get("required"):
+            ss["leaf_mapping_file"] = leaf.get("file", "data/leaf_mappings.csv")
+            ss["leaf_mapping_constraint"] = leaf.get("constraint", "")
+            ss["leaf_mapping_on_missing"] = leaf.get("on_missing", "")
+        return ss
 
     def _training_detail(self) -> dict:
         """取完整训练配置（含训练模式与 checkpoint）。"""
@@ -178,7 +206,7 @@ class CodeContextBuilder:
             "inference": tc.get("inference", {}),
             "dataset_versions": ds.get("dataset_versions", []),
             "version_selector": ds.get("preprocessing", {}).get("version_selector", {}),
-            "split_strategy": ds.get("split_strategy", {}),
+            "split_strategy": self._split_strategy_with_leaf(ds),
         }
 
     # ============================================================

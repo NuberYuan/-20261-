@@ -1,0 +1,19 @@
+{
+  "table_id": "table_1",
+  "table_type": "model_architecture",
+  "caption_summary": "Schematic showing the interface connections of the controller with input, output, and memory interfaces in the Differentiable Neural Computer architecture.",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": null,
+    "key_values": [
+      {"label": "Input Interface", "value": "Interface between external input and controller"},
+      {"label": "Output Interface", "value": "Interface between controller and external output"},
+      {"label": "Memory Interface", "value": "Interface between controller and external memory"},
+      {"label": "Controller Output", "value": "Controller state output (current and future states)"},
+      {"label": "Controller Input", "value": "Controller state input"},
+      {"label": "State", "value": "Current and Future controller states"}
+    ]
+  },
+  "table_summary": "This table is an architectural diagram (not a numerical results table) depicting the wiring of the controller in a Differentiable Neural Computer (DNC) model. It illustrates three main interfaces—Input Interface, Output Interface, and Memory Interface—connected to the Controller Input and Controller Output, with states spanning current and future time steps. No numerical data is present; the table serves as a structural reference for the model's modular design."
+}

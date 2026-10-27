@@ -1,0 +1,216 @@
+import os
+import numpy as np
+import torch
+import yaml
+from typing import Optional, Dict, Union, List
+
+
+def load_config(config_path: Optional[str] = None) -> Dict:
+    """Load configuration from config/config.yaml using yaml.safe_load.
+
+    Args:
+        config_path: Path to YAML config file. If None, resolves to
+            <project_root>/config/config.yaml relative to this file.
+
+    Returns:
+        Configuration dictionary, or empty dict if file not found.
+    """
+    if config_path is None:
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'config',
+            'config.yaml',
+        )
+    if not os.path.exists(config_path):
+        return {}
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    return config if config is not None else {}
+
+
+def compute_metrics(
+    predictions: Optional[Union[np.ndarray, torch.Tensor, list]] = None,
+    labels: Optional[Union[np.ndarray, torch.Tensor, list]] = None,
+    num_classes: Optional[int] = None,
+    config: Optional[Dict] = None,
+    class_names: Optional[List[str]] = None,
+) -> Dict:
+    """Compute evaluation metrics for image-based plant disease detection.
+
+    FR-09: Computes Mean F1 score, mean precision, mean recall, and overall
+    accuracy on the provided predictions and ground-truth labels.  Per-class
+    metrics are also returned so that results can be compared with
+    paper-reported values.
+
+    Args:
+        predictions: Model predictions.  Shape ``[N]`` (integer class indices)
+            or ``[N, C]`` (logits / probabilities — argmax is applied).
+            Defaults to ``None`` (returns zero-valued metrics).
+        labels: Ground-truth class indices, shape ``[N]``.
+            Defaults to ``None`` (returns zero-valued metrics).
+        num_classes: Total number of classes.  If ``None`` it is inferred from
+            the data or read from ``config``.
+        config: Optional configuration dictionary (loaded via ``load_config``).
+        class_names: Optional list of human-readable class names for per-class
+            reporting.  Must have length ``num_classes``.
+
+    Returns:
+        Dictionary containing:
+            - ``mean_f1``:          Macro-averaged F1 score.
+            - ``mean_precision``:   Macro-averaged precision.
+            - ``mean_recall``:      Macro-averaged recall.
+            - ``accuracy``:         Overall (micro) accuracy.
+            - ``per_class_precision``:  list of per-class precisions.
+            - ``per_class_recall``:     list of per-class recalls.
+            - ``per_class_f1``:         list of per-class F1 scores.
+            - ``support``:              list of per-class sample counts.
+    """
+    # ------------------------------------------------------------------ #
+    # 0. Graceful handling of missing inputs
+    # ------------------------------------------------------------------ #
+    if predictions is None or labels is None:
+        return {
+            'mean_f1': 0.0,
+            'mean_precision': 0.0,
+            'mean_recall': 0.0,
+            'accuracy': 0.0,
+            'per_class_precision': [],
+            'per_class_recall': [],
+            'per_class_f1': [],
+            'support': [],
+        }
+
+    # ------------------------------------------------------------------ #
+    # 1. Convert to NumPy arrays
+    # ------------------------------------------------------------------ #
+    if isinstance(predictions, torch.Tensor):
+        predictions = predictions.detach().cpu().numpy()
+    elif isinstance(predictions, (list, tuple)):
+        predictions = np.asarray(predictions)
+
+    if isinstance(labels, torch.Tensor):
+        labels = labels.detach().cpu().numpy()
+    elif isinstance(labels, (list, tuple)):
+        labels = np.asarray(labels)
+
+    # ------------------------------------------------------------------ #
+    # 2. Derive predicted class indices
+    # ------------------------------------------------------------------ #
+    if predictions.ndim == 2:
+        pred_classes = np.argmax(predictions, axis=1)
+    elif predictions.ndim > 2:
+        # Flatten all but the last (class) dimension, then argmax
+        reshaped = predictions.reshape(-1, predictions.shape[-1])
+        pred_classes = np.argmax(reshaped, axis=1)
+    else:
+        pred_classes = predictions.astype(np.int64).flatten()
+
+    labels = labels.astype(np.int64).flatten()
+
+    # Validate sample count
+    if pred_classes.shape[0] != labels.shape[0]:
+        raise ValueError(
+            "Prediction count ({}) does not match label count ({})".format(
+                pred_classes.shape[0], labels.shape[0]
+            )
+        )
+
+    n_samples = int(labels.shape[0])
+    if n_samples == 0:
+        return {
+            'mean_f1': 0.0,
+            'mean_precision': 0.0,
+            'mean_recall': 0.0,
+            'accuracy': 0.0,
+            'per_class_precision': [],
+            'per_class_recall': [],
+            'per_class_f1': [],
+            'support': [],
+        }
+
+    # ------------------------------------------------------------------ #
+    # 3. Determine num_classes
+    # ------------------------------------------------------------------ #
+    if num_classes is None:
+        num_classes_val = None
+        if config is not None and isinstance(config, dict):
+            num_classes_val = config.get('num_classes', None)
+            if num_classes_val is None:
+                data_cfg = config.get('data', {})
+                if isinstance(data_cfg, dict):
+                    num_classes_val = data_cfg.get('num_classes', None)
+        if num_classes_val is None:
+            all_vals = np.concatenate([pred_classes, labels])
+            num_classes_val = int(all_vals.max()) + 1
+        num_classes = int(num_classes_val)
+
+    num_classes = int(num_classes)
+    if num_classes <= 0:
+        raise ValueError("num_classes must be a positive integer")
+
+    # Clamp indices into valid range
+    pred_classes = np.clip(pred_classes, 0, num_classes - 1)
+    labels = np.clip(labels, 0, num_classes - 1)
+
+    # ------------------------------------------------------------------ #
+    # 4. Build confusion matrix
+    # ------------------------------------------------------------------ #
+    confusion = np.zeros((num_classes, num_classes), dtype=np.int64)
+    for true_c, pred_c in zip(labels, pred_classes):
+        confusion[true_c, pred_c] += 1
+
+    # Per-class TP / FP / FN / support
+    tp = np.diag(confusion).astype(np.float64)
+    fp = confusion.sum(axis=0).astype(np.float64) - tp
+    fn = confusion.sum(axis=1).astype(np.float64) - tp
+    support = confusion.sum(axis=1).astype(np.float64)
+
+    # ------------------------------------------------------------------ #
+    # 5. Per-class precision, recall, F1
+    # ------------------------------------------------------------------ #
+    per_class_precision = np.zeros(num_classes, dtype=np.float64)
+    per_class_recall = np.zeros(num_classes, dtype=np.float64)
+    per_class_f1 = np.zeros(num_classes, dtype=np.float64)
+
+    for c in range(num_classes):
+        denom_p = tp[c] + fp[c]
+        if denom_p > 0:
+            per_class_precision[c] = tp[c] / denom_p
+
+        denom_r = tp[c] + fn[c]
+        if denom_r > 0:
+            per_class_recall[c] = tp[c] / denom_r
+
+        denom_f = per_class_precision[c] + per_class_recall[c]
+        if denom_f > 0:
+            per_class_f1[c] = (
+                2.0 * per_class_precision[c] * per_class_recall[c] / denom_f
+            )
+
+    # ------------------------------------------------------------------ #
+    # 6. Overall accuracy and macro-averaged metrics
+    # ------------------------------------------------------------------ #
+    accuracy = float(tp.sum()) / float(n_samples)
+    mean_precision = float(np.mean(per_class_precision))
+    mean_recall = float(np.mean(per_class_recall))
+    mean_f1 = float(np.mean(per_class_f1))
+
+    # ------------------------------------------------------------------ #
+    # 7. Assemble result
+    # ------------------------------------------------------------------ #
+    result = {
+        'mean_f1': mean_f1,
+        'mean_precision': mean_precision,
+        'mean_recall': mean_recall,
+        'accuracy': accuracy,
+        'per_class_precision': per_class_precision.tolist(),
+        'per_class_recall': per_class_recall.tolist(),
+        'per_class_f1': per_class_f1.tolist(),
+        'support': support.astype(int).tolist(),
+    }
+
+    # Optional: attach class names for readability
+    if class_names is not None and len(class_names) == num_classes:
+        result['class_names'] = list(class_names)
+
+    return result

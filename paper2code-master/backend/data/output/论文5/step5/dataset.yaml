@@ -1,38 +1,41 @@
 paper_name: 论文5
 data_source: external_dataset
 acquisition: local_path
-data_source_note: 论文明确使用 UCI Electricity、UCI Traffic、Kaggle Favorita Retail 和 OMI
-  realized Volatility 等公开真实数据集进行实验。
+data_source_note: 论文明确使用 Electricity (UCI)、Traffic (UCI PEM-SF)、Retail (Kaggle Favorita)、Volatility
+  (Oxford-Man realized library) 四个真实外部数据集，来源需手动下载/注册获取，故为 local_path
 datasets:
-- name: Electricity, Traffic, Retail, Volatility
-  source: 'Electricity: UCI Electricity Load Diagrams Dataset. Traffic: UCI PEM-SF
-    Traffic Dataset. Retail: Favorita Grocery Sales Dataset from Kaggle (https://www.kaggle.com/c/favoritagrocerysalesforecasting/).
-    Volatility: OMI realized library (https://realized.oxfordman.ox.ac.uk/).'
-  size: 'Electricity: 370 entities, 500k samples. Traffic: 440 entities, 500k samples.
-    Retail: 130k entities, 500k samples. Volatility: 41 entities, approximately 100k
-    samples.'
+- name: Electricity (UCI Electricity Load Diagrams), Traffic (UCI PEM-SF Traffic),
+    Retail (Favorita Grocery Sales from Kaggle), Volatility (Oxford-Man Institute
+    realized library)
+  source: UCI Electricity Load Diagrams Dataset, UCI PEM-SF Traffic Dataset, https://www.kaggle.com/c/favoritagrocery-sales-forecasting/,
+    https://realized.oxfordman.ox.ac.uk/
+  size: 'Electricity: 500k samples, 370 entities; Traffic: 500k samples, 440 entities;
+    Retail: 500k samples (450k training + 50k validation), 130k entities; Volatility:
+    ~100k samples, 41 entities'
   num_classes: NOT_FOUND
-  data_type: 'Multivariate multihorizon time series. Electricity: hourly electricity
-    consumption. Traffic: hourly occupancy rate. Retail: daily log product sales.
-    Volatility: daily realized volatility.'
+  data_type: 'Electricity: hourly electricity consumption of customers; Traffic: hourly
+    occupancy rate (yt ∈ [0,1]) of freeways; Retail: daily log product sales with
+    static metadata and exogenous time-varying inputs; Volatility: daily realized
+    volatility of stock indices with daily returns'
 dataset_versions:
 - default
 preprocessing:
   versions:
     default:
       description: 非图像数据：通用预处理（按数据语义做标准化/归一化）
-      preprocessing: 'Electricity: z-score normalization separately per entity for
-        real-valued inputs; inputs include electricity usage, day-of-week, hour-of-day,
-        time index; entity identifier is categorical. Traffic: z-score normalization
-        across all entities; inputs include traffic occupancy, day-of-week, hour-of-day,
-        time index; entity identifier is categorical. Retail: product-store pair as
-        entity; data resampled at regular daily intervals; missing days imputed with
-        last available observation; open flag included; holidays grouped into national,
-        regional, local variables; log transform on sales; z-score normalization across
-        all entities; log sales, transactions, oil are real-valued, rest categorical.
-        Volatility: target is 5-min subsampled realized volatility rv5_ss; daily open-to-close
-        returns added; date-related variables categorical; region categorical; log
-        transform on target; all inputs z-score normalized across all entities.'
+      preprocessing: 'Electricity: z-score normalization separately to each entity
+        for real-valued inputs. Real-valued inputs: electricity usage, day-of-week,
+        hour-of-day, time index. Categorical: entity identifier. Traffic: z-score
+        normalization across all entities. Real-valued: traffic occupancy, day-of-week,
+        hour-of-day, time index. Categorical: entity identifier. Retail: resampled
+        at regular daily intervals, imputing missing days using last available observation,
+        additional ''open'' flag, holidays grouped into national/regional/local, log-transform
+        on sales, z-score normalization across all entities. Real-valued: log sales,
+        transactions, oil; rest categorical. Volatility: 5-min subsampled realized
+        volatility (rv5_ss column), daily open-to-close returns as exogenous input,
+        day-of-week, day-of-month, week-of-year, month, ''region'' variable (Americas,
+        Europe, Asia), time index. Log transformation on target, z-score normalization
+        across all entities. Date-related variables and region are categorical.'
       normalization:
         note: 非图像数据无 RGB 通道概念，按数据语义做标准化（如 z-score/归一化）
       augmentation: []
@@ -45,12 +48,11 @@ preprocessing:
     note: 非图像数据仅一个 default 版本
 split_strategy:
   method: random_split
-  ratios: 'Electricity: 500k samples from 2014-01-01 to 2014-09-01, first 90 percent
-    training, last 10 percent validation, testing over 7 days immediately following
-    training set. Traffic: 500k training samples before 2008-06-15, split same as
-    Electricity, testing over 7 days immediately following training set. Retail: training
-    set 450k samples from 2015-01-01 to 2015-12-01, validation set 50k samples from
-    30 days after training set, test set all entities over 30-day horizon following
-    validation set. Volatility: data from 2000-01-03 to 2019-06-28, training before
-    2016, validation 2016-2017, test from 2018 onwards.'
+  ratios: 'Electricity: 500k samples 2014-01-01 to 2014-09-01, first 90% training,
+    last 10% validation, testing over 7 days immediately following training set. Traffic:
+    500k samples before 2008-06-15, split same as Electricity, testing over 7 days
+    after training set. Retail: 450k samples 2015-01-01 to 2015-12-01 training, 50k
+    samples from 30 days after training set as validation, all entities over 30-day
+    horizon following validation as test. Volatility: data 2000-01-03 to 2019-06-28,
+    training before 2016, validation 2016-2017, test 2018 onwards.'
   leaf_mapping_constraint: NOT_FOUND

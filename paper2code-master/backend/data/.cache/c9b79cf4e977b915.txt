@@ -1,0 +1,6 @@
+{
+  "evaluation.primary_metric": "Intersection over Union (IoU)",
+  "experiment_matrix.known_best": "UNet++ w/ DS（四个任务平均 IoU 最高：cell nuclei 92.52, colon polyp 32.12, liver 82.90, lung nodule 77.21, 9.04M params）",
+  "experiment_matrix.known_worst": "U-Net（四个任务平均 IoU 最低：cell nuclei 90.77, colon polyp 30.08, liver 76.62, lung nodule 71.47, 7.76M params）",
+  "experiment_matrix.known_real_world": "NOT_FOUND"
+}

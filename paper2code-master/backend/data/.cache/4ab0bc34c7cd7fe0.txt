@@ -1,0 +1,17 @@
+```json
+{
+  "training.batch_size": "NOT_FOUND",
+  "training.image_size": "cell nuclei: 96×96, colon polyp: 224×224, liver: 512×512, lung nodule: 64×64×64",
+  "training.optimizer.momentum": "NOT_FOUND",
+  "training.optimizer.weight_decay": "NOT_FOUND",
+  "training.scheduler.name": "NOT_FOUND",
+  "training.scheduler.step_size": "NOT_FOUND",
+  "training.scheduler.gamma": "NOT_FOUND",
+  "training.dropout_ratio": "NOT_FOUND",
+  "training.early_stopping": "Early stop mechanism on the validation set",
+  "checkpoint.save_frequency_epochs": "NOT_FOUND",
+  "checkpoint.resume_from": "NOT_FOUND",
+  "inference.device": "NVIDIA TITAN X (Pascal) with 12 GB memory (for inference time measurement)",
+  "inference.batch_size": "NOT_FOUND"
+}
+```

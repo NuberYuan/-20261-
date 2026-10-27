@@ -1,0 +1,260 @@
+# Using Deep Learning for Image-Based Plant Disease Detection
+
+PyTorch 实现的植物叶片病害图像分类项目，基于论文 *Using Deep Learning for Image-Based Plant Disease Detection*（Mohanty, Hughes & Salathé, 2016）的实验设置进行复现。项目支持 AlexNet 与 GoogLeNet 两种卷积神经网络结构，并提供 `scratch`（从头训练）与 `transfer`（迁移学习）两种训练模式。
+
+> **说明**：论文中关于"哪个模型更好 / 迁移学习是否优于从头训练"等结论，均需由 `evaluation/evaluation/evaluate.py` 在实际评估结果上**动态计算**得出。本 README 不预设任何比较结论，请以运行后输出的指标为准。
+
+---
+
+## 1. 项目结构
+
+```
+README.md
+main.py
+requirements.txt
+config/config/config.yaml
+data/data/dataset.py
+evaluation/evaluation/evaluate.py
+models/models/__init__.py
+models/models/alexnet.py
+models/models/googlenet.py
+training/training/train.py
+utils/utils/metrics.py
+```
+
+| 路径 | 说明 |
+| --- | --- |
+| `main.py` | 程序入口：解析参数、加载配置、构建数据 / 模型 / 训练与评估流程 |
+| `requirements.txt` | Python 依赖列表 |
+| `config/config/config.yaml` | 全部超参数与实验设置（模型、训练、数据、调度器等） |
+| `data/data/dataset.py` | 数据集定义、图像变换（预处理 / 数据增广）与 DataLoader 构建 |
+| `evaluation/evaluation/evaluate.py` | 测试集评估、指标汇总、模型间比较结果的动态计算 |
+| `models/models/__init__.py` | 模型工厂入口（根据名称与 `training_mode` 构建模型） |
+| `models/models/alexnet.py` | AlexNet 结构定义与初始化逻辑 |
+| `models/models/googlenet.py` | GoogLeNet 结构定义与初始化逻辑 |
+| `training/training/train.py` | 训练循环、验证（早停 / 最优模型保存）、学习率调度 |
+| `utils/utils/metrics.py` | accuracy、precision、recall、F1、混淆矩阵等指标工具 |
+
+---
+
+## 2. 环境要求
+
+- Python >= 3.8
+- PyTorch >= 1.10（建议带 CUDA 支持）
+- torchvision、numpy、PyYAML、scikit-learn、matplotlib、tqdm、Pillow
+
+安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+### EPFL GPU 集群（SLURM）
+
+项目面向 EPFL 计算集群的 GPU 节点开发，通过 SLURM 提交作业。示例 `sbatch` 脚本（按实际集群队列 / 分区名调整）：
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=plant_disease
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=24:00:00
+#SBATCH --output=slurm-%j.out
+
+module load python/3.8
+module load cuda/11.3
+
+source ~/venvs/plant/bin/activate
+
+python main.py --config config/config/config.yaml --model googlenet --training_mode transfer
+```
+
+---
+
+## 3. 数据集
+
+- 论文使用 PlantVillage 数据集，包含多种作物（如番茄、马铃薯、玉米等）的健康叶片与病害叶片图像，按 **病害类别** 做多分类。
+- 数据目录需组织为 `torchvision.ImageFolder` 兼容格式（每个类别一个子目录）：
+
+```
+<dataset_root>/
+├── class_0/
+│   ├── img_001.jpg
+│   └── ...
+├── class_1/
+│   └── ...
+└── ...
+```
+
+- 在 `config/config/config.yaml` 的 `data` 段中设置 `data_root` 指向上述目录。
+- 预处理：图像缩放到模型输入尺寸，转换为 Tensor 并按 ImageNet 统计量做标准化；训练阶段可选随机翻转 / 随机裁剪等增广（见 `data/data/dataset.py`）。
+
+---
+
+## 4. 数据划分（工程偏离说明）
+
+论文仅使用 **train / test 二路划分**，没有独立验证集。
+
+本项目中，`training/training/train.py` 为了支持**早停（early stopping）与最优模型选择（checkpoint）**，会从训练集中按 **80 / 20** 二次划分出一个验证集：
+
+- `train_loader`：原训练集的 80%
+- `val_loader`：原训练集的 20%（**工程偏离 engineering deviation from paper**）
+- `test_loader`：论文定义的测试集，仅用于最终评估
+
+划分通过固定随机种子完成，保证可复现。若要严格对齐论文（不使用验证集），可在配置中关闭验证划分，此时最优模型按训练损失 / 最后一轮保存，并将 `best_metric` 设为 `test_accuracy`——**不推荐**，因为用测试集选择模型会导致数据泄露（data leakage）。设置 `best_metric: val_accuracy` 同样属于上述工程偏离。
+
+---
+
+## 5. 训练模式（`training_mode`）
+
+⚠ **不要使用 `pretrained=True/False` 布尔开关**：两种模式的初始化逻辑完全不同（`transfer` 需要加载 ImageNet 预训练权重并替换分类头、可选择性冻结骨干；`scratch` 则对所有层使用随机初始化）。因此使用枚举字段 `training_mode`：
+
+| 取值 | 含义 |
+| --- | --- |
+| `scratch` | 所有参数随机初始化，从头训练 |
+| `transfer` | 加载 ImageNet 预训练权重，替换最后分类层后微调（fine-tune） |
+
+在配置文件中：
+
+```yaml
+model:
+  name: googlenet          # alexnet | googlenet
+  training_mode: transfer  # scratch | transfer
+  num_classes: 38          # 按数据集实际类别数修改
+```
+
+或通过命令行覆盖：
+
+```bash
+python main.py --config config/config/config.yaml --training_mode scratch
+```
+
+---
+
+## 6. 训练配置
+
+与论文实验设置一致的默认超参数（可在 `config/config/config.yaml` 中修改）：
+
+| 项目 | 取值 |
+| --- | --- |
+| 优化器 | Stochastic Gradient Descent（SGD，可配置 momentum / weight_decay） |
+| 学习率 | `0.005` |
+| batch_size | `24`（GoogLeNet） / `100`（AlexNet） |
+| epochs | `30` |
+| 损失函数 | softmax + cross-entropy（`nn.CrossEntropyLoss`，模型末端为 logits / softmax 输出） |
+| 学习率调度 | `StepLR`（`step_size=10`, `gamma=0.1`） |
+| 最优模型依据 | `val_accuracy`（**工程偏离**，见第 4 节） |
+
+配置示例：
+
+```yaml
+training:
+  optimizer: sgd
+  lr: 0.005
+  momentum: 0.9
+  weight_decay: 0.0
+  epochs: 30
+  batch_size: 24          # alexnet 时改为 100
+  loss: cross_entropy
+  scheduler: steplr
+  scheduler_params:
+    step_size: 10
+    gamma: 0.1
+  best_metric: val_accuracy   # 工程偏离：论文无独立验证集
+  early_stopping:
+    enabled: true
+    patience: 10
+```
+
+---
+
+## 7. 运行方法
+
+### 7.1 从头训练（scratch）
+
+```bash
+python main.py \
+  --config config/config/config.yaml \
+  --model googlenet \
+  --training_mode scratch \
+  --batch_size 24
+```
+
+### 7.2 迁移学习（transfer）
+
+```bash
+python main.py \
+  --config config/config/config.yaml \
+  --model googlenet \
+  --training_mode transfer \
+  --batch_size 24
+```
+
+### 7.3 AlexNet（batch_size = 100）
+
+```bash
+python main.py \
+  --config config/config/config.yaml \
+  --model alexnet \
+  --training_mode transfer \
+  --batch_size 100
+```
+
+### 7.4 仅评估（加载已有 checkpoint）
+
+```bash
+python main.py \
+  --config config/config/config.yaml \
+  --model googlenet \
+  --training_mode transfer \
+  --eval_only \
+  --checkpoint /path/to/best_model.pth
+```
+
+评估逻辑位于 `evaluation/evaluation/evaluate.py`，在测试集上输出总体 accuracy、每类 precision / recall / F1、宏平均与加权平均指标以及混淆矩阵（指标实现在 `utils/utils/metrics.py`）。
+
+### 7.5 模型间比较
+
+对若干实验分别运行评估后，比较结果由 `evaluation/evaluation/evaluate.py` **基于实际加载的指标动态计算**（例如比较 `scratch` 与 `transfer` 的测试准确率差异、AlexNet 与 GoogLeNet 的差异），而不是在文档或代码中写死结论。请以脚本输出为准。
+
+---
+
+## 8. 复现步骤
+
+1. **准备环境**：创建虚拟环境并安装 `requirements.txt` 中的依赖（见第 2 节）。
+2. **准备数据**：将 PlantVillage 数据集按第 3 节的目录结构放置，并在 `config/config/config.yaml` 中设置 `data.data_root`。
+3. **设置随机种子**：在配置中固定 `seed`（默认如 `42`），`main.py` 会为 `random`、`numpy`、`torch`（含 CUDA）设置种子，并在需要时启用 cudnn 确定性模式。
+4. **运行训练**：按第 7 节命令启动；训练日志逐轮输出 train / val 的 loss 与 accuracy。
+5. **保存与加载**：每个实验保存最优 checkpoint（按 `best_metric`）与最后一轮权重，保存路径由配置中的 `checkpoint` 字段指定；评估阶段通过 `--checkpoint` 加载。
+6. **评估与比较**：运行 `--eval_only` 获取测试集指标，再用评估模块的比较功能得到模型 / 模式之间的差异。
+7. **在集群上批量复现**：使用第 2 节的 `sbatch` 模板，对 `{alexnet, googlenet} × {scratch, transfer}` 组合分别提交作业，并固定相同的 `seed` 与数据划分。
+
+---
+
+## 9. 已知的工程偏离（Engineering Deviations）
+
+- **验证集**：论文只有 train / test 划分；本项目从训练集中按 80 / 20 划出验证集用于早停与最优模型选择（`best_metric: val_accuracy`）。这是工程实现上的偏离，并非论文设置。
+- **模型选择**：如需严格复现论文的"训练固定轮数后在测试集报告结果"流程，可关闭早停并训练满 30 个 epoch，再统一在测试集上评估。
+- **训练模式**：用 `training_mode` 枚举替代 `pretrained` 布尔，以区分两套初始化逻辑。
+
+---
+
+## 10. 参考文献
+
+- Mohanty, S. P., Hughes, D. P., & Salathé, M. (2016). *Using Deep Learning for Image-Based Plant Disease Detection.* Frontiers in Plant Science, 7, 1419.
+- Krizhevsky, A., Sutskever, I., & Hinton, G. E. (2012). *ImageNet Classification with Deep Convolutional Neural Networks.* NeurIPS.
+- Szegedy, C., et al. (2015). *Going Deeper with Convolutions.* CVPR.
+
+```bibtex
+@article{mohanty2016using,
+  title={Using Deep Learning for Image-Based Plant Disease Detection},
+  author={Mohanty, Sharada P and Hughes, David P and Salath{\'e}, Marcel},
+  journal={Frontiers in Plant Science},
+  volume={7},
+  pages={1419},
+  year={2016},
+  publisher={Frontiers Media SA}
+}
+```

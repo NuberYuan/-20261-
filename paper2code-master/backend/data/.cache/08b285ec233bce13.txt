@@ -1,0 +1,18 @@
+{
+  "table_id": "table_1",
+  "table_type": "other",
+  "caption_summary": "Output of a GP 2 program showing an execution/program graph structure (likely a graphical diagram of graph states produced by GP 2 execution).",
+  "extracted_data": {
+    "metrics": [],
+    "methods": [],
+    "best_result": {"method": "N/A", "metric": "N/A", "value": null},
+    "key_values": [
+      {"label": "Table title / header", "value": "GP 2 Output"},
+      {"label": "Action label", "value": "Execute"},
+      {"label": "Graph label 1", "value": "Program Graph"},
+      {"label": "Graph label 2", "value": "Program Graph"},
+      {"label": "Content type", "value": "Graphical output / diagram of program execution states (not numerical data)"}
+    ]
+  },
+  "table_summary": "This entry appears to be a graphical figure rather than a numerical data table. It depicts the output of a GP 2 (graph programming language) program execution, showing the program graph being processed via an Execute operation and producing an output graph. No quantitative metrics, method comparisons, or numerical values are present, so it is classified as 'other'."
+}

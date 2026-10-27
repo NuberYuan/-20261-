@@ -1,0 +1,163 @@
+{
+  "code_requirements": {
+    "config/config.yaml": {
+      "description": "YAML 配置文件：实验图规模、重复次数、随机种子、算法开关、输出路径，以及固定不可改动的 scheduler 参数（step_size=978, gamma=0.0009930486593843098）。",
+      "fields": {
+        "project": "RULEBASED_GRAPH_PROGRAMS_MATCHING_THE_TIME_COMPLEX",
+        "seed": 42,
+        "repeats": 5,
+        "graph_sizes": "[8, 16, 32, 64, 128, 256, 512, 1024]",
+        "graph_classes": "['rooted_cycle', 'rooted_path', 'star', 'tree', 'complete', 'grid', 'random_er', 'disconnected', 'rooted_negative_cycle']",
+        "algorithms": "['connectedness', 'acyclicity', 'bellmanford']",
+        "data_structures": "['new_mark_indexed', 'old_linear_scan']",
+        "edge_array_rows": 5,
+        "edge_array_columns": 3,
+        "edge_array_total_cells": 15,
+        "scheduler": "{step_size: 978, gamma: 0.0009930486593843098}",
+        "output_dir": "results/",
+        "timeout_seconds": 600
+      },
+      "pseudocode": "yaml.safe_load(config) -> dict; 所有运行参数从该 dict 读取；scheduler.step_size 必须严格等于 978，scheduler.gamma 必须严格等于 0.0009930486593843098，禁止修改。"
+    },
+    "src/enhancedgp2compilerwithimprovedgraphdatastructure.py": {
+      "description": "核心模块：实现论文提出的增强图数据结构（节点按 mark 分链表存储；每条边按 mark×orientation 的 5×3 二维链表数组索引），提供论文表中所有 O(1) 图访问原语、GP 2 风格的规则匹配引擎（alreadyMatched/setMatched/clearMatched 均为 O(1)）、三个 GP 2 程序的 Python 等价实现（connectedness 线性时间、acyclicity 线性时间、bellmanford O(nm)），以及用于对比的旧版（线性扫描）图结构与合成图生成器。",
+      "classes": [
+        "Mark(Enum): UNMARKED, RED, GREEN, BLUE, GREY",
+        "EdgeMark(Enum): UNMARKED, RED, GREEN, BLUE, DASHED",
+        "Orientation(Enum): INCOMING=0, OUTGOING=1, LOOPING=2",
+        "DoublyLinkedList: 双向循环链表（哨兵），O(1) push_front/remove/iterator；节点通过 intrusive prev/next 指针链接",
+        "HostNode: id, label(可含距离/权重值), rooted(bool), mark(Mark), in_degree, out_degree, edge_lists[5][3](15 个 DoublyLinkedList), matched(bool), list_node 引用（用于 mark 链表 O(1) 转移）",
+        "HostEdge: id, label(整数权重), source, target, mark(EdgeMark), matched(bool), intrusive 指针分别挂在 source 的 OUT 列表与 target 的 IN 列表（自环挂在 LOOPING 列表）",
+        "HostGraph: 新版增强图结构（mark 索引的节点链表 + 15 格边链表数组）",
+        "LegacyHostGraph: 旧版结构（所有节点/边放在单个无序链表中，查询需线性扫描），用于复现 O(|E|^2) 匹配开销对比",
+        "RuleNode / RuleEdge: 左部图 L 的模式元素（mark、label、rooted 约束）",
+        "Rule: 左部 L、右部 R、保留边、删除/新增集合",
+        "Match: 变量到 HostNode/HostEdge 的映射",
+        "RuleEngine: 基于原语的匹配与应用引擎",
+        "GP2Program: 程序 = 规则集合 + 主循环调度（模拟 GP 2 的规则序列/程序块）",
+        "GraphGenerator: 程序化生成各图类别（含 rooted cycle 负总权重图等）",
+        "Stopwatch: perf_counter 计时器"
+      ],
+      "functions": [
+        "connectivity_program(G) -> bool",
+        "acyclicity_program(G) -> bool",
+        "bellman_ford_program(G, source) -> dict[node_id, distance]",
+        "reference_is_connected(G)",
+        "reference_is_acyclic(G)",
+        "reference_bellman_ford(G, source)",
+        "build_graph_from_edges(nodes, edges)",
+        "verify_rule_complexity()"
+      ],
+      "key_methods": {
+        "HostGraph.firstHostNode(m)": "O(1)：返回 mark=m 的节点链表头",
+        "HostGraph.nextHostNode(m, n)": "O(1)：mark=m 链表中 n 的后继",
+        "HostGraph.firstHostRootNode()": "O(1)：返回 root 链表头",
+        "HostGraph.nextHostRootNode(n)": "O(1)",
+        "HostGraph.firstInEdge(m, v)": "O(1)：v 的 edge_lists[m][INCOMING] 头",
+        "HostGraph.nextInEdge(m, v, e)": "O(1)",
+        "HostGraph.firstOutEdge(m, v)": "O(1)：edge_lists[m][OUTGOING]",
+        "HostGraph.nextOutEdge(m, v, e)": "O(1)",
+        "HostGraph.firstLoop(m, v)": "O(1)：edge_lists[m][LOOPING]",
+        "HostGraph.nextLoop(m, v, e)": "O(1)",
+        "HostGraph.getInDegree(v)/getOutDegree(v)": "O(1)：节点内计数器",
+        "HostGraph.getMark(x)/setMark(x, m)": "O(1)：改 mark 时在对应 mark 链表之间 O(1) 摘链/挂链",
+        "HostGraph.isRooted(v)/setRooted(v)/unsetRooted(v)": "O(1)：root 链表 O(1) 增删",
+        "HostGraph.getSource(e)/getTarget(e)": "O(1)",
+        "HostGraph.addNode()/addEdge()/deleteNode()/deleteEdge()": "O(1)：同时维护 15 格索引与度数计数器",
+        "HostGraph.parseInputGraph(path_or_text)": "O(n+m)：解析 .gp2 文本格式（节点带 label/root 标记，边带 label）",
+        "HostGraph.printHostGraph()": "O(n+m)：输出 .gp2 文本",
+        "RuleEngine.alreadyMatched(x)/setMatched(x)/clearMatched()": "O(1)：基于 matched 标志位",
+        "RuleEngine.find_node_with_mark(m)": "O(1)：firstHostNode(m)",
+        "RuleEngine.match_rule(rule) -> Optional[Match]": "以 constant-time 原语驱动的带约束匹配（对 fast rule 保证 O(1)~O(deg)）"
+      },
+      "pseudocode": "class HostGraph:\n  node_mark_list[5] = DoublyLinkedList()\n  root_list = DoublyLinkedList()\n  def addNode(id,label,rooted=False):\n    n=HostNode(...); n.edge_lists=[[DoublyLinkedList() for _ in range(3)] for _ in range(5)]\n    node_mark_list[n.mark].push(n)\n  def addEdge(src,tgt,label):\n    e=HostEdge(...); src.edge_lists[e.mark][OUTGOING].push(e); tgt.edge_lists[e.mark][INCOMING].push(e); update degrees\n  def setMark(x,m): old=x.mark; remove x from node_mark_list[old]; node_mark_list[m].push(x); x.mark=m  # O(1)\n\n# connectedness (linear, arbitrary degree, possibly disconnected)\n# 以每个连通分量一个 rooted green 节点做扩张；forward rule: green rooted u -unmarked-> v  => mark v green, add root, delete edge (amortised每条边一次)\ndef connectivity_program(G):\n  rule_fwd = Rule(L={u:GREEN+rooted, e:unmarked, v:unmarked}, R={v:GREEN+rooted}, del_edges=[e])\n  rule_init = Rule(L={v:unmarked}, R={v:GREEN+rooted})  # 仅当无 green root 时启用\n  while firstHostNode(UNMARKED) is not None:\n    if firstHostNode(GREEN) is None: apply(rule_init)\n    if not apply(rule_fwd): apply(rule_init)  # 新分量\n  return firstHostNode(UNMARKED) is None\n\n# acyclicity (linear): 反复删除入度为 0 的节点（拓扑剥除）\ndef acyclicity_program(G):\n  rule_sink = Rule(L={v:unmarked with in_degree==0}, del_nodes=[v])\n  while G has nodes: if not apply(rule_sink): return False  # 存在环\n  return True\n\n# bellmanford O(nm): n-1 轮松弛，每轮用 out-edge 原语遍历全部 m 条边\ndef bellman_ford_program(G, src):\n  init all labels = INF; label[src]=0\n  for i in range(n-1):\n    for v in G.all_nodes():\n      for e in firstOutEdge(UNMARKED,v) ... nextOutEdge:  # O(m) 总和\n        if label[v]+w(e) < label[tgt(e)]: label[tgt(e)] = label[v]+w(e); mark(e, GREEN)  # 可选：标记已松弛边\n  for e in all edges: if label[src(e)]+w(e) < label[tgt(e)]: raise NegativeCycle\n  return label\n"
+    },
+    "evaluation/evaluate.py": {
+      "description": "统一评估协议：对各图类别 × 各规模 × 各算法运行新版数据结构实现，测量墙钟时间，与纯 Python 参考实现的正确性结果做一致性校验，输出 results/results.json 与 results/results.csv。",
+      "classes": [
+        "BenchmarkCase: name, graph_class, size, algorithm, repeats",
+        "ExperimentRunner: 加载配置、生成图、执行算法、计时、校验、记录"
+      ],
+      "functions": [
+        "load_config(path)",
+        "build_test_suite(config) -> list[BenchmarkCase]",
+        "generate_graph(graph_class, n, seed, weights)",
+        "run_algorithm(algo_name, G, data_structure) -> (result, elapsed_seconds)",
+        "verify_connectedness(G, result)",
+        "verify_acyclicity(G, result)",
+        "verify_bellman_ford(G, result, source)",
+        "measure_runtime(algo, G, repeats) -> mean/std",
+        "aggregate_results(records)",
+        "save_results(records, out_dir)",
+        "main()"
+      ],
+      "uses": [
+        "src.enhancedgp2compilerwithimprovedgraphdatastructure.HostGraph",
+        "src.enhancedgp2compilerwithimprovedgraphdatastructure.GraphGenerator",
+        "src.enhancedgp2compilerwithimprovedgraphdatastructure.connectivity_program",
+        "src.enhancedgp2compilerwithimprovedgraphdatastructure.acyclicity_program",
+        "src.enhancedgp2compilerwithimprovedgraphdatastructure.bellman_ford_program",
+        "src.enhancedgp2compilerwithimprovedgraphdatastructure.reference_*",
+        "yaml"
+      ],
+      "pseudocode": "config = load_config('config/config.yaml')\ncases = build_test_suite(config)\nfor case in cases:\n  G = generate_graph(case.graph_class, case.size, config.seed)\n  G2 = G.clone()\n  t0 = perf_counter(); res = run_algorithm(case.algorithm, G2, 'new_mark_indexed'); t1 = perf_counter()\n  assert res == reference_result(case.algorithm, G)   # 正确性校验\n  record = {case, elapsed=t1-t0, correct=True}\n  aggregate + save to results/results.json|csv"
+    },
+    "evaluation/compare.py": {
+      "description": "对比实验：在相同输入图上比较旧版数据结构（线性扫描匹配，forward rule 最坏 O(|E|^2)）与新版 mark/朝向索引数据结构（线性/O(nm)），用 log-log 线性回归拟合经验时间复杂度斜率，验证论文结论（connectedness/acyclicity 斜率≈1，bellmanford 斜率≈ n*m 关系），输出对比表与报告 results/comparison_report.md。",
+      "classes": [
+        "ComparisonRunner: 成对运行新旧实现并记录",
+        "ComplexityEstimator: 用 numpy.polyfit 对 log(size) vs log(time) 求斜率"
+      ],
+      "functions": [
+        "compare_data_structures(algo, graph_class, sizes, seed) -> DataFrameLike(list[dict])",
+        "estimate_complexity(sizes, times) -> (slope, intercept, r2)",
+        "verify_old_forward_rule_quadratic(edge_counts, times)",
+        "format_table(records) -> str",
+        "generate_report(records, slopes, out_path)",
+        "main()"
+      ],
+      "uses": [
+        "src.enhancedgp2compilerwithimprovedgraphdatastructure.HostGraph",
+        "src.enhancedgp2compilerwithimprovedgraphdatastructure.LegacyHostGraph",
+        "numpy",
+        "yaml"
+      ],
+      "pseudocode": "for algo in ['connectedness','acyclicity','bellmanford']:\n  for gclass in config.graph_classes:\n    times_new, times_old = [], []\n    for n in config.graph_sizes:\n      G = generate_graph(gclass, n, seed); times_new.append(time(new_impl, G)); times_old.append(time(legacy_impl, G))\n    slope_new = estimate_complexity(sizes, times_new).slope   # 期望 ≈1（前两者）\n    slope_old = estimate_complexity(sizes, times_old).slope   # connectedness 期望 ≈2\n  generate_report(...)"
+    },
+    "main.py": {
+      "description": "项目入口：解析命令行参数（--config/--mode/--algo/--size），加载 YAML 配置，依次执行 src 算法复现、evaluation 评估与对比，打印汇总并写出结果文件。",
+      "functions": [
+        "parse_args()",
+        "load_config(path)",
+        "run_pipeline(config, mode)",
+        "summarize(records)",
+        "main()"
+      ],
+      "uses": [
+        "config.config.yaml",
+        "src.enhancedgp2compilerwithimprovedgraphdatastructure",
+        "evaluation.evaluate",
+        "evaluation.compare",
+        "argparse",
+        "yaml",
+        "numpy"
+      ],
+      "pseudocode": "args = parse_args(); config = load_config(args.config)\nrandom.seed(config['seed']); numpy.random.seed(config['seed'])\nif mode in ('all','evaluate'): records = evaluate.main(config)\nif mode in ('all','compare'):  compare.main(config)\nsummarize(records); print('done')"
+    },
+    "requirements.txt": {
+      "description": "依赖清单（无深度学习框架）：numpy、pyyaml。",
+      "content": "numpy>=1.24\nPyYAML>=6.0"
+    },
+    "README.md": {
+      "description": "说明复现目标（增强 GP 2 图数据结构 + 三个 GP 2 程序的线性/O(nm) 复现）、目录结构、运行方式（python main.py --config config/config.yaml）、预期结果（connectedness/acyclicity 线性时间于任意度数/可不连通图；bellmanford O(nm)）。",
+      "sections": [
+        "Project Overview",
+        "Method (mark-indexed node lists + 5x3 edge list array)",
+        "Install",
+        "Run",
+        "Expected Results & Complexity Verification",
+        "Reproducibility Notes"
+      ]
+    }
+  }
+}

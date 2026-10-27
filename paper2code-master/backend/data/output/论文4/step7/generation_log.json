@@ -1,0 +1,126 @@
+{
+  "paper": "论文4",
+  "files": [
+    {
+      "file": "requirements.txt",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "template",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "README.md",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "template",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "config/config.yaml",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "evaluation/evaluate.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "failed",
+          "errors": [
+            "语法错误: invalid syntax (<unknown>, line 903)",
+            "缺少声明的方法: evaluate_model",
+            "缺少声明的方法: generate_report"
+          ]
+        },
+        {
+          "attempt": 2,
+          "action": "repair",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "evaluation/compare.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "src/enhancedgp2compilerwithimprovedgraphdatastructure.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "failed",
+          "errors": [
+            "缺少声明的方法: run"
+          ]
+        },
+        {
+          "attempt": 2,
+          "action": "repair",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "main.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "failed",
+          "errors": [
+            "缺少声明的方法: main",
+            "main.py 缺少 --run 参数: 实验矩阵有 3 个组合，入口必须支持 `--run N`（argparse add_argument(\"--run\", ...)）按 config['experiment']['runs'][N] 逐组合执行，否则只能整矩阵一把跑"
+          ]
+        },
+        {
+          "attempt": 2,
+          "action": "repair",
+          "status": "failed",
+          "errors": [
+            "语法错误: '(' was never closed (<unknown>, line 1009)",
+            "缺少声明的方法: main",
+            "main.py 缺少 --run 参数: 实验矩阵有 3 个组合，入口必须支持 `--run N`（argparse add_argument(\"--run\", ...)）按 config['experiment']['runs'][N] 逐组合执行，否则只能整矩阵一把跑"
+          ]
+        },
+        {
+          "attempt": 3,
+          "action": "repair",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

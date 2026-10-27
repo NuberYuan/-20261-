@@ -1,0 +1,19 @@
+```json
+{
+  "type": "chart",
+  "description": "消融实验柱状图，展示移除模型不同组件后在 Electricity、Traffic、Retail、Volatility 四个数据集上 P90 损失的百分比增加情况，左图为各数据集及平均值，右图为各变体的损失增加范围（最大、平均、最小）。",
+  "important_components": [
+    "No Gating（去除门控机制）",
+    "No Static Encoder（去除静态编码器）",
+    "No Variable Selection（去除变量选择）",
+    "No Self-Attention（去除自注意力）",
+    "No Local Processing（去除局部处理）",
+    "Electricity / Traffic / Retail / Volatility 四个数据集",
+    "Average（平均值，紫色虚线）",
+    "P90 Loss（评估指标，P90 分位损失）",
+    "Max / Ave / Min（右侧范围图的最值与均值）"
+  ],
+  "code_relevant_information": "该图为组件消融实验结果，指标为 P90 损失相对完整模型的百分比增加（% Increase in P90 Loss）。模型包含五个可消融模块：Gating（门控）、Static Encoder（静态编码器）、Variable Selection（变量选择）、Self-Attention（自注意力）、Local Processing（局部处理），复现代码时需将这些模块实现为可开关的独立子模块以便做消融。各组件对性能影响的平均增幅：No Gating +1.9%、No Static Encoder +2.6%、No Variable Selection +4.1%、No Self-Attention +6.0%、No Local Processing +11.9%；右图中各变体损失增幅范围的最大值分别为约 4.1%、6.5%、7.9%、14.9%、28.4%。数据集方面：No Gating 在 Traffic 上反而略有下降（约 -1%），No Local Processing 在 Volatility 上增幅最大（约 28%），说明 Local Processing 对波动性数据最关键。复现时应在四个数据集上分别训练完整模型与 5 个消融变体，并统计 P90 分位数损失（如 quantile loss @0.9）的相对变化百分比。",
+  "note": "未直接给出超参数、优化器等训练细节，仅为消融实验结果图。"
+}
+```

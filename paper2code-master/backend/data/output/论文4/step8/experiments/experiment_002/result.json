@@ -1,0 +1,31 @@
+{
+  "experiment_id": "None_None_None_80_1",
+  "run_index": 1,
+  "command": {
+    "argv": [
+      "C:\\Users\\yuan2\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+      "main.py",
+      "--run",
+      "1",
+      "--config",
+      "D:\\X-code\\2026-1-科研训练计划\\code\\paper2code-master\\backend\\data\\output\\论文4\\step7\\generated_project\\config\\config.yaml"
+    ],
+    "display": "C:\\Users\\yuan2\\AppData\\Local\\Programs\\Python\\Python313\\python.exe main.py --run 1 --config D:\\X-code\\2026-1-科研训练计划\\code\\paper2code-master\\backend\\data\\output\\论文4\\step7\\generated_project\\config\\config.yaml"
+  },
+  "execution": {
+    "status": "SUCCESS",
+    "exit_code": 0,
+    "started_at": "2026-10-24T16:36:50",
+    "finished_at": "2026-10-24T16:36:50",
+    "duration_seconds": 0.52,
+    "working_directory": "D:\\X-code\\2026-1-科研训练计划\\code\\paper2code-master\\backend\\data\\output\\论文4\\step7\\generated_project"
+  },
+  "logs": {
+    "stdout": "D:\\X-code\\2026-1-科研训练计划\\code\\paper2code-master\\backend\\data\\output\\论文4\\step8\\experiments\\experiment_002\\stdout.log",
+    "stderr": "D:\\X-code\\2026-1-科研训练计划\\code\\paper2code-master\\backend\\data\\output\\论文4\\step8\\experiments\\experiment_002\\stderr.log"
+  },
+  "result_files": [
+    "logs/run.log"
+  ],
+  "output_dir": "D:\\X-code\\2026-1-科研训练计划\\code\\paper2code-master\\backend\\data\\output\\论文4\\step8\\experiments\\experiment_002"
+}

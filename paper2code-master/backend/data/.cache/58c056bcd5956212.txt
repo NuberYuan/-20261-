@@ -1,0 +1,6 @@
+```json
+{
+  "pipeline[1].detail.resize": "NOT_FOUND (paper states: For further details about datasets and the corresponding data preprocessing, we refer the readers to the supplementary material)",
+  "pipeline[1].detail.normalization": "NOT_FOUND (paper states: For further details about datasets and the corresponding data preprocessing, we refer the readers to the supplementary material)"
+}
+```

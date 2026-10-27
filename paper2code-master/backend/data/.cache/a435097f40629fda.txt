@@ -1,0 +1,625 @@
+"""evaluation/evaluate.py
+=============================================================================
+Phase 5 -- model evaluation and report generation for the reproduction of
+"Using Deep Learning for Image-Based Plant Disease Detection".
+
+Public API (required)
+---------------------
+* ``evaluate_model`` -- run a trained model on a test DataLoader and compute
+  the evaluation metrics required by FR-09 / FR-10:
+      - Mean F1 score      (macro-averaged F1)
+      - Mean precision     (macro-averaged precision)
+      - Mean recall        (macro-averaged recall)
+      - Overall accuracy   (micro accuracy)
+  plus per-class metrics, the confusion matrix and the top-k accuracy that is
+  listed in ``config['experiment']['metrics']``.
+
+* ``generate_report`` -- write the textual evaluation report of a *single*
+  run (``metrics, run_name, output_dir, config``) and return the path of the
+  written report file.  Engineering-assistance charts (metrics bar chart and
+  confusion matrix) are produced when matplotlib is available; the textual
+  report is ALWAYS produced, even without matplotlib.
+
+Notes
+-----
+* matplotlib is an OPTIONAL dependency: it is imported with ``try/except`` at
+  the top of this module (``plt = None`` on failure) and every plotting
+  function returns ``None`` immediately when ``plt is None``.  Missing
+  matplotlib must never crash the module at import time nor at run time.
+* All metrics are computed from the actual model outputs through
+  ``utils/metrics.compute_metrics``; no conclusion or result value from the
+  paper is hard-coded.  The paper-reported reference numbers are only used to
+  print an *informational* comparison table (deltas), never as a verdict.
+* No ``__main__`` entry point and no directory scanning here: the driver
+  entry point lives in ``main.py``.
+=============================================================================
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+import numpy as np
+import torch
+import torch.nn as nn
+import yaml
+from torch.utils.data import DataLoader, Dataset
+
+# --------------------------------------------------------------------------- #
+# matplotlib is an OPTIONAL visualisation dependency.  The metric computation
+# and the textual report must work even when it is not installed.
+# --------------------------------------------------------------------------- #
+try:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+# --------------------------------------------------------------------------- #
+# Sibling modules generated for this project (soft imports: the module must
+# stay importable even when a sibling is temporarily unavailable).
+# --------------------------------------------------------------------------- #
+try:
+    from utils.metrics import compute_metrics
+except Exception:  # pragma: no cover - sibling normally present in the repo
+    compute_metrics = None  # replaced by a local fallback below
+
+try:
+    from training.train import initialize_model
+except Exception:  # pragma: no cover - sibling normally present in the repo
+    initialize_model = None
+
+try:
+    from models.alexnet import Alexnet
+    from models.googlenet import Googlenet
+except Exception:  # pragma: no cover - sibling normally present in the repo
+    Alexnet = None
+    Googlenet = None
+
+__all__ = [
+    "evaluate_model",
+    "generate_report",
+]
+
+logger = logging.getLogger(__name__)
+
+# --------------------------------------------------------------------------- #
+# Fallback values -- used ONLY when the config entry is missing or null.
+# Source of every value: config/config.yaml (and the reproduced paper).
+# --------------------------------------------------------------------------- #
+DEFAULT_NUM_CLASSES = 38                      # config['data']['num_classes']
+DEFAULT_INFERENCE_BATCH_SIZE = 32             # config['inference']['batch_size'] is null
+DEFAULT_TOP_K = 5                             # config['inference']['top_k']
+DEFAULT_REPORT_DIR = "./outputs/reports"      # config['logging']['report_dir']
+DEFAULT_OUTPUT_ROOT = "./outputs"             # config['system']['output_root']
+DEFAULT_NUM_WORKERS = 4                       # config['system']['num_workers']
+DEFAULT_PAPER_TOLERANCE = 0.01                # engineering default (not in config)
+
+# Paper-reported reference values (informational comparison only).  The numbers
+# are parsed at run time from config['project']['reference_note'] whenever
+# possible; the constants below are only a last-resort fallback.
+PAPER_REFERENCE_FALLBACK: Dict[str, Any] = {
+    "run": "GoogLeNet / TransferLearning / Color / 80-20",
+    "mean_f1": 0.9934,
+    "overall_accuracy": 0.9935,
+    "source": "config['project']['reference_note']",
+}
+
+
+# --------------------------------------------------------------------------- #
+# Local fallback for utils/metrics.compute_metrics (kept API-identical).
+# --------------------------------------------------------------------------- #
+if compute_metrics is None:  # pragma: no cover - exercised only without utils
+
+    def compute_metrics(
+        predictions: Optional[Union[np.ndarray, torch.Tensor, list]] = None,
+        labels: Optional[Union[np.ndarray, torch.Tensor, list]] = None,
+        num_classes: Optional[int] = None,
+        config: Optional[Dict] = None,
+        class_names: Optional[List[str]] = None,
+    ) -> Dict:
+        """Minimal replacement with the same signature as ``utils.metrics.compute_metrics``."""
+        empty = {
+            "mean_f1": 0.0,
+            "mean_precision": 0.0,
+            "mean_recall": 0.0,
+            "accuracy": 0.0,
+            "per_class_precision": [],
+            "per_class_recall": [],
+            "per_class_f1": [],
+            "support": [],
+        }
+        if predictions is None or labels is None:
+            return empty
+        if isinstance(predictions, torch.Tensor):
+            predictions = predictions.detach().cpu().numpy()
+        predictions = np.asarray(predictions)
+        if isinstance(labels, torch.Tensor):
+            labels = labels.detach().cpu().numpy()
+        labels = np.asarray(labels).astype(np.int64).flatten()
+        if predictions.ndim == 2:
+            pred_classes = np.argmax(predictions, axis=1)
+        else:
+            pred_classes = predictions.astype(np.int64).flatten()
+        if pred_classes.shape[0] != labels.shape[0]:
+            raise ValueError("prediction count does not match label count")
+        if labels.shape[0] == 0:
+            return empty
+        if num_classes is None:
+            num_classes = int(max(int(labels.max()), int(pred_classes.max()))) + 1
+        num_classes = int(num_classes)
+        confusion = np.zeros((num_classes, num_classes), dtype=np.int64)
+        for true_c, pred_c in zip(labels, pred_classes):
+            if 0 <= int(true_c) < num_classes and 0 <= int(pred_c) < num_classes:
+                confusion[int(true_c), int(pred_c)] += 1
+        tp = np.diag(confusion).astype(np.float64)
+        fp = confusion.sum(axis=0).astype(np.float64) - tp
+        fn = confusion.sum(axis=1).astype(np.float64) - tp
+        support = confusion.sum(axis=1).astype(np.float64)
+        per_class_precision = np.zeros(num_classes, dtype=np.float64)
+        per_class_recall = np.zeros(num_classes, dtype=np.float64)
+        per_class_f1 = np.zeros(num_classes, dtype=np.float64)
+        for class_idx in range(num_classes):
+            denom_p = tp[class_idx] + fp[class_idx]
+            if denom_p > 0:
+                per_class_precision[class_idx] = tp[class_idx] / denom_p
+            denom_r = tp[class_idx] + fn[class_idx]
+            if denom_r > 0:
+                per_class_recall[class_idx] = tp[class_idx] / denom_r
+            denom_f = per_class_precision[class_idx] + per_class_recall[class_idx]
+            if denom_f > 0:
+                per_class_f1[class_idx] = (
+                    2.0 * per_class_precision[class_idx] * per_class_recall[class_idx] / denom_f
+                )
+        result = {
+            "mean_f1": float(np.mean(per_class_f1)),
+            "mean_precision": float(np.mean(per_class_precision)),
+            "mean_recall": float(np.mean(per_class_recall)),
+            "accuracy": float(tp.sum()) / float(labels.shape[0]),
+            "per_class_precision": per_class_precision.tolist(),
+            "per_class_recall": per_class_recall.tolist(),
+            "per_class_f1": per_class_f1.tolist(),
+            "support": support.astype(int).tolist(),
+        }
+        if class_names is not None and len(class_names) == num_classes:
+            result["class_names"] = list(class_names)
+        return result
+
+
+# --------------------------------------------------------------------------- #
+# Configuration helpers
+# --------------------------------------------------------------------------- #
+def _load_config(config: Optional[Union[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Return the configuration dictionary (dict in, dict out, YAML otherwise)."""
+    if isinstance(config, dict):
+        return config
+    if config is None:
+        here = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(here)
+        candidates = [
+            os.path.join(project_root, "config", "config.yaml"),
+            os.path.join(os.getcwd(), "config", "config.yaml"),
+        ]
+        for candidate in candidates:
+            if os.path.isfile(candidate):
+                config = candidate
+                break
+        else:
+            return {}
+    if not os.path.isfile(str(config)):
+        logger.warning("config file not found at %s", config)
+        return {}
+    with open(str(config), "r", encoding="utf-8") as handle:
+        cfg = yaml.safe_load(handle)
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def _nested_get(cfg: Dict[str, Any], dotted_key: str, default: Any = None) -> Any:
+    """Safely walk nested dicts; missing keys *and* explicit nulls -> default."""
+    node: Any = cfg
+    for key in dotted_key.split("."):
+        if not isinstance(node, dict) or key not in node:
+            return default
+        node = node[key]
+    return default if node is None else node
+
+
+def _resolve_device(device: Optional[Union[str, torch.device]] = None,
+                    cfg: Optional[Dict[str, Any]] = None) -> torch.device:
+    """Resolve the compute device (config['system']['device']), fall back to CPU."""
+    if device is None and cfg is not None:
+        device = _nested_get(cfg, "system.device")
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    if isinstance(device, torch.device):
+        resolved = device
+    else:
+        resolved = torch.device(str(device))
+    if resolved.type == "cuda" and not torch.cuda.is_available():
+        logger.warning("CUDA requested but unavailable; falling back to CPU.")
+        resolved = torch.device("cpu")
+    return resolved
+
+
+# --------------------------------------------------------------------------- #
+# Small utilities
+# --------------------------------------------------------------------------- #
+def _empty_metrics() -> Dict[str, Any]:
+    """Zero-valued metrics dictionary (same keys as a normal evaluation)."""
+    return {
+        "mean_f1": 0.0,
+        "mean_precision": 0.0,
+        "mean_recall": 0.0,
+        "accuracy": 0.0,
+        "overall_accuracy": 0.0,
+        "top1_accuracy": 0.0,
+        "top5_accuracy": 0.0,
+        "per_class_precision": [],
+        "per_class_recall": [],
+        "per_class_f1": [],
+        "support": [],
+        "class_names": [],
+        "confusion_matrix": [],
+        "num_samples": 0,
+        "num_classes": 0,
+        "loss": None,
+        "run_name": "",
+    }
+
+
+def _safe_filename(name: str) -> str:
+    """Turn a run name into a filesystem-safe token."""
+    cleaned = re.sub(r"[^0-9A-Za-z._:-]+", "_", str(name or "run")).strip("._")
+    return cleaned or "run"
+
+
+def _to_float(value: Any, default: float = 0.0) -> float:
+    """Best-effort conversion to float; NaN/None -> *default*."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    if result != result:  # NaN
+        return float(default)
+    return result
+
+
+def _fmt(value: Any, digits: int = 4) -> str:
+    """Format a metric value for the text report."""
+    if value is None:
+        return "n/a"
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, (int, np.integer)):
+        return str(int(value))
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number != number:
+        return "n/a"
+    return "{:.{precision}f}".format(number, precision=int(digits))
+
+
+def _json_safe(obj: Any) -> Any:
+    """Recursively convert numpy / torch containers into JSON-serialisable ones."""
+    if isinstance(obj, dict):
+        return {str(key): _json_safe(value) for key, value in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(value) for value in obj]
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, torch.Tensor):
+        return obj.detach().cpu().tolist()
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, (np.bool_,)):
+        return bool(obj)
+    return obj
+
+
+def _unpack_batch(batch: Any, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Extract ``(inputs, targets)`` from a DataLoader batch (same rules as training)."""
+    if isinstance(batch, (tuple, list)):
+        inputs, targets = batch[0], batch[1]
+    elif isinstance(batch, dict):
+        inputs = batch.get("image", batch.get("images", batch.get("input", batch.get("inputs"))))
+        targets = batch.get("label", batch.get("labels", batch.get("target", batch.get("targets"))))
+    else:
+        raise TypeError("unsupported batch type: {}".format(type(batch)))
+    if inputs is None or targets is None:
+        raise ValueError("batch must contain both inputs and targets")
+    inputs = inputs.to(device, non_blocking=True)
+    targets = targets.to(device, non_blocking=True).long()
+    return inputs, targets
+
+
+def _as_loader(
+    data: Any,
+    cfg: Dict[str, Any],
+    model: Any = None,
+    batch_size: Optional[int] = None,
+) -> Optional[DataLoader]:
+    """Accept a DataLoader, a Dataset or ``None``; always return a loader / ``None``."""
+    if data is None:
+        return None
+    if isinstance(data, DataLoader):
+        return data
+    if isinstance(data, Dataset):
+        resolved_bs = batch_size
+        if resolved_bs is None:
+            resolved_bs = _nested_get(cfg, "inference.batch_size")
+        if resolved_bs is None:
+            model_name = str(getattr(model, "model_name", "") or "")
+            train_bs = _nested_get(cfg, "training.batch_size")
+            if isinstance(train_bs, dict) and model_name:
+                resolved_bs = train_bs.get(model_name)
+            elif isinstance(train_bs, (int, float)):
+                resolved_bs = train_bs
+        if resolved_bs is None:
+            resolved_bs = DEFAULT_INFERENCE_BATCH_SIZE
+        num_workers = int(_nested_get(cfg, "system.num_workers", DEFAULT_NUM_WORKERS) or 0)
+        pin_memory = bool(_nested_get(cfg, "system.pin_memory", True))
+        return DataLoader(
+            data,
+            batch_size=int(resolved_bs),
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            drop_last=False,
+        )
+    raise TypeError("expected DataLoader, Dataset or None, got {}".format(type(data)))
+
+
+def _compute_confusion_matrix(
+    pred_classes: np.ndarray,
+    labels: np.ndarray,
+    num_classes: int,
+) -> List[List[int]]:
+    """Row-normalised-free confusion matrix ``cm[true][pred]`` as nested lists."""
+    matrix = np.zeros((int(num_classes), int(num_classes)), dtype=np.int64)
+    for true_class, pred_class in zip(labels, pred_classes):
+        true_class = int(true_class)
+        pred_class = int(pred_class)
+        if 0 <= true_class < int(num_classes) and 0 <= pred_class < int(num_classes):
+            matrix[true_class, pred_class] += 1
+    return matrix.tolist()
+
+
+def _top_k_accuracy(
+    logits: Union[np.ndarray, torch.Tensor],
+    labels: Union[np.ndarray, torch.Tensor],
+    k: int = 5,
+) -> float:
+    """Fraction of samples whose ground-truth label is among the top-k scores."""
+    if logits is None or labels is None:
+        return 0.0
+    if isinstance(logits, np.ndarray):
+        logits_t = torch.from_numpy(np.ascontiguousarray(logits))
+    else:
+        logits_t = logits.detach().cpu()
+    if isinstance(labels, np.ndarray):
+        labels_t = torch.from_numpy(np.ascontiguousarray(labels))
+    else:
+        labels_t = labels.detach().cpu()
+    if logits_t.numel() == 0 or labels_t.numel() == 0:
+        return 0.0
+    if logits_t.dim() == 1:
+        return float((logits_t.argmax(dim=0) == labels_t.view(-1)[0]).item())
+    num_classes = int(logits_t.size(1))
+    if num_classes <= 0:
+        return 0.0
+    k_value = max(1, min(int(k), num_classes))
+    labels_t = labels_t.view(-1).long()
+    top_indices = logits_t.topk(k_value, dim=1).indices
+    hits = top_indices.eq(labels_t.view(-1, 1)).any(dim=1).float()
+    return float(hits.mean().item())
+
+
+def _load_checkpoint_state(path: str, device: torch.device) -> Dict[str, torch.Tensor]:
+    """Load a checkpoint written by ``training/train.py::save_model``."""
+    checkpoint = torch.load(path, map_location=device)
+    if isinstance(checkpoint, dict):
+        if "model_state_dict" in checkpoint:
+            return checkpoint["model_state_dict"]
+        if "state_dict" in checkpoint:
+            return checkpoint["state_dict"]
+    return checkpoint
+
+
+def _resolve_model(
+    model: Any,
+    cfg: Dict[str, Any],
+    device: torch.device,
+    checkpoint_path: Optional[str] = None,
+) -> Optional[nn.Module]:
+    """Return an ``nn.Module`` in eval mode (build from a name when necessary)."""
+    if model is None:
+        return None
+    if isinstance(model, nn.Module):
+        resolved = model
+    elif isinstance(model, str):
+        if initialize_model is None:
+            raise RuntimeError(
+                "training/train.py::initialize_model is unavailable; "
+                "pass a torch.nn.Module instead of a model name."
+            )
+        resolved = initialize_model(
+            model_name=model,
+            training_mode=_nested_get(cfg, "training_modes.active"),
+            config=cfg,
+            device=device,
+            verbose=False,
+        )
+    else:
+        raise TypeError("model must be an nn.Module, a model name or None, got {}".format(type(model)))
+
+    if checkpoint_path:
+        state = _load_checkpoint_state(str(checkpoint_path), device)
+        resolved.load_state_dict(state, strict=False)
+        logger.info("loaded checkpoint %s for evaluation", checkpoint_path)
+
+    resolved.to(device)
+    resolved.eval()
+    return resolved
+
+
+# --------------------------------------------------------------------------- #
+# 1. Evaluation
+# --------------------------------------------------------------------------- #
+def evaluate_model(
+    model: Any = None,
+    test_loader: Any = None,
+    config: Optional[Union[str, Dict[str, Any]]] = None,
+    device: Optional[Union[str, torch.device]] = None,
+    criterion: Optional[nn.Module] = None,
+    num_classes: Optional[int] = None,
+    class_names: Optional[Sequence[str]] = None,
+    run_name: str = "default_run",
+    top_k: Optional[int] = None,
+    checkpoint_path: Optional[str] = None,
+    batch_size: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Evaluate *model* on *test_loader* and return the FR-09 metric dictionary.
+
+    Parameters
+    ----------
+    model:
+        A ``torch.nn.Module`` (preferred) or an architecture name understood by
+        ``training/train.py::initialize_model`` (``"alexnet"`` / ``"googlenet"``).
+        ``None`` is allowed and yields a zero-valued metric dictionary so the
+        function can be called safely in unit tests.
+    test_loader:
+        A ``torch.utils.data.DataLoader`` or ``Dataset`` producing
+        ``(images, labels)`` batches.  ``None`` yields zero-valued metrics.
+    config:
+        Parsed config dict or a path to ``config/config.yaml``.
+    device:
+        Compute device; defaults to ``config['system']['device']`` (CPU
+        fallback when CUDA is unavailable).
+    criterion:
+        Optional loss module (e.g. ``torch.nn.CrossEntropyLoss``) used only to
+        report the average test loss.
+    num_classes / class_names:
+        Optional overrides; defaults come from the model and the config
+        (``model.num_classes`` / ``data.num_classes``).
+    top_k:
+        k for the top-k accuracy; defaults to ``config['inference']['top_k']``.
+    checkpoint_path:
+        Optional checkpoint file to load into *model* before evaluating.
+    batch_size:
+        Inference batch size used when a raw ``Dataset`` is supplied;
+        defaults to ``config['inference']['batch_size']`` (null -> 32).
+
+    Returns
+    -------
+    dict
+        ``mean_f1``, ``mean_precision``, ``mean_recall``, ``accuracy`` /
+        ``overall_accuracy`` (FR-09), ``top5_accuracy``, per-class metrics,
+        ``confusion_matrix`` (list of lists), and run metadata.
+    """
+    cfg = _load_config(config)
+
+    # ---- data ----------------------------------------------------------
+    loader = _as_loader(test_loader, cfg, model=model, batch_size=batch_size)
+
+    # ---- device --------------------------------------------------------
+    target_device = _resolve_device(device, cfg)
+
+    if loader is None:
+        logger.warning("evaluate_model: no test data provided; returning zero metrics.")
+        result = _empty_metrics()
+        result["run_name"] = str(run_name)
+        result["device"] = str(target_device)
+        result["num_classes"] = int(
+            num_classes
+            or _nested_get(cfg, "model.num_classes")
+            or _nested_get(cfg, "data.num_classes")
+            or 0
+        )
+        return result
+
+    # ---- model ---------------------------------------------------------
+    resolved_model = _resolve_model(model, cfg, target_device, checkpoint_path)
+    if resolved_model is None:
+        logger.warning("evaluate_model: no model provided; returning zero metrics.")
+        result = _empty_metrics()
+        result["run_name"] = str(run_name)
+        result["device"] = str(target_device)
+        return result
+
+    # ---- number of classes / class names -------------------------------
+    if num_classes is None:
+        num_classes = getattr(resolved_model, "num_classes", None)
+    if num_classes is None:
+        num_classes = _nested_get(cfg, "model.num_classes")
+    if num_classes is None:
+        num_classes = _nested_get(cfg, "data.num_classes")
+
+    resolved_class_names: Optional[List[str]] = None
+    if class_names is not None:
+        resolved_class_names = [str(name) for name in class_names]
+    else:
+        dataset = getattr(loader, "dataset", None)
+        dataset_classes = getattr(dataset, "classes", None) if dataset is not None else None
+        if dataset_classes is not None:
+            resolved_class_names = [str(name) for name in dataset_classes]
+
+    # ---- forward pass --------------------------------------------------
+    all_logits: List[torch.Tensor] = []
+    all_targets: List[torch.Tensor] = []
+    total_loss = 0.0
+    total_samples = 0
+
+    resolved_model.eval()
+    with torch.no_grad():
+        for batch in loader:
+            inputs, targets = _unpack_batch(batch, target_device)
+            outputs = resolved_model(inputs)
+            if isinstance(outputs, (tuple, list)):
+                logits = outputs[0]
+            else:
+                logits = outputs
+            if isinstance(logits, dict):
+                logits = logits.get("logits", logits.get("output"))
+            logits = logits.float()
+
+            if criterion is not None:
+                loss = criterion(logits, targets)
+                total_loss += float(loss.item()) * int(targets.size(0))
+
+            all_logits.append(logits.detach().cpu())
+            all_targets.append(targets.detach().cpu())
+            total_samples += int(targets.size(0))
+
+    if total_samples == 0 or not all_logits:
+        logger.warning("evaluate_model: the test loader produced no samples.")
+        result = _empty_metrics()
+        result["run_name"] = str(run_name)
+        result["device"] = str(target_device)
+        return result
+
+    logits_tensor = torch.cat(all_logits, dim=0)
+    targets_tensor = torch.cat(all_targets, dim=0).view(-1).long()
+
+    if num_classes is None:
+        num_classes = int(targets_tensor.max().item()) + 1
+    num_classes = int(num_classes)
+    if num_classes <= 0:
+        raise ValueError("num_classes must be positive, got {}".format(num_classes))
+
+    # ---- FR-09 metrics (delegated to utils/metrics.py) -----------------
+    metrics = compute_metrics(
+        predictions=logits_tensor,
+        labels=targets_tensor,
+        num_classes=num_classes,
+        config=cfg

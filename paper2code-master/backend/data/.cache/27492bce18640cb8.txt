@@ -1,0 +1,372 @@
+# Plant Disease Detection with Deep Learning
+
+> 基于图像的植物病害检测——论文复现项目（PyTorch）
+>
+> **Paper:** *Using Deep Learning for Image-Based Plant Disease Detection*（Mohanty, Hughes & Salathé, 2016）
+> **Task:** `image_classification`（26 类 / 38 类，取决于数据集版本）
+> **Framework:** PyTorch
+> **Hardware:** NVIDIA GPU（单卡 / 多卡集群均支持，`cuda` 设备自动检测）
+
+---
+
+## 1. 项目简介
+
+本项目复现上述论文中的图像分类实验，对比 **AlexNet** 与 **GoogLeNet** 两种卷积神经网络在植物叶片病害图像数据集（PlantVillage）上的表现。实验同时覆盖两种训练模式：
+
+- **scratch（从头训练）**：随机初始化全部权重，训练全部网络层；
+- **transfer（迁移学习）**：加载在 ImageNet 上预训练的权重，随后进行全量微调（fine-tuning）。
+
+两种模式的权重初始化逻辑**完全不同**，因此代码中使用 `training_mode` 枚举（`scratch` / `transfer`）来区分，而不是单一的 `pretrained` 布尔开关。详见 §4.3。
+
+---
+
+## 2. 项目结构
+
+```
+README.md
+main.py
+requirements.txt
+config/config/config.yaml
+data/data/dataset.py
+evaluation/evaluation/evaluate.py
+models/models/__init__.py
+models/models/alexnet.py
+models/models/googlenet.py
+training/training/train.py
+utils/utils/metrics.py
+```
+
+### 2.1 文件职责说明
+
+| 文件 | 职责 |
+| --- | --- |
+| `main.py` | 项目入口。解析命令行参数、加载配置、构建数据集/模型、调用训练与评估流程、输出最终指标。 |
+| `requirements.txt` | Python 依赖清单（含 PyTorch / torchvision 版本约束）。 |
+| `config/config/config.yaml` | 唯一的配置文件：数据路径、模型选择、`training_mode`、优化器与调度器超参、batch size、epoch 数、checkpoint 策略等。 |
+| `data/data/dataset.py` | 数据集读取与预处理（resize、归一化、数据增强），构建 `train / test` 两个 `DataLoader`；可选地从训练集中二次划分验证集。 |
+| `evaluation/evaluation/evaluate.py` | 在给定 `DataLoader` 上执行推理，收集预测与标签，返回 loss / accuracy / 各类 precision / recall / F1 / 混淆矩阵。 |
+| `models/models/__init__.py` | 模型工厂入口，暴露 `build_model(...)`，根据 `model_name` 与 `training_mode` 实例化网络。 |
+| `models/models/alexnet.py` | AlexNet 结构定义（含 `training_mode` 分支的权重初始化逻辑）。 |
+| `models/models/googlenet.py` | GoogLeNet（Inception v1）结构定义（含辅助分类头与 `training_mode` 分支的初始化逻辑）。 |
+| `training/training/train.py` | 训练循环：SGD 优化器、StepLR 调度、梯度清零/反传/更新、逐 epoch 日志、checkpoint 保存与恢复、可选早停。 |
+| `utils/utils/metrics.py` | 指标计算工具：accuracy、macro/weighted precision/recall/F1、混淆矩阵、指标格式化打印与 JSON 导出。 |
+
+> 说明：`config/`、`data/`、`evaluation/`、`models/`、`training/`、`utils/` 这 6 个顶层目录各自包含一个同名子包，导入路径形如 `from models.models.googlenet import GoogLeNet`。请保持该目录层级不变，否则导入会失败。
+
+---
+
+## 3. 环境与安装
+
+### 3.1 硬件要求
+
+- **GPU:** NVIDIA GPU（显存 ≥ 6 GB 推荐；GoogLeNet + batch 24 约需 5–8 GB）
+- **CPU / 内存:** 多核 CPU 用于数据加载；内存 ≥ 16 GB
+- **磁盘:** 数据集 + checkpoint 约 5–20 GB
+
+### 3.2 软件环境
+
+- Python ≥ 3.8
+- CUDA 11.x + cuDNN（与 PyTorch 版本匹配）
+- Conda 或 venv
+
+```bash
+# 创建环境
+conda create -n plant_disease python=3.9 -y
+conda activate plant_disease
+
+# 安装 PyTorch（按你的 CUDA 版本调整，以下为 CUDA 11.8 示例）
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# 安装其余依赖
+pip install -r requirements.txt
+```
+
+### 3.3 `requirements.txt` 内容概览
+
+```
+torch>=1.12
+torchvision>=0.13
+numpy>=1.21
+pandas>=1.3
+scikit-learn>=1.0
+matplotlib>=3.5
+seaborn>=0.11
+PyYAML>=6.0
+tqdm>=4.62
+Pillow>=9.0
+```
+
+---
+
+## 4. 数据集与配置
+
+### 4.1 数据集
+
+使用论文所用的 **PlantVillage** 数据集（叶片图像，按“作物-病害”组合组织为类别子文件夹，`ImageFolder` 兼容格式）：
+
+```
+<dataset_root>/
+├── train/
+│   ├── Apple___Apple_scab/
+│   ├── Apple___Black_rot/
+│   ├── ...
+└── test/
+    ├── Apple___Apple_scab/
+    ├── Apple___Black_rot/
+    ├── ...
+```
+
+在 `config/config/config.yaml` 中通过 `data.root`、`data.train_dir`、`data.test_dir` 指定路径。
+
+### 4.2 预处理
+
+- `resize`: 统一缩放到 `224 × 224`（AlexNet / GoogLeNet 输入尺寸）
+- 归一化：ImageNet 统计量 `mean=(0.485, 0.456, 0.406)`, `std=(0.229, 0.224, 0.225)`
+- 训练集数据增强：随机水平翻转、随机旋转（±15°）、随机裁剪；**测试集不做随机增强**
+
+### 4.3 `training_mode` 枚举（⚠ FR-06）
+
+代码中**不存在** `pretrained=True/False` 之类的布尔开关。模型初始化完全由 `training_mode` 控制：
+
+| 取值 | 含义 | 初始化逻辑 |
+| --- | --- | --- |
+| `scratch` | 从头训练 | 所有权重使用 Kaiming/He 正态初始化，偏置置零；不加载任何外部权重。 |
+| `transfer` | 迁移学习 | 从 `torchvision` 的 `AlexNet` / `GoogLeNet(ImageNet)` 加载预训练骨干权重，**替换分类头**为当前类别数并随机初始化该头；骨干层可选择冻结或微调（`data.freeze_backbone`）。 |
+
+两种模式的初始化代码路径是**分支实现**，不可互相替代；这也是使用枚举而非布尔值的原因。
+
+### 4.4 训练超参数（与论文一致）
+
+| 项目 | 值 |
+| --- | --- |
+| 优化器 | Stochastic Gradient Descent (SGD) |
+| 动量 | 0.9（工程默认） |
+| 学习率 | `0.005` |
+| 权重衰减 | `0.0005`（工程默认） |
+| Batch size | GoogLeNet: **24**；AlexNet: **100** |
+| Epochs | **30** |
+| 损失函数 | Softmax Cross-Entropy（`nn.CrossEntropyLoss`，内部含 softmax） |
+| LR 调度器 | `StepLR(step_size=10, gamma=0.1)` |
+
+### 4.5 `config/config/config.yaml` 示例
+
+```yaml
+project:
+  name: plant-disease-detection
+  seed: 42
+  output_dir: ./outputs
+  device: auto          # auto | cuda | cpu
+
+data:
+  root: /path/to/PlantVillage
+  train_dir: train
+  test_dir: test
+  image_size: 224
+  num_workers: 4
+  # 【engineering deviation from paper】仅在需要早停/选最优模型时开启；
+  # 论文只做 train/test 二路划分。设为 0.2 表示从 train 中按 80/20 再分出 val。
+  val_split_ratio: 0.2
+  freeze_backbone: false
+
+model:
+  name: googlenet        # alexnet | googlenet
+  training_mode: transfer  # scratch | transfer   （枚举，非 pretrained 布尔）
+
+training:
+  epochs: 30
+  batch_size: 24         # alexnet 时设为 100
+  optimizer:
+    name: sgd
+    lr: 0.005
+    momentum: 0.9
+    weight_decay: 0.0005
+  scheduler:
+    name: steplr
+    step_size: 10
+    gamma: 0.1
+  loss: cross_entropy
+  early_stopping: false
+  patience: 5
+  checkpoint:
+    save_best: true
+    monitor: val_accuracy   # 【engineering deviation】见 §6
+    save_last: true
+
+evaluation:
+  save_confusion_matrix: true
+  export_metrics_json: true
+```
+
+---
+
+## 5. 运行方法
+
+### 5.1 一键运行（推荐）
+
+```bash
+# GoogLeNet + 迁移学习（batch_size=24）
+python main.py --config config/config/config.yaml
+
+# AlexNet + 从头训练（batch_size=100）
+python main.py --config config/config/config.yaml \
+               --model alexnet \
+               --training-mode scratch \
+               --batch-size 100
+```
+
+命令行参数会**覆盖** YAML 中的同名配置项，便于网格化实验。
+
+### 5.2 常用命令行参数
+
+| 参数 | 说明 | 默认值 |
+| --- | --- | --- |
+| `--config` | 配置文件路径 | `config/config/config.yaml` |
+| `--model` | `alexnet` / `googlenet` | 取自配置 |
+| `--training-mode` | `scratch` / `transfer` | 取自配置 |
+| `--batch-size` | 每批样本数 | 取自配置 |
+| `--epochs` | 训练轮数 | 30 |
+| `--lr` | 初始学习率 | 0.005 |
+| `--seed` | 随机种子 | 42 |
+| `--resume` | 从 checkpoint 恢复训练 | 无 |
+| `--eval-only` | 仅运行测试集评估 | 关闭 |
+| `--output-dir` | 结果输出目录 | `./outputs` |
+
+### 5.3 仅评估（已有 checkpoint）
+
+```bash
+python main.py --config config/config/config.yaml \
+               --eval-only \
+               --resume outputs/googlenet_transfer/best.pth
+```
+
+### 5.4 在 GPU 集群上提交作业（示例）
+
+```bash
+# Slurm 示例
+#!/bin/bash
+#SBATCH --job-name=plant_disease
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=24:00:00
+
+module load cuda/11.8
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate plant_disease
+
+python main.py --config config/config/config.yaml --model googlenet --training-mode transfer
+```
+
+多卡场景可改用 `torchrun --nproc_per_node=4 main.py ...`（`training/train.py` 中的训练循环兼容 `DistributedSampler`；如未启用分布式则回退到单卡）。
+
+---
+
+## 6. 工程偏离声明（Engineering Deviations from Paper）
+
+为保证工程可用性，以下做法**偏离**论文原始设定，均在代码与配置中显式标注：
+
+1. **验证集二次划分（FR-03）**
+   论文只使用 `train / test` 二路划分，**没有独立验证集**。本项目若启用早停（early stopping）或“保存最优模型”，需要一个验证集，因此从训练集中按 **80/20** 二次划分出 `val`。该行为由 `data.val_split_ratio` 控制，设为 `0` 即完全关闭，严格回到论文的二路划分设定。
+   ⚠ 注意：关闭后 `val_loader` 为空，早停与 `save_best` 会退化为“保存最后一个 epoch”。
+
+2. **`checkpoint.monitor = val_accuracy` 属于工程偏离**
+   论文无验证集，使用 `val_accuracy` 作为 `best_metric` 选择模型是工程层面的添加项。
+   - **严格复现论文**：`val_split_ratio: 0.0`，直接保留最终 epoch 的权重。
+   - **不推荐**使用 `test_accuracy` 作为 `best_metric`，因为这会造成 **数据泄露（data leakage）**，指标将偏乐观。
+   - 若仍需早停，推荐做法是从训练集二次划分验证集，并在报告中注明这一点。
+
+3. **`training_mode` 枚举替代 `pretrained` 布尔（FR-06）**
+   `scratch` 与 `transfer` 两种模式的权重初始化与分类头替换逻辑完全不同，故使用枚举区分，避免一个布尔值表达两种语义。
+
+4. **超参数补充**
+   SGD 的 `momentum=0.9`、`weight_decay=0.0005` 为 PyTorch 社区常用默认值，论文未给出明确数值；已在配置中暴露以便调整。
+
+5. **数据增强**
+   论文对增强策略描述有限，本项目采用轻量增强（水平翻转/旋转/裁剪），可在 `data/data/dataset.py` 中关闭或替换。
+
+---
+
+## 7. 复现步骤（Reproduction Checklist）
+
+1. **克隆并进入目录**
+   ```bash
+   git clone <repo_url> && cd <repo_dir>
+   ```
+2. **准备数据集**：下载 PlantVillage，整理为 §4.1 的 `train/`、`test/` 目录结构，修改 `config/config/config.yaml` 中的 `data.root`。
+3. **安装依赖**：见 §3。
+4. **设定随机种子**：`project.seed: 42`，`main.py` 会同时固定 `random`、`numpy`、`torch`、`torch.cuda` 与 `cudnn.deterministic`。
+5. **运行实验矩阵**（4 组）：
+
+   | 组合 | 命令 |
+   | --- | --- |
+   | AlexNet + scratch | `python main.py --model alexnet --training-mode scratch --batch-size 100` |
+   | AlexNet + transfer | `python main.py --model alexnet --training-mode transfer --batch-size 100` |
+   | GoogLeNet + scratch | `python main.py --model googlenet --training-mode scratch --batch-size 24` |
+   | GoogLeNet + transfer | `python main.py --model googlenet --training-mode transfer --batch-size 24` |
+
+6. **收集结果**：每个组合的输出目录 `outputs/<model>_<training_mode>/` 下生成
+   - `train_log.csv`：逐 epoch 的 train/val loss 与 accuracy
+   - `test_metrics.json`：最终测试集 accuracy、macro/weighted precision、recall、F1
+   - `confusion_matrix.png`：混淆矩阵可视化
+   - `best.pth` / `last.pth`：模型权重
+7. **对比分析**：运行结束后，各模型之间的优劣比较由 `evaluation/evaluation/evaluate.py` 与 `utils/utils/metrics.py` 从**实际评估结果**中动态计算得出（例如自动比较各运行的 `test_accuracy`、macro-F1，并输出一张汇总表）。
+   ⚠ 报告、README 与代码注释中**不写入任何预先设定的结论性表述**（如 “consistently outperforms” / “always yields better results”）；关于“迁移学习 vs 从头训练”“AlexNet vs GoogLeNet”的结论必须以本次运行产出的指标为准。
+8. **记录环境信息**：`outputs/<run>/env.txt` 会保存 PyTorch / CUDA / GPU 型号，便于核对复现条件。
+
+---
+
+## 8. 输出与日志
+
+训练过程逐 epoch 打印：
+
+```
+[Epoch 01/30] lr=5.000e-03 | train_loss=1.8421 train_acc=45.12% | val_loss=1.2010 val_acc=61.35%
+[Epoch 10/30] lr=5.000e-04 | train_loss=0.3184 train_acc=89.71% | val_loss=0.4021 val_acc=86.94%
+...
+[Evaluate] test_loss=0.3722 | test_acc=88.13% | macro_f1=0.8742 | weighted_f1=0.8810
+```
+
+评估结束后会打印：总体 accuracy、macro / weighted precision、recall、F1、每类 precision/recall/F1，以及归一化混淆矩阵。
+
+---
+
+## 9. 常见问题（FAQ）
+
+**Q: 训练时 `CUDA out of memory`？**
+A: 降低 `training.batch_size`（GoogLeNet 可尝试 16 / 12），或在 `config` 中启用梯度累积（`training.grad_accum_steps`）。
+
+**Q: `ModuleNotFoundError: No module named 'models.models'`？**
+A: 请在项目根目录下运行 `python main.py`，不要在子目录内执行；必要时设置 `PYTHONPATH=.`。
+
+**Q: 想严格按论文复现（无验证集）？**
+A: 将 `data.val_split_ratio` 设为 `0`，`training.early_stopping` 设为 `false`，`training.checkpoint.save_best` 设为 `false`，使用 `last.pth` 进行测试集评估。
+
+**Q: `training_mode: transfer` 时提示下载权重失败？**
+A: `torchvision` 需要联网下载 ImageNet 权重；请预先下载并放入 `TORCH_HOME` 目录，或改用 `training_mode: scratch`。
+
+**Q: 如何更换类别数？**
+A: 不需要手动修改模型；`data/data/dataset.py` 会从 `train/` 子目录自动推断类别数并传给 `build_model(num_classes=...)`，分类头自动适配。
+
+---
+
+## 10. 引用
+
+```bibtex
+@article{mohanty2016using,
+  title   = {Using Deep Learning for Image-Based Plant Disease Detection},
+  author  = {Mohanty, Sharada P. and Hughes, David P. and Salath{\'e}, Marcel},
+  journal = {Frontiers in Plant Science},
+  volume  = {7},
+  pages   = {1419},
+  year    = {2016},
+  doi     = {10.3389/fpls.2016.01419}
+}
+```
+
+---
+
+## 11. License & Notes
+
+- 本项目仅用于论文复现与科研用途。
+- PlantVillage 数据集的使用须遵守其原始许可协议。
+- 所有实验结论以 `outputs/` 目录下实际生成的指标文件为准，请勿在文档中硬编码结论。

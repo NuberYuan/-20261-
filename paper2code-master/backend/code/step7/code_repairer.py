@@ -9,16 +9,16 @@ Step7.5: 代码修复器
 本模块只负责"给定错误，生成一次修复结果"。
 """
 
-import re
-from llm_utils import chat_with_text
+from llm_manager import llm_call, extract_code_block
 from logger import logger
+from step7.code_generator import task_type_for_file
 
 # 单个文件最多修复次数（在 step7_main 中消费）
 MAX_REPAIR_ATTEMPTS = 3
 
 
 class CodeRepairer:
-    """调用 DeepSeek 修复一个未通过检查的代码文件。"""
+    """调用 LLM 修复一个未通过检查的代码文件。"""
 
     def repair(self, file: str, code: str, errors: list,
                spec: dict, context: dict,
@@ -36,8 +36,16 @@ class CodeRepairer:
         """
         prompt = self._build_prompt(file, code, errors, spec, context,
                                     runtime_errors=runtime_errors)
-        raw = chat_with_text(prompt)
-        return self._extract_code(raw)
+        try:
+            raw = llm_call(prompt, task_type=task_type_for_file(file))
+        except (RuntimeError, TimeoutError) as e:
+            err_msg = str(e)
+            # API 认证/余额错误：向上抛出，不应重试修复
+            if "401" in err_msg or "402" in err_msg or "Insufficient Balance" in err_msg:
+                raise
+            logger.error(f"代码修复 LLM 调用失败: {e}")
+            return code  # 修复失败时返回原始代码
+        return extract_code_block(raw)
 
     # ============================================================
     # Prompt 构建
@@ -121,13 +129,13 @@ class CodeRepairer:
         if spec.get("key_methods"):
             parts.append(f"\n【必须实现的方法】{', '.join(spec['key_methods'])}")
 
-        # 相关依赖代码（用于对齐接口/类名）
+        # 依赖文件的接口摘要（用于对齐接口/类名）
         related = context.get("related_code", {})
         if related:
-            parts.append("\n【已生成的相关代码（引用必须与之一致）】")
-            for dep_file, dep_code in related.items():
+            parts.append("\n【依赖文件接口摘要（引用必须与之一致）】")
+            for dep_file, dep_digest in related.items():
                 parts.append(f"===== {dep_file} =====")
-                parts.append(dep_code)
+                parts.append(dep_digest)
                 parts.append("")
 
         if file.endswith((".yaml", ".yml")):
@@ -161,28 +169,9 @@ class CodeRepairer:
             ]
         elif file.endswith(".py"):
             reqs += [
-                "3. 引用的类/方法名必须与「已生成的相关代码」完全一致。",
+                "3. 引用的类/方法名必须与「依赖文件接口摘要」完全一致。",
                 "4. 修复后必须能通过 ast.parse 语法检查，且包含所有【必须定义的类】和【必须实现的方法】。",
             ]
 
         return reqs
 
-    # ============================================================
-    # 提取代码
-    # ============================================================
-
-    @staticmethod
-    def _extract_code(raw: str) -> str:
-        raw = raw.strip()
-        blocks = re.findall(r"```[a-zA-Z0-9_+.-]*\s*\n(.*?)```", raw, re.DOTALL)
-        if blocks:
-            if len(blocks) == 1:
-                return blocks[0].strip()
-            # 多个代码块时，优先选看起来像完整文件的（有 import/class/def 语句）
-            def _score(block: str) -> tuple:
-                has_import = bool(re.search(r"^import |^from ", block, re.MULTILINE))
-                has_class = bool(re.search(r"^class ", block, re.MULTILINE))
-                has_def = bool(re.search(r"^def ", block, re.MULTILINE))
-                return (int(has_import) + int(has_class) + int(has_def), len(block))
-            return max(blocks, key=_score).strip()
-        return raw

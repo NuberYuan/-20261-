@@ -1,0 +1,5 @@
+```json
+{
+  "accuracy_targets.primary.target": "Dice coefficient: cell nuclei 92.52, colon polyp 32.12, liver 82.90, lung nodule 77.21 (UNet++ w/ DS); IoU: average gain of 3.9 points over U-Net and 3.4 points over wide U-Net"
+}
+```

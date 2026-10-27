@@ -1,0 +1,762 @@
+paper_name: 论文1
+generated_at: '2026-10-21T17:54:57.703521'
+reproduction_goal:
+  paper_name: 论文1
+  title: Using Deep Learning for Image-Based Plant Disease Detection
+  research_problem: Crop diseases are a major threat to food security, but their rapid
+    identification remains difficult in many parts of the world due to the lack of
+    the necessary infrastructure. The paper addresses the problem of automatically
+    identifying crop species and disease status from images of plant leaves using
+    deep convolutional neural networks.
+  motivation: The combination of increasing global smartphone penetration and recent
+    advances in computer vision made possible by deep learning has paved the way for
+    smartphone-assisted disease diagnosis. Historically, disease identification has
+    been supported by agricultural extension organizations, and traditional computer
+    vision approaches relied on hand-engineered features which were complex and labor-intensive.
+    Deep learning eliminates the need for feature engineering and offers generalizability
+    for practical and scalable computational inference of plant diseases.
+  main_contribution: Using a public dataset of 54,306 images of diseased and healthy
+    plant leaves collected under controlled conditions, a deep convolutional neural
+    network is trained to identify 14 crop species and 26 diseases (or absence thereof)
+    across 38 classes, achieving an accuracy of 99.35% on a held-out test set and
+    31.4% on real-world images from trusted online sources, demonstrating the technical
+    feasibility of smartphone-assisted crop disease diagnosis.
+  paper_type: model_proposing
+  task: image_classification
+  input: Images resized to 256 x 256 pixels
+  output: 38 class probability distribution (fc8 has 38 outputs in adapted AlexNet,
+    equaling total number of classes)
+  num_classes: 38 classes (14 crop species and 26 diseases or absence thereof)
+  reproduction_targets:
+  - 实现论文提出的模型架构
+  - 复现训练流程
+  - 复现评估指标计算
+  - 验证与论文结果的一致性
+  is_trainable: true
+technology:
+  paper_name: 论文1
+  framework:
+    recommended: PyTorch
+    candidates:
+    - PyTorch
+    source: 复现代码统一使用 PyTorch；论文原文框架见 programming_framework_mentioned
+  programming_framework_mentioned: 'Caffe (own fork of Caffe: https://github.com/salathegroup/caffe)'
+  model_backbone:
+    names:
+    - AlexNet
+    - GoogLeNet
+    source: 论文提到
+  architecture_details:
+    alexnet: AlexNet consists of 5 convolution layers, followed by 3 fully connected
+      layers, and finally ending with a softmax layer. The first two convolution layers
+      (conv{1,2}) are each followed by a normalization and a pooling layer, and the
+      last convolution layer (conv5) is followed by a single pooling layer. The final
+      fully connected layer (fc8) has 38 outputs in the adapted version. All of the
+      first 7 layers have a ReLU nonlinearity activation unit. The first two fully
+      connected layers (fc{6,7}) have a
+    googlenet: 'GoogLeNet is a much deeper and wider architecture with 22 layers,
+      while still having considerably lower number of parameters (5 million parameters)
+      in the network than AlexNet (60 million parameters). A total of 9 inception
+      modules is used. The inception module uses parallel 1x1, 3x3 and 5x5 convolutions
+      along with a maxpooling layer in parallel. 1x1 convolutions are added before
+      the 3x3, 5x5 convolutions (and also after the maxpooling layer) for dimensionality
+      reduction. A filter concatenation '
+  training:
+    optimizer:
+      type: Stochastic Gradient Descent
+    loss:
+      type: softmax cross-entropy (inferred from softmax layer)
+    scheduler:
+      type: StepLR
+  pretrained_weights:
+    used: true
+    source: ImageNet pretrained weights for transfer learning. In case of transfer
+      learning, they do not limit the learning of the rest of the layers and instead
+      just reset the weights of layer fc8 in case of AlexNet; in case of GoogLeNet,
+      they similarly do not limit the learning of the rest of the layers but instead
+      just reset the weights of the loss{1,2,3}/classifier layers.
+  special_modules: 'AlexNet: Dropout layers associated with first two fully connected
+    layers (fc{6,7}) with dropout ratio of 0.5. GoogLeNet: Inception modules (9 total),
+    1x1 convolutions for dimensionality reduction, filter concatenation layers.'
+  hardware:
+    mentioned: EPFL GPU cluster computing resources
+dataset:
+  paper_name: 论文1
+  data_source: external_dataset
+  acquisition: local_path
+  data_source_note: 论文明确使用 PlantVillage 公开数据集（54,306 张植物叶片图像），需手动下载后提供本地路径，非标准库内置可自动下载。
+  datasets:
+  - name: PlantVillage
+    source: PlantVillage project [9], openly and freely available
+    size: 54,306 images
+    num_classes: 38 classes (14 crop species and 26 diseases or absence thereof)
+    data_type: Images of plant leaves (diseased and healthy), collected under controlled
+      conditions
+  dataset_versions:
+  - color
+  - grayscale
+  - segmented
+  preprocessing:
+    versions:
+      color:
+        resize: 256x256
+        to_tensor: transforms.ToTensor()
+        dtype: torch.float32
+        description: 彩色版本：保持原始RGB三通道
+        channels: 3
+        normalization: &id001
+          mean:
+          - 0.485
+          - 0.456
+          - 0.406
+          std:
+          - 0.229
+          - 0.224
+          - 0.225
+          note: ImageNet 标准归一化；不使用预训练权重时可替换为 [0.5,0.5,0.5]
+        augmentation:
+        - name: RandomHorizontalFlip
+          p: 0.5
+      grayscale:
+        resize: 256x256
+        to_tensor: transforms.ToTensor()
+        dtype: torch.float32
+        description: 灰度版本：转换为单通道后重复为3通道
+        channels: 3
+        source_channels: 1
+        channel_handling:
+          paper_stated: NOT_FOUND — 论文未明确说明灰度图是保持1通道还是复制为3通道
+          inferred_approach: repeat to 3 channels
+          inference_basis: 预训练权重基于 ImageNet 3 通道输入；常见框架的图像加载层默认期望 3 通道；论文未提及修改第一层
+            conv1 的 in_channels。因此推断灰度图被复制为 3 通道以适配预训练模型。
+          alternatives:
+          - '方案A (推荐): repeat 3通道，适配预训练权重，与论文结果可比'
+          - '方案B: 保持1通道，修改 conv1 的 in_channels=1，但无法使用预训练权重'
+          choice: 方案A — repeat to 3 channels
+        pipeline:
+        - transforms.Grayscale(num_output_channels=1)
+        - transforms.ToTensor()
+        - 'lambda x: x.repeat(3, 1, 1)'
+        normalization: *id001
+        augmentation:
+        - name: RandomHorizontalFlip
+          p: 0.5
+        note: 灰度版本为常见消融变体，用于验证颜色信息对任务的贡献
+      segmented:
+        resize: 256x256
+        to_tensor: transforms.ToTensor()
+        dtype: torch.float32
+        description: 分割版本：论文提及的分割预处理（去除背景、保留目标区域）；具体算法与参数需从论文确认，未公开时需自行实现或替代。
+        channels: 3
+        segmentation_algorithm:
+          method: NOT_FOUND — 论文未公开具体分割算法
+          color_spaces: []
+          components: []
+          fixed_color_casts: false
+          implementation_status: 'NOT_FOUND: 论文提及分割思路但未提供完整算法/参数'
+          fallback: 如无法复现分割脚本，可使用 GrabCut 或 U-Net 替代，但结果可能与论文不完全一致。
+        normalization: *id001
+        augmentation:
+        - name: RandomHorizontalFlip
+          p: 0.5
+        note: 分割预处理最复杂，复现难度最高（具体性能数字见 experiment.comparison_results）
+    version_selector:
+      config_key: dataset_version
+      values:
+      - color
+      - grayscale
+      - segmented
+      default: color
+      note: 通过 config.yaml 的 dataset_version 字段切换预处理版本
+  split_strategy:
+    method: leaf_based_split
+    ratios: 'Multiple train-test splits: 80-20, 60-40, 50-50, 40-60, 20-80. Images
+      of the same leaf (mappings available for 41,112 out of 54,306 images) always
+      go either in the training set or the testing set.'
+    leaf_mapping_constraint: 同一片叶子的多张图片必须保持在同一个集合中
+model_design:
+  paper_name: 论文1
+  models:
+  - name: Alexnet
+    type: CNN
+    code_class_name: Alexnet
+    input: Images resized to 256 x 256 pixels
+    output: 38 class probability distribution (fc8 has 38 outputs in adapted AlexNet,
+      equaling total number of classes)
+    num_classes: 38 classes (14 crop species and 26 diseases or absence thereof)
+    pretrained: ImageNet pretrained weights for transfer learning. In case of transfer
+      learning, they do not limit the learning of the rest of the layers and instead
+      just reset the weights of layer fc8 in case of AlexNet; in case of GoogLeNet,
+      they similarly do not limit the learning of the rest of the layers but instead
+      just reset the weights of the loss{1,2,3}/classifier layers.
+    architecture_summary: AlexNet consists of 5 convolution layers, followed by 3
+      fully connected layers, and finally ending with a softmax layer. The first two
+      convolution layers (conv{1,2}) are each followed by a normalization and a pooling
+      layer, and the last convolution layer (conv5) is followed by a single pooling
+      layer. The final fully connected layer (fc8) has 38 outputs in the adapted version.
+      All of the first 7 layers have a ReLU nonlinearity activation unit. The first
+      two fully connected layers (fc{6,7}) have a
+    architecture:
+      total_layers: 7
+      param_count: 60M
+      special_components:
+      - type: Normalization
+        description: 原文提及 normalization/norm 层；具体类型（BatchNorm / LayerNorm / LocalResponseNorm
+          / InstanceNorm）需结合模型与上下文确认。
+      - type: Dropout
+        details: rate=0.5
+      final_classifier: fc8
+      implementation_notes: []
+      conv_layers: 5
+      fc_layers: 3
+  - name: Googlenet
+    type: CNN
+    code_class_name: Googlenet
+    input: Images resized to 256 x 256 pixels
+    output: 38 class probability distribution (fc8 has 38 outputs in adapted AlexNet,
+      equaling total number of classes)
+    num_classes: 38 classes (14 crop species and 26 diseases or absence thereof)
+    pretrained: ImageNet pretrained weights for transfer learning. In case of transfer
+      learning, they do not limit the learning of the rest of the layers and instead
+      just reset the weights of layer fc8 in case of AlexNet; in case of GoogLeNet,
+      they similarly do not limit the learning of the rest of the layers but instead
+      just reset the weights of the loss{1,2,3}/classifier layers.
+    architecture_summary: 'GoogLeNet is a much deeper and wider architecture with
+      22 layers, while still having considerably lower number of parameters (5 million
+      parameters) in the network than AlexNet (60 million parameters). A total of
+      9 inception modules is used. The inception module uses parallel 1x1, 3x3 and
+      5x5 convolutions along with a maxpooling layer in parallel. 1x1 convolutions
+      are added before the 3x3, 5x5 convolutions (and also after the maxpooling layer)
+      for dimensionality reduction. A filter concatenation '
+    architecture:
+      total_layers: 22
+      param_count: 5M
+      special_components:
+      - type: Inception
+        count: 9
+        description: Inception 模块：并行运行多个不同尺度的卷积与池化，结果沿 channel 维度拼接；小尺度卷积用于降维。
+        code_implementation: "可自实现 InceptionModule(nn.Module):\n  branches = [conv1x1,\
+          \ conv3x3, conv5x5, pool_proj]\n  output = torch.cat([b(x) for b in branches],\
+          \ dim=1)"
+      final_classifier: loss{1,2,3}/classifier
+      implementation_notes: []
+      inception_module_count: 9
+experiment:
+  paper_name: 论文1
+  pipeline:
+  - 'Collect 54,306 images from the PlantVillage dataset. Resize all images to 256x256
+    pixels. Prepare three versions of the dataset: color, grayscale, and segmented.
+    Split data into train/test sets with multiple ratios while ensuring images of
+    the same leaf stay in the same set. Train AlexNet and GoogLeNet models using either
+    transfer learning (resetting final classification layer) or training from scratch.
+    Train each model for 30 epochs with standardized hyperparameters. Evaluate using
+    mean F1 score, mean precision, mean recall, and overall accuracy at the end of
+    every epoch. Use final mean F1 score for comparison across all experimental configurations.'
+  experiments:
+  - name: main_experiment
+    description: 'Best performance: GoogLeNet::TransferLearning::Color::80-20 with
+      mean F1 score 0.9934 and overall accuracy 99.35%. Worst performance: AlexNet::TrainingFromScratch::GrayScale::80-20
+      with mean F1 score 0.8524 and overall accuracy 85.53%. GoogLeNet consistently
+      outperforms AlexNet. Transfer learning always yields better results than training
+      from scratch. Color > Segmented > Grayscale in terms of performance. On real-world
+      images (121 images from trusted online sources), GoogLeNet:Segmented:TransferLearning:80-20
+      achieves 31.40% accuracy, 47.93% when crop information is provided, 52.89% top-5
+      accuracy. In n>=2 case (33 classes, 9 crops): random accuracy 0.273, model accuracy
+      0.478. In n>=3 case (25 classes, 5 crops): random accuracy 0.2, model accuracy
+      0.411.'
+  evaluation:
+    primary_metric: F1
+    secondary_metrics:
+    - Mean F1 score
+    - mean precision
+    - mean recall
+    - overall accuracy
+  comparison:
+    baselines:
+    - Random guessing (2.63% overall accuracy on 38 classes)
+    ablation_factors:
+    - mean F1-Score 0.9820
+  experiment_matrix:
+    dimensions:
+      architectures:
+      - Alexnet
+      - Googlenet
+      training_modes:
+      - Scratch
+      - Transfer
+      data_types:
+      - Color
+      - Grayscale
+      - Segmented
+      train_test_splits:
+      - 80-20
+      - 60-40
+      - 50-50
+      - 40-60
+      - 20-80
+    total_configurations: 60
+    runs:
+    - id: run_001
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.8
+    - id: run_002
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.6
+    - id: run_003
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.5
+    - id: run_004
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.4
+    - id: run_005
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.2
+    - id: run_006
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.8
+    - id: run_007
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.6
+    - id: run_008
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.5
+    - id: run_009
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.4
+    - id: run_010
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.2
+    - id: run_011
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.8
+    - id: run_012
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.6
+    - id: run_013
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.5
+    - id: run_014
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.4
+    - id: run_015
+      model: Alexnet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.2
+    - id: run_016
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.8
+    - id: run_017
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.6
+    - id: run_018
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.5
+    - id: run_019
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.4
+    - id: run_020
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.2
+    - id: run_021
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.8
+    - id: run_022
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.6
+    - id: run_023
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.5
+    - id: run_024
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.4
+    - id: run_025
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.2
+    - id: run_026
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.8
+    - id: run_027
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.6
+    - id: run_028
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.5
+    - id: run_029
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.4
+    - id: run_030
+      model: Alexnet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.2
+    - id: run_031
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.8
+    - id: run_032
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.6
+    - id: run_033
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.5
+    - id: run_034
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.4
+    - id: run_035
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: color
+      train_ratio: 0.2
+    - id: run_036
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.8
+    - id: run_037
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.6
+    - id: run_038
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.5
+    - id: run_039
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.4
+    - id: run_040
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: grayscale
+      train_ratio: 0.2
+    - id: run_041
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.8
+    - id: run_042
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.6
+    - id: run_043
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.5
+    - id: run_044
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.4
+    - id: run_045
+      model: Googlenet
+      training_mode: scratch
+      dataset_version: segmented
+      train_ratio: 0.2
+    - id: run_046
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.8
+    - id: run_047
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.6
+    - id: run_048
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.5
+    - id: run_049
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.4
+    - id: run_050
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: color
+      train_ratio: 0.2
+    - id: run_051
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.8
+    - id: run_052
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.6
+    - id: run_053
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.5
+    - id: run_054
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.4
+    - id: run_055
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: grayscale
+      train_ratio: 0.2
+    - id: run_056
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.8
+    - id: run_057
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.6
+    - id: run_058
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.5
+    - id: run_059
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.4
+    - id: run_060
+      model: Googlenet
+      training_mode: transfer
+      dataset_version: segmented
+      train_ratio: 0.2
+    known_best: 99.35% — 121 images from trusted online sources
+    known_worst: 85.53% — 121 images from trusted online sources
+    run_all: false
+    recommended_subset:
+    - Alexnet::Scratch::Color::80-20
+    - Alexnet::Transfer::Color::80-20
+    - Googlenet::Scratch::Color::80-20
+    - Googlenet::Transfer::Color::80-20
+    note: 共 60 个实验组合。90%+ 场景下只需跑推荐子集确认趋势，CI/CD 中跑全部组合验证稳定性。
+  important_results: 'The best performing model (GoogLeNet::TransferLearning::Color::80-20)
+    achieves a mean F1 score of 0.9934 and overall accuracy of 99.35% on the PlantVillage
+    dataset. On real-world images collected from trusted online sources (121 images),
+    the model trained using GoogLeNet:Segmented:TransferLearning:80-20 achieves 31.40%
+    overall accuracy (random baseline: 2.63%). When crop information is provided,
+    accuracy increases to 47.93%. Top-5 predictions contain correct class in 52.89%
+    of cases. Even training on only 20% data achieves 98.21% accuracy with GoogLeNet::TransferLearning::Color::20-80.
+    Performance order: Color > Segmented > Grayscale. GoogLeNet > AlexNet. Transfer
+    Learning > Training from Scratch.'
+project_structure:
+  paper_name: 论文1
+  project_name: Using_Deep_Learning_for_ImageBased_Plant_Disease_D
+  root_structure:
+    directories:
+    - data
+    - models
+    - training
+    - evaluation
+    - utils
+    - config
+    files:
+      data:
+      - dataset.py
+      models:
+      - alexnet.py
+      - googlenet.py
+      - __init__.py
+      training:
+      - train.py
+      evaluation:
+      - evaluate.py
+      utils:
+      - metrics.py
+      config:
+      - config.yaml
+      .:
+      - main.py
+      - requirements.txt
+      - README.md
+  module_mapping:
+    data: 数据加载与预处理
+    models: '模型定义: alexnet, googlenet'
+    training: 训练循环
+    evaluation: 评估与对比
+    utils: 工具函数
+    config: YAML 配置
+    entry_point: main.py
+training_config:
+  paper_name: 论文1
+  parameter_provenance:
+    paper_confirmed:
+    - batch_size
+    - batch_size_note
+    - epochs
+    - learning_rate
+    - loss_function
+    - momentum
+    - optimizer_name
+    - weight_decay
+    inferred_from_paper:
+    - scheduler_name
+    - scheduler_step_size
+    - scheduler_gamma
+    - dropout_ratio
+    - image_size
+    engineering_default:
+    - checkpoint.save_best
+    - checkpoint.best_metric
+    - checkpoint.save_final
+    - checkpoint.save_optimizer_state
+    - inference.device
+    NOT_FOUND_in_paper:
+    - early_stopping
+    - checkpoint.save_frequency_epochs
+    - inference.batch_size
+    - freeze_backbone
+    note: 'paper_confirmed: 值直接来自论文 implementation_details；inferred_from_paper: 从论文描述推断但非逐字引用；engineering_default:
+      我们选择的工程实践值；NOT_FOUND_in_paper: 论文未提供，需自行决定'
+  training_modes:
+    scratch:
+      description: 从头训练：所有层随机初始化
+      pretrained: false
+      weight_init: kaiming_normal
+      reset_layers: []
+      freeze_backbone: false
+    transfer:
+      description: 迁移学习：加载ImageNet预训练权重，重置最后一层
+      pretrained: true
+      pretrained_source: torchvision.models (ImageNet)
+      reset_layers:
+      - classifier.6 (fc8, in_features=4096, out_features=38)
+      - fc (主分类器, out_features=38)
+      - aux1.fc2 (辅助分类器1, out_features=38)
+      - aux2.fc2 (辅助分类器2, out_features=38)
+      freeze_backbone:
+        value: NOT_FOUND
+        decision_type: engineering_decision
+        note: ⚠ 此项为纯工程决策（论文未提及，NOT_FOUND），不是论文要求。默认不冻结（全量微调），因为目标域与 ImageNet 差异较大。两种策略可选：(a)
+          不冻结 (fine-tuning)：所有层参与训练，收敛慢但效果好 — 推荐；(b) 冻结 backbone：只训练重置的分类层，收敛快但可能欠拟合。代码
+          Agent 可自由选择，但需在 config.yaml 中显式标注。
+        engineering_default: false
+      note: '论文两种模式的对比结果: Best performance: GoogLeNet::TransferLearning::Color::80-20
+        with mean F1 score 0.9934 and overall accuracy 99.35%. Worst performance:
+        AlexNet::TrainingFromScratch::GrayScale::80-20 with mean F1 score 0.8524 and
+        overall accuracy 85.53%. GoogLeNet consistently outperforms AlexNet. Transfer
+        learning always yields better results than training from scratch. Color >
+        Segmented > Grayscale in terms of performance. On real-world images (121 images
+        from trusted online sources), GoogLeNet:Segmented:TransferLearning:80-20 achieves
+        31.40% accuracy, 47.93% when crop information is provided, 52.89% top-5 accuracy.
+        In n>=2 case (33 classes, 9 crops): random accuracy 0.273, model accuracy
+        0.478. In n>=3 case (25 classes, 5 crops): random accuracy 0.2, model accuracy
+        0.411.'
+  training:
+    batch_size: 24 (in case of GoogLeNet), 100 (in case of AlexNet)
+    batch_size_note: 论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。
+    epochs: '30'
+    image_size: 256x256
+    optimizer:
+      name: Stochastic Gradient Descent
+      lr: '0.005'
+      momentum: '0.9'
+      weight_decay: '0.0005'
+    scheduler:
+      name: StepLR
+      step_size: '10'
+      gamma: '0.1'
+      note: 每 10 个 epoch 将学习率乘以 0.1；PyTorch StepLR 与此行为等价。
+    loss_function: softmax cross-entropy (inferred from softmax layer)
+    dropout_ratio: '0.5'
+    early_stopping: NOT_FOUND
+  checkpoint:
+    save_best: true
+    best_metric: val_accuracy
+    best_mode: max
+    save_final: true
+    save_frequency_epochs: NOT_FOUND
+    save_optimizer_state: true
+    resume_from: NOT_FOUND
+    note: 论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。
+  train_test_splits:
+  - 0.8
+  - 0.6
+  - 0.5
+  - 0.4
+  - 0.2
+  inference:
+    device: cuda
+    batch_size: NOT_FOUND
+  reproducibility_notes:
+  - Segregation of images of the same leaf into same train/test split (mappings available
+    for only 41,112 out of 54,306 images)
+  - Automated leaf segmentation script tuning for the specific dataset
+  - Fixing color casts in some image collection subsets
+  - Access to GPU cluster for training
+  - Own fork of Caffe framework needed for full replication

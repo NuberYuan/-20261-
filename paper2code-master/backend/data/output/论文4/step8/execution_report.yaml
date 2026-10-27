@@ -1,0 +1,50 @@
+execution:
+  total: 3
+  planned: 3
+  success: 3
+  failed: 0
+  skipped: 0
+success:
+- experiment_id: None_None_None_80
+  status: SUCCESS
+  warnings: []
+  exit_code: 0
+  duration_seconds: 1.61
+  logs:
+    stdout: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_001\stdout.log
+    stderr: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_001\stderr.log
+  result_files:
+  - logs/run.log
+  - results/metrics_bar_reachability_random_graphs.png
+  - results/metrics_reachability_random_graphs_20261024_163649.json
+  - results/reachability_random_graphs_timings_20261024-163649.json
+  - results/report_reachability_random_graphs_20261024_163649.txt
+  output_dir: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_001
+- experiment_id: None_None_None_80_1
+  status: SUCCESS
+  warnings: []
+  exit_code: 0
+  duration_seconds: 0.52
+  logs:
+    stdout: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_002\stdout.log
+    stderr: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_002\stderr.log
+  result_files:
+  - logs/run.log
+  output_dir: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_002
+- experiment_id: None_None_None_80_2
+  status: SUCCESS
+  warnings: []
+  exit_code: 0
+  duration_seconds: 4.3
+  logs:
+    stdout: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_003\stdout.log
+    stderr: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_003\stderr.log
+  result_files:
+  - logs/run.log
+  - results/connected_components_random_graphs_timings_20261024-163654.json
+  - results/metrics_bar_connected_components_random_graphs.png
+  - results/metrics_connected_components_random_graphs_20261024_163654.json
+  - results/report_connected_components_random_graphs_20261024_163654.txt
+  output_dir: D:\X-code\2026-1-科研训练计划\code\paper2code-master\backend\data\output\论文4\step8\experiments\experiment_003
+failed: []
+skipped: []

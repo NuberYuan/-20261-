@@ -1,0 +1,96 @@
+project:
+  name: Using_Deep_Learning_for_ImageBased_Plant_Disease_D
+  description: image_classification
+  paper_type: model_proposing
+architecture:
+  modules:
+    data:
+      directory: data/
+      files:
+      - dataset.py
+      description: 数据加载与预处理
+    models:
+      directory: models/
+      files:
+      - alexnet.py
+      - googlenet.py
+      description: '模型定义: alexnet, googlenet'
+      classes:
+      - name: Alexnet
+        type: CNN
+        input: Images resized to 256 x 256 pixels
+        output: 38 class probability distribution (fc8 has 38 outputs in adapted AlexNet,
+          equaling total number of classes)
+        pretrained: ImageNet pretrained weights for transfer learning. In case of
+          transfer learning, they do not limit the learning of the rest of the layers
+          and instead just reset the weights of layer fc8 in case of AlexNet; in case
+          of GoogLeNet, they similarly do not limit the learning of the rest of the
+          layers but instead just reset the weights of the loss{1,2,3}/classifier
+          layers.
+        file: models/alexnet.py
+      - name: Googlenet
+        type: CNN
+        input: Images resized to 256 x 256 pixels
+        output: 38 class probability distribution (fc8 has 38 outputs in adapted AlexNet,
+          equaling total number of classes)
+        pretrained: ImageNet pretrained weights for transfer learning. In case of
+          transfer learning, they do not limit the learning of the rest of the layers
+          and instead just reset the weights of layer fc8 in case of AlexNet; in case
+          of GoogLeNet, they similarly do not limit the learning of the rest of the
+          layers but instead just reset the weights of the loss{1,2,3}/classifier
+          layers.
+        file: models/googlenet.py
+    training:
+      directory: training/
+      files:
+      - train.py
+      description: 训练循环
+    evaluation:
+      directory: evaluation/
+      files:
+      - evaluate.py
+      description: 评估与对比
+    utils:
+      directory: utils/
+      files:
+      - metrics.py
+      description: 工具函数
+    config:
+      directory: config/
+      files:
+      - config.yaml
+      description: YAML 配置
+dependencies:
+  files:
+  - README.md
+  - config/config.yaml
+  - data/dataset.py
+  - evaluation/evaluate.py
+  - main.py
+  - models/alexnet.py
+  - models/googlenet.py
+  - requirements.txt
+  - training/train.py
+  - utils/metrics.py
+  external:
+  - torch
+  - torchvision
+  - numpy
+  - pyyaml
+  - scikit-learn
+  - pillow
+  - opencv-python
+execution_flow:
+- 1. 加载配置 (config/config.yaml)
+- '2. data/: 准备数据集和数据加载器'
+- '3. models/: 初始化模型'
+- '4. training/train.py: 训练循环与验证评估'
+- '5. evaluation/: 测试集评估'
+reproducibility_notes:
+- Segregation of images of the same leaf into same train/test split (mappings available
+  for only 41,112 out of 54,306 images)
+- Automated leaf segmentation script tuning for the specific dataset
+- Fixing color casts in some image collection subsets
+- Access to GPU cluster for training
+- Own fork of Caffe framework needed for full replication
+code_requirements: {}

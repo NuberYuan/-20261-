@@ -1,0 +1,21 @@
+```json
+{
+  "type": "chart",
+  "description": "多面板时间序列图，展示已实现波动率（Realized Vol.）序列、两个样本预测时刻（t1、t2）的注意力权重分布 α(t, n, 1)，以及长时间跨度上基于 dist(t) 的显著市场状态（regime）检测结果。",
+  "important_components": [
+    "左上面板：2004-10 至 2005-07 期间的 Realized Vol. 序列（取值约 -6 至 -12，疑似对数波动率）",
+    "左中面板：注意力权重 α(t1, n, 1)，纵轴范围 0 至 0.06",
+    "右上面板：2008-07 至 2009-04 期间（金融危机）的 Realized Vol. 序列",
+    "右中面板：注意力权重 α(t2, n, 1)，纵轴范围 0 至 0.06",
+    "下部长面板：2002-01 至 2014-01 的 Realized Vol.（蓝色）与 dist(t)（红色曲线，右轴 0 至 0.8）",
+    "紫色阴影区域：Significant Regimes [dist(t) > 0.3]",
+    "标注文字 'Forecast date (n=0)'（预测日位于回看窗口右端）",
+    "标注文字 'Equal attention over range-bound low volatility periods'（低波动震荡期注意力近似均匀分布）",
+    "标注文字 'Increased attention on sharp trend changes'（趋势突变期注意力集中于少数近期样本）",
+    "标注文字 'Median forecast + uncertainty interval'（中位数预测 + 不确定性区间）",
+    "灰色方框标记的采样区间 t1、t2 及其对应放大子图",
+    "图例：Realized Vol.、dist(t)、Significant Regimes [dist(t) > 0.3]"
+  ],
+  "code_relevant_information": "1) 数据为时间序列对数已实现波动率 Realized Vol.（纵轴约 -5 至 -13），横轴为日期（2002-01-01 至 2014-01-01，样本频率看似日度）。2) 模型核心为自适应注意力机制：对回看窗口内 n=1..N 的历史观测计算注意力权重 α(t, n, 1)，在低波动、区间震荡阶段权重近似均匀（约 1/N），在波动率剧烈变化/趋势突变处权重集中于少数近期样本（峰值约 0.06）。3) 预测日为窗口右端 n=0（Forecast date (n=0)），预测输出为中位数预测（Median forecast）加不确定性区间（uncertainty interval），提示使用分位数回归或分位数损失。4) 存在市场状态度量 dist(t)（取值 0~0.8），当 dist(t) > 0.3 时判定为显著 regime（紫色区域），可用于样本加权、分段建模或注意力先验。5) 复现需实现：滚动/滑动窗口构造样本、时间序列注意力层（softmax 归一化权重）、基于 dist(t) 的 regime 标签函数（阈值 0.3）、中位数 + 区间预测头。6) 图中 t1（约 2005 年）与 t2（约 2008 年末）为两个示例预测时刻，其上方子图分别为对应时刻注意力在历史窗口上的分布可视化。"
+}
+```

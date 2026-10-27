@@ -7,7 +7,13 @@ Step4.4: 歧义与缺失分析 → gap_analysis.yaml
   - Rule 层: 从 key_information.json 中扫描 NOT_FOUND 字段
   - LLM 层: 根据论文上下文推断可能的解决方案
   - 每个 gap 包含 severity / affect_modules / suggested / alternatives
+  - 工程参数缺口与跨字段冲突与 Step6 一致性检查对齐
+    （training_config.* 四项 + train/test vs val 冲突），保证 gap_analysis
+    不漏报 Step6 才发现的问题
 """
+
+import json
+import re
 
 from step4.base_requirement_analyzer import BaseRequirementAnalyzer
 
@@ -152,6 +158,13 @@ class GapAnalyzer(BaseRequirementAnalyzer):
                 "alternatives": ["与参考实现对比", "运行论文提供的样例"],
             })
 
+        # ---- 工程参数缺口（与 Step6 的 training_config.* gap 对齐）----
+        if is_training:
+            gaps.extend(self._check_engineering_parameter_gaps(ki, arch))
+
+        # ---- 跨字段冲突（与 Step6 的 CONFLICT-01 等对齐）----
+        gaps.extend(self._check_cross_field_conflicts(ki, is_training))
+
         # ---- 检查文本字段中的模糊描述 ----
         gaps.extend(self._check_vague_descriptions(ki))
 
@@ -177,6 +190,111 @@ class GapAnalyzer(BaseRequirementAnalyzer):
         }
 
     # ============================================================
+    # 工程参数缺口（与 Step6 training_config.NOT_FOUND_in_paper 对齐）
+    # ============================================================
+
+    # (路径, 关键词(在论文全文找), 问题, 建议)
+    # 对应 Step5 training_config.parameter_provenance.NOT_FOUND_in_paper 的四项：
+    # early_stopping / checkpoint.save_frequency_epochs / inference.batch_size /
+    # freeze_backbone。这些工程参数论文通常不写，但代码必须决策。
+    ENGINEERING_PARAM_GAPS = [
+        ("training.early_stopping",
+         ("early stop", "early-stop", "patience", "早停"),
+         "early_stopping 策略（patience/触发条件）未在论文中说明",
+         "训练到固定 epochs，或工程默认 patience=10 做早停，并在 config.yaml 显式标注"),
+        ("checkpoint.save_frequency_epochs",
+         ("save every", "checkpoint every", "saved every", "saving every",
+          "保存频率", "保存间隔", "save frequency"),
+         "checkpoint 保存频率（save_frequency_epochs）未在论文中说明",
+         "工程默认每个 epoch 保存一次（或只保存 best+final），并在 config.yaml 显式标注"),
+        ("inference.batch_size",
+         ("inference batch", "test batch", "推理 batch", "evaluation batch",
+          "推理批", "测试批"),
+         "inference.batch_size（推理批大小）未在论文中说明",
+         "推理批大小与训练 batch_size 解耦，工程默认 32/64，config.yaml 显式标注"),
+        ("training.freeze_backbone",
+         ("freeze", "frozen", "冻结", "fixed feature", "feature extractor"),
+         "迁移学习时骨干网络冻结策略（freeze_backbone）未在论文中说明",
+         "默认不冻结全量微调（目标域与预训练域差异大时更稳），config.yaml 显式标注为工程决策"),
+    ]
+
+    def _check_engineering_parameter_gaps(self, ki: dict, arch: dict) -> list:
+        """扫描论文缺失的工程参数（对应 Step6 的 training_config.* gap）。
+
+        与 Step5 parameter_provenance.NOT_FOUND_in_paper 同口径：这些参数
+        论文几乎不会写，但实现必须决策。关键词在 key_info 全文里找；
+        freeze_backbone 仅对使用预训练权重的论文有意义。
+        """
+        blob = json.dumps(ki, ensure_ascii=False).lower()
+        gaps = []
+        has_pretrained = (
+            isinstance(arch, dict)
+            and arch.get("pretrained_model", "NOT_FOUND") not in ("NOT_FOUND", "")
+        )
+        for path, keywords, question, suggested in self.ENGINEERING_PARAM_GAPS:
+            if path.endswith("freeze_backbone") and not has_pretrained:
+                continue  # 无预训练就没有骨干冻结的决策点
+            if any(kw in blob for kw in keywords):
+                continue  # 论文已说明
+            gaps.append({
+                "id": self._next_id(self.GAP_PREFIX),
+                "path": path,
+                "question": question,
+                "severity": "low",
+                "current_value": "NOT_FOUND",
+                "affect_modules": ["training/train.py", "config/config.yaml"],
+                "suggested": suggested,
+                "alternatives": [],
+            })
+        return gaps
+
+    # ============================================================
+    # 跨字段冲突（与 Step6 CONFLICT-01 对齐）
+    # ============================================================
+
+    def _check_cross_field_conflicts(self, ki: dict, is_training: bool) -> list:
+        """检测 key_info 字段之间的口径冲突。
+
+        目前覆盖 Step6 CONFLICT-01 的同款问题在需求侧的形态：
+        论文只给 train/test 二路划分（无验证集），而训练流程保存最优模型
+        需要模型选择口径。直接用 test 指标选模型构成数据泄露——这是
+        「划分口径」与「模型选择」两字段间的冲突，需在需求侧就显式决策。
+        """
+        gaps = []
+        if not is_training:
+            return gaps
+
+        split_text = str(ki.get("dataset", {}).get("train_test_split", ""))
+        low = split_text.lower()
+        has_val = bool(re.search(r"\bval(?:idation)?\b|验证集", low))
+        has_train_test = bool(re.search(r"\btrain\b|\btest\b|训练|测试", low))
+
+        if has_train_test and not has_val:
+            gaps.append({
+                "id": self._next_id(self.GAP_PREFIX),
+                "path": "dataset.train_test_split",
+                "question": (
+                    "跨字段冲突：论文仅 train/test 二路划分（无验证集），但训练流程"
+                    "保存最优模型需要模型选择口径。直接用 test 指标选模型会造成"
+                    "数据泄露，需从训练集二次划分验证集（工程偏离）"
+                ),
+                "severity": "medium",
+                "current_value": split_text[:200],
+                "affect_modules": ["data/dataset.py", "training/train.py",
+                                   "config/config.yaml"],
+                "suggested": (
+                    "方案A（推荐）: 从训练集按 80/20 二次划分出验证集用于早停/模型选择；"
+                    "方案B: 严格复现论文，用 test 指标选最优模型（不推荐，有泄露风险）。"
+                    "选定后在 config.yaml 的 split_strategy/checkpoint 中显式记录"
+                ),
+                "alternatives": [
+                    "从训练集二次划分验证集（工程偏离）",
+                    "严格 train/test 二路 + 固定最后 epoch 权重（不做模型选择）",
+                ],
+            })
+        return gaps
+
+    # ============================================================
     # 模糊描述检查
     # ============================================================
 
@@ -189,10 +307,16 @@ class GapAnalyzer(BaseRequirementAnalyzer):
             "类似", "约", "等等", "左右", "大概",
         ]
 
+        # 跳过纯描述性字段（image_analysis 的描述文字是给人看的，不是代码参数）
+        skip_prefixes = ("image_analysis", "paper_figures", "figures")
+
         def scan(obj, prefix=""):
             if isinstance(obj, dict):
                 for k, v in obj.items():
                     path = f"{prefix}.{k}" if prefix else k
+                    # 跳过图片描述类字段
+                    if any(path.startswith(p) for p in skip_prefixes):
+                        continue
                     if isinstance(v, str) and v not in ("NOT_FOUND", ""):
                         v_lower = v.lower()
                         for kw in vague_keywords:

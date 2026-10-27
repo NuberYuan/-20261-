@@ -1,8 +1,7 @@
 """Step5.3: 数据集分析 → dataset.yaml"""
-import json
 
 from step5.base_analyzer import BaseAnalyzer
-from llm_utils import chat_with_text
+from llm_manager import llm_call, parse_llm_json
 
 # 数据来源类型（data_source）合法值。判定"这篇论文是否需要外部数据集"，
 # 供 Step8 决定是否做数据集可用性检查（非 external_dataset 时数据集检查不适用）。
@@ -102,12 +101,10 @@ class DatasetAnalyzer(BaseAnalyzer):
 {self.get_paper_text()[:4000]}
 """
         try:
-            resp = chat_with_text(prompt).strip()
-            if resp.startswith("```"):
-                lines = resp.split("\n")
-                lines = [l for l in lines if not l.startswith("```")]
-                resp = "\n".join(lines)
-            out = json.loads(resp)
+            resp = llm_call(prompt, task_type="light").strip()
+            out = parse_llm_json(resp)
+            if "error" in out:
+                raise ValueError(out["error"])
             result["data_source"] = self._coerce_data_source(out.get("data_source"))
             result["acquisition"] = self._coerce_acquisition(
                 out.get("acquisition"), result["data_source"]
@@ -189,6 +186,75 @@ class DatasetAnalyzer(BaseAnalyzer):
 
         return "random_split"
 
+    @staticmethod
+    def _extract_segmentation_algorithm(ds: dict) -> dict:
+        """从论文预处理原文中恢复分割算法的方法描述（参数缺失时只把参数标 NOT_FOUND）。
+
+        论文通常会描述分割思路（颜色空间、分析分量、color cast 校正），只是不给
+        脚本阈值/参数。此前整块硬编码 NOT_FOUND，把「方法已知、参数未知」误报成
+        「方法未知」，导致下游把整条分割管线当未公开处理。
+        """
+        import re
+        pp = str(ds.get("preprocessing", ""))
+        if not pp or pp == "NOT_FOUND":
+            pp = str(ds.get("data_type", ""))  # 退化信号：data_type 可能复述分割思路
+        pp_lower = pp.lower()
+
+        # 颜色空间：Lab/HSB/HSV/RGB/XYZ 等命名（含 "L*a*b*" 变体）
+        color_spaces = []
+        for cs in ("Lab", "HSB", "HSV", "RGB", "XYZ", "L*a*b*", "YCbCr"):
+            if re.search(rf"(?<![a-z]){re.escape(cs.lower())}(?![a-z])", pp_lower):
+                color_spaces.append(cs)
+
+        # 分析分量：color/lightness/saturation/hue/luminance/intensity
+        components = []
+        for comp in ("color", "lightness", "saturation", "hue", "luminance", "intensity"):
+            if re.search(rf"\b{comp}\b", pp_lower):
+                components.append(comp)
+
+        # color cast 校正
+        fixed_color_casts = bool(
+            re.search(r"color\s+casts?[^.]{0,40}\b(fix|fixed|correct|adjust|remov)",
+                      pp_lower)
+            or re.search(r"\b(fix|fixed|correct|adjust|remov)[^.]{0,40}color\s+casts?",
+                         pp_lower)
+        )
+
+        # 掩膜/分割关键词：有才认为论文描述了分割方法
+        has_mask = bool(re.search(r"mask|segment", pp_lower))
+        described = has_mask and (color_spaces or components or fixed_color_casts)
+
+        if not described:
+            return {
+                "method": "NOT_FOUND — 论文未公开具体分割算法",
+                "color_spaces": [],
+                "components": [],
+                "fixed_color_casts": False,
+                "parameters": "NOT_FOUND — 论文未公开分割参数",
+                "implementation_status": (
+                    "NOT_FOUND: 论文提及分割思路但未提供完整算法/参数"
+                ),
+            }
+
+        method_bits = ["按颜色/光照分量分析生成目标掩膜，去除背景、保留目标区域"]
+        if color_spaces:
+            method_bits.append("分析颜色空间: " + "/".join(color_spaces))
+        if components:
+            method_bits.append("分析分量: " + "/".join(components))
+        if fixed_color_casts:
+            method_bits.append("并做 color cast 校正")
+        return {
+            "method": "；".join(method_bits) + "（论文描述，脚本阈值/参数未公开）",
+            "color_spaces": color_spaces,
+            "components": components,
+            "fixed_color_casts": fixed_color_casts,
+            "parameters": "NOT_FOUND — 论文未公开脚本阈值/参数",
+            "implementation_status": (
+                "PARTIAL: 方法描述已知（见 method/color_spaces/components），"
+                "脚本参数 NOT_FOUND（阈值/形态学参数等未公开）"
+            ),
+        }
+
     def _build_per_version_preprocessing(self, ds: dict,
                                           versions: list) -> dict:
         """
@@ -241,7 +307,8 @@ class DatasetAnalyzer(BaseAnalyzer):
         gray_config = dict(shared)
         gray_config.update({
             "description": "灰度版本：转换为单通道后重复为3通道",
-            "channels": 1,
+            "channels": 3,
+            "source_channels": 1,
             "channel_handling": {
                 "paper_stated": "NOT_FOUND — 论文未明确说明灰度图是保持1通道还是复制为3通道",
                 "inferred_approach": "repeat to 3 channels",
@@ -274,20 +341,16 @@ class DatasetAnalyzer(BaseAnalyzer):
 
         # ---- Segmented ----
         seg_config = dict(shared)
+        seg_algo = self._extract_segmentation_algorithm(ds)
         seg_config.update({
             "description": (
-                "分割版本：论文提及的分割预处理（去除背景、保留目标区域）；"
-                "具体算法与参数需从论文确认，未公开时需自行实现或替代。"
+                "分割版本：去除背景、保留目标区域；"
+                "方法描述见 segmentation_algorithm.method，"
+                "脚本参数未公开时需自行实现或替代。"
             ),
             "channels": 3,
             "segmentation_algorithm": {
-                "method": "NOT_FOUND — 论文未公开具体分割算法",
-                "color_spaces": [],
-                "components": [],
-                "fixed_color_casts": False,
-                "implementation_status": (
-                    "NOT_FOUND: 论文提及分割思路但未提供完整算法/参数"
-                ),
+                **seg_algo,
                 "fallback": (
                     "如无法复现分割脚本，可使用 GrabCut 或 U-Net 替代，"
                     "但结果可能与论文不完全一致。"

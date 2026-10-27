@@ -1,0 +1,14 @@
+```json
+{
+  "type": "figure",
+  "description": "一张去除背景的马铃薯叶片样本图像，叶片上可见明显的褐色病斑（疑似晚疫病/早疫病），背景为纯黑色，属于植物病害图像分类数据集中的典型样本图。",
+  "important_components": [
+    "马铃薯叶片（绿色，叶脉清晰）",
+    "褐色坏死病斑（不规则分布在叶面）",
+    "纯黑色背景（已做背景分割/去除处理）",
+    "叶片边缘破损区域",
+    "样本图（无坐标轴、无标注文字、无图例）"
+  ],
+  "code_relevant_information": "该图本身不含模型结构、公式或超参数，仅为数据样本展示，对代码复现的意义在于数据预处理流程：(1) 使用 PlantVillage 类数据集（类别如 Potato___Late_blight / Potato___Early_blight / Potato___Healthy）；(2) 输入图像需做背景去除（黑色背景为掩膜分割结果，可用 GrabCut / 阈值分割 / U-Net 分割得到）；(3) 典型输入尺寸如 224x224 或 256x256 RGB 三通道图像；(4) 训练采用 ImageNet 均值/标准差归一化，配合随机旋转、翻转、缩放等数据增强；(5) 分类任务常用 CNN 主干（ResNet50、VGG16、EfficientNet 等）+ softmax 输出 3 类，损失函数为交叉熵 CrossEntropyLoss，优化器 Adam/SGD。"
+}
+```

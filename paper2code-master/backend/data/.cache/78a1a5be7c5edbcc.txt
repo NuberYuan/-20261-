@@ -1,0 +1,19 @@
+{
+  "table_id": "table_4",
+  "table_type": "other",
+  "caption_summary": "A table of basic graph traversal operations (fetching first/next in-edges, out-edges, and loop edges by mark) each with constant O(1) time complexity.",
+  "extracted_data": {
+    "metrics": ["time complexity"],
+    "methods": ["firstInEdge(m)", "nextInEdge(m)", "firstOutEdge(m)", "nextOutEdge(m)", "firstLoop(m)", "nextLoop(m)"],
+    "best_result": {"method": "all listed operations", "metric": "time complexity", "value": "O(1)"},
+    "key_values": [
+      {"label": "firstInEdge(m) - Given a node, fetch the first inedge of mark m", "value": "O(1)"},
+      {"label": "nextInEdge(m) - Given a node and an edge of mark m, fetch the next inedge of mark m", "value": "O(1)"},
+      {"label": "firstOutEdge(m) - Given a node, fetch the first outedge of mark m", "value": "O(1)"},
+      {"label": "nextOutEdge(m) - Given a node and an edge of mark m, fetch the next outedge of mark m", "value": "O(1)"},
+      {"label": "firstLoop(m) - Given a node, fetch the first loop edge of mark m", "value": "O(1)"},
+      {"label": "nextLoop(m) - Given a node and an edge of mark m, fetch the next loop edge of mark m", "value": "O(1)"}
+    ]
+  },
+  "table_summary": "This table enumerates six primitive operations for navigating marked edges in a graph data structure: retrieving the first and next in-edge, out-edge, and loop edge for a given mark m. Every operation is guaranteed constant O(1) time complexity, indicating an efficient adjacency representation supporting mark-filtered edge iteration. This supports the paper's algorithmic framework by specifying the cost of its fundamental graph access primitives."
+}

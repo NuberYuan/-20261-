@@ -11,6 +11,6 @@
 #   step7_main.py           总控制器
 #   project_initializer.py  项目骨架初始化（不调 LLM）
 #   code_context_builder.py 单文件生成上下文整理
-#   code_generator.py       DeepSeek 逐文件生成
+#   code_generator.py       LLM 逐文件生成
 #   code_validator.py       规则检查（ast / yaml / 类 / 方法 / import）
-#   code_repairer.py        失败后 DeepSeek 修复
+#   code_repairer.py        失败后 LLM 修复

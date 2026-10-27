@@ -1,0 +1,118 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+
+
+def main():
+    result = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": ""
+    }
+
+    try:
+        image_path = sys.argv[1]
+        raw = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(raw, cv2.IMREAD_COLOR)
+        if img is None or img.size == 0:
+            raise ValueError("Cannot decode image")
+
+        ocr_text = ""
+
+        h, w = img.shape[:2]
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        total = float(h * w)
+
+        white_ratio = float(np.sum(gray > 230) / total)
+        dark_ratio = float(np.sum(gray < 60) / total)
+
+        small = cv2.resize(img, (min(128, w), min(128, h)))
+        quantized = (small // 48).reshape(-1, 3)
+        color_count = int(len(np.unique(quantized, axis=0)))
+
+        blur = cv2.GaussianBlur(gray, (7, 7), 0).astype(np.float64)
+        texture = float(np.mean((gray.astype(np.float64) - blur) ** 2))
+
+        sat_mean = float(np.mean(hsv[:, :, 1]))
+
+        row_means = np.mean(gray, axis=1)
+        col_means = np.mean(gray, axis=0)
+        r_med = np.median(row_means)
+        c_med = np.median(col_means)
+        dark_rows = float(np.sum(row_means < r_med * 0.75) / max(len(row_means), 1))
+        dark_cols = float(np.sum(col_means < c_med * 0.75) / max(len(col_means), 1))
+
+        bs = 16
+        nbh, nbw = h // bs, w // bs
+        if nbh > 0 and nbw > 0:
+            blocks = gray[:nbh * bs, :nbw * bs].reshape(
+                nbh, bs, nbw, bs).transpose(0, 2, 1, 3).reshape(
+                -1, bs, bs).astype(np.float64)
+            b_vars = np.var(blocks, axis=(1, 2))
+            b_means = np.mean(blocks, axis=(1, 2))
+            uniform_frac = float(np.sum((b_vars < 30) & (b_means < 220)) / len(b_vars))
+        else:
+            uniform_frac = 0.0
+
+        ocr_upper = ocr_text.upper()
+
+        exp_keywords = [
+            "ACCURACY", "LOSS", "EPOCH", "PRECISION", "RECALL",
+            "F1", "AUC", "ROC", "MAP", "PSNR", "SSIM", "IOU", "BLEU"
+        ]
+        arch_keywords = [
+            "CNN", "TRANSFORMER", "ATTENTION", "ENCODER", "DECODER",
+            "BLOCK", "EMBEDDING", "CLASSIFIER", "ALEXNET", "RESNET",
+            "VGG", "GOOGLENET", "CONV", "POOLING"
+        ]
+
+        has_exp_kw = any(kw in ocr_upper for kw in exp_keywords) if ocr_upper else False
+        has_arch_kw = any(kw in ocr_upper for kw in arch_keywords) if ocr_upper else False
+
+        is_exp = has_exp_kw or (
+            white_ratio > 0.3 and dark_rows > 0.03
+            and dark_cols > 0.03 and texture < 300
+        )
+
+        if is_exp:
+            result["type"] = "experiment_result"
+            result["description"] = "展示实验结果数据，包含性能指标对比或训练过程变化趋势"
+            result["important_components"] = []
+            result["code_relevant_information"] = "需要实现模型训练、验证和评估流程，生成相应的性能对比指标"
+        else:
+            is_arch = has_arch_kw or (
+                white_ratio > 0.5 and uniform_frac > 0.12 and texture < 200
+            )
+            if is_arch:
+                result["type"] = "architecture"
+                result["description"] = "展示模型网络结构和数据流关系"
+                result["important_components"] = []
+                result["code_relevant_information"] = "需要按照图示结构搭建对应的模型网络模块"
+            else:
+                is_data = (
+                    texture > 150 and color_count > 150 and white_ratio < 0.4
+                ) or (texture > 200 and sat_mean > 50)
+                if is_data:
+                    result["type"] = "dataset"
+                    result["description"] = "展示数据集样本或数据示例"
+                    result["important_components"] = []
+                    result["code_relevant_information"] = "需要准备相应的数据集并进行数据预处理"
+
+    except Exception:
+        result = {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": ""
+        }
+
+    print(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
+```

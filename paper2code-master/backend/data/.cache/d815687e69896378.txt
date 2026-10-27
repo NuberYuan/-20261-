@@ -1,0 +1,1 @@
+{"accuracy_targets.primary.target": "connectedness and acyclicity checking: O(n) (linear time) on arbitrary input graphs; Bellman-Ford single-source shortest path: O(nm) on arbitrary input graphs — matching the time complexity of imperative algorithms (per reproduction_requirements: connectedness_complexity=O(n), acyclicity_complexity=O(n), bellmanford_complexity=O(nm))"}

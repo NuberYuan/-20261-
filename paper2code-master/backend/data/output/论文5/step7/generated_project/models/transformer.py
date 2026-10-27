@@ -1,445 +1,235 @@
 import math
-from pathlib import Path
+from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import yaml
 
 
-def _load_config(config):
-    """Load config from a dict, a path, or the project config file.
+class MultiHeadAttention(nn.Module):
+    """Multi-head attention with optional attention weights output."""
 
-    All file reads use UTF-8 encoding.
-    """
-    if config is None:
-        cfg_path = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
-        if cfg_path.exists():
-            with cfg_path.open("r", encoding="utf-8") as f:
-                return yaml.safe_load(f)
-        return {}
-    if isinstance(config, (str, Path)):
-        with open(config, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f)
-    return config or {}
-
-
-def _get_dropout(config, fallback=0.1):
-    """Read dropout from config if available, otherwise fallback.
-
-    In config/config.yaml, dropout_ratio is stored per dataset. Since this
-    model file is dataset-agnostic, we use the first available numeric value.
-    """
-    cfg = config or {}
-    dr = cfg.get("model", {}).get("dropout_ratio")
-    if dr is None:
-        dr = cfg.get("training", {}).get("dropout_ratio")
-    if isinstance(dr, dict):
-        numeric_vals = [v for v in dr.values() if isinstance(v, (int, float))]
-        if numeric_vals:
-            return float(numeric_vals[0])
-        return float(fallback)
-    if dr is not None:
-        return float(dr)
-    return float(fallback)
-
-
-class GatedLinearUnit(nn.Module):
-    """Gated Linear Unit used in the TFT gated residual network."""
-
-    def __init__(self, input_size, hidden_size, dropout=0.1):
+    def __init__(self, hidden_size: int, num_attention_heads: int, dropout_ratio: float = 0.1):
         super().__init__()
-        self.fc = nn.Linear(input_size, hidden_size)
-        self.gate = nn.Linear(input_size, hidden_size)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x):
-        return self.dropout(self.fc(x)) * torch.sigmoid(self.gate(x))
-
-
-class GatedResidualNetwork(nn.Module):
-    """Gated Residual Network (GRN) from the TFT paper."""
-
-    def __init__(self, input_size, hidden_size, output_size, dropout=0.1, context_size=None):
-        super().__init__()
-        self.input_linear = nn.Linear(input_size, hidden_size)
-        self.context_linear = None
-        if context_size is not None:
-            self.context_linear = nn.Linear(context_size, hidden_size, bias=False)
-        self.elu = nn.ELU()
-        self.glu = GatedLinearUnit(hidden_size, hidden_size, dropout)
-        self.output_linear = nn.Linear(hidden_size, output_size)
-
-        if input_size == output_size:
-            self.skip = nn.Identity()
-        else:
-            self.skip = nn.Linear(input_size, output_size)
-
-        self.layer_norm = nn.LayerNorm(output_size)
-
-    def forward(self, x, context=None):
-        residual = self.skip(x)
-        h = self.input_linear(x)
-        if context is not None:
-            if self.context_linear is not None:
-                h = h + self.context_linear(context)
-            else:
-                # If no learned context projection is available, assume the
-                # context already has the same last-dimension size as hidden.
-                h = h + context
-        h = self.elu(h)
-        h = self.glu(h)
-        output = self.output_linear(h)
-        return self.layer_norm(residual + output)
-
-
-class InterpretableMultiHeadAttention(nn.Module):
-    """Modified interpretable multi-head attention from TFT.
-
-    Attention is computed as A(Q,K)V with scaled dot-product
-    A(Q,K)=Softmax(QK^T/sqrt(d_attn)). Value weights are shared across heads
-    and the head outputs are averaged before a final output projection.
-    """
-
-    def __init__(self, d_model, num_heads, dropout=0.1):
-        super().__init__()
-        if d_model % num_heads != 0:
-            raise ValueError("d_model must be divisible by num_heads")
-        self.num_heads = num_heads
-        self.d_model = d_model
-        self.d_k = d_model // num_heads
-
-        self.w_q = nn.ModuleList(
-            [nn.Linear(d_model, self.d_k, bias=False) for _ in range(num_heads)]
-        )
-        self.w_k = nn.ModuleList(
-            [nn.Linear(d_model, self.d_k, bias=False) for _ in range(num_heads)]
-        )
-        # Value weights are shared across all attention heads.
-        self.w_v = nn.Linear(d_model, self.d_k, bias=False)
-        self.wo = nn.Linear(self.d_k, d_model, bias=False)
-
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, query, key, value, mask=None):
-        batch_size, query_len, _ = query.size()
-        key_len = key.size(1)
-        head_outputs = []
-
-        for h in range(self.num_heads):
-            q = self.w_q[h](query)          # [B, Q, d_k]
-            k = self.w_k[h](key)            # [B, K, d_k]
-            v = self.w_v(value)             # shared value projection
-
-            scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)
-            if mask is not None:
-                mask = mask.bool()
-                if mask.dim() == 2:
-                    # mask is [Q, K], broadcast across batch and heads.
-                    scores = scores.masked_fill(~mask.unsqueeze(0), -1e9)
-                elif mask.dim() == 3:
-                    # mask is already [B, Q, K].
-                    scores = scores.masked_fill(~mask, -1e9)
-
-            attn = F.softmax(scores, dim=-1)
-            attn = self.dropout(attn)
-            head_outputs.append(torch.matmul(attn, v))
-
-        # H_tilde = (1/H) sum_{h=1}^{H} Attention(Q W_Q^(h), K W_K^(h)) V W_V
-        H_tilde = torch.stack(head_outputs, dim=0).mean(dim=0)  # [B, Q, d_k]
-        return self.wo(H_tilde)                                 # [B, Q, d_model]
-
-
-class StaticVariableSelection(nn.Module):
-    """Variable selection network for static covariates."""
-
-    def __init__(self, num_vars, hidden_size, output_size, dropout=0.1):
-        super().__init__()
-        self.num_vars = num_vars
-        self.hidden_size = hidden_size
-
-        self.var_grns = nn.ModuleList(
-            [
-                GatedResidualNetwork(
-                    input_size=1,
-                    hidden_size=hidden_size,
-                    output_size=hidden_size,
-                    dropout=dropout,
+        if hidden_size % num_attention_heads != 0:
+            raise ValueError(
+                "hidden_size ({}) must be divisible by num_attention_heads ({})".format(
+                    hidden_size, num_attention_heads
                 )
-                for _ in range(num_vars)
-            ]
-        )
-        self.weight_grn = GatedResidualNetwork(
-            input_size=num_vars * hidden_size,
-            hidden_size=hidden_size,
-            output_size=num_vars,
-            dropout=dropout,
-        )
-
-    def forward(self, x):
-        # x: [batch, num_static]
-        batch_size = x.size(0)
-        var_outputs = []
-        for i, grn in enumerate(self.var_grns):
-            xi = x[:, i : i + 1]      # [batch, 1]
-            var_outputs.append(grn(xi))  # [batch, hidden]
-        var_outputs = torch.stack(var_outputs, dim=1)  # [B, num_vars, hidden]
-
-        flat = var_outputs.reshape(batch_size, self.num_vars * self.hidden_size)
-        weights = self.weight_grn(flat)                # [B, num_vars]
-        weights = F.softmax(weights, dim=-1).unsqueeze(-1)  # [B, num_vars, 1]
-
-        output = torch.sum(var_outputs * weights, dim=1)  # [B, hidden]
-        return output
-
-
-class TemporalVariableSelection(nn.Module):
-    """Variable selection network for time-varying inputs.
-
-    Input shape is [batch, time_steps, num_vars].
-    """
-
-    def __init__(self, num_vars, hidden_size, output_size, dropout=0.1, context_size=None):
-        super().__init__()
-        self.num_vars = num_vars
+            )
         self.hidden_size = hidden_size
+        self.num_attention_heads = num_attention_heads
+        self.head_dim = hidden_size // num_attention_heads
 
-        self.var_grns = nn.ModuleList(
-            [
-                GatedResidualNetwork(
-                    input_size=1,
-                    hidden_size=hidden_size,
-                    output_size=hidden_size,
-                    dropout=dropout,
-                )
-                for _ in range(num_vars)
-            ]
-        )
-        self.weight_grn = GatedResidualNetwork(
-            input_size=num_vars * hidden_size,
-            hidden_size=hidden_size,
-            output_size=num_vars,
-            dropout=dropout,
-            context_size=context_size,
-        )
+        self.q_proj = nn.Linear(hidden_size, hidden_size)
+        self.k_proj = nn.Linear(hidden_size, hidden_size)
+        self.v_proj = nn.Linear(hidden_size, hidden_size)
+        self.out_proj = nn.Linear(hidden_size, hidden_size)
 
-    def forward(self, x, context=None):
-        # x: [batch, time_steps, num_vars]
+        self.attn_dropout = nn.Dropout(dropout_ratio)
+        self.resid_dropout = nn.Dropout(dropout_ratio)
+
+    def _shape(self, x: torch.Tensor) -> torch.Tensor:
         batch_size, seq_len, _ = x.size()
-        var_outputs = []
-        for i, grn in enumerate(self.var_grns):
-            xi = x[:, :, i : i + 1]          # [B, T, 1]
-            var_outputs.append(grn(xi))      # [B, T, hidden]
-        var_outputs = torch.stack(var_outputs, dim=2)  # [B, T, num_vars, hidden]
+        x = x.view(batch_size, seq_len, self.num_attention_heads, self.head_dim)
+        return x.permute(0, 2, 1, 3)
 
-        flat = var_outputs.reshape(batch_size, seq_len, self.num_vars * self.hidden_size)
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        batch_size = query.size(0)
 
-        if context is not None and context.dim() == 2:
-            context = context.unsqueeze(1).expand(-1, seq_len, -1)
+        q = self._shape(self.q_proj(query))
+        k = self._shape(self.k_proj(key))
+        v = self._shape(self.v_proj(value))
 
-        weights = self.weight_grn(flat, context=context)  # [B, T, num_vars]
-        weights = F.softmax(weights, dim=-1).unsqueeze(-1)  # [B, T, num_vars, 1]
+        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
-        output = torch.sum(var_outputs * weights, dim=2)  # [B, T, hidden]
-        return output
+        if mask is not None:
+            if mask.dim() == 2:
+                mask = mask.unsqueeze(1).unsqueeze(1)
+            elif mask.dim() == 3:
+                mask = mask.unsqueeze(1)
+            scores = scores.masked_fill(mask == 0, float("-inf"))
+
+        attn_weights = F.softmax(scores, dim=-1)
+        attn_weights = self.attn_dropout(attn_weights)
+
+        context = torch.matmul(attn_weights, v)
+        context = context.permute(0, 2, 1, 3).contiguous()
+        context = context.view(batch_size, -1, self.hidden_size)
+
+        output = self.resid_dropout(self.out_proj(context))
+        return output, attn_weights
+
+
+class PositionwiseFeedForward(nn.Module):
+    """Position-wise feed-forward network used inside each Transformer layer."""
+
+    def __init__(self, hidden_size: int, dropout_ratio: float = 0.1, expansion: int = 4):
+        super().__init__()
+        inner_size = hidden_size * expansion
+        self.linear_1 = nn.Linear(hidden_size, inner_size)
+        self.linear_2 = nn.Linear(inner_size, hidden_size)
+        self.dropout = nn.Dropout(dropout_ratio)
+        self.activation = nn.GELU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.linear_2(self.dropout(self.activation(self.linear_1(x))))
+
+
+class TransformerEncoderLayer(nn.Module):
+    """Single Transformer encoder layer (self-attention + feed-forward)."""
+
+    def __init__(self, hidden_size: int, num_attention_heads: int, dropout_ratio: float = 0.1):
+        super().__init__()
+        self.self_attn = MultiHeadAttention(hidden_size, num_attention_heads, dropout_ratio)
+        self.norm_1 = nn.LayerNorm(hidden_size)
+        self.norm_2 = nn.LayerNorm(hidden_size)
+        self.dropout_1 = nn.Dropout(dropout_ratio)
+        self.dropout_2 = nn.Dropout(dropout_ratio)
+        self.feed_forward = PositionwiseFeedForward(hidden_size, dropout_ratio)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        attn_out, attn_weights = self.self_attn(x, x, x, mask=mask)
+        x = self.norm_1(x + self.dropout_1(attn_out))
+        ff_out = self.feed_forward(x)
+        x = self.norm_2(x + self.dropout_2(ff_out))
+        return x, attn_weights
+
+
+class PositionalEncoding(nn.Module):
+    """Standard sinusoidal positional encoding."""
+
+    def __init__(self, hidden_size: int, max_seq_len: int = 512, dropout_ratio: float = 0.1):
+        super().__init__()
+        self.dropout = nn.Dropout(dropout_ratio)
+
+        position = torch.arange(0, max_seq_len, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, hidden_size, 2, dtype=torch.float32) * (-math.log(10000.0) / hidden_size)
+        )
+        pe = torch.zeros(max_seq_len, hidden_size, dtype=torch.float32)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        self.register_buffer("pe", pe.unsqueeze(0), persistent=False)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        seq_len = x.size(1)
+        x = x + self.pe[:, :seq_len, :]
+        return self.dropout(x)
 
 
 class Transformer(nn.Module):
-    """Temporal Fusion Transformer (TFT) style Transformer.
+    """Transformer encoder used by the Temporal Fusion Transformer.
 
-    Inputs:
-        static_features: [batch, num_static]
-        past_features:   [batch, encoder_len, num_past_features]
-        future_features: [batch, encoder_len + decoder_len, num_future_features]
-
-    Output:
-        Quantile forecasts of shape
-        [batch, decoder_len, len(quantiles)].
+    The module maps a sequence of hidden states to contextualised hidden states
+    and (optionally) returns multi-head attention weights for interpretability.
     """
 
     def __init__(
         self,
-        config=None,
-        d_model=160,
-        num_heads=4,
-        encoder_len=30,
-        decoder_len=5,
-        num_static=8,
-        num_past_features=16,
-        num_future_features=8,
-        quantiles=None,
-        dropout=None,
+        hidden_size: Optional[int] = None,
+        num_layers: Optional[int] = None,
+        num_attention_heads: Optional[int] = None,
+        dropout_ratio: Optional[float] = None,
+        max_seq_len: int = 512,
+        use_positional_encoding: bool = True,
     ):
         super().__init__()
 
-        # Load config if provided or fallback to project yaml.
-        cfg = _load_config(config)
+        hidden_size = 128 if hidden_size is None else int(hidden_size)
+        num_layers = 2 if num_layers is None else int(num_layers)
+        num_attention_heads = 4 if num_attention_heads is None else int(num_attention_heads)
+        dropout_ratio = 0.1 if dropout_ratio is None else float(dropout_ratio)
 
-        # `num_classes` is intentionally unused because this is a quantile
-        # regression model, not a discrete classification model.
-        if dropout is not None:
-            self.dropout = float(dropout)
-        else:
-            self.dropout = _get_dropout(cfg, fallback=0.1)
+        if hidden_size % num_attention_heads != 0:
+            num_attention_heads = max(1, math.gcd(hidden_size, num_attention_heads))
 
-        if quantiles is None:
-            quantiles = [0.1, 0.5, 0.9]
-        self.quantiles = list(quantiles)
-        self.num_quantiles = len(self.quantiles)
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.num_attention_heads = num_attention_heads
+        self.dropout_ratio = dropout_ratio
+        self.max_seq_len = max_seq_len
+        self.use_positional_encoding = use_positional_encoding
 
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.encoder_len = int(encoder_len)
-        self.decoder_len = int(decoder_len)
-        self.num_static = int(num_static)
-        self.num_past_features = int(num_past_features)
-        self.num_future_features = int(num_future_features)
+        self.input_proj = nn.Linear(hidden_size, hidden_size)
 
-        # Static variable selection network.
-        self.static_vsn = StaticVariableSelection(
-            num_vars=self.num_static,
-            hidden_size=d_model,
-            output_size=d_model,
-            dropout=self.dropout,
+        self.positional_encoding = (
+            PositionalEncoding(hidden_size, max_seq_len, dropout_ratio)
+            if use_positional_encoding
+            else None
         )
 
-        # Temporal variable selection networks.
-        self.past_vsn = TemporalVariableSelection(
-            num_vars=self.num_past_features,
-            hidden_size=d_model,
-            output_size=d_model,
-            dropout=self.dropout,
-            context_size=d_model,
+        self.layers = nn.ModuleList(
+            [
+                TransformerEncoderLayer(hidden_size, num_attention_heads, dropout_ratio)
+                for _ in range(num_layers)
+            ]
         )
-        self.future_vsn = TemporalVariableSelection(
-            num_vars=self.num_future_features,
-            hidden_size=d_model,
-            output_size=d_model,
-            dropout=self.dropout,
-            context_size=d_model,
-        )
+        self.final_norm = nn.LayerNorm(hidden_size)
+        self.dropout = nn.Dropout(dropout_ratio)
 
-        # LSTM encoder/decoder.
-        self.lstm_encoder = nn.LSTM(
-            input_size=d_model,
-            hidden_size=d_model,
-            num_layers=1,
-            batch_first=True,
-        )
-        self.lstm_decoder = nn.LSTM(
-            input_size=d_model,
-            hidden_size=d_model,
-            num_layers=1,
-            batch_first=True,
-        )
+    def forward(
+        self,
+        x: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+        return_attention_weights: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """
+        Args:
+            x: Tensor of shape [batch_size, seq_len, hidden_size].
+            mask: Optional attention mask of shape [batch_size, seq_len],
+                  [batch_size, seq_len, seq_len] or [batch_size, 1, seq_len, seq_len],
+                  where 1 (True) marks valid positions and 0 (False) marks masked ones.
+            return_attention_weights: whether to also return attention weights.
 
-        # Gated skip connections around each LSTM.
-        self.encoder_gate = GatedLinearUnit(d_model, d_model, dropout=self.dropout)
-        self.decoder_gate = GatedLinearUnit(d_model, d_model, dropout=self.dropout)
+        Returns:
+            output: Tensor of shape [batch_size, seq_len, hidden_size].
+            attn_weights: Tensor of shape
+                [num_layers, batch_size, num_attention_heads, seq_len, seq_len]
+                (only when ``return_attention_weights`` is True).
+        """
+        if x.dim() != 3:
+            raise ValueError("Transformer expects input of shape [batch, seq_len, hidden_size]")
 
-        # Interpretable temporal attention.
-        self.temporal_attention = InterpretableMultiHeadAttention(
-            d_model=d_model,
-            num_heads=num_heads,
-            dropout=self.dropout,
-        )
-
-        # Fusion GRN after attention.
-        self.attention_grn = GatedResidualNetwork(
-            input_size=d_model * 2,
-            hidden_size=d_model,
-            output_size=d_model,
-            dropout=self.dropout,
-            context_size=d_model,
-        )
-
-        # Quantile-specific output heads.
-        self.quantile_heads = nn.ModuleList(
-            [nn.Linear(d_model, 1) for _ in range(self.num_quantiles)]
-        )
-
-    def forward(self, static_features, past_features, future_features=None):
-        batch_size = past_features.size(0)
-        device = past_features.device
-
-        if static_features is None:
-            static_features = torch.zeros(
-                batch_size, self.num_static, device=device
+        if x.size(-1) != self.hidden_size:
+            raise ValueError(
+                "Input feature dim ({}) does not match hidden_size ({})".format(
+                    x.size(-1), self.hidden_size
+                )
             )
 
-        total_len = self.encoder_len + self.decoder_len
-        if future_features is None:
-            future_features = torch.zeros(
-                batch_size, total_len, self.num_future_features, device=device
-            )
-        elif future_features.size(1) < total_len:
-            pad_size = total_len - future_features.size(1)
-            padding = torch.zeros(
-                batch_size,
-                pad_size,
-                self.num_future_features,
-                device=device,
-                dtype=future_features.dtype,
-            )
-            future_features = torch.cat([future_features, padding], dim=1)
-        else:
-            future_features = future_features[:, :total_len, :]
+        if self.positional_encoding is not None:
+            if x.size(1) > self.max_seq_len:
+                raise ValueError(
+                    "Sequence length ({}) exceeds max_seq_len ({})".format(
+                        x.size(1), self.max_seq_len
+                    )
+                )
+            x = self.positional_encoding(x)
 
-        # Static variable selection.
-        static_context = self.static_vsn(static_features)  # [B, d_model]
+        x = self.dropout(self.input_proj(x))
 
-        # Temporal variable selection.
-        past_selected = self.past_vsn(past_features, static_context)  # [B, T_enc, d_model]
-        future_selected = self.future_vsn(future_features, static_context)  # [B, total_len, d_model]
+        attention_weights = [] if return_attention_weights else None
 
-        future_known_past = future_selected[:, : self.encoder_len, :]
-        future_known_future = future_selected[:, self.encoder_len :, :]
+        for layer in self.layers:
+            x, attn_w = layer(x, mask=mask)
+            if return_attention_weights:
+                attention_weights.append(attn_w)
 
-        # Encoder input combines past observed and known future up to t.
-        encoder_input = past_selected + future_known_past  # [B, T_enc, d_model]
-        decoder_input = future_known_future                  # [B, T_dec, d_model]
+        output = self.final_norm(x)
 
-        # LSTM sequence-to-sequence block.
-        lstm_encoder_output, (h, c) = self.lstm_encoder(encoder_input)
-        encoder_output = lstm_encoder_output + self.encoder_gate(encoder_input)
+        if return_attention_weights:
+            attn_stack = torch.stack(attention_weights, dim=0)
+            return output, attn_stack
 
-        lstm_decoder_output, _ = self.lstm_decoder(decoder_input, (h, c))
-        decoder_output = lstm_decoder_output + self.decoder_gate(decoder_input)
-
-        # Causal attention mask: decoder positions can attend to all encoder
-        # positions and only previous/subsequent decoder positions up to themselves.
-        mask = torch.zeros(
-            self.decoder_len,
-            total_len,
-            dtype=torch.bool,
-            device=device,
-        )
-        mask[:, : self.encoder_len] = True
-        mask[:, self.encoder_len :] = torch.tril(
-            torch.ones(self.decoder_len, self.decoder_len, dtype=torch.bool, device=device)
-        )
-
-        memory = torch.cat([encoder_output, decoder_output], dim=1)  # [B, total_len, d_model]
-        attended = self.temporal_attention(
-            query=decoder_output,
-            key=memory,
-            value=memory,
-            mask=mask,
-        )
-
-        # Static enrichment for attention fusion.
-        static_context_expanded = static_context.unsqueeze(1).expand(
-            -1, self.decoder_len, -1
-        )
-        fused = self.attention_grn(
-            torch.cat([decoder_output, attended], dim=-1),
-            context=static_context_expanded,
-        )
-
-        # Generate one quantile per horizon step.
-        quantile_outputs = []
-        for head in self.quantile_heads:
-            q = head(fused).squeeze(-1)  # [B, T_dec]
-            quantile_outputs.append(q)
-
-        return torch.stack(quantile_outputs, dim=-1)  # [B, T_dec, num_quantiles]
+        return output

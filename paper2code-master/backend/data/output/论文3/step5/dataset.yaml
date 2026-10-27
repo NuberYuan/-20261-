@@ -1,13 +1,18 @@
 paper_name: 论文3
 data_source: external_dataset
 acquisition: local_path
-data_source_note: LLM 判定失败，回退默认 external_dataset/local_path
+data_source_note: 论文明确使用四个真实医学影像公开数据集（Data Science Bowl 2018、ASU-Mayo colon polyp、MICCAI
+  2018 LiTS、LIDC-IDRI），需从竞赛/挑战赛网站手动下载，无法由库自动获取。
 datasets:
-- name: cell nuclei, colon polyp, liver, lung nodule
-  source: Data Science Bowl 2018; ASU-Mayo; MICCAI 2018 LiTS Challenge; LIDC-IDRI
-  size: 'cell nuclei: 670; colon polyp: 7,379; liver: 331; lung nodule: 1,012'
-  num_classes: NOT_FOUND
-  data_type: 'Medical imaging: microscopy images, RGB video, CT scans'
+- name: cell nuclei (Data Science Bowl 2018), colon polyp (ASU-Mayo), liver (MICCAI
+    2018 LiTS Challenge), lung nodule (LIDC-IDRI)
+  source: Data Science Bowl 2018, ASU-Mayo [10,11], MICCAI 2018 LiTS Challenge, LIDC-IDRI
+    [1]
+  size: 'cell nuclei: 670 images; colon polyp: 7,379 images; liver: 331 images; lung
+    nodule: 1,012 images'
+  num_classes: 2 (binary segmentation)
+  data_type: 'cell nuclei: microscopy images 96×96; colon polyp: RGB video frames
+    224×224; liver: CT scans 512×512; lung nodule: CT scans 64×64×64'
 dataset_versions:
 - NOT_FOUND
 preprocessing:
@@ -36,7 +41,8 @@ preprocessing:
       to_tensor: transforms.ToTensor()
       dtype: torch.float32
       description: 灰度版本：转换为单通道后重复为3通道
-      channels: 1
+      channels: 3
+      source_channels: 1
       channel_handling:
         paper_stated: NOT_FOUND — 论文未明确说明灰度图是保持1通道还是复制为3通道
         inferred_approach: repeat to 3 channels
@@ -67,13 +73,14 @@ preprocessing:
       resize: NOT_FOUND
       to_tensor: transforms.ToTensor()
       dtype: torch.float32
-      description: 分割版本：论文提及的分割预处理（去除背景、保留目标区域）；具体算法与参数需从论文确认，未公开时需自行实现或替代。
+      description: 分割版本：去除背景、保留目标区域；方法描述见 segmentation_algorithm.method，脚本参数未公开时需自行实现或替代。
       channels: 3
       segmentation_algorithm:
         method: NOT_FOUND — 论文未公开具体分割算法
         color_spaces: []
         components: []
         fixed_color_casts: false
+        parameters: NOT_FOUND — 论文未公开分割参数
         implementation_status: 'NOT_FOUND: 论文提及分割思路但未提供完整算法/参数'
         fallback: 如无法复现分割脚本，可使用 GrabCut 或 U-Net 替代，但结果可能与论文不完全一致。
       normalization:

@@ -2,9 +2,8 @@
 
 ## 纸上得来终觉浅:基于` CodeArts` 代码智能体的科学论文可复现性验证系统
 
-> **LLM 配置说明**: 本项目使用 **DeepSeek-V3-0324** (`deepseek-chat`) 进行论文代码复现的代码生成。
-> API Key 可通过前端界面设置，或通过环境变量 `DEEPSEEK_API_KEY` 配置。
-> 获取 API Key: [https://platform.deepseek.com](https://platform.deepseek.com)
+> **LLM 配置说明**: 本项目支持多种 LLM（默认使用 **小米 MiMo-V2.6-Pro**），可进行论文代码复现的代码生成。
+> API Key 可通过前端界面设置，或通过环境变量 `MIMO_API_KEY` / `DEEPSEEK_API_KEY` 配置。
 
 **|——————|———————|——————|————————————|**
 
@@ -112,8 +111,8 @@ paper2code/
 ├── code/
 │
 │   ├── __init__.py
-│   ├── config.py                         | deepseek配置、输入输出路径配置
-│   ├── llm_utils.py                      | DeepSeek模型调用（文本模型）
+│   ├── config.py                         | 模型配置、输入输出路径配置
+│   ├── llm_utils.py                      | LLM 模型调用（文本模型）
 │   ├── logger.py                         | 日志配置
 │   ├── requirements.txt                  | 项目依赖
 │   ├── compare_paper.py                  | 工具：论文文本 vs 提取信息对比
@@ -275,7 +274,7 @@ paper2code/
 
 ## Project Overview
 
-**Paper2Code** is an AI-driven scientific paper reproducibility verification system built on DeepSeek's Large Language Models. Its goal is to take an academic PDF paper as input, progressively parse, clean, extract structured information, and ultimately produce a runnable code project that can be executed to verify reproducibility.
+**Paper2Code** is an AI-driven scientific paper reproducibility verification system powered by Large Language Models. Its goal is to take an academic PDF paper as input, progressively parse, clean, extract structured information, and ultimately produce a runnable code project that can be executed to verify reproducibility.
 
 The current implementation covers Steps 1 through 8. Steps 9-12 (code analysis, categorization, comparison, and final reporting) are planned but not yet built.
 
@@ -301,7 +300,7 @@ No `pyproject.toml`, `setup.py`, `setup.cfg`, `Pipfile`, or `environment.yml` we
 
 | Package                             | Version   | Used In                                                      | Purpose                                                      |
 | ----------------------------------- | --------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| `requests`                          | >= 2.28.0 | `code/llm_utils.py`                                          | HTTP client for calling the DeepSeek Chat API                |
+| `requests`                          | >= 2.28.0 | `code/llm_manager.py`, `code/llm_utils.py`                   | HTTP client for calling the LLM Chat API                     |
 | `PyMuPDF` (imported as `fitz`)      | >= 1.21.0 | `code/step1/pdf_parser.py`, `image_extractor.py`, `table_extractor.py` | PDF parsing: extracting text blocks, images, and grid-based tables from academic PDFs |
 | `Pillow`                            | >= 9.0.0  | `code/step3/` (via generated figure code)                    | Image loading in the figure analysis pipeline                |
 | `opencv-python` (imported as `cv2`) | >= 4.7.0  | `code/step3/ocr_analyzer.py`, generated figure code          | Image decoding (supports Chinese-character paths via `np.fromfile` + `cv2.imdecode`), and image processing in AI-generated analysis code |
@@ -322,13 +321,13 @@ No other third-party packages are used. Notably, there are **no deep learning fr
 
 ## External Services / APIs
 
-### DeepSeek API (the only external dependency)
+### LLM API（支持多模型）
 
 | Details            | Values                                                       |
 | ------------------ | ------------------------------------------------------------ |
-| **Base URL**       | `https://api.deepseek.com/v1/chat/completions`               |
-| **Text Model**     | `deepseek-chat`                                              |
-| **API Key**        | Currently hardcoded in `code/config.py` (line 22: `sk-230fb0562f1341a2ae556a2b67516f8a`); the file also includes logic to read from `DEEPSEEK_API_KEY` environment variable |
+| **Base URL**       | 取决于所选模型（MiMo: `https://api.xiaomimimo.com`，DeepSeek: `https://api.deepseek.com` 等） |
+| **默认模型**       | `mimo-v2.6-pro`（可在前端切换）                              |
+| **API Key**        | 通过前端设置保存到 `data/settings.json`，或环境变量 `MIMO_API_KEY` / `DEEPSEEK_API_KEY` |
 | **Authentication** | Bearer token in HTTP header                                  |
 | **Timeout**        | 300 seconds per request                                      |
 | **Retry Logic**    | Up to 3 retries with exponential backoff (base delay 2s) on 5xx / timeout / connection / empty-or-malformed content; 4xx errors are NOT retried |
@@ -367,7 +366,7 @@ Step 2.3 (code/step2/)       Structure Detection
     v
 Step 3  (code/step3/)        Key Information Extraction
     |                           Three parallel pipelines:
-    |                             a) Text: LLM (deepseek-chat) extracts structured
+    |                             a) Text: LLM extracts structured
     |                                JSON per a rigid schema (methodology, dataset,
     |                                implementation_details, experiment, etc.)
     |                             b) Tables: LLM analyzes extracted tables
@@ -445,7 +444,8 @@ Step6 and Step7 are additionally rule-driven: Step6 aligns requirements and desi
 ```
 code/
   config.py              -- Global config (API keys, all file paths)
-  llm_utils.py           -- DeepSeek API wrapper (text)
+  llm_utils.py           -- LLM API wrapper (text)
+  llm_manager.py         -- Unified LLM call manager (routing, retry, cache)
   logger.py              -- Lazy-initialized logging (file + console)
   compare_paper.py       -- Utility: compare paper text vs extracted info
   deep_dive.py           -- Utility: debug Step3 LLM output quality
@@ -614,7 +614,7 @@ python -m pipeline_api --paper plant --port 8001    # 指定论文
 
 ### 重试（retry）
 
-针对 DeepSeek 偶发「无法返回」做了两层重试：
+针对 LLM 偶发「无法返回」做了两层重试：
 
 1. **LLM 层（自动）**：`code/llm_utils.py` 对「返回空内容 / 非 JSON / 结构缺失」也纳入重试（原来只重试 5xx/超时/连接失败），最多重试 `MAX_RETRIES` 次。
 2. **控制器层（手动）**：step 失败后，前端可调 `POST /retry`（或 CLI `retry`）强制重跑上次执行过的 step；`GET /status` 会带上 `last_result` 供前端判断是否需要重试。
@@ -630,7 +630,7 @@ python -m pipeline_api --paper plant --port 8001    # 指定论文
 
 ## Security Notes
 
-- The **DeepSeek API key is hardcoded** in `config.py` (line 22). The `.gitignore` does list `.env` files to prevent accidental commits of secrets, but the key is currently embedded in source code.
+- **API Key 安全**: API Key 保存在 `data/settings.json`（已在 `.gitignore` 中），不会硬编码到源代码。也可通过环境变量配置。
 - Step3's `CodeExecutor` implements a **sandboxed execution** model for AI-generated code: forbidden imports (`tensorflow`, `torch`, `pytesseract`), disabled `os.system`/`os.popen`/`subprocess`, and 300-second timeout. Execution runs in an isolated `subprocess` with temp files cleaned up afterwards.
 
 ------
@@ -652,7 +652,7 @@ Agent 跑完了，补充一些我之前的梳理没覆盖到的细节：
 | 包                      | 版本要求 | 用途                                                     |
 | ----------------------- | -------- | -------------------------------------------------------- |
 | **PyMuPDF (fitz)**      | ≥ 1.21.0 | PDF 解析：提取文本块、图片、表格                         |
-| **requests**            | ≥ 2.28.0 | 调用 DeepSeek Chat API                                   |
+| **requests**            | ≥ 2.28.0 | 调用 LLM Chat API                                        |
 | **Pillow**              | ≥ 9.0.0  | 图片加载（图片分析流程）                                 |
 | **opencv-python (cv2)** | ≥ 4.7.0  | 图片解码（支持中文路径，`np.fromfile` + `cv2.imdecode`） |
 | **numpy**               | ≥ 1.24.0 | 数组运算                                                 |
@@ -667,7 +667,7 @@ Agent 跑完了，补充一些我之前的梳理没覆盖到的细节：
 
 | 服务         | 模型                      | 用途                             |
 | ------------ | ------------------------- | -------------------------------- |
-| DeepSeek API | `deepseek-chat`（文本）   | 信息提取、表格/图片分析、工程设计与代码生成 |
+| LLM API      | 可配置（默认 MiMo-V2.6-Pro） | 信息提取、表格/图片分析、工程设计与代码生成 |
 
 ### 纯 Python 项目
 
@@ -693,7 +693,7 @@ Step2.2: 文本修复（连字/断行合并）→ repaired_paper.json
 Step2.3: 结构检测（标题/作者/摘要/正文分类）→ structure_detect_paper.json
   ↓
 Step3: LLM 关键信息提取（三路并行）
-        ├─ 文本 → DeepSeek 提取结构化 JSON
+        ├─ 文本 → LLM 提取结构化 JSON
         ├─ 表格 → LLM 分析实验结果
         └─ 图表 → EasyOCR + FigureCodeGenerator（LLM 生成分析代码 → 沙箱执行）
         → key_information.json

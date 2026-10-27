@@ -1,0 +1,200 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+
+OCR_TEXT = "output Tape Input 282@ Gr id"
+
+
+def read_image(image_path):
+    try:
+        data = np.fromfile(image_path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        return img
+    except Exception:
+        return None
+
+
+def get_visual_features(img):
+    feats = {}
+    try:
+        if img is None:
+            return feats
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        feats["white_ratio"] = float(np.mean(gray > 240))
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        hue_ch = hsv[:, :, 0]
+        feats["unique_hues"] = int(len(np.unique(hue_ch)))
+        feats["sat_mean"] = float(np.mean(hsv[:, :, 1]))
+        feats["bright_mean"] = float(np.mean(gray))
+        feats["dark_ratio"] = float(np.mean(gray < 80))
+    except Exception:
+        pass
+    return feats
+
+
+def classify(img, ocr_text):
+    try:
+        ocr_lower = ocr_text.lower()
+        words = set(ocr_lower.replace("\n", " ").split())
+
+        arch_strict = [
+            "cnn", "transformer", "attention", "encoder", "decoder",
+            "block", "embedding", "classifier", "alexnet", "resnet",
+            "vgg", "googlenet", "lstm", "gru", "bert", "gpt", "vit",
+            "detr", "swin", "unet", "gan", "vae", "backbone", "fpn",
+            "rpn", "yolo", "mobilenet", "efficientnet", "convnext",
+        ]
+        arch_extended = [
+            "conv", "pool", "layer", "module", "head", "neck",
+            "self-attention", "cross-attention", "multi-head",
+        ]
+
+        exp_strict = [
+            "accuracy", "loss", "epoch", "precision", "recall", "f1",
+            "auc", "bleu", "rouge", "iou", "map", "top-1", "top-5",
+            "acc", "err", "error", "lr", "learning rate", "val",
+            "train", "test", "baseline", "ours", "ablation",
+        ]
+        exp_extended = [
+            "curve", "chart", "comparison", "performance", "score",
+            "graph", "plot", "tab", "table",
+        ]
+
+        data_strict = [
+            "coco", "imagenet", "voc", "mnist", "cifar", "dataset",
+            "sample", "ground truth", "annotation", "label",
+        ]
+        data_extended = [
+            "class", "category", "example", "input image",
+            "output image",
+        ]
+
+        flow_words = ["input", "output", "forward", "backward", "feed",
+                       "grid", "tape", "pipeline", "process", "stage",
+                       "step", "flow", "stream"]
+
+        arch_s_strict = sum(1 for k in arch_strict if k in ocr_lower)
+        arch_s_ext = sum(1 for k in arch_extended if k in ocr_lower)
+        exp_s_strict = sum(1 for k in exp_strict if k in ocr_lower)
+        exp_s_ext = sum(1 for k in exp_extended if k in ocr_lower)
+        data_s_strict = sum(1 for k in data_strict if k in ocr_lower)
+        data_s_ext = sum(1 for k in data_extended if k in ocr_lower)
+        flow_s = sum(1 for k in flow_words if k in ocr_lower)
+
+        vis = get_visual_features(img)
+
+        vis_exp = 0
+        vis_arch = 0
+        vis_data = 0
+
+        if vis.get("unique_hues", 0) > 25 and vis.get("sat_mean", 0) > 30:
+            vis_exp += 1
+        if vis.get("white_ratio", 0) > 0.45:
+            vis_arch += 1
+            vis_data += 1
+
+        if "input" in words and "output" in words:
+            vis_arch += 1
+
+        score_arch = arch_s_strict * 4 + arch_s_ext * 2 + flow_s * 1 + vis_arch * 1
+        score_exp = exp_s_strict * 4 + exp_s_ext * 2 + vis_exp * 1
+        score_data = data_s_strict * 4 + data_s_ext * 2 + vis_data * 1
+
+        arch_comp_candidates = [
+            "CNN", "Transformer", "Attention", "Encoder", "Decoder",
+            "Block", "Embedding", "Classifier", "Feature Extractor",
+            "AlexNet", "ResNet", "VGG", "GoogLeNet", "LSTM", "GRU",
+            "BERT", "GPT", "ViT", "DETR", "Swin Transformer",
+            "UNet", "GAN", "VAE", "FPN", "RPN", "YOLO",
+            "MobileNet", "EfficientNet", "ConvNeXt",
+        ]
+        arch_components = []
+        for comp in arch_comp_candidates:
+            if comp.lower().replace("-", "").replace(" ", "") in ocr_lower.replace("-", "").replace(" ", ""):
+                arch_components.append(comp)
+
+        exp_comp_candidates = [
+            "Accuracy", "Loss", "Epoch", "Precision", "Recall", "F1",
+            "AUC", "BLEU", "ROUGE", "IoU", "mAP", "Top-1", "Top-5",
+            "Learning Rate", "Training Loss", "Validation Loss",
+        ]
+        exp_components = []
+        for comp in exp_comp_candidates:
+            if comp.lower().replace("-", "").replace(" ", "") in ocr_lower.replace("-", "").replace(" ", ""):
+                exp_components.append(comp)
+
+        model_names = [
+            "AlexNet", "ResNet", "VGG", "GoogLeNet", "CNN",
+            "Transformer", "BERT", "GPT", "ViT", "UNet", "YOLO",
+            "MobileNet", "EfficientNet", "Swin", "DETR", "LSTM", "GRU",
+        ]
+
+        if score_exp > 0:
+            combined = list(exp_components)
+            for m in model_names:
+                if m.lower() in ocr_lower and m not in combined:
+                    combined.append(m)
+            return {
+                "type": "experiment_result",
+                "description": "展示实验结果或性能对比图表",
+                "important_components": combined,
+                "code_relevant_information": "需要复现实验配置并对比相关模型的性能指标",
+            }
+
+        if score_arch > 0:
+            combined = list(arch_components)
+            return {
+                "type": "architecture",
+                "description": "展示模型架构或数据处理流程",
+                "important_components": combined,
+                "code_relevant_information": "需要根据图示实现对应的模型架构或数据处理模块",
+            }
+
+        if score_data > 0:
+            return {
+                "type": "dataset",
+                "description": "展示数据集样本或数据示例",
+                "important_components": [],
+                "code_relevant_information": "需要按照图示组织数据集或数据预处理流程",
+            }
+
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": "",
+        }
+
+    except Exception:
+        return {
+            "type": "other",
+            "description": "无法确定图片类型",
+            "important_components": [],
+            "code_relevant_information": "",
+        }
+
+
+def main():
+    fallback = {
+        "type": "other",
+        "description": "无法确定图片类型",
+        "important_components": [],
+        "code_relevant_information": "",
+    }
+    try:
+        if len(sys.argv) < 2:
+            print(json.dumps(fallback, ensure_ascii=False))
+            return
+        image_path = sys.argv[1]
+        img = read_image(image_path)
+        result = classify(img, OCR_TEXT)
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception:
+        print(json.dumps(fallback, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
+```

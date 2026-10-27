@@ -1,0 +1,39 @@
+{
+  "table_id": "table_1",
+  "table_type": "comparison",
+  "caption_summary": "Mean F1 score (with mean precision, mean recall, overall accuracy in braces) for AlexNet and GoogLeNet under transfer learning vs. training-from-scratch, across 5 train/test splits and 3 image representations (Color, Grayscale, Segmented) after 30 epochs.",
+  "extracted_data": {
+    "metrics": ["Mean F1 score", "Mean precision", "Mean recall", "Overall accuracy"],
+    "methods": [
+      "AlexNet - Transfer learning",
+      "AlexNet - Training from scratch",
+      "GoogLeNet - Transfer learning",
+      "GoogLeNet - Training from scratch"
+    ],
+    "best_result": {
+      "method": "GoogLeNet - Transfer learning (Train 80%, Test 20%, Color images)",
+      "metric": "Mean F1 score",
+      "value": 0.9934
+    },
+    "key_values": [
+      {"label": "Train 20% / Test 80% - Color", "value": "AlexNet-TL: 0.9736{0.9742, 0.9737, 0.9738}; AlexNet-Scratch: 0.9118{0.9137, 0.9132, 0.9130}; GoogLeNet-TL: 0.9820{0.9824, 0.9821, 0.9821}; GoogLeNet-Scratch: 0.9430{0.9440, 0.9431, 0.9429}"},
+      {"label": "Train 20% / Test 80% - Grayscale", "value": "AlexNet-TL: 0.9361{0.9368, 0.9369, 0.9371}; AlexNet-Scratch: 0.8524{0.8539, 0.8555, 0.8553}; GoogLeNet-TL: 0.9563{0.9570, 0.9564, 0.9564}; GoogLeNet-Scratch: 0.8828{0.8842, 0.8835, 0.8841}"},
+      {"label": "Train 20% / Test 80% - Segmented", "value": "AlexNet-TL: 0.9724{0.9727, 0.9727, 0.9726}; AlexNet-Scratch: 0.8945{0.8956, 0.8963, 0.8969}; GoogLeNet-TL: 0.9808{0.9810, 0.9808, 0.9808}; GoogLeNet-Scratch: 0.9377{0.9388, 0.9380, 0.9380}"},
+      {"label": "Train 40% / Test 60% - Color", "value": "AlexNet-TL: 0.9860{0.9861, 0.9861, 0.9860}; AlexNet-Scratch: 0.9555{0.9557, 0.9558, 0.9558}; GoogLeNet-TL: 0.9914{0.9914, 0.9914, 0.9914}; GoogLeNet-Scratch: 0.9729{0.9731, 0.9729, 0.9729}"},
+      {"label": "Train 40% / Test 60% - Grayscale", "value": "AlexNet-TL: 0.9584{0.9588, 0.9589, 0.9588}; AlexNet-Scratch: 0.9088{0.9090, 0.9101, 0.9100}; GoogLeNet-TL: 0.9714{0.9717, 0.9716, 0.9716}; GoogLeNet-Scratch: 0.9361{0.9364, 0.9363, 0.9364}"},
+      {"label": "Train 40% / Test 60% - Segmented", "value": "AlexNet-TL: 0.9812{0.9814, 0.9813, 0.9813}; AlexNet-Scratch: 0.9404{0.9409, 0.9408, 0.9408}; GoogLeNet-TL: 0.9896{0.9896, 0.9896, 0.9898}; GoogLeNet-Scratch: 0.9643{0.9647, 0.9642, 0.9642}"},
+      {"label": "Train 50% / Test 50% - Color", "value": "AlexNet-TL: 0.9896{0.9897, 0.9896, 0.9897}; AlexNet-Scratch: 0.9644{0.9647, 0.9647, 0.9647}; GoogLeNet-TL: 0.9916{0.9916, 0.9916, 0.9916}; GoogLeNet-Scratch: 0.9772{0.9774, 0.9773, 0.9773}"},
+      {"label": "Train 50% / Test 50% - Grayscale", "value": "AlexNet-TL: 0.9661{0.9663, 0.9663, 0.9663}; AlexNet-Scratch: 0.9312{0.9315, 0.9318, 0.9319}; GoogLeNet-TL: 0.9788{0.9789, 0.9788, 0.9788}; GoogLeNet-Scratch: 0.9507{0.9510, 0.9507, 0.9509}"},
+      {"label": "Train 50% / Test 50% - Segmented", "value": "AlexNet-TL: 0.9867{0.9868, 0.9868, 0.9869}; AlexNet-Scratch: 0.9551{0.9552, 0.9555, 0.9556}; GoogLeNet-TL: 0.9909{0.9910, 0.9910, 0.9910}; GoogLeNet-Scratch: 0.9720{0.9721, 0.9721, 0.9722}"},
+      {"label": "Train 60% / Test 40% - Color", "value": "AlexNet-TL: 0.9907{0.9908, 0.9908, 0.9907}; AlexNet-Scratch: 0.9724{0.9725, 0.9725, 0.9725}; GoogLeNet-TL: 0.9924{0.9924, 0.9924, 0.9924}; GoogLeNet-Scratch: 0.9824{0.9825, 0.9824, 0.9824}"},
+      {"label": "Train 60% / Test 40% - Grayscale", "value": "AlexNet-TL: 0.9686{0.9689, 0.9688, 0.9688}; AlexNet-Scratch: 0.9388{0.9396, 0.9395, 0.9391}; GoogLeNet-TL: 0.9785{0.9789, 0.9786, 0.9787}; GoogLeNet-Scratch: 0.9547{0.9554, 0.9548, 0.9551}"},
+      {"label": "Train 60% / Test 40% - Segmented", "value": "AlexNet-TL: 0.9855{0.9856, 0.9856, 0.9856}; AlexNet-Scratch: 0.9595{0.9597, 0.9597, 0.9596}; GoogLeNet-TL: 0.9905{0.9906, 0.9906, 0.9906}; GoogLeNet-Scratch: 0.9740{0.9743, 0.9740, 0.9745}"},
+      {"label": "Train 80% / Test 20% - Color", "value": "AlexNet-TL: 0.9927{0.9928, 0.9927, 0.9928}; AlexNet-Scratch: 0.9782{0.9786, 0.9782, 0.9782}; GoogLeNet-TL: 0.9934{0.9935, 0.9935, 0.9935}; GoogLeNet-Scratch: 0.9836{0.9839, 0.9837, 0.9837}"},
+      {"label": "Train 80% / Test 20% - Grayscale", "value": "AlexNet-TL: 0.9726{0.9728, 0.9727, 0.9725}; AlexNet-Scratch: 0.9449{0.9451, 0.9454, 0.9452}; GoogLeNet-TL: 0.9800{0.9804, 0.9801, 0.9798}; GoogLeNet-Scratch: 0.9621{0.9624, 0.9621, 0.9621}"},
+      {"label": "Train 80% / Test 20% - Segmented", "value": "AlexNet-TL: 0.9891{0.9893, 0.9891, 0.9892}; AlexNet-Scratch: 0.9722{0.9725, 0.9724, 0.9723}; GoogLeNet-TL: 0.9925{0.9925, 0.9925, 0.9924}; GoogLeNet-Scratch: 0.9824{0.9827, 0.9824, 0.9822}"},
+      {"label": "Worst overall configuration", "value": "AlexNet - Training from scratch, Train 20%/Test 80%, Grayscale: F1 = 0.8524{0.8539, 0.8555, 0.8553}"},
+      {"label": "Best overall configuration", "value": "GoogLeNet - Transfer learning, Train 80%/Test 20%, Color: F1 = 0.9934{0.9935, 0.9935, 0.9935}"}
+    ]
+  },
+  "table_summary": "The table reports mean F1 score (with mean precision, mean recall and overall accuracy) for plant disease detection under 60 experimental configurations spanning two CNNs (AlexNet, GoogLeNet), two training regimes (transfer learning vs. from scratch), five train/test splits (20/80 up to 80/20), and three image types (color, grayscale, segmented). GoogLeNet with transfer learning consistently outperforms all other configurations, achieving the best overall result of 0.9934 mean F1 on color images with an 80/20 split, while AlexNet trained from scratch on grayscale images with a 20/80 split is the weakest (0.8524). Transfer learning, color input, and larger training sets all yield systematically higher scores, with precision, recall and accuracy closely tracking the F1 values in every cell."
+}

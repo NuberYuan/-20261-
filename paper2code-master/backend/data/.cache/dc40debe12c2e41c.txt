@@ -1,0 +1,14 @@
+```json
+{
+  "models[0].num_classes": "NOT_FOUND",
+  "models[0].pretrained": "NOT_FOUND",
+  "models[0].architecture.total_layers": "NOT_FOUND",
+  "models[0].architecture.param_count": "NOT_FOUND",
+  "models[0].architecture.final_classifier": "NOT_FOUND",
+  "models[1].num_classes": "NOT_FOUND",
+  "models[1].pretrained": "NOT_FOUND",
+  "models[1].architecture.total_layers": "NOT_FOUND",
+  "models[1].architecture.param_count": "NOT_FOUND",
+  "models[1].architecture.final_classifier": "NOT_FOUND"
+}
+```

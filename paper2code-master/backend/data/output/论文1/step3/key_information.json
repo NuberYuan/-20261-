@@ -1,0 +1,549 @@
+{
+  "title": "Using Deep Learning for Image-Based Plant Disease Detection",
+  "research_problem": "Crop diseases are a major threat to food security, but their rapid identification remains difficult in many parts of the world due to the lack of the necessary infrastructure. The paper addresses the problem of automatically identifying crop species and disease status from images of plant leaves using deep convolutional neural networks.",
+  "motivation": "The combination of increasing global smartphone penetration and recent advances in computer vision made possible by deep learning has paved the way for smartphone-assisted disease diagnosis. Historically, disease identification has been supported by agricultural extension organizations, and traditional computer vision approaches relied on hand-engineered features which were complex and labor-intensive. Deep learning eliminates the need for feature engineering and offers generalizability for practical and scalable computational inference of plant diseases.",
+  "main_contribution": "Using a public dataset of 54,306 images of diseased and healthy plant leaves collected under controlled conditions, a deep convolutional neural network is trained to identify 14 crop species and 26 diseases (or absence thereof) across 38 classes, achieving an accuracy of 99.35% on a held-out test set and 31.4% on real-world images from trusted online sources, demonstrating the technical feasibility of smartphone-assisted crop disease diagnosis.",
+  "methodology": {
+    "method_name": "Deep convolutional neural network-based plant disease classification",
+    "core_idea": "Train deep convolutional neural networks (AlexNet and GoogLeNet) on a large public dataset of plant leaf images to classify crop species and disease status across 38 classes, using both training from scratch and transfer learning from ImageNet-pretrained models, with three visual representations (color, grayscale, segmented) of the dataset.",
+    "pipeline": "Collect 54,306 images from the PlantVillage dataset. Resize all images to 256x256 pixels. Prepare three versions of the dataset: color, grayscale, and segmented. Split data into train/test sets with multiple ratios while ensuring images of the same leaf stay in the same set. Train AlexNet and GoogLeNet models using either transfer learning (resetting final classification layer) or training from scratch. Train each model for 30 epochs with standardized hyperparameters. Evaluate using mean F1 score, mean precision, mean recall, and overall accuracy at the end of every epoch. Use final mean F1 score for comparison across all experimental configurations.",
+    "model": "AlexNet, GoogLeNet",
+    "model_architecture": {
+      "input": "Images resized to 256 x 256 pixels",
+      "output": "38 class probability distribution (fc8 has 38 outputs in adapted AlexNet, equaling total number of classes)",
+      "feature_extraction": "AlexNet: 5 convolution layers with ReLU non-linearity, first two convolution layers followed by normalization and pooling layer, last convolution layer followed by pooling. GoogLeNet: 22 layers with inception modules using parallel 1x1, 3x3, and 5x5 convolutions along with max-pooling, with 1x1 convolutions for dimensionality reduction.",
+      "classification": "AlexNet: 3 fully connected layers followed by softmax layer. Final fully connected layer fc8 has 38 outputs feeding the softmax layer. GoogLeNet: loss{1,2,3}/classifier layers.",
+      "pretrained_model": "ImageNet pretrained weights for transfer learning. In case of transfer learning, they do not limit the learning of the rest of the layers and instead just reset the weights of layer fc8 in case of AlexNet; in case of GoogLeNet, they similarly do not limit the learning of the rest of the layers but instead just reset the weights of the loss{1,2,3}/classifier layers.",
+      "special_modules": "AlexNet: Dropout layers associated with first two fully connected layers (fc{6,7}) with dropout ratio of 0.5. GoogLeNet: Inception modules (9 total), 1x1 convolutions for dimensionality reduction, filter concatenation layers.",
+      "alexnet": "AlexNet consists of 5 convolution layers, followed by 3 fully connected layers, and finally ending with a softmax layer. The first two convolution layers (conv{1,2}) are each followed by a normalization and a pooling layer, and the last convolution layer (conv5) is followed by a single pooling layer. The final fully connected layer (fc8) has 38 outputs in the adapted version. All of the first 7 layers have a ReLU nonlinearity activation unit. The first two fully connected layers (fc{6,7}) have a dropout layer with dropout ratio of 0.5. AlexNet has 60 million parameters.",
+      "googlenet": "GoogLeNet is a much deeper and wider architecture with 22 layers, while still having considerably lower number of parameters (5 million parameters) in the network than AlexNet (60 million parameters). A total of 9 inception modules is used. The inception module uses parallel 1x1, 3x3 and 5x5 convolutions along with a maxpooling layer in parallel. 1x1 convolutions are added before the 3x3, 5x5 convolutions (and also after the maxpooling layer) for dimensionality reduction. A filter concatenation layer concatenates the outputs of all these parallel layers.",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "NOT_FOUND",
+      "lstm": "NOT_FOUND"
+    }
+  },
+  "dataset": {
+    "dataset_name": "PlantVillage",
+    "dataset_source": "PlantVillage project [9], openly and freely available",
+    "dataset_size": "54,306 images",
+    "number_of_classes": "38 classes (14 crop species and 26 diseases or absence thereof)",
+    "data_type": "Images of plant leaves (diseased and healthy), collected under controlled conditions",
+    "train_test_split": "Multiple train-test splits: 80-20, 60-40, 50-50, 40-60, 20-80. Images of the same leaf (mappings available for 41,112 out of 54,306 images) always go either in the training set or the testing set.",
+    "preprocessing": "All images resized to 256 x 256 pixels. Three versions of the dataset used: color (as is), grayscale, and leaf segmented (background removed). Segmentation was automated by a script using masks generated by analysis of color, lightness and saturation components in Lab and HSB color spaces. Color casts were also fixed during segmentation processing."
+  },
+  "implementation_details": {
+    "programming_framework": "Caffe (own fork of Caffe: https://github.com/salathegroup/caffe)",
+    "optimizer": "Stochastic Gradient Descent",
+    "learning_rate": "0.005",
+    "batch_size": "24 (in case of GoogLeNet), 100 (in case of AlexNet)",
+    "epoch": "30",
+    "loss_function": "softmax cross-entropy (inferred from softmax layer)",
+    "hardware": "EPFL GPU cluster computing resources",
+    "training_strategy": "Solver type: Stochastic Gradient Descent. Base learning rate: 0.005. Learning rate policy: Step (decreases by a factor of 10 every 30/3 epochs). Momentum: 0.9. Weight decay: 0.0005. Gamma: 0.1. Batch size: 24 (in case of GoogLeNet), 100 (in case of AlexNet). Each of the 60 experiments runs for a total of 30 epochs. Transfer learning: weights of final classification layer(s) are reset, all other layers fine-tuned without limitation.",
+    "momentum": "0.9",
+    "weight_decay": "0.0005"
+  },
+  "experiment": {
+    "evaluation_metrics": "Mean F1 score, mean precision, mean recall, overall accuracy",
+    "baseline_methods": "Random guessing (2.63% overall accuracy on 38 classes)",
+    "comparison_results": "Best performance: GoogLeNet::TransferLearning::Color::80-20 with mean F1 score 0.9934 and overall accuracy 99.35%. Worst performance: AlexNet::TrainingFromScratch::GrayScale::80-20 with mean F1 score 0.8524 and overall accuracy 85.53%. GoogLeNet consistently outperforms AlexNet. Transfer learning always yields better results than training from scratch. Color > Segmented > Grayscale in terms of performance. On real-world images (121 images from trusted online sources), GoogLeNet:Segmented:TransferLearning:80-20 achieves 31.40% accuracy, 47.93% when crop information is provided, 52.89% top-5 accuracy. In n>=2 case (33 classes, 9 crops): random accuracy 0.273, model accuracy 0.478. In n>=3 case (25 classes, 5 crops): random accuracy 0.2, model accuracy 0.411.",
+    "ablation_study": "60 experimental configurations varying: (1) Architecture: AlexNet, GoogLeNet; (2) Training mechanism: Transfer Learning, Training from Scratch; (3) Dataset type: Color, Gray scale, Leaf Segmented; (4) Train-test distribution: 80-20, 60-40, 50-50, 40-60, 20-80. Notation: Architecture:TrainingMechanism:DatasetType:Train-Test-Set-Distribution. GoogLeNet::TransferLearning::Color::20-80 achieves 98.21% overall accuracy (mean F1-Score 0.9820). No divergence between validation loss and training loss, confirming overfitting is not a contributor.",
+    "important_results": "The best performing model (GoogLeNet::TransferLearning::Color::80-20) achieves a mean F1 score of 0.9934 and overall accuracy of 99.35% on the PlantVillage dataset. On real-world images collected from trusted online sources (121 images), the model trained using GoogLeNet:Segmented:TransferLearning:80-20 achieves 31.40% overall accuracy (random baseline: 2.63%). When crop information is provided, accuracy increases to 47.93%. Top-5 predictions contain correct class in 52.89% of cases. Even training on only 20% data achieves 98.21% accuracy with GoogLeNet::TransferLearning::Color::20-80. Performance order: Color > Segmented > Grayscale. GoogLeNet > AlexNet. Transfer Learning > Training from Scratch."
+  },
+  "reproduction_requirements": {
+    "required_modules": [
+      "Caffe deep learning framework (fork: https://github.com/salathegroup/caffe)",
+      "AlexNet architecture",
+      "GoogLeNet architecture",
+      "ImageNet pretrained weights",
+      "Image segmentation script (color, lightness, saturation analysis in Lab and HSB color spaces)"
+    ],
+    "important_parameters": {
+      "solver_type": "Stochastic Gradient Descent",
+      "base_learning_rate": "0.005",
+      "learning_rate_policy": "Step",
+      "learning_rate_step_factor": "0.1",
+      "learning_rate_step_interval": "10",
+      "momentum": "0.9",
+      "weight_decay": "0.0005",
+      "gamma": "0.1",
+      "batch_size_googlenet": "24",
+      "batch_size_alexnet": "100",
+      "epochs": "30",
+      "dropout_ratio": "0.5",
+      "input_image_size": "256x256",
+      "number_of_classes": "38",
+      "number_of_experimental_configurations": "60",
+      "learning_rate": "0.005",
+      "batch_size": "24 (in case of GoogLeNet), 100 (in case of AlexNet)",
+      "scheduler": "StepLR",
+      "scheduler_step_size": "10",
+      "scheduler_gamma": "0.1"
+    },
+    "possible_difficulties": [
+      "Segregation of images of the same leaf into same train/test split (mappings available for only 41,112 out of 54,306 images)",
+      "Automated leaf segmentation script tuning for the specific dataset",
+      "Fixing color casts in some image collection subsets",
+      "Access to GPU cluster for training",
+      "Own fork of Caffe framework needed for full replication"
+    ]
+  },
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "data_example",
+      "description": "Example of leaf images from the PlantVillage dataset, representing every crop-disease pair used (38 classes total).",
+      "data_characteristics": "Controlled condition images of single plant leaves on homogeneous background, one example per crop-disease pair",
+      "categories": "38 crop-disease pairs including Apple Scab, Apple Black Rot, Apple Cedar Rust, Apple healthy, Blueberry healthy, Cherry healthy, Cherry Powdery Mildew, Corn Gray Leaf Spot, Corn Common Rust, Corn healthy, Corn Northern Leaf Blight, Grape Black Rot, Grape Black Measles (Esca), Grape Healthy, Grape Leaf Blight, Orange Huanglongbing (Citrus Greening), Peach Bacterial Spot, Peach healthy, Bell Pepper Bacterial Spot, Bell Pepper healthy, Potato Early Blight, Potato healthy, Potato Late Blight, Raspberry healthy, Soybean healthy, Squash Powdery Mildew, Strawberry Healthy, Strawberry Leaf Scorch, Tomato Bacterial Spot, Tomato Early Blight, Tomato Late Blight, Tomato Leaf Mold, Tomato Septoria Leaf Spot, Tomato Two Spotted Spider Mite, Tomato Target Spot, Tomato Mosaic Virus, Tomato Yellow Leaf Curl Virus, Tomato healthy",
+      "visual_features": "Single leaf facing up on homogeneous background, showing disease symptoms or healthy appearance"
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "data_example",
+      "description": "Sample images from the three different versions of the PlantVillage dataset: color, grayscale, and segmented (leaves segmented with background removed).",
+      "data_characteristics": "Same leaf shown in three visual representations: color (original), grayscale, and segmented (background removed)",
+      "categories": "Color, Grayscale, Segmented",
+      "visual_features": "Color version shows natural leaf colors; grayscale removes color information; segmented version shows only the leaf with background removed"
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "experiment_result",
+      "description": "(a) Example image of a leaf suffering from Apple Cedar Rust from Bing Image Search. (b) Visualization of activations in the first convolution layer (conv1) of an AlexNet architecture trained using AlexNet:Color:TrainFromScratch:80-20 when doing a forward pass on the image.",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "The model learns to efficiently activate against the diseased spots on the example leaf",
+      "conclusion": "The visualization of activations in the initial layers demonstrates that the model has learnt to efficiently activate against the diseased spots on the example leaf"
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "comparison_chart",
+      "description": "Progression of mean F1 score and loss through the training period of 30 epochs across all experiments, grouped by experimental configuration parameters: (a) by architecture, (b) by training mechanism, (c) train loss and test loss progression, (d) by train-test set splits, (e) by dataset type.",
+      "x_axis": "Training epochs (0 to 30)",
+      "y_axis": "Mean F1 score / train loss / test loss",
+      "trend": "GoogLeNet outperforms AlexNet; transfer learning outperforms training from scratch; color > segmented > grayscale; no divergence between validation and training loss; performance degrades with increasing test set ratio but not drastically",
+      "conclusion": "Overfitting is not a contributor to the results. GoogLeNet consistently performs better than AlexNet. Transfer learning always yields better results. Models perform best with colored dataset, then segmented, then grayscale. All experiments converge well within 30 epochs."
+    }
+  ],
+  "table_analysis": {
+    "tables_analyzed": 2,
+    "table_results": [
+      {
+        "table_id": "table_1",
+        "table_type": "comparison",
+        "caption_summary": "Mean F1 score (with mean precision, mean recall, overall accuracy in braces) for AlexNet and GoogLeNet under transfer learning vs. training-from-scratch, across 5 train/test splits and 3 image representations (Color, Grayscale, Segmented) after 30 epochs.",
+        "extracted_data": {
+          "metrics": [
+            "Mean F1 score",
+            "Mean precision",
+            "Mean recall",
+            "Overall accuracy"
+          ],
+          "methods": [
+            "AlexNet - Transfer learning",
+            "AlexNet - Training from scratch",
+            "GoogLeNet - Transfer learning",
+            "GoogLeNet - Training from scratch"
+          ],
+          "best_result": {
+            "method": "GoogLeNet - Transfer learning (Train 80%, Test 20%, Color images)",
+            "metric": "Mean F1 score",
+            "value": 0.9934
+          },
+          "key_values": [
+            {
+              "label": "Train 20% / Test 80% - Color",
+              "value": "AlexNet-TL: 0.9736{0.9742, 0.9737, 0.9738}; AlexNet-Scratch: 0.9118{0.9137, 0.9132, 0.9130}; GoogLeNet-TL: 0.9820{0.9824, 0.9821, 0.9821}; GoogLeNet-Scratch: 0.9430{0.9440, 0.9431, 0.9429}"
+            },
+            {
+              "label": "Train 20% / Test 80% - Grayscale",
+              "value": "AlexNet-TL: 0.9361{0.9368, 0.9369, 0.9371}; AlexNet-Scratch: 0.8524{0.8539, 0.8555, 0.8553}; GoogLeNet-TL: 0.9563{0.9570, 0.9564, 0.9564}; GoogLeNet-Scratch: 0.8828{0.8842, 0.8835, 0.8841}"
+            },
+            {
+              "label": "Train 20% / Test 80% - Segmented",
+              "value": "AlexNet-TL: 0.9724{0.9727, 0.9727, 0.9726}; AlexNet-Scratch: 0.8945{0.8956, 0.8963, 0.8969}; GoogLeNet-TL: 0.9808{0.9810, 0.9808, 0.9808}; GoogLeNet-Scratch: 0.9377{0.9388, 0.9380, 0.9380}"
+            },
+            {
+              "label": "Train 40% / Test 60% - Color",
+              "value": "AlexNet-TL: 0.9860{0.9861, 0.9861, 0.9860}; AlexNet-Scratch: 0.9555{0.9557, 0.9558, 0.9558}; GoogLeNet-TL: 0.9914{0.9914, 0.9914, 0.9914}; GoogLeNet-Scratch: 0.9729{0.9731, 0.9729, 0.9729}"
+            },
+            {
+              "label": "Train 40% / Test 60% - Grayscale",
+              "value": "AlexNet-TL: 0.9584{0.9588, 0.9589, 0.9588}; AlexNet-Scratch: 0.9088{0.9090, 0.9101, 0.9100}; GoogLeNet-TL: 0.9714{0.9717, 0.9716, 0.9716}; GoogLeNet-Scratch: 0.9361{0.9364, 0.9363, 0.9364}"
+            },
+            {
+              "label": "Train 40% / Test 60% - Segmented",
+              "value": "AlexNet-TL: 0.9812{0.9814, 0.9813, 0.9813}; AlexNet-Scratch: 0.9404{0.9409, 0.9408, 0.9408}; GoogLeNet-TL: 0.9896{0.9896, 0.9896, 0.9898}; GoogLeNet-Scratch: 0.9643{0.9647, 0.9642, 0.9642}"
+            },
+            {
+              "label": "Train 50% / Test 50% - Color",
+              "value": "AlexNet-TL: 0.9896{0.9897, 0.9896, 0.9897}; AlexNet-Scratch: 0.9644{0.9647, 0.9647, 0.9647}; GoogLeNet-TL: 0.9916{0.9916, 0.9916, 0.9916}; GoogLeNet-Scratch: 0.9772{0.9774, 0.9773, 0.9773}"
+            },
+            {
+              "label": "Train 50% / Test 50% - Grayscale",
+              "value": "AlexNet-TL: 0.9661{0.9663, 0.9663, 0.9663}; AlexNet-Scratch: 0.9312{0.9315, 0.9318, 0.9319}; GoogLeNet-TL: 0.9788{0.9789, 0.9788, 0.9788}; GoogLeNet-Scratch: 0.9507{0.9510, 0.9507, 0.9509}"
+            },
+            {
+              "label": "Train 50% / Test 50% - Segmented",
+              "value": "AlexNet-TL: 0.9867{0.9868, 0.9868, 0.9869}; AlexNet-Scratch: 0.9551{0.9552, 0.9555, 0.9556}; GoogLeNet-TL: 0.9909{0.9910, 0.9910, 0.9910}; GoogLeNet-Scratch: 0.9720{0.9721, 0.9721, 0.9722}"
+            },
+            {
+              "label": "Train 60% / Test 40% - Color",
+              "value": "AlexNet-TL: 0.9907{0.9908, 0.9908, 0.9907}; AlexNet-Scratch: 0.9724{0.9725, 0.9725, 0.9725}; GoogLeNet-TL: 0.9924{0.9924, 0.9924, 0.9924}; GoogLeNet-Scratch: 0.9824{0.9825, 0.9824, 0.9824}"
+            },
+            {
+              "label": "Train 60% / Test 40% - Grayscale",
+              "value": "AlexNet-TL: 0.9686{0.9689, 0.9688, 0.9688}; AlexNet-Scratch: 0.9388{0.9396, 0.9395, 0.9391}; GoogLeNet-TL: 0.9785{0.9789, 0.9786, 0.9787}; GoogLeNet-Scratch: 0.9547{0.9554, 0.9548, 0.9551}"
+            },
+            {
+              "label": "Train 60% / Test 40% - Segmented",
+              "value": "AlexNet-TL: 0.9855{0.9856, 0.9856, 0.9856}; AlexNet-Scratch: 0.9595{0.9597, 0.9597, 0.9596}; GoogLeNet-TL: 0.9905{0.9906, 0.9906, 0.9906}; GoogLeNet-Scratch: 0.9740{0.9743, 0.9740, 0.9745}"
+            },
+            {
+              "label": "Train 80% / Test 20% - Color",
+              "value": "AlexNet-TL: 0.9927{0.9928, 0.9927, 0.9928}; AlexNet-Scratch: 0.9782{0.9786, 0.9782, 0.9782}; GoogLeNet-TL: 0.9934{0.9935, 0.9935, 0.9935}; GoogLeNet-Scratch: 0.9836{0.9839, 0.9837, 0.9837}"
+            },
+            {
+              "label": "Train 80% / Test 20% - Grayscale",
+              "value": "AlexNet-TL: 0.9726{0.9728, 0.9727, 0.9725}; AlexNet-Scratch: 0.9449{0.9451, 0.9454, 0.9452}; GoogLeNet-TL: 0.9800{0.9804, 0.9801, 0.9798}; GoogLeNet-Scratch: 0.9621{0.9624, 0.9621, 0.9621}"
+            },
+            {
+              "label": "Train 80% / Test 20% - Segmented",
+              "value": "AlexNet-TL: 0.9891{0.9893, 0.9891, 0.9892}; AlexNet-Scratch: 0.9722{0.9725, 0.9724, 0.9723}; GoogLeNet-TL: 0.9925{0.9925, 0.9925, 0.9924}; GoogLeNet-Scratch: 0.9824{0.9827, 0.9824, 0.9822}"
+            },
+            {
+              "label": "Worst overall configuration",
+              "value": "AlexNet - Training from scratch, Train 20%/Test 80%, Grayscale: F1 = 0.8524{0.8539, 0.8555, 0.8553}"
+            },
+            {
+              "label": "Best overall configuration",
+              "value": "GoogLeNet - Transfer learning, Train 80%/Test 20%, Color: F1 = 0.9934{0.9935, 0.9935, 0.9935}"
+            }
+          ]
+        },
+        "table_summary": "The table reports mean F1 score (with mean precision, mean recall and overall accuracy) for plant disease detection under 60 experimental configurations spanning two CNNs (AlexNet, GoogLeNet), two training regimes (transfer learning vs. from scratch), five train/test splits (20/80 up to 80/20), and three image types (color, grayscale, segmented). GoogLeNet with transfer learning consistently outperforms all other configurations, achieving the best overall result of 0.9934 mean F1 on color images with an 80/20 split, while AlexNet trained from scratch on grayscale images with a 20/80 split is the weakest (0.8524). Transfer learning, color input, and larger training sets all yield systematically higher scores, with precision, recall and accuracy closely tracking the F1 values in every cell."
+      },
+      {
+        "table_id": "table_2",
+        "table_type": "hyperparameter_table",
+        "caption_summary": "Hyperparameter settings used for training the deep learning model for plant disease detection.",
+        "extracted_data": {
+          "metrics": [],
+          "methods": [],
+          "best_result": {},
+          "key_values": [
+            {
+              "label": "Solver type",
+              "value": "Stochastic Gradient Descent"
+            },
+            {
+              "label": "Base learning rate",
+              "value": "0.005"
+            },
+            {
+              "label": "Learning rate policy",
+              "value": "Step (decreases by a factor of 10)"
+            },
+            {
+              "label": "Momentum",
+              "value": "0.9"
+            }
+          ]
+        },
+        "table_summary": "This table lists the key hyperparameter settings used for training a deep learning model for image-based plant disease detection. The model was trained using Stochastic Gradient Descent (SGD) with a base learning rate of 0.005, a step-based learning rate policy that decreases the learning rate by a factor of 10, and a momentum of 0.9. These are standard hyperparameters typically used when fine-tuning deep convolutional neural networks for image classification tasks."
+      }
+    ],
+    "aggregated_findings": {
+      "experiment_results": [],
+      "comparisons": [
+        "The table reports mean F1 score (with mean precision, mean recall and overall accuracy) for plant disease detection under 60 experimental configurations spanning two CNNs (AlexNet, GoogLeNet), two training regimes (transfer learning vs. from scratch), five train/test splits (20/80 up to 80/20), and three image types (color, grayscale, segmented). GoogLeNet with transfer learning consistently outperforms all other configurations, achieving the best overall result of 0.9934 mean F1 on color images with an 80/20 split, while AlexNet trained from scratch on grayscale images with a 20/80 split is the weakest (0.8524). Transfer learning, color input, and larger training sets all yield systematically higher scores, with precision, recall and accuracy closely tracking the F1 values in every cell."
+      ],
+      "ablation_studies": [],
+      "best_reported_result": "GoogLeNet - Transfer learning (Train 80%, Test 20%, Color images): Mean F1 score = 0.9934",
+      "aggregated_summary": "Across the two tables, several key findings emerge. First, **GoogLeNet with transfer learning** is the strongest overall configuration, reaching a mean F1 of 0.9934 on color images with an 80/20 train/test split, while **AlexNet trained from scratch on grayscale images with minimal training data (20/80 split)** performs worst (F1 = 0.8524). Second, three factors systematically improve detection performance: **using transfer learning over training from scratch, using color images over grayscale or segmented inputs, and increasing the proportion of training data**, with all three effects consistent across architectures and splits. Third, **precision, recall, and accuracy closely track mean F1 scores** in every experimental configuration, indicating robust and balanced performance rather than"
+    }
+  },
+  "image_analysis": [
+    {
+      "type": "figure",
+      "description": "该图展示了38个带编号的植物叶片样本图像，包含不同品种和不同健康/病害状态的叶片，属于叶片病害或植物分类数据集的示例图（类似PlantVillage或叶片分类数据集）。",
+      "important_components": [
+        "38个编号叶片样本图像（编号1-38）",
+        "不同叶片形态（卵形、心形、披针形、裂叶、羽状裂叶等）",
+        "病害症状（坏死斑点、叶缘焦枯、黄色褪绿、锈斑、霜霉状斑块）",
+        "健康叶片样本（如编号4、5、6、10、16、20、22等）",
+        "不同作物叶片：疑似水稻(8-11)、苹果/梨(1-2)、番茄/马铃薯(13-15, 23-25, 28-31)、葡萄(27)、玉米(12)、柑橘(16)、桃(37)等",
+        "统一的灰色背景拍摄条件"
+      ],
+      "code_relevant_information": "该图为数据集样本可视化，用于分类任务的多类别标注。代码复现要点：(1) 数据集共38个样本示例，对应多个植物类别/病害类别（约38类或多类分类任务），每类对应一种叶片-病害组合；(2) 图像为RGB彩色叶片图像，背景为均匀灰色，暗示预处理可包含背景分割/阈值分割；(3) 叶片病害类别依据症状分为健康、细菌性斑点、真菌性叶斑、锈病、霜霉、病毒性花叶、叶缘坏死等；(4) 输入图像尺寸需统一resize（通常224x224或256x256）；(5) 分类模型可用CNN/ResNet/EfficientNet等，输出类别数等于数据集类别总数；(6) 未给出具体公式、损失函数或超参数，训练通常采用交叉熵损失 + Adam/SGD优化器；(7) 图中无数据增强或归一化参数信息，需参考论文正文。",
+      "id": "image_1",
+      "page": 2
+    },
+    {
+      "type": "figure",
+      "description": "一张去除背景的马铃薯叶片样本图像，叶片上可见明显的褐色病斑（疑似晚疫病/早疫病），背景为纯黑色，属于植物病害图像分类数据集中的典型样本图。",
+      "important_components": [
+        "马铃薯叶片（绿色，叶脉清晰）",
+        "褐色坏死病斑（不规则分布在叶面）",
+        "纯黑色背景（已做背景分割/去除处理）",
+        "叶片边缘破损区域",
+        "样本图（无坐标轴、无标注文字、无图例）"
+      ],
+      "code_relevant_information": "该图本身不含模型结构、公式或超参数，仅为数据样本展示，对代码复现的意义在于数据预处理流程：(1) 使用 PlantVillage 类数据集（类别如 Potato___Late_blight / Potato___Early_blight / Potato___Healthy）；(2) 输入图像需做背景去除（黑色背景为掩膜分割结果，可用 GrabCut / 阈值分割 / U-Net 分割得到）；(3) 典型输入尺寸如 224x224 或 256x256 RGB 三通道图像；(4) 训练采用 ImageNet 均值/标准差归一化，配合随机旋转、翻转、缩放等数据增强；(5) 分类任务常用 CNN 主干（ResNet50、VGG16、EfficientNet 等）+ softmax 输出 3 类，损失函数为交叉熵 CrossEntropyLoss，优化器 Adam/SGD。",
+      "id": "image_2",
+      "page": 2
+    },
+    {
+      "type": "figure",
+      "description": "一张植物叶片的实拍样本图像，叶片呈绿色，边缘和叶面出现黄褐色病斑（疑似叶斑病/早疫病等病害），背景为灰色纯色，属于植物叶片病害数据集（如PlantVillage）中的典型样本图片。",
+      "important_components": [
+        "单片叶片主体（近似卵形/心形，带叶柄）",
+        "叶面病斑（黄褐色圆形至不规则斑点）",
+        "叶缘坏死/焦枯区域（顶部和边缘黄褐变）",
+        "灰色纯色背景",
+        "RGB彩色图像（无标注框、无坐标轴、无文字）"
+      ],
+      "code_relevant_information": "该图无模型结构、公式或超参数信息，仅为数据集样本图像，可用于复现数据预处理与输入格式：1) 输入为单叶片RGB彩色图像，通常裁剪/缩放至固定分辨率（PlantVillage常用224×224或256×256，匹配ResNet/VGG/Inception等CNN的输入）；2) 图像包含完整叶片且背景为纯色，复现时常做背景分割或直接使用整图分类；3) 任务为叶片病害分类（多分类，类别数取决于所用数据集版本，如PlantVillage的38类），训练可采用ImageNet均值/标准差归一化(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])、数据增强（随机翻转、旋转、颜色抖动），损失函数用CrossEntropyLoss，优化器常用Adam或SGD；4) 无额外标注信息（无边界框/掩码），故适用于图像分类而非检测/分割复现。",
+      "id": "image_3",
+      "page": 2
+    },
+    {
+      "type": "other",
+      "description": "一张植物叶片的实拍照片，叶片呈绿色，表面分布有大量褐色/黑色病斑，属于植物叶片病害（如病斑、霉层）图像数据样本，通常用于植物病害识别/分类任务的数据集展示。",
+      "important_components": [
+        "绿色叶片主体",
+        "叶脉（主脉与侧脉）",
+        "褐色/黑色病斑区域（分散于叶面）",
+        "灰白色/白色粉状或霉状斑点（疑似白粉病或霜霉病症状）",
+        "叶片边缘卷曲与部分枯焦",
+        "灰色背景（拍摄底面）"
+      ],
+      "code_relevant_information": "该图为单张RGB图像样本（无标注框、无公式、无模型结构信息）。代码复现时可推断：任务为植物叶片病害图像分类/分割，输入为图像（约256x256像素量级的叶片照片），预处理通常包括裁剪/缩放（如224x224用于ResNet、EfficientNet等CNN）、归一化（ImageNet均值标准差）、数据增强（旋转、翻转、色彩抖动）。若做分割则需要像素级病斑掩码标注；若做分类则标签为病害类别。图中未提供任何超参数、损失函数、网络层数等信息，需参考正文获取。",
+      "id": "image_4",
+      "page": 2
+    },
+    {
+      "type": "other",
+      "description": "一张灰度植物叶片样本图像，叶片边缘和叶面存在病斑/损伤区域，疑似来自植物叶片病害识别/分割数据集的输入样本图。",
+      "important_components": [
+        "灰度叶片图像（单通道）",
+        "叶片主体（含叶柄和叶脉纹理）",
+        "叶缘及叶面上的病斑/损伤区域（浅色坏死斑、孔洞）",
+        "均匀灰色背景（织物/纸面纹理）",
+        "图像分辨率约 256x256 像素"
+      ],
+      "code_relevant_information": "该图属于数据样本而非网络结构图，与代码复现相关的信息集中在数据加载与预处理环节：1) 输入为单通道灰度图像（若模型为3通道RGB需复制通道或转换格式）；2) 图像尺寸约为 256x256，可能需要 resize/crop 至模型输入尺寸（如 224x224 或 256x256）；3) 图像具有明显背景纹理，叶片与背景对比度较低，预处理可能包含归一化（如均值/标准差标准化或像素值缩放到 [0,1]）、灰度转换、背景分离或数据增强（旋转、翻转、对比度调整）；4) 任务类型推断为植物叶片病害分类或病斑分割，对应标签为病害类别或像素级病斑掩码；5) 数据集可能是 Flavia、PlantVillage、Leaf 病害数据集或类似公开植物叶片图像集。图中无公式、层参数或超参数信息。",
+      "id": "image_5",
+      "page": 2
+    },
+    {
+      "type": "other",
+      "description": "一张灰度（黑白）叶片照片，展示单片叶子的完整形态，叶片表面有明显斑点/病斑纹理，背景为浅色均匀平面，疑似植物叶片病害检测或图像分割数据集中的样本图像。",
+      "important_components": [
+        "灰度叶片图像",
+        "叶缘轮廓（不规则波浪边缘）",
+        "中央主脉及侧脉纹理",
+        "叶面斑点/病斑（深色不规则区域）",
+        "浅色均匀背景",
+        "图像分辨率较低（约 228×228 像素）"
+      ],
+      "code_relevant_information": "该图为原始数据样本而非算法或结果图表，不含模型结构、参数、公式等信息。复现相关要点：1) 图像为单通道灰度图（RGB三通道相同或直接灰度读取），分辨率约228×228；2) 典型用途为叶片病害/缺陷检测或分割任务的数据集样本，训练时通常需灰度化、归一化（如除以255）、可能的数据增强（旋转、翻转、裁剪）；3) 叶片与背景对比度较高，适合使用阈值分割、边缘检测或语义分割网络（如 U-Net）进行叶片提取；4) 叶面病斑（深色斑点）为目标检测或分类的关键特征，可用于有监督学习标注。",
+      "id": "image_6",
+      "page": 2
+    },
+    {
+      "type": "figure",
+      "description": "一张植物叶片样本图像，背景为纯黑色（疑似经分割处理），叶片上存在多处黄褐色病斑与边缘坏死区域，属于植物病害检测/分类任务中的典型输入样本图。",
+      "important_components": [
+        "植物叶片（疑似棉花/锦葵科叶片，心形带裂片）",
+        "叶片边缘黄褐色坏死病斑（不规则、沿叶缘分布）",
+        "叶面散在圆形/近圆形病斑（浅褐色、具黄化晕圈）",
+        "叶脉结构（掌状脉络可见）",
+        "纯黑色背景（疑似前景分割后的掩膜背景）",
+        "叶柄（底部截断）"
+      ],
+      "code_relevant_information": "该图为单张病害叶片输入样本，不含模型结构、参数或公式。代码复现相关信息：(1) 图像预处理——原图疑似使用背景去除/语义分割得到黑色背景（RGB 值约 0,0,0），可在复现中用颜色阈值或 U-Net 等分割网络生成掩膜后与原图按位相乘；(2) 数据集来源——风格与 PlantVillage 数据集（背景分离后的叶片图像）一致，类别可能为细菌性叶斑病（bacterial blight）或叶枯病（blight/spot）等叶部病害类别；(3) 输入规格——建议复现时统一 resize 到 224×224 或 256×256（适配 VGG/ResNet/EfficientNet 等 CNN 分类骨干），归一化到 [0,1] 或 ImageNet 均值方差（mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]）；(4) 数据增强——随机旋转、水平/垂直翻转、颜色抖动（亮度、对比度、饱和度）可提升小样本病害分类泛化能力；(5) 任务形式——多分类（叶片病害类别）或二分类（健康/患病），损失函数常用 CrossEntropyLoss，优化器 Adam 或 SGD。",
+      "id": "image_7",
+      "page": 2
+    },
+    {
+      "type": "other",
+      "description": "一张植物叶片病害的实拍样本图，显示两片叶片上分布的黄褐色圆形病斑，右下角带有标注编号“UGA1234146”，典型于植物病害识别数据集（如PlantVillage或类似公开数据集）的样本图像。",
+      "important_components": [
+        "病害叶片样本（左侧大叶片，正面视角）",
+        "病害叶片样本（右侧小叶片，部分展示）",
+        "黄褐色圆形病斑（带有深色边缘/坏死中心）",
+        "叶片绿色背景与叶脉结构",
+        "样本编号标注文字：UGA1234146（右下角）",
+        "灰色均匀背景（便于图像分割/识别）"
+      ],
+      "code_relevant_information": "该图不是模型结构或算法图，而是用于图像分类任务的数据样本，与代码复现相关的信息有限：1) 数据形式为RGB三通道自然图像，尺寸约225×225像素量级，实际训练中通常resize至224×224（如ResNet/VGG等CNN输入）；2) 标签体系为植物叶片病害类别（含病害类型+植物种类，如叶斑病类），可用于多分类任务，类别数依所用数据集而定（如PlantVillage的38类）；3) 数据预处理通常包括归一化（ImageNet均值/标准差）、数据增强（随机裁剪、翻转、旋转、色彩抖动）；4) 右下角编号“UGA1234146”为样本文件标识，可用于数据索引与复现溯源；5) 无公式、超参数或损失函数等信息，模型与训练配置需参考论文正文。",
+      "id": "image_8",
+      "page": 3
+    },
+    {
+      "type": "figure",
+      "description": "由约100个小方格组成的网格图，每个方格展示一张以蓝色为底、局部呈现青色/黄色/红色热点的热力图，疑似卷积神经网络某一层的特征图（feature maps）或注意力/激活可视化结果。",
+      "important_components": [
+        "约10×10的特征图网格布局",
+        "每个子图的激活热力图（蓝色低激活、青/绿/黄/红高激活）",
+        "部分子图中离散的点状高激活区域（疑似目标/细胞/颗粒检测响应）",
+        "少数子图呈现大面积块状激活（第8行第1列、第8行第5列、第6行第8列、第7行第10列等）",
+        "右下角空白占位区域（实际网格约97个有效子图）",
+        "无坐标轴、无刻度、无标注文字"
+      ],
+      "code_relevant_information": "该图为可视化类结果，不含显式公式或超参数。复现要点：(1) 需要一个卷积网络（CNN）模型对输入图像前向传播，提取某一卷积层（或注意力模块）的输出张量；(2) 将输出通道数约96-100个的特征图逐通道绘制为伪彩色热力图（常用 colormap：jet 或 viridis，蓝色代表低值，红色代表高值），按网格排列（如 matplotlib 的 subplots 或 make_grid）；(3) 特征图尺寸看起来约为正方形小分辨率（可能14×14至32×32，经插值放大）；(4) 高亮区域集中在少数通道，说明模型对特定局部模式（点状目标、结构边缘）选择性响应；(5) 复现时需注意子图间共享/独立 colorbar 归一化（图中疑似逐图归一化或全局统一归一化），并使用白色网格线分隔子图。",
+      "id": "image_9",
+      "page": 3
+    },
+    {
+      "type": "chart",
+      "description": "折线图展示了不同训练-测试集划分比例（20-80、40-60、50-50、60-40、80-20）下，模型平均F1分数（Mean-F1-Score）随训练轮数（Epochs）变化的学习曲线，包含多条半透明重复实验曲线。",
+      "important_components": [
+        "X轴：Epochs（训练轮数，范围约1-30）",
+        "Y轴：Mean-F1-Score（平均F1分数，范围0.2-1.0）",
+        "图例：Train-Test Set Division（训练-测试集划分）",
+        "20-80（蓝色曲线）",
+        "40-60（绿色曲线）",
+        "50-50（红色曲线）",
+        "60-40（紫色曲线）",
+        "80-20（黄色/金色曲线）",
+        "多条半透明细线（表示多次重复实验或不同随机种子的运行结果）",
+        "网格背景（浅灰色格线）"
+      ],
+      "code_relevant_information": {
+        "任务类型": "分类任务，评价指标为Mean-F1-Score（宏平均或多折平均F1）",
+        "训练设置": "训练轮数为30个epoch；每种训练-测试划分比例进行了多次重复实验（每组约5-10条细线），建议复现时使用多个随机种子并报告均值±方差",
+        "训练-测试划分比例": [
+          "20-80",
+          "40-60",
+          "50-50",
+          "60-40",
+          "80-20"
+        ],
+        "关键观察": [
+          "训练数据越多（如80-20），最终F1分数越高，收敛也越快",
+          "所有配置在前5个epoch内F1快速上升至0.8-0.9区间",
+          "在第10-11个epoch附近出现明显的阶梯式跳升（可能对应学习率衰减/调度器调整或训练阶段切换），此后趋于平稳",
+          "最终F1分数：80-20约0.96-0.98，60-40约0.95-0.97，50-50约0.94-0.96，40-60约0.93-0.95，20-80约0.91-0.94",
+          "20-80划分的方差最大（曲线最分散），表明小训练集下结果不稳定"
+        ],
+        "复现建议": {
+          "学习率调度": "第10 epoch左右可能存在学习率衰减（step decay）或切换训练阶段，需在代码中设置相应的LR scheduler",
+          "评估频率": "每个epoch评估一次测试集Mean-F1",
+          "随机性控制": "每种划分运行多次实验（如5-10次）并绘制全部曲线以展示方差",
+          "绘图风格": "使用Seaborn风格（浅灰网格背景），曲线采用半透明(alpha较低)叠加方式"
+        }
+      },
+      "id": "image_10",
+      "page": 5
+    },
+    {
+      "type": "chart",
+      "description": "一张训练曲线图，展示了三种数据集类型（Color、GrayScale、Segmented）在30个epoch内Mean-F1-Score的变化情况，每种类型有多条折线（多次运行/交叉验证），并在约第10-11 epoch处出现明显的评分跳升。",
+      "important_components": [
+        "X轴：Epochs（范围0~30）",
+        "Y轴：Mean-F1-Score（范围0.4~1.0）",
+        "图例 Dataset Type：Color（蓝色）、GrayScale（绿色）、Segmented（红色）",
+        "多条半透明训练曲线（多次实验/随机种子运行）",
+        "第10-11 epoch处的F1跳升拐点"
+      ],
+      "code_relevant_information": "实验对比三种输入数据预处理方式：彩色图(Color)、灰度图(GrayScale)、分割图(Segmented)。评估指标为Mean-F1-Score（多分类/多目标平均F1）。训练总轮数为30 epochs。曲线在第10-11 epoch附近突然提升（约从0.88-0.92跳至0.95-0.98），暗示该处存在学习率调度（如StepLR衰减）、模型解冻或训练阶段切换等操作，复现时需在epoch≈10处设置相应学习率下降/阶段切换。Color与Segmented最终F1约0.96-0.98，GrayScale略低（约0.93-0.95）。每种数据类型绘制多条曲线，表明实验重复多次（不同随机种子或折），复现时应报告均值与波动范围。图风格为seaborn默认样式（浅灰网格背景），可用matplotlib/seaborn绘制。",
+      "id": "image_11",
+      "page": 5
+    },
+    {
+      "type": "chart",
+      "description": "训练损失与测试损失随训练轮数（Epochs）变化的折线图，展示了模型在30个epoch内的收敛过程。",
+      "important_components": [
+        "X轴：Epochs（0-30）",
+        "Y轴：Loss（0-4.5）",
+        "图例：Loss Type — Loss(Test)（蓝色线）、Loss(Train)（绿色线）",
+        "Loss(Test) 曲线（蓝色）",
+        "Loss(Train) 曲线（绿色）",
+        "曲线周围的半透明阴影区域（可能表示波动范围或置信区间）",
+        "浅灰色网格背景（类似Seaborn风格）"
+      ],
+      "code_relevant_information": "训练共30个epoch。初始损失约4.2，前3个epoch内急剧下降至约0.5-0.7，随后缓慢收敛。约epoch 12后测试损失稳定在约0.1-0.15，训练损失继续下降至接近0（约0.01）。训练损失低于测试损失，表明存在轻微过拟合，但差距较小，模型泛化良好。图中每条曲线带阴影带，复现时建议使用多次运行的均值±标准差绘制阴影（如Seaborn的lineplot或fill_between），或记录每个epoch的损失值后用matplotlib绘制。损失函数类型未在图中注明，但起始值约4.2常见于多分类交叉熵（如ln(60)≈4.09对应60类问题）。未给出学习率、优化器、批量大小、模型结构等信息，需参考论文正文。",
+      "id": "image_12",
+      "page": 5
+    },
+    {
+      "type": "chart",
+      "description": "这是一个训练曲线图，展示了两种深度学习架构（AlexNet 和 GoogLeNet）在 30 个 epoch 内的 Mean-F1-Score 变化趋势，包含多条曲线（多次实验/交叉验证）及置信带。",
+      "important_components": [
+        "X轴: Epochs（范围 0-30）",
+        "Y轴: Mean-F1-Score（范围 0.55-1.00）",
+        "图例: Deep Learning Architecture — AlexNet（蓝色）、GoogLeNet（绿色）",
+        "多条重复实验曲线（约20条）",
+        "曲线波动/置信区间带",
+        "浅灰色网格背景"
+      ],
+      "code_relevant_information": {
+        "模型对比": "AlexNet 与 GoogLeNet 两个经典 CNN 架构用于同一分类任务的性能比较。",
+        "评价指标": "Mean-F1-Score（多类 F1 分数的宏平均或加权平均），随 epoch 变化。",
+        "训练设置": "共 30 个 epoch；约 10 epoch 处出现明显的 F1 跳升（疑似学习率调度/衰减点，如在 epoch 10 处 lr 减半）。",
+        "最终性能": "GoogLeNet 收敛于约 0.955-0.975 Mean-F1，AlexNet 收敛于约 0.945-0.955；GoogLeNet 略优。",
+        "重复实验": "每种架构运行约 20 次（多条半透明曲线），用于评估训练稳定性和方差；复现时需设置随机种子多次运行。",
+        "收敛行为": "前 5 epoch 内 F1 快速上升（0.60→0.85+），epoch 10 处小幅跃升后趋于平稳。",
+        "复现建议": "使用 torchvision 中的 AlexNet 和 GoogLeNet（可预训练微调），训练 30 epochs，记录每 epoch 的 Mean-F1，绘图时使用 seaborn 风格（浅灰网格）并叠加多次运行的半透明曲线。"
+      },
+      "id": "image_13",
+      "page": 5
+    },
+    {
+      "type": "chart",
+      "description": "折线图展示了两种训练机制（Finetuning 与 TrainFromScratch）在 30 个 epoch 中 Mean-F1-Score 的变化曲线，包含多次运行的细线、平均粗线及置信区间阴影带，用于对比微调与从头训练的收敛速度和最终性能。",
+      "important_components": [
+        "X轴：Epochs（1到30）",
+        "Y轴：Mean-F1-Score（范围约0.4到1.0）",
+        "图例：Training Mechanism（Finetuning 蓝色、TrainFromScratch 绿色）",
+        "多条细线：可能为多次随机种子/独立运行的单次曲线",
+        "粗实线：各机制的平均 Mean-F1-Score",
+        "阴影带：标准差或置信区间"
+      ],
+      "code_relevant_information": "复现要点：(1) 定义两种训练模式——Finetuning（加载预训练权重后训练）与 TrainFromScratch（随机初始化训练），其余超参数保持一致；(2) 训练总轮数 epochs=30，逐 epoch 记录验证/测试集的 Mean-F1-Score（多个类别或任务 F1 的均值）；(3) 对每种机制运行多次（图中约有十余条细线，推测为多个随机种子），绘制单次曲线、均值曲线和阴影置信区间（如 seaborn 的 lineplot，ci 表示标准差或 95% CI）；(4) 结果：Finetuning 初始 F1≈0.93 并迅速升至≈0.98，收敛快且方差小；TrainFromScratch 初始 F1≈0.5，约10个 epoch 后升至≈0.94 并趋于平稳，收敛慢且早期方差较大；(5) 绘图风格为 Seaborn 默认浅灰网格背景，需设置随机种子保证可复现，F1 计算需明确平均方式（macro/weighted）。",
+      "id": "image_14",
+      "page": 5
+    }
+  ],
+  "paper_figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "data_example",
+      "description": "Example of leaf images from the PlantVillage dataset, representing every crop-disease pair used (38 classes total).",
+      "data_characteristics": "Controlled condition images of single plant leaves on homogeneous background, one example per crop-disease pair",
+      "categories": "38 crop-disease pairs including Apple Scab, Apple Black Rot, Apple Cedar Rust, Apple healthy, Blueberry healthy, Cherry healthy, Cherry Powdery Mildew, Corn Gray Leaf Spot, Corn Common Rust, Corn healthy, Corn Northern Leaf Blight, Grape Black Rot, Grape Black Measles (Esca), Grape Healthy, Grape Leaf Blight, Orange Huanglongbing (Citrus Greening), Peach Bacterial Spot, Peach healthy, Bell Pepper Bacterial Spot, Bell Pepper healthy, Potato Early Blight, Potato healthy, Potato Late Blight, Raspberry healthy, Soybean healthy, Squash Powdery Mildew, Strawberry Healthy, Strawberry Leaf Scorch, Tomato Bacterial Spot, Tomato Early Blight, Tomato Late Blight, Tomato Leaf Mold, Tomato Septoria Leaf Spot, Tomato Two Spotted Spider Mite, Tomato Target Spot, Tomato Mosaic Virus, Tomato Yellow Leaf Curl Virus, Tomato healthy",
+      "visual_features": "Single leaf facing up on homogeneous background, showing disease symptoms or healthy appearance"
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "data_example",
+      "description": "Sample images from the three different versions of the PlantVillage dataset: color, grayscale, and segmented (leaves segmented with background removed).",
+      "data_characteristics": "Same leaf shown in three visual representations: color (original), grayscale, and segmented (background removed)",
+      "categories": "Color, Grayscale, Segmented",
+      "visual_features": "Color version shows natural leaf colors; grayscale removes color information; segmented version shows only the leaf with background removed"
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "experiment_result",
+      "description": "(a) Example image of a leaf suffering from Apple Cedar Rust from Bing Image Search. (b) Visualization of activations in the first convolution layer (conv1) of an AlexNet architecture trained using AlexNet:Color:TrainFromScratch:80-20 when doing a forward pass on the image.",
+      "x_axis": "NOT_FOUND",
+      "y_axis": "NOT_FOUND",
+      "trend": "The model learns to efficiently activate against the diseased spots on the example leaf",
+      "conclusion": "The visualization of activations in the initial layers demonstrates that the model has learnt to efficiently activate against the diseased spots on the example leaf"
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "comparison_chart",
+      "description": "Progression of mean F1 score and loss through the training period of 30 epochs across all experiments, grouped by experimental configuration parameters: (a) by architecture, (b) by training mechanism, (c) train loss and test loss progression, (d) by train-test set splits, (e) by dataset type.",
+      "x_axis": "Training epochs (0 to 30)",
+      "y_axis": "Mean F1 score / train loss / test loss",
+      "trend": "GoogLeNet outperforms AlexNet; transfer learning outperforms training from scratch; color > segmented > grayscale; no divergence between validation and training loss; performance degrades with increasing test set ratio but not drastically",
+      "conclusion": "Overfitting is not a contributor to the results. GoogLeNet consistently performs better than AlexNet. Transfer learning always yields better results. Models perform best with colored dataset, then segmented, then grayscale. All experiments converge well within 30 epochs."
+    }
+  ]
+}

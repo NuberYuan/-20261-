@@ -1,0 +1,5 @@
+﻿"Key","Value"
+"Solver type","Stochastic Gradient Descent"
+"Base learning rate","0.005"
+"Learning rate policy","Step (decreases by a factor of 10"
+"Momentum","0.9"

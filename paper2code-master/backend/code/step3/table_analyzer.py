@@ -12,12 +12,11 @@ table_analyzer.py
 Author: Paper2Code
 """
 
-from typing import List, Dict, Optional, Any, Tuple, Union
+from typing import List, Optional
 
-import json
 from concurrent.futures import ThreadPoolExecutor
 
-from llm_utils import chat_with_text
+from llm_manager import llm_call, parse_llm_json
 from logger import logger
 
 
@@ -138,17 +137,17 @@ class TableAnalyzer:
         """调用 LLM 分析单个表格"""
         table_text = self._format_table(table)
 
-        # 限制输入长度（DeepSeek-chat 64K context，单个表格不会超）
+        # 限制输入长度（LLM 64K context，单个表格不会超）
         if len(table_text) > 12000:
             table_text = table_text[:12000] + "\n... [表格内容已截断]"
 
         prompt = f"{_ANALYSIS_PROMPT}\n\n--- Paper Context ---\n{context[:500]}\n\n--- Table to Analyze ---\n{table_text}"
 
         try:
-            response = chat_with_text(prompt)
-            parsed = self._parse_json(response)
+            response = llm_call(prompt, task_type="heavy")
+            parsed = parse_llm_json(response)
 
-            if parsed is None:
+            if parsed is None or "error" in parsed:
                 logger.warning(f"    表格 {table.get('id')} LLM 返回无法解析，使用规则提取")
                 parsed = self._fallback_extract(table)
 
@@ -197,30 +196,6 @@ class TableAnalyzer:
 
     # =========================
     # JSON 解析
-    # =========================
-
-    @staticmethod
-    def _parse_json(text: str) -> Optional[dict]:
-        """从 LLM 回复中提取 JSON，去掉可能的 markdown fences"""
-        import re
-
-        # 去掉 ```json ... ``` 包裹
-        text = text.strip()
-        m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
-        if m:
-            text = m.group(1).strip()
-
-        # 尝试找到第一个 { 到最后一个 }
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            text = text[start:end + 1]
-
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            return None
-
     # =========================
     # 规则兜底
     # =========================
@@ -379,7 +354,7 @@ Table analyses:
 Return a concise paragraph summarizing the main experimental findings across all tables."""
 
         try:
-            response = chat_with_text(prompt)
+            response = llm_call(prompt, task_type="heavy")
             return response.strip()[:800]
         except Exception as e:
             logger.warning(f"汇总 LLM 调用失败: {e}")

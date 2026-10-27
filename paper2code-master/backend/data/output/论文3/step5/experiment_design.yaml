@@ -1,27 +1,21 @@
 paper_name: 论文3
 pipeline:
-- Start with an encoder sub-network or backbone. Connect encoder and decoder through
-  nested dense skip pathways. Each skip pathway consists of a dense convolution block
-  whose number of convolution layers depends on the pyramid level. Nodes at level
-  j=0 receive only one input from the previous encoder layer; nodes at level j=1 receive
-  two inputs from the encoder sub-network at two consecutive levels; nodes at level
-  j>1 receive j+1 inputs from previous nodes in the same skip pathway and the upsampled
-  output from the lower skip pathway. Add deep supervision by appending a 1x1 convolution
-  layer followed by a sigmoid activation function to each target node {x0,j | j in
-  {1,2,3,4}}. Generate four full-resolution segmentation maps. In accurate mode average
-  outputs from all segmentation branches; in fast mode select only one segmentation
-  branch for pruned inference.
+- Encoder subnetwork extracts features via downsampling layers. Skip pathways contain
+  dense convolution blocks whose number of convolution layers depends on the pyramid
+  level. Each convolution layer is preceded by a concatenation layer that fuses the
+  output from the previous convolution layer of the same dense block with the corresponding
+  upsampled output of the lower dense block. Decoder subnetwork receives enriched
+  feature maps. Deep supervision attaches 1×1 convolution + sigmoid to nodes {x0,j
+  | j ∈{1,2,3,4}}. Four segmentation maps are generated and averaged for final output.
 experiments:
 - name: main_experiment
-  description: 'U-Net: 7.76M params, IoU 90.77 on cell nuclei, 30.08 on colon polyp,
-    76.62 on liver, 71.47 on lung nodule. Wide U-Net: 9.13M params, IoU 90.92 on cell
-    nuclei, 30.14 on colon polyp, 76.58 on liver, 73.38 on lung nodule. UNet++ without
-    deep supervision: 9.04M params, IoU 92.63 on cell nuclei, 33.45 on colon polyp,
-    79.70 on liver, 76.44 on lung nodule. UNet++ with deep supervision: 9.04M params,
-    IoU 92.52 on cell nuclei, 32.12 on colon polyp, 82.90 on liver, 77.21 on lung
-    nodule.'
+  description: 'U-Net: cell nuclei 90.77, colon polyp 30.08, liver 76.62, lung nodule
+    71.47 (7.76M params). Wide U-Net: cell nuclei 90.92, colon polyp 30.14, liver
+    76.58, lung nodule 73.38 (9.13M params). UNet++ w/o DS: cell nuclei 92.63, colon
+    polyp 33.45, liver 79.70, lung nodule 76.44 (9.04M params). UNet++ w/ DS: cell
+    nuclei 92.52, colon polyp 32.12, liver 82.90, lung nodule 77.21 (9.04M params).'
 evaluation:
-  primary_metric: NOT_FOUND
+  primary_metric: Intersection over Union (IoU)
   secondary_metrics:
   - Dice coefficient
   - Intersection over Union (IoU)
@@ -30,13 +24,13 @@ comparison:
   - U-Net
   - wide U-Net
   ablation_factors:
-  - 'Deep supervision ablation: UNet++ without deep supervision achieves average improvement
-    of 2.8 and 3.3 points in IoU over U-Net and wide U-Net; UNet++ with deep supervision
-    exhibits average improvemen'
+  - '1) UNet++ without deep supervision vs UNet++ with deep supervision: deep supervision
+    leads to marked improvement for liver and lung nodule segmentation but improvement
+    vanishes for cell nuclei and col'
 experiment_matrix:
   dimensions:
     architectures:
-    - UNet++
+    - Densenet
     training_modes:
     - Scratch
     data_types:
@@ -44,15 +38,22 @@ experiment_matrix:
     train_test_splits:
     - NOT_FOUND
   total_configurations: 1
-  known_best: NOT_FOUND
-  known_worst: NOT_FOUND
+  runs:
+  - id: run_001
+    model: Densenet
+    training_mode: scratch
+    dataset_version: default
+    train_ratio: 0.8
+  known_best: UNet++ w/ DS（四个任务平均 IoU 最高：cell nuclei 92.52, colon polyp 32.12, liver
+    82.90, lung nodule 77.21, 9.04M params）
+  known_worst: U-Net（四个任务平均 IoU 最低：cell nuclei 90.77, colon polyp 30.08, liver 76.62,
+    lung nodule 71.47, 7.76M params）
+  known_real_world: NOT_FOUND
   run_all: true
   recommended_subset: []
   note: 实验组合 ≤4，可全量跑。
-important_results: UNet++ with deep supervision achieved an average IoU gain of 3.9
-  and 3.4 points over U-Net and wide U-Net, respectively. UNet++ without deep supervision
-  achieved significant performance gain over both U-Net and wide U-Net, yielding average
-  improvement of 2.8 and 3.3 points in IoU. Deep supervision gave marked improvement
-  for liver and lung nodule segmentation, but improvement vanished for cell nuclei
-  and colon polyp segmentation. UNet++ L3 achieved on average 32.2% reduction in inference
-  time while degrading IoU by only 0.6 points.
+important_results: UNet++ without deep supervision achieves average improvement of
+  2.8 and 3.3 IoU points over U-Net and wide U-Net respectively. UNet++ with deep
+  supervision achieves average IoU gain of 3.9 and 3.4 points over U-Net and wide
+  U-Net respectively. Wide U-Net consistently outperforms U-Net except for liver segmentation.
+  UNet++ L3 achieves 32.2% reduction in inference time with only 0.6 IoU points degradation.

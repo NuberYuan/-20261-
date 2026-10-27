@@ -1,0 +1,11 @@
+**Key findings across the tables (ICLR 2016 submission, NTM/DNC-style RL controller):**
+
+1. **Ablation (Table 4):** The decisive ingredient is Watkins Q(λ) combined with adaptive discounting (γ=D); only configurations including it solve Reverse, Walk, 2-row Addition, and Single Digit Multiplication. The best setting (200 memory units, γ=D, Q(λ), task penalty) attains 100% success on Copying, Walk (FF controller), and 2-row Addition. 3-row Addition is never learned from scratch (0% in all configurations) and deteriorates at longer test lengths (1000), though an extra-curriculum variant reaches up to 80%.
+
+2. **Task difficulty scales with vocabulary size (Table 5):** Simple control tasks (Copying, Reverse, Walk) converge in very few iterations regardless of vocabulary (minima of 0.5 and 2.0 for Copying and Reverse), whereas arithmetic tasks are far harder and mostly worsen with vocabulary: Addition is unsolvable at vocab=2 but drops to 14.5 at vocab=4, Single Digit Multiplication rises from 6.2 (vocab=3) to 24.7 (vocab=10), and 3-number Addition with extra curriculum frequently hits the 250.0 iteration cap (i.e., failure).
+
+3. **Reward shaping matters mainly for control tasks (Table 6):** 0/1 and discretized rewards are comparable and dramatically outperform continuous rewards on control tasks (Reverse: 3.1 vs 59.7; Walk: 11.1/9.5 vs the 250.0 failure cap), while all three reward types perform similarly on arithmetic tasks; the overall best is 0.6 (Copying) under 0/1 or discretized reward.
+
+4. **Tabular limitations:** Tables 1–3 contribute no usable quantitative evidence — Table 1 is purely an architectural diagram of the controller's Input/Output/Memory interfaces, Table 2 is a task-input description for the arithmetic benchmarks, and Table 3 is an unlabeled, essentially uninterpretable fragment.
+
+**Overall:** learning succeeds for short-horizon control and two-operand arithmetic only when value-based RL mechanisms (Q(λ), adaptive discounting) and shaped/discrete rewards are used, while deeper arithmetic (3-row addition) and larger vocabularies remain beyond the method's capability without curriculum support.

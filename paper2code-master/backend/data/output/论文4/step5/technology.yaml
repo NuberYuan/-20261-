@@ -1,0 +1,31 @@
+paper_name: 论文4
+framework:
+  recommended: Python 标准库
+  candidates:
+  - PyTorch
+  source: 纯算法/方法复现（无训练、无 ML 模型），使用 Python 标准库 + numpy/pyyaml，不引入 PyTorch
+programming_framework_mentioned: GP 2 compiled to C via GP 2-to-C compiler, GCC
+model_backbone:
+  names:
+  - Enhanced GP 2 compiler with improved graph data structure
+  source: 论文提到
+architecture_details:
+  note: 'Enhanced GP 2 compiler graph data structure: nodes stored in separate linked
+    lists based on marks (red, green, blue, grey or unmarked); each node has a two-dimensional
+    array of linked lists for all incident edges indexed by mark (red, green, blue,
+    dashed or unmarked) and orientation (incoming, outgoing or looping) — 5 rows x
+    3 columns = 15 cells — enabling constant-time lookup of a node with a given mark
+    or an edge with a given mark and orientation.'
+training:
+  optimizer:
+    type: NOT_FOUND
+  loss:
+    type: NOT_FOUND
+  scheduler:
+    type: NOT_FOUND
+pretrained_weights:
+  used: false
+  source: NOT_FOUND
+special_modules: NOT_FOUND
+hardware:
+  mentioned: NOT_FOUND

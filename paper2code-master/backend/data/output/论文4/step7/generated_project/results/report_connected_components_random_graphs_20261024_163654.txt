@@ -1,0 +1,68 @@
+==============================================================================
+Evaluation Report — run: connected_components_random_graphs
+==============================================================================
+project   : rule_based_graph_programs
+paper     : Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms
+experiment: graph_program_time_complexity
+generated : 2026-10-24 16:36:54
+
+------------------------------------------------------------------------------
+1. Runtime measurements (FR-03 / FR-04)
+------------------------------------------------------------------------------
+timing unit          : seconds
+aggregate statistic  : median
+num_trials (config)  : 10
+warmup_runs (config) : 3
+
+[rule_based graph program]
+  count   = 400
+  mean    = 0.00685145 seconds
+  median  = 0.0005599 seconds
+  std     = 0.0140213 seconds
+  min     = 9.90002e-06 seconds
+  max     = 0.0688639 seconds
+  q0.25 = 8.7225e-05 seconds
+  q0.50 = 0.0005599 seconds
+  q0.75 = 0.00468933 seconds
+
+[imperative baseline]
+  count   = 400
+  mean    = 6.55465e-05 seconds
+  median  = 1.79e-05 seconds
+  std     = 0.000138613 seconds
+  min     = 4.29997e-06 seconds
+  max     = 0.0011154 seconds
+  q0.25 = 8.50001e-06 seconds
+  q0.50 = 1.79e-05 seconds
+  q0.75 = 6.79e-05 seconds
+
+------------------------------------------------------------------------------
+2. Comparison with baseline (computed from measured values)
+------------------------------------------------------------------------------
+baseline name             : imperative
+rule_based median         : 0.0005599 seconds
+baseline median           : 1.79e-05 seconds
+runtime ratio (median)    : 31.279294
+runtime ratio (mean)      : 104.528060
+speedup (median, base/rb) : 0.031970
+observation: 实测 median runtime: rule_based=0.0005599seconds vs imperative=1.79e-05seconds，比值=31.2793。
+
+------------------------------------------------------------------------------
+3. Classification metrics
+------------------------------------------------------------------------------
+本次评估未提供 predictions/labels，分类指标不适用。
+
+------------------------------------------------------------------------------
+4. Empirical time-complexity fit (log-log least squares)
+------------------------------------------------------------------------------
+slope (log t vs log n) : 2.020889
+r^2                    : 0.997409
+fitted label           : between_linear_and_quadratic
+sizes                  : [32, 64, 128, 256, 512]
+median times           : ['8.575e-05', '0.00029925', '0.0011397', '0.00469115', '0.0238425']
+
+------------------------------------------------------------------------------
+5. Correctness verification
+------------------------------------------------------------------------------
+checked=7936 matched=7936 match_ratio=1.000000 passed=True
+

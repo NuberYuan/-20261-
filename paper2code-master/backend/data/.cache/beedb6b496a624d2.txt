@@ -1,0 +1,110 @@
+{
+  "title": "Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting",
+  "research_problem": "Multihorizon forecasting often contains a complex mix of inputs – including static (i.e. time-invariant) covariates, known future inputs, and other exogenous time series that are only observed in the past – without any prior information on how they interact with the target. Existing deep learning methods are typically 'black-box' models which do not shed light on how they use the full range of inputs present in practical scenarios.",
+  "motivation": "Current architectures fail to consider the different types of inputs commonly present in multihorizon forecasting, either assume that all exogenous inputs are known into the future or neglect important static covariates. Additionally, most current architectures are 'black-box' models where forecasts are controlled by complex nonlinear interactions, making it difficult to explain how models arrive at their predictions. Commonly-used explainability methods (LIME, SHAP) are not well-suited for time series as they do not consider time ordering of input features.",
+  "main_contribution": "TFT introduces multiple novel ideas to align the architecture with the full range of potential inputs and temporal relationships common to multihorizon forecasting – specifically incorporating (1) static covariate encoders which encode context vectors for use in other parts of the network, (2) gating mechanisms throughout and sample-dependent variable selection to minimize the contributions of irrelevant inputs, (3) a sequence-to-sequence layer to locally process known and observed inputs, and (4) a temporal self-attention decoder to learn any long-term dependencies. TFT also enables three interpretability use cases: identifying globally-important variables, persistent temporal patterns, and significant events.",
+
+  "methodology": {
+    "method_name": "Temporal Fusion Transformer (TFT)",
+    "core_idea": "TFT combines high-performance multihorizon forecasting with interpretable insights into temporal dynamics using recurrent layers for local processing and interpretable self-attention layers for long-term dependencies, specialized variable selection networks, gating mechanisms (GRN/GLU), and static covariate encoders.",
+    "pipeline": "Input static covariates, known future inputs, and past observed inputs. Encode static covariates via GRN encoders to produce context vectors (cs, ce, cc, ch). Apply variable selection networks to static, past, and future inputs to select relevant features. Feed transformed inputs through an LSTM encoder-decoder (sequence-to-sequence layer) for locality enhancement. Apply static enrichment layer with GRN using context ce. Apply interpretable multi-head self-attention with decoder masking. Apply position-wise feedforward GRN layer with gated residual connection. Generate quantile outputs via linear transformation for specified quantiles.",
+    "model": "LSTM encoder-decoder, Interpretable Multi-Head Attention",
+    "model_architecture": {
+      "input": "Static covariates si ∈ R^ms, past observed inputs zi,t ∈ R^mz, known future inputs xi,t ∈ R^mx, and scalar targets yi,t ∈ R. Lookback window k and forecast horizon τmax vary by dataset (e.g. k=168, τmax=24 for Electricity/Traffic; k=90, τmax=30 for Retail; k=252, τmax=5 for Volatility).",
+      "output": "Quantile forecasts ŷ(q, t, τ) for τ ∈ {1, ..., τmax} using quantiles Q = {0.1, 0.5, 0.9}, generated via linear transformation of decoder output.",
+      "feature_extraction": "Variable selection networks applied to static, past, and future inputs. Entity embeddings for categorical variables, linear transformations for continuous variables – transforming each input variable into a d_model-dimensional vector. GRN-based processing of each variable with weights shared across time steps.",
+      "classification": "Quantile output layer: ŷ(q, t, τ) = Wq ψ̃(t, τ) + bq, where Wq ∈ R^(1×d), bq ∈ R are linear coefficients for specified quantile q.",
+      "pretrained_model": "NOT_FOUND",
+      "special_modules": "Gated Residual Network (GRN), Gated Linear Units (GLU), Variable Selection Networks, Static Covariate Encoders (producing context vectors cs, ce, cc, ch), Interpretable Multi-Head Attention, LSTM Encoder-Decoder, Static Enrichment Layer, Decoder Masking",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "Interpretable Multi-Head Attention modifies standard multi-head attention by sharing value weights WV across all heads and using additive aggregation of all heads: InterpretableMultiHead(Q, K, V) = H̃ WH where H̃ = Ã(Q,K) V WV = (1/H) Σ A(Q W_K^(h)) V WV. dV = d_attn = d_model/mH. Decoder masking is applied. A single interpretable multi-head attention layer is used to preserve explainability.",
+      "lstm": "LSTM encoder-decoder for locality enhancement. Feeding ξ̃(t-k:t) into the encoder and ξ̃(t+1:t+τmax) into the decoder. cc and ch context vectors from static covariate encoders initialize the cell state and hidden state respectively for the first LSTM in the layer. Gated skip connection over this layer."
+    }
+  },
+
+  "dataset": {
+    "dataset_name": "Electricity (UCI Electricity Load Diagrams), Traffic (UCI PEM-SF Traffic), Retail (Favorita Grocery Sales from Kaggle), Volatility (Oxford-Man Institute realized library)",
+    "dataset_source": "UCI Electricity Load Diagrams Dataset, UCI PEM-SF Traffic Dataset, https://www.kaggle.com/c/favoritagrocery-sales-forecasting/, https://realized.oxfordman.ox.ac.uk/",
+    "dataset_size": "Electricity: 500k samples, 370 entities; Traffic: 500k samples, 440 entities; Retail: 500k samples (450k training + 50k validation), 130k entities; Volatility: ~100k samples, 41 entities",
+    "number_of_classes": "NOT_FOUND",
+    "data_type": "Electricity: hourly electricity consumption of customers; Traffic: hourly occupancy rate (yt ∈ [0,1]) of freeways; Retail: daily log product sales with static metadata and exogenous time-varying inputs; Volatility: daily realized volatility of stock indices with daily returns",
+    "train_test_split": "Electricity: 500k samples 2014-01-01 to 2014-09-01, first 90% training, last 10% validation, testing over 7 days immediately following training set. Traffic: 500k samples before 2008-06-15, split same as Electricity, testing over 7 days after training set. Retail: 450k samples 2015-01-01 to 2015-12-01 training, 50k samples from 30 days after training set as validation, all entities over 30-day horizon following validation as test. Volatility: data 2000-01-03 to 2019-06-28, training before 2016, validation 2016-2017, test 2018 onwards.",
+    "preprocessing": "Electricity: z-score normalization separately to each entity for real-valued inputs. Real-valued inputs: electricity usage, day-of-week, hour-of-day, time index. Categorical: entity identifier. Traffic: z-score normalization across all entities. Real-valued: traffic occupancy, day-of-week, hour-of-day, time index. Categorical: entity identifier. Retail: resampled at regular daily intervals, imputing missing days using last available observation, additional 'open' flag, holidays grouped into national/regional/local, log-transform on sales, z-score normalization across all entities. Real-valued: log sales, transactions, oil; rest categorical. Volatility: 5-min subsampled realized volatility (rv5_ss column), daily open-to-close returns as exogenous input, day-of-week, day-of-month, week-of-year, month, 'region' variable (Americas, Europe, Asia), time index. Log transformation on target, z-score normalization across all entities. Date-related variables and region are categorical."
+  },
+
+  "implementation_details": {
+    "programming_framework": "NOT_FOUND",
+    "optimizer": "NOT_FOUND",
+    "learning_rate": "0.001",
+    "batch_size": "64",
+    "epoch": "NOT_FOUND",
+    "loss_function": "Quantile loss (QL), summed across all quantile outputs: L(Ω, W) = Σ Σ Σ QL(yt, ŷ(q, t-τ, τ), q) / (M τmax), where QL(y, ŷ, q) = q(y - ŷ)+ + (1 - q)(ŷ - y)+",
+    "hardware": "NVIDIA Tesla V100 GPU",
+    "training_strategy": "Hyperparameter optimization via random search: 240 iterations for Volatility, 60 iterations for others. Search ranges: State size – 10, 20, 40, 80, 160, 240, 320. Dropout rate – 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9. Minibatch size – 64, 128, 256. Learning rate – 0.0001, 0.001, 0.01. Max. gradient norm – 0.01, 1.0, 100.0. Num. heads – 1, 4. Single interpretable multi-head attention layer to preserve explainability. Dropout applied before gating layer and layer normalization in GRN. Optimal configs per dataset: Electricity: k=168, τmax=24, dropout=0.1, state size=160, heads=4, batch=64, lr=0.001, max grad norm=0.01. Traffic: k=168, τmax=24, dropout=0.3, state size=320, heads=4, batch=128, lr=0.001, max grad norm=100. Retail: k=90, τmax=30, dropout=0.1, state size=240, heads=4, batch=128, lr=0.001, max grad norm=100. Volatility: k=252, τmax=5, dropout=0.3, state size=160, heads=1, batch=64, lr=0.01, max grad norm=0.01."
+  },
+
+  "experiment": {
+    "evaluation_metrics": "Normalized quantile loss (q-Risk) for P50 and P90",
+    "baseline_methods": "DeepAR, DSSM, ConvTrans, MQRNN, and other multihorizon forecasting benchmarks",
+    "comparison_results": "TFT demonstrates significant performance improvements over existing benchmarks on Electricity, Traffic, Retail, and Volatility datasets. Specific benchmark comparison numbers were truncated in the provided text.",
+    "ablation_study": "Variable importance analysis performed using variable selection network weights across Electricity, Traffic, and Volatility datasets (Table B.4). Key findings: static entity ID or region receives weight 1.000; past target values (Power Usage/Occupancy/Realised Vol) play significant role as top 1-2 most significant past inputs; hour-of-day plays significant role for Electricity (0.437 past, 0.718 future) and Traffic (0.285 past, 0.781 future); day-of-month important for Volatility future inputs (0.069, 0.635, 0.913).",
+    "important_results": "TFT optimal model for Electricity takes slightly over 6 hours to train on NVIDIA Tesla V100 (each epoch roughly 52 mins). Batched inference on 50,000 validation samples takes 8 minutes. TFT achieves significant performance improvements over existing benchmarks on all four real-world datasets."
+  },
+
+  "reproduction_requirements": {
+    "required_modules": ["Gated Residual Network (GRN)", "Gated Linear Unit (GLU)", "Variable Selection Networks", "Static Covariate Encoders", "LSTM Encoder-Decoder", "Interpretable Multi-Head Attention", "Static Enrichment Layer", "Quantile Output Layer", "Entity Embeddings"],
+    "important_parameters": {
+      "learning_rate": "0.001",
+      "batch_size": "64",
+      "dropout_rate": "0.1",
+      "state_size": "160",
+      "num_heads": "4",
+      "lookback_window_k": "168",
+      "forecast_horizon_tau_max": "24",
+      "max_gradient_norm": "0.01",
+      "quantiles": "0.1, 0.5, 0.9",
+      "hyperparameter_search_iterations": "60"
+    },
+    "possible_difficulties": ["Implementing the Interpretable Multi-Head Attention with shared value weights and additive head aggregation", "Properly wiring four different static context vectors (cs, ce, cc, ch) into different parts of the network", "Implementing decoder masking for causal information flow in self-attention", "Handling the LSTM encoder-decoder with differing numbers of past and future inputs", "Reproducing exact results requires the same random search hyperparameter optimization process", "The programming framework is not explicitly stated in the paper"]
+  },
+
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "data_example",
+      "description": "Illustration of multihorizon forecasting with static covariates, past-observed and a priori known future time-dependent inputs.",
+      "data_characteristics": "Multihorizon forecasting setup with three types of inputs: static covariates (time-invariant), past observed inputs, and known future inputs",
+      "categories": ["static covariates", "past observed inputs", "known future inputs"],
+      "visual_features": "Time series visualization showing forecast horizon and input types over time"
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "model_architecture",
+      "description": "TFT architecture. TFT inputs static metadata, time-varying past inputs and time-varying a priori known future inputs. Variable Selection is used for judicious selection of the most salient features based on the input. Gated Residual Network blocks enable efficient information flow with skip connections and gating layers. Time-dependent processing is based on LSTMs for local processing, and multi-head attention for integrating information from any time step."
+    },
+    {
+      "figure_number": "Table 1",
+      "type": "comparison_chart",
+      "description": "Information on dataset and optimal TFT configuration. Shows dataset details (target type, number of entities, number of samples), network parameters (k, τmax, dropout rate, state size, number of heads), and training parameters (minibatch size, learning rate, max gradient norm) for Electricity, Traffic, Retail, and Volatility datasets.",
+      "x_axis": "Datasets (Electricity, Traffic, Retail, Vol.)",
+      "y_axis": "Configuration parameters",
+      "trend": "Optimal configurations vary by dataset",
+      "conclusion": "TFT configuration is dataset-dependent with varying state sizes (160-320), dropout rates (0.1-0.3), and learning rates (0.001-0.01)"
+    },
+    {
+      "figure_number": "Table B.4",
+      "type": "experiment_result",
+      "description": "Variable importance scores for Electricity, Traffic, and Volatility datasets. Shows static, past, and future variable importance weights across quantiles.",
+      "x_axis": "Variables (Static, Past, Future)",
+      "y_axis": "Importance scores (0-1)",
+      "trend": "Static ID/Region receives full weight 1.000. Past target values play significant role. Hour-of-day important for Electricity and Traffic. Day-of-month important for Volatility future inputs.",
+      "conclusion": "TFT successfully identifies globally-important variables; past target values and calendar effects are the most significant inputs across datasets"
+    }
+  ]
+}

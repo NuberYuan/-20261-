@@ -1,0 +1,9 @@
+{
+  "architecture_details.note": "Enhanced GP 2 compiler graph data structure: nodes stored in separate linked lists based on marks (red, green, blue, grey or unmarked); each node has a two-dimensional array of linked lists for all incident edges indexed by mark (red, green, blue, dashed or unmarked) and orientation (incoming, outgoing or looping) — 5 rows x 3 columns = 15 cells — enabling constant-time lookup of a node with a given mark or an edge with a given mark and orientation.",
+  "training.optimizer.type": "NOT_FOUND",
+  "training.loss.type": "NOT_FOUND",
+  "training.scheduler.type": "NOT_FOUND",
+  "pretrained_weights.source": "NOT_FOUND",
+  "special_modules": "NOT_FOUND",
+  "hardware.mentioned": "NOT_FOUND"
+}

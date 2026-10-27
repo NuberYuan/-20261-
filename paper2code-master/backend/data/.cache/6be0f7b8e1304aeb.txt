@@ -1,0 +1,1 @@
+{"evaluation.primary_metric": "runtime measurements", "experiment_matrix.known_best": "NOT_FOUND", "experiment_matrix.known_worst": "The worst-case complexity of matching the forward rule in the old isconnected program is 2|E| + Σ_{i=1}^{|E|} i = O(|E|^2) where E is the set of edges", "experiment_matrix.known_real_world": "NOT_FOUND"}

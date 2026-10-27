@@ -1,0 +1,31 @@
+{
+  "table_id": "table_6",
+  "table_type": "comparison",
+  "caption_summary": "Comparison of three reward type formulations (0/1 reward, discretized reward, continuous reward) across six tasks (Coping, Reverse, Walk, Addition, 3-number Addition, Single Digit Multiplication), reporting an unlabeled per-task performance/learning-effort value (lower appears better).",
+  "extracted_data": {
+    "metrics": ["Unspecified per-task score/effort value (units not given; lower appears better)"],
+    "methods": ["0/1 reward", "Discretized reward", "Continuous reward"],
+    "best_result": {"method": "0/1 reward", "metric": "Unspecified per-task score/effort value (Coping)", "value": 0.6},
+    "key_values": [
+      {"label": "Coping - 0/1 reward", "value": "0.6"},
+      {"label": "Coping - Discretized reward", "value": "0.6"},
+      {"label": "Coping - Continuous reward", "value": "0.8"},
+      {"label": "Reverse (FF controller) - 0/1 reward", "value": "3.1"},
+      {"label": "Reverse (FF controller) - Discretized reward", "value": "3.1"},
+      {"label": "Reverse (FF controller) - Continuous reward", "value": "59.7"},
+      {"label": "Walk (FF controller) - 0/1 reward", "value": "11.1"},
+      {"label": "Walk (FF controller) - Discretized reward", "value": "9.5"},
+      {"label": "Walk (FF controller) - Continuous reward", "value": "250.0"},
+      {"label": "Addition - 0/1 reward", "value": "21.1"},
+      {"label": "Addition - Discretized reward", "value": "21.6"},
+      {"label": "Addition - Continuous reward", "value": "24.2"},
+      {"label": "3-number Addition (extra curriculum) - 0/1 reward", "value": "81.9"},
+      {"label": "3-number Addition (extra curriculum) - Discretized reward", "value": "77.9"},
+      {"label": "3-number Addition (extra curriculum) - Continuous reward", "value": "131.9"},
+      {"label": "Single Digit Multiplication - 0/1 reward", "value": "24.7"},
+      {"label": "Single Digit Multiplication - Discretized reward", "value": "26.5"},
+      {"label": "Single Digit Multiplication - Continuous reward", "value": "26.6"}
+    ]
+  },
+  "table_summary": "The table evaluates how three reward types affect performance across six sequential/arithmetic tasks. The 0/1 and discretized rewards give comparable results and are substantially better than the continuous reward on the control tasks (Reverse: 3.1 vs 59.7; Walk: 11.1/9.5 vs 250.0), while the three reward types perform similarly on the arithmetic tasks (Addition, 3-number Addition, Single Digit Multiplication). The overall best value is 0.6 on Coping, achieved by both the 0/1 and discretized reward schemes; the worst is 250.0 for Walk with continuous reward."
+}

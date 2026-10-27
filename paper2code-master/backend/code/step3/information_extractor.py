@@ -7,12 +7,12 @@ information_extractor.py
 Author: Paper2Code
 """
 
-from typing import List, Dict, Optional, Any, Tuple, Union
+from typing import List, Optional, Union
 
 import json
 import re
 
-from llm_utils import chat_with_text
+from llm_manager import llm_call, parse_llm_json
 from logger import logger
 
 
@@ -48,7 +48,7 @@ class InformationExtractor:
 
         paper_text = "\n".join(text_parts)
 
-        # DeepSeek-chat 支持 64K tokens ≈ 48K chars
+        # 大多数 LLM 支持 64K tokens ≈ 48K chars
         # 预留 ~4K 给 prompt 模板自身
         max_text_len = 44000
         did_truncate = len(paper_text) > max_text_len
@@ -76,64 +76,17 @@ class InformationExtractor:
             f"truncated: {did_truncate})"
         )
 
-        raw_result = chat_with_text(final_prompt)
-        result = self._parse_json(raw_result)
+        try:
+            raw_result = llm_call(final_prompt, task_type="heavy")
+        except (RuntimeError, TimeoutError) as e:
+            logger.error(f"LLM 调用失败: {e}")
+            return {"error": str(e), "_source": "llm_failure"}
+        result = parse_llm_json(raw_result)
 
         # 结构校验和修复
         result = self._validate_and_fix(result, paper_text)
 
         return result
-
-    # =========================
-    # JSON 解析
-    # =========================
-
-    @staticmethod
-    def _parse_json(raw: str) -> dict:
-        """
-        从 LLM 返回的文本中提取 JSON。
-
-        支持以下格式:
-          - 纯 JSON: {"key": "value"}
-          - Markdown 代码块: ```json ... ```
-          - 带前缀/后缀文本: some text {"key": "value"} more text
-        """
-        raw = raw.strip()
-
-        # 尝试 1: 直接解析
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            pass
-
-        # 尝试 2: 去掉 markdown 代码块
-        cleaned = InformationExtractor._strip_markdown_fences(raw)
-        try:
-            return json.loads(cleaned)
-        except json.JSONDecodeError:
-            pass
-
-        # 尝试 3: 从文本中提取 JSON 对象 (最外层 { ... })
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group(0))
-            except json.JSONDecodeError:
-                pass
-
-        # 全部失败 → 返回原始响应
-        logger.warning("Failed to parse LLM response as JSON")
-        return {
-            "raw_response": raw[:2000],
-            "error": "JSON parse failed after all attempts",
-        }
-
-    @staticmethod
-    def _strip_markdown_fences(text: str) -> str:
-        """移除 ```json ... ``` 或 ``` ... ``` 包裹"""
-        text = re.sub(r'^```(?:json)?\s*\n?', '', text)
-        text = re.sub(r'\n?```\s*$', '', text)
-        return text.strip()
 
     # =========================
     # 结构校验与修复

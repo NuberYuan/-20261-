@@ -1,0 +1,296 @@
+```python
+import sys
+import json
+import numpy as np
+import cv2
+
+DEFAULT_OUTPUT = {
+    "type": "other",
+    "description": "无法确定图片类型",
+    "important_components": [],
+    "code_relevant_information": ""
+}
+
+def safe_print_json(result):
+    try:
+        print(json.dumps(result, ensure_ascii=False))
+    except Exception:
+        print(json.dumps(DEFAULT_OUTPUT, ensure_ascii=False))
+
+def read_image(image_path):
+    data = np.fromfile(image_path, dtype=np.uint8)
+    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    return img
+
+def visual_analysis(img):
+    info = {}
+    if img is None:
+        return info
+    h, w = img.shape[:2]
+    total = float(h * w)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    info["white_ratio"] = float(np.sum(gray > 230)) / total
+    info["dark_ratio"] = float(np.sum(gray < 50)) / total
+    info["brightness_mean"] = float(np.mean(gray))
+    info["brightness_std"] = float(np.std(gray))
+    info["hue_std"] = float(np.std(hsv[:, :, 0].astype(np.float64)))
+    info["sat_mean"] = float(np.mean(hsv[:, :, 1]))
+    info["sat_std"] = float(np.std(hsv[:, :, 1]))
+    info["val_mean"] = float(np.mean(hsv[:, :, 2]))
+
+    # row/column uniformity (low std row/col = likely axis or border)
+    row_stds = np.std(gray.astype(np.float64), axis=1)
+    col_stds = np.std(gray.astype(np.float64), axis=0)
+    uniform_rows = float(np.sum(row_stds < 10)) / float(h)
+    uniform_cols = float(np.sum(col_stds < 10)) / float(w)
+    info["uniform_row_ratio"] = uniform_rows
+    info["uniform_col_ratio"] = uniform_cols
+
+    # color diversity: count roughly how many distinct hue bins have significant pixels
+    hue_hist = np.histogram(hsv[:, :, 0], bins=36, range=(0, 180))[0]
+    active_hue_bins = int(np.sum(hue_hist > total * 0.01))
+    info["active_hue_bins"] = active_hue_bins
+
+    # saturation in non-white regions
+    non_white = gray < 230
+    if np.sum(non_white) > 0:
+        info["sat_non_white"] = float(np.mean(hsv[:, :, 1][non_white]))
+    else:
+        info["sat_non_white"] = 0.0
+
+    # check for grid-like structures (dataset): divide into 4x4 and measure per-cell variance
+    cell_h, cell_w = max(h // 4, 1), max(w // 4, 1)
+    cell_variances = []
+    for ci in range(4):
+        for cj in range(4):
+            cell = gray[ci*cell_h:(ci+1)*cell_h, cj*cell_w:(cj+1)*cell_w]
+            if cell.size > 0:
+                cell_variances.append(float(np.var(cell.astype(np.float64))))
+    info["cell_variance_std"] = float(np.std(cell_variances)) if cell_variances else 0.0
+
+    return info
+
+ARCH_KEYWORDS = [
+    "cnn", "transformer", "attention", "encoder", "decoder",
+    "block", "embedding", "classifier", "feature extractor",
+    "alexnet", "resnet", "vgg", "googlenet", "lstm", "gru",
+    "architecture", "network", "pipeline", "backbone", "neck",
+    "conv", "pooling", "fully connected", "fc layer",
+    "skip connection", "residual", "multi-head", "self-attention",
+    "layer norm", "batch norm", "dropout", "relu", "sigmoid",
+    "softmax", "cross entropy", "loss function",
+    "feature map", "input layer", "output layer",
+    "resblock", "inception", "densenet", "mobilenet",
+    "efficientnet", "u-net", "unet", "yolo", "faster r-cnn",
+    "vit", "swin", "bert", "gpt", "t5"
+]
+
+EXP_KEYWORDS = [
+    "accuracy", "loss", "epoch", "precision", "recall", "f1",
+    "auc", "roc", "curve", "training", "validation", "test set",
+    "performance", "baseline", "ablation", "result", "comparison",
+    "map", "iou", "bleu", "perplexity",
+    "benchmark", "sota", "improvement", "outperform",
+    "metric", "evaluation", "score", "rate",
+    "train", "val", "acc", "acc.", "p-r", "pr curve",
+    "convergence", "overfitting", "generalization"
+]
+
+DATA_KEYWORDS = [
+    "dataset", "sample", "input image", "class", "category",
+    "train set", "test set", "benchmark dataset",
+    "cifar", "imagenet", "mnist", "coco", "pascal voc",
+    "annotation", "label", "ground truth", "segmentation mask",
+    "data augmentation", "data distribution"
+]
+
+KNOWN_MODELS = [
+    "AlexNet", "ResNet", "VGG", "GoogLeNet", "Transformer",
+    "BERT", "GPT", "LSTM", "GRU", "CNN", "RNN",
+    "DenseNet", "MobileNet", "EfficientNet", "Inception",
+    "U-Net", "YOLO", "ViT", "CLIP", "T5", "RoBERTa",
+    "Swin Transformer", "DeiT", "SqueezeNet", "ShuffleNet",
+    "LeNet", "NIN", "RCNN", "SSD", "FPN", "BiLSTM"
+]
+
+METRIC_NAMES = [
+    "Accuracy", "Precision", "Recall", "F1-score", "F1",
+    "AUC", "BLEU", "mAP", "IoU", "Loss",
+    "Perplexity", "Top-1", "Top-5", "ROUGE"
+]
+
+
+def score_keywords(ocr_lower, keyword_list):
+    return sum(1 for kw in keyword_list if kw in ocr_lower)
+
+
+def classify_image(ocr_text, visual_info):
+    ocr_lower = ocr_text.lower().strip()
+
+    arch_score = score_keywords(ocr_lower, ARCH_KEYWORDS)
+    exp_score = score_keywords(ocr_lower, EXP_KEYWORDS)
+    data_score = score_keywords(ocr_lower, DATA_KEYWORDS)
+
+    # Visual heuristics (lightweight adjustments)
+    white_r = visual_info.get("white_ratio", 0)
+    hue_std = visual_info.get("hue_std", 0)
+    sat_nw = visual_info.get("sat_non_white", 0)
+    active_hues = visual_info.get("active_hue_bins", 0)
+    cell_var_std = visual_info.get("cell_variance_std", 0)
+    uniform_r = visual_info.get("uniform_row_ratio", 0)
+
+    # experiment_result: charts have lots of white + colored elements + possible axis lines
+    if white_r > 0.45 and sat_nw > 25 and active_hues <= 8:
+        exp_score += 1.5
+    if white_r > 0.6 and uniform_r > 0.02:
+        exp_score += 0.5  # likely has axis/legend lines
+
+    # architecture: colorful boxes, moderate white, moderate hue diversity
+    if white_r > 0.2 and white_r < 0.8 and sat_nw > 40 and active_hues >= 4:
+        arch_score += 1.0
+    if sat_nw > 50 and active_hues >= 5:
+        arch_score += 0.5
+
+    # dataset: diverse colors (natural images), moderate cell variance
+    if active_hues >= 10 and sat_nw > 30:
+        data_score += 1.0
+    if cell_var_std > 500 and active_hues >= 8:
+        data_score += 0.5
+
+    # Priority: experiment_result > architecture > dataset > other
+    scores = {
+        "experiment_result": exp_score,
+        "architecture": arch_score,
+        "dataset": data_score,
+    }
+
+    best_type = "other"
+    best_score = 0
+    # fixed priority order for ties
+    for t in ["experiment_result", "architecture", "dataset"]:
+        if scores[t] > best_score:
+            best_score = scores[t]
+            best_type = t
+
+    if best_score <= 0:
+        best_type = "other"
+
+    return best_type
+
+
+def extract_model_components(ocr_text):
+    components = []
+    ocr_lower = ocr_text.lower()
+    seen = set()
+    for model in KNOWN_MODELS:
+        if model.lower() in ocr_lower and model not in seen:
+            components.append(model)
+            seen.add(model)
+    return components
+
+
+def extract_metric_components(ocr_text):
+    components = []
+    ocr_lower = ocr_text.lower()
+    seen = set()
+    for m in METRIC_NAMES:
+        if m.lower() in ocr_lower and m not in seen:
+            components.append(m)
+            seen.add(m)
+    return components
+
+
+def build_description(img_type):
+    mapping = {
+        "architecture": "展示模型网络结构和数据流关系",
+        "experiment_result": "展示实验结果和性能指标对比",
+        "dataset": "展示数据集样本和类别示例",
+        "other": "无法确定图片类型",
+    }
+    return mapping.get(img_type, "无法确定图片类型")
+
+
+def build_components(img_type, ocr_text):
+    if img_type == "architecture":
+        comps = extract_model_components(ocr_text)
+        return comps if comps else []
+    elif img_type == "experiment_result":
+        comps = extract_model_components(ocr_text) + extract_metric_components(ocr_text)
+        seen = set()
+        unique = []
+        for c in comps:
+            if c not in seen:
+                unique.append(c)
+                seen.add(c)
+        return unique
+    else:
+        return []
+
+
+def build_code_info(img_type, ocr_text):
+    if img_type == "architecture":
+        comps = extract_model_components(ocr_text)
+        if comps:
+            return "需要实现" + "、".join(comps) + "相关模块和数据流连接"
+        return "需要实现模型网络结构相关模块"
+    elif img_type == "experiment_result":
+        comps = extract_model_components(ocr_text)
+        metrics = extract_metric_components(ocr_text)
+        parts = []
+        if comps:
+            parts.append("需要实现" + "、".join(comps) + "模型训练流程")
+        if metrics:
+            parts.append("需要实现" + "、".join(metrics) + "评估指标计算")
+        if not parts:
+            return "需要实现模型训练和评估流程以复现实验结果"
+        return "；".join(parts)
+    elif img_type == "dataset":
+        return "需要实现数据加载和预处理流程"
+    else:
+        return ""
+
+
+def main():
+    result = dict(DEFAULT_OUTPUT)
+
+    try:
+        if len(sys.argv) < 2:
+            safe_print_json(result)
+            return
+
+        image_path = sys.argv[1]
+
+        # OCR text: optional second argument, default empty
+        ocr_text = ""
+        if len(sys.argv) > 2:
+            ocr_text = sys.argv[2] if sys.argv[2] != "无" else ""
+
+        # Read image with Chinese path support
+        img = read_image(image_path)
+
+        if img is None:
+            safe_print_json(result)
+            return
+
+        # Visual analysis
+        visual_info = visual_analysis(img)
+
+        # Classify
+        img_type = classify_image(ocr_text, visual_info)
+
+        result["type"] = img_type
+        result["description"] = build_description(img_type)
+        result["important_components"] = build_components(img_type, ocr_text)
+        result["code_relevant_information"] = build_code_info(img_type, ocr_text)
+
+    except Exception:
+        result = dict(DEFAULT_OUTPUT)
+
+    safe_print_json(result)
+
+
+if __name__ == "__main__":
+    main()
+```

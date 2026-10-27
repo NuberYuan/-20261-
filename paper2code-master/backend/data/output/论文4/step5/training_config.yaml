@@ -1,0 +1,11 @@
+paper_name: 论文4
+training:
+  applies: false
+  note: 论文无训练流程（无 optimizer/learning_rate/epoch/loss 信号）
+training_modes: {}
+reproducibility_notes:
+- Implementing the two-dimensional array of linked lists of edges in the GP 2 compiler
+- Implementing separate linked lists for nodes by mark
+- Ensuring constant-time matching for fast rules under the new data structure
+- Proving correctness and time complexity of GP 2 programs at the level of concrete
+  syntax including compiler implementation specifics

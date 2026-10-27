@@ -1,0 +1,3309 @@
+environment:
+  python_version: 3.13.1
+  cpu_count: 22
+  ram_total_gb: 31.61
+  ram_available_gb: 18.73
+  disk_free_gb: 230.2
+  torch_available: true
+  torch_version: 2.13.0+cpu
+  gpu_available: false
+  gpu_memory_gb: null
+  dependencies:
+    torch: true
+    numpy: true
+    pandas: false
+    sklearn: false
+    scipy: true
+    matplotlib: true
+    PIL: true
+    yaml: true
+    tqdm: false
+    cv2: true
+    huggingface_hub: false
+    transformers: false
+summary:
+  total: 60
+  run: 0
+  skip: 60
+  warnings: 0
+experiments:
+- experiment_id: googlenet_scratch_color_80
+  run_index: 0
+  model: googlenet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_color_60
+  run_index: 1
+  model: googlenet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_color_50
+  run_index: 2
+  model: googlenet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_color_40
+  run_index: 3
+  model: googlenet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_color_20
+  run_index: 4
+  model: googlenet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_grayscale_80
+  run_index: 5
+  model: googlenet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_grayscale_60
+  run_index: 6
+  model: googlenet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_grayscale_50
+  run_index: 7
+  model: googlenet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_grayscale_40
+  run_index: 8
+  model: googlenet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_grayscale_20
+  run_index: 9
+  model: googlenet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_segmented_80
+  run_index: 10
+  model: googlenet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_segmented_60
+  run_index: 11
+  model: googlenet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_segmented_50
+  run_index: 12
+  model: googlenet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_segmented_40
+  run_index: 13
+  model: googlenet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_scratch_segmented_20
+  run_index: 14
+  model: googlenet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_color_80
+  run_index: 15
+  model: googlenet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_color_60
+  run_index: 16
+  model: googlenet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_color_50
+  run_index: 17
+  model: googlenet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_color_40
+  run_index: 18
+  model: googlenet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_color_20
+  run_index: 19
+  model: googlenet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_grayscale_80
+  run_index: 20
+  model: googlenet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_grayscale_60
+  run_index: 21
+  model: googlenet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_grayscale_50
+  run_index: 22
+  model: googlenet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_grayscale_40
+  run_index: 23
+  model: googlenet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_grayscale_20
+  run_index: 24
+  model: googlenet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_segmented_80
+  run_index: 25
+  model: googlenet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_segmented_60
+  run_index: 26
+  model: googlenet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_segmented_50
+  run_index: 27
+  model: googlenet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_segmented_40
+  run_index: 28
+  model: googlenet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: googlenet_transfer_segmented_20
+  run_index: 29
+  model: googlenet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_color_80
+  run_index: 30
+  model: alexnet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_color_60
+  run_index: 31
+  model: alexnet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_color_50
+  run_index: 32
+  model: alexnet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_color_40
+  run_index: 33
+  model: alexnet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_color_20
+  run_index: 34
+  model: alexnet
+  mode: scratch
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_grayscale_80
+  run_index: 35
+  model: alexnet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_grayscale_60
+  run_index: 36
+  model: alexnet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_grayscale_50
+  run_index: 37
+  model: alexnet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_grayscale_40
+  run_index: 38
+  model: alexnet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_grayscale_20
+  run_index: 39
+  model: alexnet
+  mode: scratch
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_segmented_80
+  run_index: 40
+  model: alexnet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_segmented_60
+  run_index: 41
+  model: alexnet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_segmented_50
+  run_index: 42
+  model: alexnet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_segmented_40
+  run_index: 43
+  model: alexnet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_scratch_segmented_20
+  run_index: 44
+  model: alexnet
+  mode: scratch
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_color_80
+  run_index: 45
+  model: alexnet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_color_60
+  run_index: 46
+  model: alexnet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_color_50
+  run_index: 47
+  model: alexnet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_color_40
+  run_index: 48
+  model: alexnet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_color_20
+  run_index: 49
+  model: alexnet
+  mode: transfer
+  dataset_version: color
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/color'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/color'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_grayscale_80
+  run_index: 50
+  model: alexnet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_grayscale_60
+  run_index: 51
+  model: alexnet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_grayscale_50
+  run_index: 52
+  model: alexnet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_grayscale_40
+  run_index: 53
+  model: alexnet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_grayscale_20
+  run_index: 54
+  model: alexnet
+  mode: transfer
+  dataset_version: grayscale
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unavailable
+    detail: '目录不存在: ./data/grayscale'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unavailable
+      detail: '目录不存在: ./data/grayscale'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_segmented_80
+  run_index: 55
+  model: alexnet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.8
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_segmented_60
+  run_index: 56
+  model: alexnet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.6
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_segmented_50
+  run_index: 57
+  model: alexnet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.5
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_segmented_40
+  run_index: 58
+  model: alexnet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.4
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null
+- experiment_id: alexnet_transfer_segmented_20
+  run_index: 59
+  model: alexnet
+  mode: transfer
+  dataset_version: segmented
+  data_source: external_dataset
+  acquisition: local_path
+  train_ratio: 0.2
+  decision: SKIP
+  status: PLANNED
+  skip_reasons:
+  - reason: dataset_unresolved
+    detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+      论文提及分割思路但未提供完整算法/参数)'
+  - reason: gpu_unavailable
+    detail: 实验要求 GPU 但当前无可用 GPU
+  warnings: []
+  resource_check:
+    dataset:
+      sufficient: false
+      reason: dataset_unresolved
+      detail: 'Dataset source/processing method not specified in Step6 (Step5 implementation_status=NOT_FOUND:
+        论文提及分割思路但未提供完整算法/参数)'
+      type: null
+      samples: null
+      total_size_gb: null
+      scan: null
+      large: false
+      warnings: []
+    gpu:
+      sufficient: false
+      reason: gpu_unavailable
+      detail: 实验要求 GPU 但当前无可用 GPU
+      rough_gpu_memory_gb: null
+      warnings: []
+    cpu:
+      sufficient: true
+      reason: null
+      detail: 未声明 CPU 核数需求
+    ram:
+      sufficient: true
+      reason: null
+      detail: 未声明内存需求
+    disk:
+      sufficient: true
+      reason: null
+      detail: 未声明磁盘空间需求
+    python:
+      sufficient: true
+      reason: null
+      detail: 未声明 Python 版本需求
+    dependencies:
+      sufficient: true
+      reason: null
+      detail: 6 个依赖均可用
+  execution: null

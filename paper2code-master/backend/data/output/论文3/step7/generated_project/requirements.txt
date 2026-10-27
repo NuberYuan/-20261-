@@ -1,2 +1,5 @@
-
-u_net
+# Project dependencies. Missing imports are auto-appended by Step7.
+matplotlib
+numpy
+pillow
+pyyaml

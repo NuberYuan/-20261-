@@ -1,0 +1,31 @@
+paper_name: 论文4
+data_source: synthetic
+acquisition: n/a
+data_source_note: 实验使用的是程序化生成的各类图（如环图、不同图结构类别）进行运行时基准测试，无任何外部真实数据集依赖。
+datasets:
+- name: various graph classes
+  source: NOT_FOUND
+  size: NOT_FOUND
+  num_classes: NOT_FOUND
+  data_type: Directed graphs with labelled nodes and edges
+dataset_versions:
+- default
+preprocessing:
+  versions:
+    default:
+      description: 非图像数据：通用预处理（按数据语义做标准化/归一化）
+      preprocessing: NOT_FOUND
+      normalization:
+        note: 非图像数据无 RGB 通道概念，按数据语义做标准化（如 z-score/归一化）
+      augmentation: []
+      note: 数据集无颜色/灰度/分割版本；仅单一 default 版本
+  version_selector:
+    config_key: dataset_version
+    values:
+    - default
+    default: default
+    note: 非图像数据仅一个 default 版本
+split_strategy:
+  method: random_split
+  ratios: NOT_FOUND
+  leaf_mapping_constraint: NOT_FOUND

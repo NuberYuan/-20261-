@@ -1,0 +1,17 @@
+```json
+{
+  "type": "chart",
+  "description": "消融实验结果图，展示移除模型各组件（Gating、Static Encoder、Variable Selection、Self-Attention、Local Processing）后在四个数据集上 P50 损失的百分比增长，左图为各数据集的具体增长值，右图为各消融设置下增长的最大值、平均值与最小值范围。",
+  "important_components": [
+    "左图：% Increase in P50 Loss by Dataset",
+    "右图：Range of P50 Loss Increases",
+    "数据集系列：Electricity（蓝）、Traffic（红）、Retail（黄）、Volatility（绿）",
+    "Average 阶梯虚线（左图）：No Gating 1.5%、No Static Encoder 2.0%、No Variable Selection 3.2%、No Self-Attention 7.6%、No Local Processing 10.2%",
+    "右图平均值标注：No Gating 3.6%、No Static Encoder 5.6%、No Variable Selection 4.9%、No Self-Attention 23.4%、No Local Processing 21.6%",
+    "右图堆叠柱：Max（黄）、Ave（红）、Min（蓝）",
+    "y轴范围：-10.0% 至 30.0%",
+    "消融组件：No Gating、No Static Encoder、No Variable Selection、No Self-Attention、No Local Processing"
+  ],
+  "code_relevant_information": "该图为模型消融实验，可推断完整模型包含以下五个可复现的模块：(1) Gating（门控机制），(2) Static Encoder（静态/协变量编码器），(3) Variable Selection（变量选择模块，类似 TFT 的 Variable Selection Network），(4) Self-Attention（自注意力模块），(5) Local Processing（局部处理模块，如局部卷积或局部时间特征提取）。评估指标为 P50 Loss（中位数分位数损失，可能为 quantile loss q=0.5 或 P50 pinball loss），以移除组件后损失相对完整模型的百分比增加衡量组件贡献。关键数值：各组件平均损失增长为 No Gating +1.5%（右图 Max+Ave+Min 范围对应 3.6%）、No Static Encoder +2.0%（5.6%）、No Variable Selection +3.2%（4.9%）、No Self-Attention +7.6%（23.4%）、No Local Processing +10.2%（21.6%），说明 Self-Attention 和 Local Processing 对性能影响最大。数据集为 Electricity、Traffic、Retail、Volatility 四个典型时序预测/多元序列数据集。复现时消融实验需逐一去除上述模块并保持其余超参数不变，在相同数据集划分下报告 P50 损失的变化百分比；注意 No Local Processing 在 Electricity 上出现负增长（约 -5%），说明该组件在个别数据集上可能非必需。"
+}
+```

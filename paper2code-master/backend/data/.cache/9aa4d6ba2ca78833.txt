@@ -1,0 +1,102 @@
+```json
+{
+  "code_requirements": {
+    "README.md": {
+      "description": "项目文档：包含项目简介（UNet++ 医学图像分割）、安装步骤、四个数据集下载指南（Data Science Bowl 2018、ASU-Mayo colon polyp、MICCAI 2018 LiTS、LIDC-IDRI）、训练与评估命令、复现注意事项（train/test split在补充材料中、batch_size未指定、编程框架未指定）",
+      "type": "markdown",
+      "sections": ["Project Overview", "Installation", "Dataset Setup", "Training", "Evaluation", "Reproduction Notes", "Citation"],
+      "pseudocode": "Markdown文档：# UNet++ 复现\n## 安装: pip install -r requirements.txt\n## 数据集: 下载至 data/raw/{dataset_name}/\n## 训练: python main.py --mode train --config config/config.yaml\n## 评估: python main.py --mode eval --config config/config.yaml\n## 注意事项: 补充材料中的预处理细节未在主论文中给出"
+    },
+    "config/config.yaml": {
+      "description": "YAML 配置文件：包含模型架构参数（UNet++ depth、通道数、输入尺寸）、训练超参数（严格按论文指定值）、数据集配置、评估配置",
+      "type": "yaml",
+      "fields": {
+        "model.name": "UNet++",
+        "model.depth": 4,
+        "model.in_channels": "TO_BE_DETERMINED (1 for grayscale CT/microscopy, 3 for RGB colon polyp)",
+        "model.out_channels": 1,
+        "model.num_classes": 2,
+        "model.dim": "2 (or 3 for lung nodule 64×64×64)",
+        "model.base_filters": 32,
+        "model.deep_supervision": true,
+        "training.batch_size": "NOT_FOUND",
+        "training.epochs": 30,
+        "training.optimizer": "Adam",
+        "training.learning_rate": 4,
+        "training.momentum": "NOT_FOUND",
+        "training.weight_decay": "NOT_FOUND",
+        "training.scheduler.name": "NOT_FOUND",
+        "training.scheduler.step_size": "NOT_FOUND",
+        "training.scheduler.gamma": "NOT_FOUND",
+        "training.loss_function": "combined_bce_dice",
+        "training.early_stopping_patience": "TO_BE_DETERMINED (默认10)",
+        "dataset.name": "cell_nuclei | colon_polyp | liver | lung_nodule",
+        "dataset.data_root": "data/raw/",
+        "dataset.image_size": "96×96 | 224×224 | 512×512 | 64×64×64",
+        "dataset.train_ratio": "TO_BE_DETERMINED (补充材料中)",
+        "dataset.num_classes": 2,
+        "preprocessing.resize": "TO_BE_DETERMINED",
+        "preprocessing.to_tensor": "transforms.ToTensor()",
+        "preprocessing.dtype": "torch.float32",
+        "preprocessing.normalization.mean": [0.5, 0.5, 0.5],
+        "preprocessing.normalization.std": [0.5, 0.5, 0.5],
+        "preprocessing.augmentation": "RandomHorizontalFlip(p=0.5)",
+        "evaluation.metrics": ["dice_coefficient", "intersection_over_union"],
+        "device": "cuda",
+        "seed": 42,
+        "output_dir": "outputs/"
+      },
+      "pseudocode": "YAML文件：model: {name: UNet++, depth: 4, in_channels: 1, out_channels: 1, base_filters: 32, deep_supervision: true}\ntraining: {batch_size: NOT_FOUND, epochs: 30, optimizer: Adam, learning_rate: 4, momentum: NOT_FOUND, weight_decay: NOT_FOUND, scheduler: {name: NOT_FOUND, step_size: NOT_FOUND, gamma: NOT_FOUND}, loss_function: combined_bce_dice}\ndataset: {name: cell_nuclei, data_root: data/raw/, image_size: 96}\nevaluation: {metrics: [dice_coefficient, intersection_over_union]}\ndevice: cuda"
+    },
+    "data/dataset.py": {
+      "description": "医学图像数据集加载与预处理模块。支持四种数据集：cell nuclei (96×96灰度显微镜), colon polyp (224×224 RGB视频帧), liver (512×512 CT), lung nodule (64×64×64 3D CT)。提供灰度版和彩色版预处理管道，含ToTensor、归一化(mean=0.5,std=0.5)、RandomHorizontalFlip(p=0.5)。支持2D和3D数据。",
+      "class": "MedicalImageDataset",
+      "parent_class": "torch.utils.data.Dataset",
+      "methods": [
+        "__init__(self, data_root, dataset_name, split, image_size, in_channels, dim=2, transform=None, target_transform=None)",
+        "__len__(self) -> int",
+        "__getitem__(self, idx) -> Tuple[torch.Tensor, torch.Tensor]"
+      ],
+      "functions": [
+        "load_data(data_root: str, dataset_name: str, split: str) -> List[Tuple[str, str]]: 加载图像路径和掩码路径列表",
+        "get_transforms(image_size: int, in_channels: int, dim: int) -> transforms.Compose: 返回预处理变换管道",
+        "preprocess_image(image_path: str, image_size, in_channels, dim) -> np.ndarray: 加载并预处理单张图像",
+        "preprocess_mask(mask_path: str, image_size, dim) -> np.ndarray: 加载并预处理掩码为二值图",
+        "create_train_val_split(dataset: Dataset, val_ratio: float, seed: int) -> Tuple[Subset, Subset]: 划分训练/验证集"
+      ],
+      "pseudocode": "class MedicalImageDataset(Dataset):\n  def __init__(data_root, dataset_name, split, image_size, in_channels, dim, transform, target_transform):\n    self.image_paths, self.mask_paths = load_data(data_root, dataset_name, split)\n    self.transform = get_transforms(image_size, in_channels, dim) if transform is None else transform\n  def __len__(): return len(self.image_paths)\n  def __getitem__(idx):\n    image = preprocess_image(self.image_paths[idx], ...) # PIL/numpy → tensor\n    mask = preprocess_mask(self.mask_paths[idx], ...)   # → binary mask tensor\n    if self.transform: image, mask = apply_transforms(image, mask)\n    return image.float(), mask.float()\n\ndef load_data(data_root, dataset_name, split):\n  # 扫描 data_root/dataset_name/split/ 下的images和masks子目录\n  # 返回(image_path, mask_path)对列表\n\ndef get_transforms(image_size, in_channels, dim):\n  # Resize → ToTensor → Normalize(mean=0.5*ch, std=0.5*ch) → RandomHorizontalFlip(p=0.5)\n  # 灰度: mean=[0.5], std=[0.5]; 彩色: mean=[0.5,0.5,0.5], std=[0.5,0.5,0.5]"
+    },
+    "models/densenet.py": {
+      "description": "UNet++ 模型架构实现（类名沿用框架Densenet，实际实现UNet++嵌套U-Net）。核心组件：(1) ConvBlock - 双层卷积块(Conv+BN+ReLU, k=32×2^i个3×3卷积核); (2) 嵌套密集跳跃连接 - x_{i,j}=H([x_{i,j-1}, U(x_{i+1,j-1})]); (3) 深度监督分支 - 1×1卷积+sigmoid附加到x01,x02,x03,x04。支持2D/3D卷积。",
+      "class": "Densenet",
+      "parent_class": "torch.nn.Module",
+      "submodules": [
+        {
+          "name": "ConvBlock",
+          "parent_class": "torch.nn.Module",
+          "description": "双层卷积块：Conv(k×k)→BN→ReLU→Conv(k×k)→BN→ReLU，支持2D(3×3)和3D(3×3×3)。通道数k=32×2^i",
+          "methods": ["__init__(self, in_channels, out_channels, dim=2)", "forward(self, x)"],
+          "pseudocode": "class ConvBlock(nn.Module):\n  def __init__(in_channels, out_channels, dim=2):\n    conv = nn.Conv2d if dim==2 else nn.Conv3d\n    bn = nn.BatchNorm2d if dim==2 else nn.BatchNorm3d\n    self.block = Sequential(conv(in,out,3,padding=1), bn(out), ReLU(inplace=True), conv(out,out,3,padding=1), bn(out), ReLU(inplace=True))\n  def forward(x): return self.block(x)"
+        },
+        {
+          "name": "UpsampleBlock",
+          "parent_class": "torch.nn.Module",
+          "description": "上采样模块：双线性(2D)或三线性(3D)插值上采样到目标尺寸",
+          "methods": ["__init__(self, dim=2)", "forward(self, x, target_size)"],
+          "pseudocode": "def forward(x, target_size): return F.interpolate(x, size=target_size, mode='bilinear'|'trilinear', align_corners=True)"
+        }
+      ],
+      "methods": [
+        "__init__(self, in_channels, out_channels, depth=4, base_filters=32, dim=2, deep_supervision=True)",
+        "forward(self, x) -> Union[torch.Tensor, Tuple[torch.Tensor, ...]]"
+      ],
+      "functions": [],
+      "architecture_detail": {
+        "encoder_nodes": "x00(in→32), x10(32→64), x20(64→128), x30(128→256), x40(256→512) via MaxPool",
+        "nested_skip_nodes": "x31=H(cat(x30,up(x40))); x21=H(cat(x20,up(x30))), x22=H(cat(x21,up(x31))); x11=H(cat(x10,up(x20))), x12=H(cat(x11,up(x21))), x13=H(cat(x12,up(x22))); x01=H(cat(x00,up(x10))), x02=H(cat(x01,up(x11))), x03=H(cat(x02,up(x12))), x04=H(cat(x03,up(x13)))",
+        "deep_supervision_heads": "1×1 Conv(in_ch=32, out_ch=out_channels) + Sigmoid at x01,x02,x03,x04",
+        "inference_output": "平均4个深度监督分割图: (y01+y02+y03+y04)/4",
+        "kernel_count": "k = 32 × 2^i, 即 32/64/128/256/512",
+        "conv_kernel_size": "3×3 (2D) 或 3×3×3 (3D)"
+      },
+      "pseudocode": "class Densenet(nn.Module):  # UNet++\n  def __init__(in_channels, out_channels, depth=4, base_filters=32, dim=2, deep_supervision=True):\n    self.deep_supervision = deep_supervision\n    self.pool = MaxPool2d(2) or MaxPool3d(2)\n    # Encoder: 5 levels, k=32*2^i\n    self.encoder = ModuleList([ConvBlock(in_ch,32,dim), ConvBlock(32,64,dim), ConvBlock(64,128,dim), ConvBlock(128,256,dim), ConvBlock(256,512,dim)])\n    # Up sample blocks\n    self.upsample = UpsampleBlock(dim)\n    # Nested skip pathway nodes\n    # Level 3: x31 = ConvBlock(cat(x30,up(x40))=512, 256)\n    self.x31 = ConvBlock(256+512, 256, dim)\n    # Level 2: x21=ConvBlock(cat(x20,up(x30))=384,128), x22=ConvBlock(cat(x21,up(x31))=384,128)\n    self.x21 = ConvBlock(128+256, 128, dim)\n    self.x22 = ConvBlock(128+256, 128, dim)\n    # Level 1: x11=ConvBlock(192,64), x12=ConvBlock(192,64), x13=ConvBlock(192,64)\n    self.x11 = ConvBlock(64+128, 64, dim)\n    self.x12 = ConvBlock(64+128, 64, dim)\n    self.x13 = ConvBlock(64+128, 64, dim)\n    # Level 0: x01=ConvBlock(96,32), x02=ConvBlock(96,32), x03=ConvBlock(96,32), x04=ConvBlock(96,32)\n    self.x01 = ConvBlock(32+64, 32, dim)\n    self.x02 = ConvBlock(32+64, 32, dim)\n    self.x03 = ConvBlock(32+64, 32, dim)\n    self.x04 = ConvBlock(32+64, 32, dim)\n    # Deep supervision heads (1×1 Conv + Sigmoid)\n    self.ds_heads = ModuleList([Conv1x1(32,out_channels) for _ in range(4)])\n\n  def forward(x):\n    # Encoder\n    x00 = self.encoder[0](x)\n    x10 = self.encoder[1](self.pool(x00))\n    x20 = self.encoder[2](self.pool(x10))\n    x30 = self.encoder[3](self.pool(x20))\n    x40 = self.encoder[4](self.pool(x30))\n    # Nested skip pathways\n    x31 = self.x31(cat([x30, up(x40,x30.shape[2:])], dim=1))\n    x21

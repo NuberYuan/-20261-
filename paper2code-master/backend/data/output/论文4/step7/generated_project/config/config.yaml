@@ -1,0 +1,123 @@
+project:
+  name: rule_based_graph_programs
+  paper: "Rule-Based Graph Programs Matching the Time Complexity of Imperative Algorithms"
+  framework: "Python 标准库"
+  task: other
+  implementation_scope: rule_based_graph_program_vs_imperative_baseline
+
+data_source: synthetic
+acquisition: n/a
+
+dataset_versions:
+  - default
+
+version_selector:
+  config_key: dataset_version
+  values:
+    - default
+  default: default
+  note: "非图像数据仅一个 default 版本"
+
+experiment:
+  name: graph_program_time_complexity
+  description: "对比规则式图程序与命令式算法在合成图上的时间复杂度"
+  runs:
+    - name: reachability_random_graphs
+      algorithm: reachability
+      program_style: rule_based_graph_program
+      baseline_style: imperative
+      target_complexity: "O(n + m)"
+      data_source: synthetic
+      acquisition: n/a
+      params:
+        node_counts: [100, 200, 400, 800, 1600, 3200]
+        edge_probabilities: [0.01, 0.05, 0.1]
+        directed: false
+        weighted: false
+        num_trials: 10
+        seed_offset: 0
+    - name: shortest_path_random_graphs
+      algorithm: shortest_path
+      program_style: rule_based_graph_program
+      baseline_style: imperative
+      target_complexity: "O((n + m) log n)"
+      data_source: synthetic
+      acquisition: n/a
+      params:
+        node_counts: [100, 200, 400, 800, 1600, 3200]
+        edge_probabilities: [0.01, 0.05, 0.1]
+        directed: true
+        weighted: true
+        source_vertex: 0
+        num_trials: 10
+        seed_offset: 1000
+    - name: connected_components_random_graphs
+      algorithm: connected_components
+      program_style: rule_based_graph_program
+      baseline_style: imperative
+      target_complexity: "O(n + m)"
+      data_source: synthetic
+      acquisition: n/a
+      params:
+        node_counts: [100, 200, 400, 800, 1600, 3200]
+        edge_probabilities: [0.01, 0.05, 0.1]
+        directed: false
+        weighted: false
+        num_trials: 10
+        seed_offset: 2000
+
+graph:
+  generator: erdos_renyi
+  directed: false
+  weighted: false
+  self_loops: false
+  multi_edges: false
+  ensure_connected: true
+  weight_min: 1
+  weight_max: 10
+  weight_integer: true
+
+rules:
+  match_mode: sequential
+  max_rule_depth: 3
+  max_rounds: 10000
+  apply_per_round: 1
+  confluence_check: true
+  termination_check: fixed_point
+  store_trace: false
+
+algorithm:
+  reachability:
+    source_vertex: 0
+    explore_neighbors: adjacency_list
+  shortest_path:
+    source_vertex: 0
+    edge_weight_key: weight
+    unreachable_distance: 1.0e18
+  connected_components:
+    label_key: component_id
+    union_mode: rule_based
+
+benchmark:
+  num_trials: 10
+  warmup_runs: 3
+  timing_unit: seconds
+  timer: time.perf_counter
+  timeout_seconds: 600
+  verify_correctness: true
+  comparison_baseline: imperative
+  aggregate_stat: median
+  report_quantiles: [0.25, 0.5, 0.75]
+
+logging:
+  level: INFO
+  output_dir: results
+  log_file: logs/run.log
+  save_raw_timings: true
+  export_format: json
+  timestamp_in_filename: true
+
+system:
+  device: cpu
+  num_workers: 0
+  seed: 42

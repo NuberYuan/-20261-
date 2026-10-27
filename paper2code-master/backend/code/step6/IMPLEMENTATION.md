@@ -51,12 +51,12 @@
 - `integrate()` — 主流程：`_check_prerequisites` → 一致性检查 → 逐 section 组装 brief → 补 `_meta`。
 - `_build_project()` / `_build_requirements_digest()` / `_build_design_digest()` — 项目元信息 / 需求摘要 / 设计摘要。
 - `_build_decisions()` — 集中记录跨来源关键决策（val_split_ratio、framework、training_modes、best_metric、data_source、acquisition）。
-- `_build_data_dependency()` — 透传并校验 `data_source`/`acquisition`（非法值回退 `external_dataset`/`local_path`）。
-- `_build_unresolved_dataset_versions()` — 检测 `segmentation_algorithm.implementation_status == NOT_FOUND` 的版本，供 Step7 标记 unresolved。
+- `_build_data_dependency()` — 透传并校验 `data_source`/`acquisition`（非法值回退 `external_dataset`/`local_path`）；leaf_based_split 时登记 `leaf_mapping`（`required`/`file`/`constraint`/`on_missing`，缺映射文件必须显式告警并记 `leaf_constraint_effective=false`，禁止静默回退随机划分），供 Step7 注入 config。
+- `_build_unresolved_dataset_versions()` — 检测 `segmentation_algorithm.implementation_status == NOT_FOUND` 的版本供 Step7 标记 unresolved；`PARTIAL` 版本不整版 unresolved，reason 改为「方法已知、脚本参数未公开，按描述实现或文档化兜底，禁止悄悄替换成其他版本」。
 - `_build_traceability()` / `_map_fr_to_impl()` — FR → 实现文件::符号 的规则映射，并缓存到 `self._traceability`。
 - `_build_code_generation_plan()` / `_build_generation_order()` / `_build_file_spec()` — 有序的文件生成计划与逐文件 spec（purpose/classes/key_methods/depends_on/satisfies_requirements/notes）。
 - `_fr_satisfied_by(file)` / `_all_fr_ids()` — 反查某文件满足哪些 FR / 全部 FR id（main.py 用）。
-- `_build_risks_and_notes()` / `_build_consistency_ref()` / `_for_code_agent_notes()` — 风险与给代码 Agent 的注意事项。
+- `_build_risks_and_notes()` / `_build_consistency_ref()` / `_for_code_agent_notes()` — 风险与给代码 Agent 的注意事项；leaf_based_split 时 `for_code_agent` 追加 `[leaf_mapping]` 约束（分组划分、缺文件须告警并记 `leaf_constraint_effective=false`）。
 - 动态数据与类型分支：`_dataset_class_name()`、`_dataset_versions()`、`_default_version()`、`_is_leaf_split()`、`_eval_metrics()`、`_data_dependency_value()`、`_is_torchvision_cnn()`、`_models_module_note()`、`_training_module_note()`、`_data_module_spec_non_external()`、`_config_data_dependency_note()`。
 - 辅助：`_sanitize_filename()`、`_clip()`、`_load_all_yaml()`、`save_yaml()`。
 
@@ -69,7 +69,7 @@
 - `requirements_digest` — summary、core_requirements（id/what/why/acceptance）、data_flow_overview、key_interfaces。
 - `design_digest` — summary、tech_stack（framework/key_dependencies/hardware）、models（name/type/file/key_params）、project_structure、training_config_summary。
 - `decisions` — val_split_ratio / val_split_note / framework / training_modes / best_metric / data_source / acquisition。
-- `data_dependency` — data_source / acquisition / note（note 原样透传 Step5 的 `data_source_note`）。
+- `data_dependency` — data_source / acquisition / note（note 原样透传 Step5 的 `data_source_note`）/ leaf_mapping（仅 leaf_based_split：required/file/constraint/on_missing）。
 - `unresolved_dataset_versions` — 数据来源/处理方法 NOT_FOUND 的版本列表（name/reason）。
 - `traceability` — 每条：requirement_id / requirement_name / planned_implementation（文件::符号列表）/ design_ref（来源 Step5 文件名）。
 - `code_generation_plan` — generation_order（分 4 个 phase 的有序文件列表）+ per_file_specs（逐文件 spec）。
@@ -81,7 +81,7 @@ Step7 依赖哪些字段（结合 step7/ 源码）：
 - `code_generation_plan.per_file_specs`：`project_initializer.py` 据此创建骨架文件；`code_context_builder.py` 以 `spec["file"]` 为键建索引，并把整个 spec（含 `purpose`/`classes`/`key_methods`/`depends_on`/`satisfies_requirements`/`notes`）注入单文件生成上下文，`notes` 是给代码 Agent 的核心约束文本。
 - `code_generation_plan.generation_order`：`code_context_builder` 建 phase 映射，决定生成顺序。
 - `decisions`：`code_validator._check_decisions` 逐一校验 config.yaml 的 `val_split_ratio`、`framework`、`training_modes`（keys 集合）、`checkpoint.best_metric`、顶层 `data_source`、顶层 `acquisition` 与 Step6 决策一致。
-- `data_dependency.data_source / acquisition`：`step7_main` 的确定性注入逻辑（顶层 + 每个 `experiment.runs[]`）直接读取这两个字段兜底。
+- `data_dependency.data_source / acquisition`：`step7_main` 的确定性注入逻辑（顶层 + 每个 `experiment.runs[]`）直接读取这两个字段兜底。`data_dependency.leaf_mapping` 同样由注入逻辑写入 `split_strategy.leaf_mapping_file/constraint/on_missing`。
 - `traceability`：`code_validator._check_traceability` 按 FR 分组校验生成代码中是否存在对应符号。
 - `risks_and_notes.for_code_agent`：作为 `agent_notes` 注入每个文件的生成上下文。
 - `design_digest.tech_stack / models / training_config_summary`、`requirements_digest.core_requirements`：供生成上下文补充技术栈、模型、训练配置、相关需求信息。

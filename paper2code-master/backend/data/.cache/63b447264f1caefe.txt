@@ -1,0 +1,263 @@
+```json
+{
+  "code_requirements": {
+    "config/config.yaml": {
+      "description": "YAML 配置文件，集中管理所有超参数、数据集路径、模型选择、训练-测试分割比例和评估选项",
+      "type": "yaml_config",
+      "sections": {
+        "project": {
+          "name": "plant_disease_detection",
+          "seed": 42
+        },
+        "dataset": {
+          "root_dir": "TO_BE_DETERMINED",
+          "name": "PlantVillage",
+          "num_classes": 38,
+          "num_species": 14,
+          "num_diseases": 26,
+          "total_images": 54306,
+          "image_size": 256,
+          "versions": ["color", "grayscale", "segmented"],
+          "active_version": "color",
+          "train_test_split": "80-20",
+          "all_splits": ["80-20", "60-40", "50-50", "40-60", "20-80"],
+          "num_workers": 4,
+          "pin_memory": true
+        },
+        "model": {
+          "name": "googlenet",
+          "available": ["alexnet", "googlenet"],
+          "pretrained": true,
+          "pretrained_source": "ImageNet",
+          "num_classes": 38
+        },
+        "training": {
+          "batch_size": 24,
+          "alexnet_batch_size": 100,
+          "googlenet_batch_size": 24,
+          "epochs": 30,
+          "optimizer": {
+            "name": "SGD",
+            "learning_rate": 0.005,
+            "momentum": 0.9,
+            "weight_decay": 0.0005
+          },
+          "loss": "CrossEntropyLoss",
+          "scheduler": {
+            "name": "StepLR",
+            "step_size": 10,
+            "gamma": 0.1
+          },
+          "device": "cuda",
+          "checkpoint_dir": "checkpoints/",
+          "log_dir": "logs/",
+          "save_best": true
+        },
+        "evaluation": {
+          "metrics": ["accuracy", "mean_f1", "mean_precision", "mean_recall"],
+          "external_test_images": null,
+          "external_test_count": 121
+        }
+      },
+      "notes": "scheduler.step_size=10, scheduler.gamma=0.1, epochs=30, lr=0.005, momentum=0.9, weight_decay=0.0005 必须严格使用上述值"
+    },
+    "data/dataset.py": {
+      "description": "PlantVillage 数据集加载与预处理。支持三种图像版本(color/grayscale/segmented)，支持多种训练-测试分割比例(80-20, 60-40, 50-50, 40-60, 20-80)，确保同一叶片的多张图片不跨训练/测试集。实现 resize 到 256x256、ToTensor、ImageNet 归一化等预处理。",
+      "class": "PlantVillageDataset",
+      "parent_class": "torch.utils.data.Dataset",
+      "methods": [
+        "__init__(root_dir, split='train', image_size=256, version='color', split_ratio='80-20', transform=None, seed=42)",
+        "__len__()",
+        "__getitem__(index) -> (tensor, label_int)",
+        "get_class_names() -> list[str]",
+        "get_class_to_idx() -> dict[str, int]"
+      ],
+      "functions": [
+        "load_data(root_dir, version) -> (list[str], list[int]) # 扫描目录，按类名目录收集文件路径和标签",
+        "preprocess(image_size, version) -> torchvision.transforms.Compose # 根据版本返回对应 transform pipeline",
+        "split_dataset(file_paths, labels, split_ratio, seed, leaf_map=None) -> (train_files, train_labels, test_files, test_labels) # 按比例分割，同一叶片在同一侧",
+        "build_leaf_map(root_dir) -> dict[str, list[str]] # 从文件名推断同一叶片的多张图片映射",
+        "create_dataloaders(config) -> (train_loader, test_loader) # 工厂函数，返回 DataLoader 对象"
+      ],
+      "enums_constants": {
+        "CLASS_NAMES": "38 个类别名称列表，覆盖 14 种作物和 26 种疾病（含健康）",
+        "SPLIT_RATIOS": {"80-20": [0.8, 0.2], "60-40": [0.6, 0.4], "50-50": [0.5, 0.5], "40-60": [0.4, 0.6], "20-80": [0.2, 0.8]},
+        "IMAGE_MEAN": [0.485, 0.456, 0.406],
+        "IMAGE_STD": [0.229, 0.224, 0.225]
+      },
+      "preprocessing_details": {
+        "color": "RGB 3通道，Resize(256,256) -> ToTensor() -> Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])",
+        "grayscale": "灰度转RGB 3通道（ExpandDims），Resize(256,256) -> ToTensor() -> Normalize",
+        "segmented": "背景去除后的RGB图像，Resize(256,256) -> ToTensor() -> Normalize"
+      },
+      "leaf_mapping_note": "PlantVillage 同一叶片的多张图片文件名包含共同前缀/ID；仅有 41,112/54,306 张有映射信息，无映射的按单图处理",
+      "pseudocode": "class PlantVillageDataset(Dataset):\n  __init__: 读取config, 调用load_data扫描root_dir/version下子目录, 调用split_dataset分割, 构建transform\n  __len__: return len(self.file_paths)\n  __getitem__: image = Image.open(file_path), 如果 version=='grayscale': convert('L').convert('RGB'), 否则 convert('RGB'); return transform(image), label\n  load_data(root_dir, version): walk directory, subdirectory name -> class label, collect (path, label)\n  preprocess(image_size, version): return Compose([Resize((image_size,image_size)), ToTensor(), Normalize(IMAGE_MEAN, IMAGE_STD)])\n  split_dataset: group by leaf_id, shuffle leaf_groups with seed, assign to train/test by ratio\n  create_dataloaders: instantiate TrainDataset/TestDataset, return DataLoaders with batch_size from config"
+    },
+    "models/alexnet.py": {
+      "description": "AlexNet 模型定义。5 个卷积层(conv1-conv5) + 3 个全连接层(fc6-fc8)，fc8 输出 38 类。conv1/conv2 后接 LRN + MaxPool，conv5 后接 MaxPool，fc6/fc7 有 Dropout(0.5)，所有前 7 层用 ReLU。支持 ImageNet 预训练权重加载并重置 fc8 层。",
+      "class": "AlexNet",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__(num_classes=38, pretrained=True)",
+        "forward(x) -> tensor",
+        "reset_classifier(num_classes) -> None # 重置 fc8 输出层为 num_classes 类",
+        "load_pretrained_weights(weights_path=None) -> None # 加载 ImageNet 预训练权重，跳过/重置 fc8",
+        "get_features(x) -> tensor # 返回 fc7 层输出，用于特征提取"
+      ],
+      "modules_layers": {
+        "conv1": "Conv2d(3, 64, kernel_size=11, stride=4, padding=2) + ReLU + LocalResponseNorm(size=5) + MaxPool2d(kernel_size=3, stride=2)",
+        "conv2": "Conv2d(64, 192, kernel_size=5, padding=2) + ReLU + LocalResponseNorm(size=5) + MaxPool2d(kernel_size=3, stride=2)",
+        "conv3": "Conv2d(192, 384, kernel_size=3, padding=1) + ReLU",
+        "conv4": "Conv2d(384, 256, kernel_size=3, padding=1) + ReLU",
+        "conv5": "Conv2d(256, 256, kernel_size=3, padding=1) + ReLU + MaxPool2d(kernel_size=3, stride=2)",
+        "fc6": "Linear(256*6*6, 4096) + ReLU + Dropout(0.5)",
+        "fc7": "Linear(4096, 4096) + ReLU + Dropout(0.5)",
+        "fc8": "Linear(4096, num_classes=38)"
+      },
+      "pretrained_handling": "torchvision.models.alexnet(pretrained=True) 或手动加载权重；仅重置 fc8 参数为随机初始化",
+      "notes": "约 6000 万参数；输入 224x224 (torchvision默认) 或 256x256 需调整 fc6 输入维度；论文使用 256x256 输入",
+      "pseudocode": "class AlexNet(nn.Module):\n  __init__(num_classes, pretrained):\n    self.features = Sequential(conv1,relu1,norm1,pool1,conv2,relu2,norm2,pool2,conv3,relu3,conv4,relu4,conv5,relu5,pool5)\n    self.classifier = Sequential(fc6,relu6,drop6,fc7,relu7,drop7,fc8)\n    if pretrained: load ImageNet weights for features & fc6/fc7; randomly init fc8\n  forward(x): x = self.features(x); x = flatten(x); x = self.classifier(x); return x\n  reset_classifier: replace last Linear layer with Linear(in_features, num_classes)"
+    },
+    "models/googlenet.py": {
+      "description": "GoogLeNet(Inception v1) 模型定义。22 层深度网络，使用 9 个 Inception 模块。每个 Inception 模块含并行的 1x1, 3x3, 5x5 卷积和 MaxPool 分支，3x3/5x5 前加 1x1 降维，MaxPool 后加 1x1 降维，最终 Concatenate。含辅助分类器 loss2/loss3，训练时用权重 0.3 的辅助损失。支持 ImageNet 预训练权重，重置所有分类器为 38 类。",
+      "class": "GoogLeNet",
+      "parent_class": "torch.nn.Module",
+      "methods": [
+        "__init__(num_classes=38, pretrained=True, aux_logits=True)",
+        "forward(x) -> tensor 或 (main_output, aux2, aux3) 训练模式",
+        "reset_classifier(num_classes) -> None # 重置 loss1/loss2/loss3 分类器",
+        "load_pretrained_weights(weights_path=None) -> None # 加载 ImageNet 预训练权重"
+      ],
+      "inner_classes": {
+        "Inception": {
+          "methods": ["__init__(in_channels, ch1x1, ch3x1, ch3x3, ch5x1, ch5x5, pool_proj)", "forward(x)"],
+          "branches": "conv1x1, conv3x3(含1x1降维), conv5x5(含1x1降维), maxpool+1x1",
+          "concat_axis": 1
+        },
+        "InceptionAux": {
+          "methods": ["__init__(in_channels, num_classes)", "forward(x)"],
+          "description": "辅助分类器：AveragePool + Conv1x1 + Linear + ReLU + Dropout(0.7) + Linear"
+        }
+      },
+      "architecture_detail": {
+        "conv1": "Conv2d(3, 64, kernel_size=7, stride=2, padding=3) + ReLU + MaxPool2d(3, stride=2)",
+        "conv2": "Conv2d(64, 64, kernel_size=1) + ReLU + Conv2d(64, 192, kernel_size=3, padding=1) + ReLU + MaxPool2d(3, stride=2)",
+        "inception3a": "Inception(192, 64, 96, 128, 16, 32, 32)",
+        "inception3b": "Inception(256, 128, 128, 192, 32, 96, 64) + MaxPool2d(3, stride=2)",
+        "inception4a": "Inception(480, 192, 96, 208, 16, 48, 64) [aux1]",
+        "inception4b": "Inception(512, 160, 112, 224, 24, 64, 64)",
+        "inception4c": "Inception(512, 128, 128, 256, 24, 64, 64)",
+        "inception4d": "Inception(512, 112, 144, 288, 32, 64, 64) [aux2]",
+        "inception4e": "Inception(528, 256, 160, 320, 32, 128, 128) + MaxPool2d(3, stride=2)",
+        "inception5a": "Inception(832, 256, 160, 320, 32, 128, 128)",
+        "inception5b": "Inception(832, 384, 192, 384, 48, 128, 128)",
+        "classifier": "AdaptiveAvgPool2d(1) + Dropout(0.4) + Linear(1024, 38)",
+        "aux_classifiers": "loss2_classifier1: Linear(768, 1024), loss2_classifier2: Linear(1024, 38), loss3_classifier1: Linear(768, 1024), loss3_classifier2: Linear(1024, 38)"
+      },
+      "pretrained_handling": "torchvision.models.googlenet(pretrained=True) 或手动加载；重置 aux1/aux2/main classifier 最后一层为 38 类",
+      "notes": "约 500 万参数；22 层深度；训练时输出 main_loss + 0.3*aux2_loss + 0.3*aux1_loss",
+      "pseudocode": "class GoogLeNet(nn.Module):\n  __init__:\n    self.conv1, self.conv2 = ... (标准 stem)\n    self.inception3a, inception3b, inception4a~e, inception5a~b = Inception(...)\n    self.aux1 = InceptionAux(512, num_classes) from inception4a\n    self.aux2 = InceptionAux(528, num_classes) from inception4d\n    self.avgpool = AdaptiveAvgPool2d(1)\n    self.dropout = Dropout(0.4)\n    self.fc = Linear(1024, num_classes)\n    if pretrained: load imagenet weights, reset fc and aux classifiers\n  forward(x): conv1->conv2->inception3a->3b->4a->4b->4c->4d->4e->5a->5b->avgpool->dropout->fc\n    if training and aux_logits: also compute aux1(x from 4a), aux2(x from 4d)\n  reset_classifier: reset fc, loss2_classifier2, loss3_classifier2 to num_classes"
+    },
+    "training/train.py": {
+      "description": "训练循环与验证。实现完整的训练流程：加载配置、初始化数据、创建模型、定义损失函数(交叉熵)、优化器(SGD)、学习率调度器(StepLR)、逐 epoch 训练、逐 epoch 验证、保存最优模型检查点、记录训练日志。GoogLeNet 支持辅助损失。",
+      "functions": [
+        "train_epoch(model, train_loader, criterion, optimizer, device, epoch, aux_weight=0.3) -> (loss, acc, f1, precision, recall)",
+        "validate(model, val_loader, criterion, device, aux_weight=0.3) -> (loss, acc, f1, precision, recall)",
+        "setup_optimizer(model, config) -> torch.optim.SGD",
+        "setup_scheduler(optimizer, config) -> torch.optim.lr_scheduler.StepLR",
+        "save_checkpoint(model, optimizer, scheduler, epoch, metrics, path) -> None",
+        "load_checkpoint(path, model, optimizer=None, scheduler=None) -> int",
+        "main(config_path='config/config.yaml') -> dict # 主入口，返回最终指标"
+      ],
+      "uses": ["torch", "torch.nn", "torch.optim", "torch.utils.data.DataLoader", "data.dataset", "models.alexnet", "models.googlenet", "utils.metrics", "yaml", "os", "logging", "time", "copy"],
+      "training_details": {
+        "loss_function": "nn.CrossEntropyLoss() (主损失); GoogLeNet 辅助分类器也用 CrossEntropyLoss, 权重 0.3",
+        "optimizer": "SGD(lr=0.005, momentum=0.9, weight_decay=0.0005)",
+        "scheduler": "StepLR(optimizer, step_size=10, gamma=0.1)",
+        "epochs": 30,
+        "batch_size_alexnet": 100,
+        "batch_size_googlenet": 24,
+        "log_interval": "每个 batch 或每 10 个 batch 记录 loss",
+        "checkpoint": "每个 epoch 结束保存，根据 validation accuracy 保存 best"
+      },
+      "pseudocode": "def main(config_path):\n  config = yaml.safe_load(open(config_path))\n  set_seed(config.seed)\n  device = torch.device(config.training.device)\n  train_loader, test_loader = create_dataloaders(config)\n  model = build_model(config.model)  # AlexNet or GoogLeNet\n  criterion = nn.CrossEntropyLoss()\n  optimizer = SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)\n  scheduler = StepLR(optimizer, step_size=10, gamma=0.1)\n  best_acc = 0\n  for epoch in range(30):\n    train_metrics = train_epoch(model, train_loader, criterion, optimizer, device, epoch)\n    val_metrics = validate(model, test_loader, criterion, device)\n    scheduler.step()\n    if val_metrics.acc > best_acc: save best checkpoint\n    log(epoch, train_metrics, val_metrics)\n  return final_metrics\n\ndef train_epoch(...):\n  model.train()\n  for batch_idx, (images, labels) in enumerate(train_loader):\n    images, labels = images.to(device), labels.to(device)\n    optimizer.zero_grad()\n    outputs = model(images)\n    if isinstance(outputs, tuple) and training:  # GoogLeNet with aux\n      main_out, aux1_out, aux2_out = outputs\n      loss = criterion(main_out, labels) + 0.3*criterion(aux1_out, labels) + 0.3*criterion(aux2_out, labels)\n    else:\n      loss = criterion(outputs, labels)\n    loss.backward()\n    optimizer.step()\n  compute_metrics(all_preds, all_labels)\n\ndef validate(...):\n  model.eval()\n  with torch.no_grad():\n    for images, labels in val_loader:\n      outputs = model(images)\n      compute predictions\n  return metrics from utils.metrics"
+    },
+    "evaluation/evaluate.py": {
+      "description": "测试集评估与结果对比。加载训练好的模型，在测试集上计算总体准确率、mean F1 score、mean precision、mean recall。支持多种模型(GoogLeNet/AlexNet) × 多种数据版本(color/grayscale/segmented) × 多种分割比例(80-20, 60-40, 50-50, 40-60, 20-80) × 多种训练方式(transfer learning/from scratch)的全面对比评估。可选评估外部 121 张在线图片。",
+      "functions": [
+        "evaluate_model(model, test_loader, device) -> dict # 返回 accuracy, mean_f1, mean_precision, mean_recall, per_class_metrics",
+        "evaluate_external_images(model, image_dir, device, class_names) -> dict # 评估外部 121 张在线图片，预期 ~31.4% 准确率",
+        "compare_all_experiments(config) -> pd.DataFrame 或 list[dict] # 遍历所有组合并汇总",
+        "print_results_table(results) -> None # 格式化输出对比表格",
+        "save_results(results, output_path) -> None",
+        "main(config_path='config/config.yaml') -> dict # 主入口"
+      ],
+      "uses": ["torch", "data.dataset", "models.alexnet", "models.googlenet", "utils.metrics", "yaml", "json", "os", "logging"],
+      "evaluation_details": {
+        "metrics": ["overall_accuracy", "mean_f1_score", "mean_precision", "mean_recall", "per_class_f1", "per_class_precision", "per_class_recall"],
+        "comparison_matrix": "2 models × 2 pretrained modes × 3 versions × 5 splits = 60 experiments",
+        "expected_best": "GoogLeNet:TransferLearning:Color:80-20 => accuracy=99.35%, meanF1=0.9934",
+        "external_test": "121 verified images from trusted online sources => 31.40% accuracy"
+      },
+      "pseudocode": "def main(config_path):\n  config = load_yaml(config_path)\n  results = []\n  for model_name in ['googlenet', 'alexnet']:\n    for pretrained in [True, False]:\n      for version in ['color', 'grayscale', 'segmented']:\n        for split in ['80-20','60-40','50-50','40-60','20-80']:\n          load model checkpoint\n          _, test_loader = create_dataloaders(config)\n          metrics = evaluate_model(model, test_loader, device)\n          results.append({model_name, pretrained, version, split, metrics})\n  print_results_table(results)\n  save_results(results, 'results/evaluation_results.json')\n  return results\n\ndef evaluate_model(model, test_loader, device):\n  model.eval()\n  all_preds, all_labels = [], []\n  with torch.no_grad():\n    for images, labels in test_loader:\n      outputs = model(images.to(device))\n      preds = outputs.argmax(dim=1)\n      all_preds.extend(preds.cpu().tolist())\n      all_labels.extend(labels.tolist())\n  metrics = compute_all_metrics(all_preds, all_labels, num_classes=38)\n  return metrics"
+    },
+    "utils/metrics.py": {
+      "description": "评估指标计算工具。实现总体准确率、mean F1 score、mean precision、mean recall 以及 per-class 指标。使用 scikit-learn 的 classification_report 或手动实现精确度/召回率/F1 计算。支持批量指标汇总。",
+      "functions": [
+        "compute_accuracy(y_true, y_pred) -> float",
+        "compute_mean_f1(y_true, y_pred, num_classes=38) -> float",
+        "compute_mean_precision(y_true, y_pred, num_classes=38) -> float",
+        "compute_mean_recall(y_true, y_pred, num_classes=38) -> float",
+        "compute_per_class_metrics(y_true, y_pred, num_classes=38) -> dict",
+        "compute_confusion_matrix(y_true, y_pred, num_classes=38) -> numpy.ndarray",
+        "compute_all_metrics(y_true, y_pred, num_classes=38) -> dict",
+        "format_metrics(metrics) -> str"
+      ],
+      "uses": ["numpy", "sklearn.metrics (f1_score, precision_score, recall_score, accuracy_score, confusion_matrix, classification_report)", "torch"],
+      "metrics_details": {
+        "accuracy": "total_correct / total_samples",
+        "mean_f1": "unweighted mean of per-class F1 scores: F1 = 2*P*R/(P+R)",
+        "mean_precision": "unweighted mean of per-class precision",
+        "mean_recall": "unweighted mean of per-class recall",
+        "per_class": "每个类别的 precision, recall, f1, support",
+        "zero_division": "对于没有预测样本的类别，precision/recall/f1 设为 0"
+      },
+      "pseudocode": "def compute_all_metrics(y_true, y_pred, num_classes):\n  accuracy = accuracy_score(y_true, y_pred)\n  precision_per_class = precision_score(y_true, y_pred, average=None, zero_division=0, labels=range(num_classes))\n  recall_per_class = recall_score(y_true, y_pred, average=None, zero_division=0, labels=range(num_classes))\n  f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0, labels=range(num_classes))\n  mean_f1 = np.mean(f1_per_class)\n  mean_precision = np.mean(precision_per_class)\n  mean_recall = np.mean(recall_per_class)\n  cm = confusion_matrix(y_true, y_pred, labels=range(num_classes))\n  return {'accuracy': accuracy, 'mean_f1': mean_f1, 'mean_precision': mean_precision, 'mean_recall': mean_recall, 'per_class': ..., 'confusion_matrix': cm}"
+    },
+    "main.py": {
+      "description": "项目主入口。解析命令行参数或直接读取配置文件，协调数据准备、模型初始化、训练、评估全流程。支持指定模型类型、数据版本、训练-测试分割比例等参数进行单次实验，或批量运行所有实验组合。",
+      "functions": [
+        "main() -> dict",
+        "run_single_experiment(config) -> dict # 单个实验：训练+评估",
+        "run_all_experiments(config) -> list[dict] # 批量所有实验组合",
+        "parse_args() -> argparse.Namespace"
+      ],
+      "uses": ["yaml", "argparse", "torch", "data.dataset", "models.alexnet", "models.googlenet", "training.train", "evaluation.evaluate", "utils.metrics", "logging", "os", "json"],
+      "cli_args": {
+        "--config": "配置文件路径 (default: config/config.yaml)",
+        "--model": "模型选择: alexnet | googlenet (default: from config)",
+        "--version": "数据版本: color | grayscale | segmented (default: from config)",
+        "--split": "分割比例: 80-20 | 60-40 | 50-50 | 40-60 | 20-80 (default: from config)",
+        "--mode": "训练模式: transfer | scratch (default: transfer)",
+        "--action": "动作: train | evaluate | all (default: train)"
+      },
+      "pseudocode": "def main():\n  args = parse_args()\n  config = yaml.safe_load(open(args.config))\n  if args.model: config['model']['name'] = args.model\n  if args.version: config['dataset']['active_version'] = args.version\n  if args.split: config['dataset']['train_test_split'] = args.split\n  set_seed(config['project']['seed'])\n  if args.action in ['train', 'all']:\n    train_results = training.train.main(args.config)\n  if args.action in ['evaluate', 'all']:\n    eval_results = evaluation.evaluate.main(args.config)\n  return {'train': train_results, 'eval': eval_results}"
+    },
+    "requirements.txt": {
+      "description": "Python 依赖包列表",
+      "content": "torch>=1.9.0\ntorchvision>=0.10.0\nnumpy>=1.21.0\npyyaml>=5.4\nscikit-learn>=0.24.0\npillow>=8.0.0\nopencv-python>=4.5.0\npandas>=1.3.0\ntqdm>=4.62.0"
+    },
+    "README.md": {
+      "description": "项目说明文档。包含论文复现目标、项目结构、安装步骤、数据集获取说明、使用方法（训练/评估）、预期结果与论文对比。",
+      "sections": ["Project Overview", "Paper Reference", "Dataset Setup (PlantVillage)", "Installation", "Project Structure", "Usage (Train / Evaluate / All Experiments)", "Expected Results", "Reproduction Notes"],
+      "key_info": {
+        "paper": "Using Deep Learning for Image-Based Plant Disease Detection (Mohanty, Hughes, Salathé, 2016)",
+        "dataset": "PlantVillage (54,306 images, 38 classes, 14 crops, 26 diseases)",
+        "models": "AlexNet, GoogLeNet",
+        "best_result": "GoogLeNet + Transfer Learning + Color + 80-20 split = 99.35% accuracy, mean F1 = 0.9934",
+        "framework": "PyTorch (originally Caffe)"
+      }
+    }
+  }
+}
+```

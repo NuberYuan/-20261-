@@ -1,0 +1,466 @@
+from __future__ import annotations
+
+import csv
+import os
+import random
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+import numpy as np
+import torch
+from PIL import Image
+from torch.utils.data import Dataset
+
+__all__ = ["PlantVillageDataset"]
+
+IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".ppm", ".webp")
+
+DEFAULT_MEAN = [0.485, 0.456, 0.406]
+DEFAULT_STD = [0.229, 0.224, 0.225]
+
+try:  # Pillow >= 9.1
+    _RESAMPLE = Image.Resampling
+except AttributeError:  # pragma: no cover - older Pillow
+    _RESAMPLE = Image
+
+_INTERPOLATIONS = {
+    "nearest": _RESAMPLE.NEAREST,
+    "bilinear": _RESAMPLE.BILINEAR,
+    "bicubic": _RESAMPLE.BICUBIC,
+    "lanczos": _RESAMPLE.LANCZOS,
+}
+
+
+def _is_image_file(filename: str) -> bool:
+    return filename.lower().endswith(IMG_EXTENSIONS)
+
+
+def _normalize_key(key: str) -> str:
+    return os.path.basename(str(key).strip().replace("\\", "/")).lower()
+
+
+class PlantVillageDataset(Dataset):
+    """PlantVillage dataset: loading, preprocessing and leaf-aware splitting.
+
+    The dataset follows the on-disk layout described in ``config/config.yaml``:
+    one sub-folder per class (38 classes) inside the directory of the selected
+    dataset version (``color`` / ``grayscale`` / ``segmented``).
+
+    * ``__init__``    -- scan the data, build the class mapping, resolve leaf ids and
+      create the requested split (train / val / test).
+    * ``__len__``     -- number of samples of the current split.
+    * ``__getitem__`` -- load one image, preprocess it and return ``(image, label)``.
+    * ``preprocess_image`` -- resize -> RGB (3 channels) -> float tensor -> normalise.
+    * ``split_dataset``    -- leaf-constrained, optionally class-stratified
+      train/val/test split (all images of one leaf stay in the same set).
+    """
+
+    def __init__(
+        self,
+        root: Optional[str] = None,
+        split: str = "train",
+        dataset_version: Optional[str] = None,
+        train_ratio: Optional[float] = None,
+        val_split_ratio: Optional[float] = None,
+        use_validation: Optional[bool] = None,
+        seed: Optional[int] = None,
+        stratify_by_class: Optional[bool] = None,
+        image_size: Optional[Union[int, Sequence[int]]] = None,
+        mean: Optional[Sequence[float]] = None,
+        std: Optional[Sequence[float]] = None,
+        normalize: Optional[bool] = None,
+        interpolation: Optional[str] = None,
+        leaf_mapping_file: Optional[str] = None,
+        samples: Optional[Sequence[Dict[str, Any]]] = None,
+        class_to_idx: Optional[Dict[str, int]] = None,
+        transform=None,
+        target_transform=None,
+        return_path: bool = False,
+        config: Optional[Dict[str, Any]] = None,
+        download: bool = False,
+    ) -> None:
+        cfg = config or {}
+        data_cfg = cfg.get("data", {}) or {}
+        split_cfg = cfg.get("split_strategy", {}) or {}
+        system_cfg = cfg.get("system", {}) or {}
+
+        # ---------------- basic configuration ----------------
+        self.root = os.fspath(root) if root is not None else str(data_cfg.get("root", "./data"))
+        self.dataset_version = str(
+            dataset_version if dataset_version is not None else data_cfg.get("default_version", "color")
+        )
+        self.train_ratio = float(
+            train_ratio if train_ratio is not None else split_cfg.get("default_train_ratio", 0.8)
+        )
+        self.val_split_ratio = float(
+            val_split_ratio if val_split_ratio is not None else split_cfg.get("val_split_ratio", 0.2)
+        )
+
+        if use_validation is None:
+            mode = cfg.get("reproduction_mode", "engineering")
+            modes = cfg.get("reproduction_modes", {}) or {}
+            mode_cfg = modes.get(mode, {}) if isinstance(modes, dict) else {}
+            if isinstance(mode_cfg, dict) and "use_validation" in mode_cfg:
+                use_validation = bool(mode_cfg["use_validation"])
+            else:
+                use_validation = self.val_split_ratio > 0
+        self.use_validation = bool(use_validation)
+
+        self.seed = int(
+            seed if seed is not None else split_cfg.get("seed", system_cfg.get("seed", 42))
+        )
+        self.stratify_by_class = bool(
+            stratify_by_class
+            if stratify_by_class is not None
+            else split_cfg.get("stratify_by_class", True)
+        )
+
+        if image_size is None:
+            image_size = data_cfg.get("image_size", data_cfg.get("image_size_hw", 256))
+        if isinstance(image_size, int):
+            self.image_size: Tuple[int, int] = (int(image_size), int(image_size))
+        else:
+            image_size = list(image_size)
+            self.image_size = (int(image_size[0]), int(image_size[1]))
+
+        self.mean: List[float] = list(mean if mean is not None else data_cfg.get("mean", DEFAULT_MEAN))
+        self.std: List[float] = list(std if std is not None else data_cfg.get("std", DEFAULT_STD))
+        if normalize is None:
+            normalize = data_cfg.get("normalize", True)
+        self.normalize = bool(normalize)
+
+        interp_name = str(interpolation or data_cfg.get("interpolation", "bilinear")).lower()
+        self.interpolation = _INTERPOLATIONS.get(interp_name, _RESAMPLE.BILINEAR)
+
+        if leaf_mapping_file is None:
+            leaf_mapping_file = split_cfg.get("leaf_mapping_file")
+        self.leaf_mapping_file = leaf_mapping_file
+
+        self.transform = transform
+        self.target_transform = target_transform
+        self.return_path = bool(return_path)
+        self.download = bool(download)
+        self.config = cfg
+
+        self._mean = torch.tensor(self.mean, dtype=torch.float32).view(-1, 1, 1)
+        self._std = torch.tensor(self.std, dtype=torch.float32).view(-1, 1, 1)
+
+        # ---------------- data scanning ----------------
+        self.leaf_mapping = self._load_leaf_mapping(self.leaf_mapping_file)
+
+        self.version_root = self._resolve_version_root(self.root, self.dataset_version)
+        self.class_names: List[str] = []
+        self.class_to_idx: Dict[str, int] = {}
+
+        if samples is not None:
+            base_samples = [dict(s) for s in samples]
+        else:
+            base_samples = self._scan_directory(self.version_root)
+
+        # class mapping (explicit mapping wins, then folders, then sample content)
+        if class_to_idx is not None:
+            self.class_to_idx = dict(class_to_idx)
+            self.class_names = [
+                name for name, _ in sorted(self.class_to_idx.items(), key=lambda kv: (kv[1], kv[0]))
+            ]
+        elif not self.class_to_idx and base_samples:
+            names = sorted({str(s.get("class_name", "")) for s in base_samples})
+            self.class_names = names
+            self.class_to_idx = {name: idx for idx, name in enumerate(names)}
+
+        for sample in base_samples:
+            label = sample.get("label", sample.get("target"))
+            if isinstance(label, str):
+                sample["label"] = int(self.class_to_idx.get(label, -1))
+            else:
+                sample["label"] = int(label)
+            if not sample.get("leaf_id"):
+                sample["leaf_id"] = self._resolve_leaf_id(sample.get("path", ""), sample["label"])
+
+        self.num_classes = len(self.class_to_idx)
+
+        # ---------------- splitting ----------------
+        self.all_samples: List[Dict[str, Any]] = base_samples
+        self.split_sets = self.split_dataset(
+            base_samples,
+            train_ratio=self.train_ratio,
+            seed=self.seed,
+            stratify_by_class=self.stratify_by_class,
+            leaf_mapping=self.leaf_mapping,
+            val_split_ratio=self.val_split_ratio if self.use_validation else 0.0,
+            use_validation=self.use_validation,
+        )
+
+        split_key = str(split).lower()
+        self.split = split_key
+        if split_key == "all":
+            self.samples = list(base_samples)
+        elif split_key in ("trainval", "train_val"):
+            self.samples = list(self.split_sets["train"]) + list(self.split_sets["val"])
+        elif split_key in self.split_sets:
+            self.samples = list(self.split_sets[split_key])
+        else:
+            raise ValueError(
+                f"Unknown split {split!r}; expected one of 'train', 'val', 'test', 'trainval', 'all'."
+            )
+
+        self.targets: List[int] = [int(s["label"]) for s in self.samples]
+
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _is_image_file(filename: str) -> bool:
+        return _is_image_file(filename)
+
+    def _resolve_version_root(self, root: str, dataset_version: str) -> str:
+        candidates = []
+        if dataset_version:
+            candidates.append(os.path.join(root, str(dataset_version)))
+        candidates.append(root)
+        for candidate in candidates:
+            if os.path.isdir(candidate):
+                sub_dirs = [
+                    d
+                    for d in os.listdir(candidate)
+                    if os.path.isdir(os.path.join(candidate, d)) and not d.startswith(".")
+                ]
+                if sub_dirs:
+                    return candidate
+        return root
+
+    def _scan_directory(self, version_root: str) -> List[Dict[str, Any]]:
+        samples: List[Dict[str, Any]] = []
+        if not os.path.isdir(version_root):
+            return samples
+
+        class_names = sorted(
+            d
+            for d in os.listdir(version_root)
+            if os.path.isdir(os.path.join(version_root, d)) and not d.startswith(".")
+        )
+        self.class_names = class_names
+        self.class_to_idx = {name: idx for idx, name in enumerate(class_names)}
+
+        for name in class_names:
+            class_dir = os.path.join(version_root, name)
+            try:
+                entries = sorted(os.listdir(class_dir))
+            except OSError:
+                continue
+            for entry in entries:
+                if not _is_image_file(entry):
+                    continue
+                samples.append(
+                    {
+                        "path": os.path.join(class_dir, entry),
+                        "class_name": name,
+                        "label": self.class_to_idx[name],
+                    }
+                )
+        return samples
+
+    @staticmethod
+    def _lookup_leaf(leaf_mapping: Dict[str, str], path: str) -> Optional[str]:
+        if not leaf_mapping or not path:
+            return None
+        candidates = [
+            path,
+            os.path.basename(path),
+            _normalize_key(path),
+            os.path.relpath(path, os.getcwd()) if os.path.isabs(path) else path,
+        ]
+        for candidate in candidates:
+            if candidate in leaf_mapping:
+                return leaf_mapping[candidate]
+            key = _normalize_key(candidate)
+            if key in leaf_mapping:
+                return leaf_mapping[key]
+        return None
+
+    def _load_leaf_mapping(self, path: Optional[str]) -> Dict[str, str]:
+        mapping: Dict[str, str] = {}
+        if not path or not os.path.isfile(path):
+            return mapping
+
+        path_columns = ("image", "image_path", "path", "file", "filename", "name", "img")
+        leaf_columns = ("leaf_id", "leaf", "leaf_identifier", "leafid", "id", "leaf_name")
+
+        with open(path, "r", newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle)
+            if reader.fieldnames is None:
+                return mapping
+            field_map = {str(name).strip().lower(): name for name in reader.fieldnames}
+            path_col = next((field_map[c] for c in path_columns if c in field_map), None)
+            leaf_col = next((field_map[c] for c in leaf_columns if c in field_map), None)
+            if path_col is None or leaf_col is None or path_col == leaf_col:
+                return mapping
+            for row in reader:
+                key = row.get(path_col)
+                value = row.get(leaf_col)
+                if key is None or value is None:
+                    continue
+                key = str(key).strip()
+                value = str(value).strip()
+                if not key or not value:
+                    continue
+                mapping[key] = value
+                mapping[_normalize_key(key)] = value
+        return mapping
+
+    def _resolve_leaf_id(self, path: str, index: int) -> str:
+        leaf_id = self._lookup_leaf(self.leaf_mapping, path)
+        if leaf_id:
+            return str(leaf_id)
+        # No leaf information available: every image forms its own leaf, which
+        # trivially satisfies the "images of one leaf stay together" constraint.
+        return f"__auto__::{index}::{path}"
+
+    # ------------------------------------------------------------------
+    # required API
+    # ------------------------------------------------------------------
+    def preprocess_image(
+        self, image: Union[str, "os.PathLike[str]", Image.Image]
+    ) -> torch.Tensor:
+        """Resize to the configured size, force 3 channels, tensorise and normalise."""
+        if isinstance(image, (str, os.PathLike)):
+            with Image.open(image) as img:
+                image = img.convert("RGB")
+        if not isinstance(image, Image.Image):
+            raise TypeError(
+                f"preprocess_image expects a PIL image or a file path, got {type(image)!r}"
+            )
+
+        image = image.convert("RGB")
+        height, width = self.image_size
+        if image.size != (width, height):
+            image = image.resize((width, height), resample=self.interpolation)
+
+        array = np.asarray(image, dtype=np.float32) / 255.0
+        if array.ndim == 2:  # safety net for grayscale arrays
+            array = np.stack([array, array, array], axis=-1)
+        tensor = torch.from_numpy(array.transpose(2, 0, 1).copy())
+
+        if self.normalize:
+            mean = self._mean
+            std = self._std
+            if mean.shape[0] != tensor.shape[0]:
+                mean = mean.mean(dim=0, keepdim=True).expand(tensor.shape[0], -1, -1)
+                std = std.mean(dim=0, keepdim=True).expand(tensor.shape[0], -1, -1)
+            tensor = (tensor - mean) / std
+        return tensor
+
+    @staticmethod
+    def split_dataset(
+        samples: Optional[Sequence[Dict[str, Any]]] = None,
+        train_ratio: float = 0.8,
+        seed: int = 42,
+        stratify_by_class: bool = True,
+        leaf_mapping: Optional[Dict[str, str]] = None,
+        val_split_ratio: float = 0.2,
+        use_validation: bool = True,
+        **kwargs: Any,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Leaf-constrained, optionally class-stratified train/val/test split.
+
+        All images sharing the same leaf id are assigned to the same subset.
+        The validation set is carved out of the training set (engineering
+        deviation documented in ``config/config.yaml``).
+        """
+        if samples is None:
+            raise ValueError("split_dataset() requires a sequence of sample dictionaries.")
+        samples = [dict(s) for s in samples]
+
+        train_ratio = float(train_ratio)
+        if not 0.0 < train_ratio < 1.0:
+            raise ValueError(f"train_ratio must be in (0, 1), got {train_ratio}")
+        val_split_ratio = float(val_split_ratio or 0.0)
+        if not 0.0 <= val_split_ratio < 1.0:
+            raise ValueError(f"val_split_ratio must be in [0, 1), got {val_split_ratio}")
+
+        rng = random.Random(seed)
+
+        leaf_groups: Dict[str, List[int]] = defaultdict(list)
+        for index, sample in enumerate(samples):
+            leaf_id = sample.get("leaf_id")
+            if not leaf_id:
+                leaf_id = PlantVillageDataset._lookup_leaf(leaf_mapping or {}, str(sample.get("path", "")))
+            if not leaf_id:
+                leaf_id = f"__auto__::{index}::{sample.get('path', '')}"
+            sample["leaf_id"] = str(leaf_id)
+            leaf_groups[str(leaf_id)].append(index)
+
+        buckets: Dict[str, List[str]] = defaultdict(list)
+        for leaf_id, indices in leaf_groups.items():
+            key = str(samples[indices[0]].get("label", 0)) if stratify_by_class else "__all__"
+            buckets[key].append(leaf_id)
+
+        train_leaves: List[str] = []
+        val_leaves: List[str] = []
+        test_leaves: List[str] = []
+
+        for key in sorted(buckets, key=str):
+            leaves = list(buckets[key])
+            rng.shuffle(leaves)
+            count = len(leaves)
+            if count <= 1:
+                n_train = count
+            else:
+                n_train = int(round(count * train_ratio))
+                n_train = min(max(n_train, 1), count - 1)
+            bucket_train = leaves[:n_train]
+            bucket_test = leaves[n_train:]
+            test_leaves.extend(bucket_test)
+
+            if use_validation and val_split_ratio > 0 and len(bucket_train) > 1:
+                n_val = int(round(len(bucket_train) * val_split_ratio))
+                n_val = min(max(n_val, 1), len(bucket_train) - 1)
+                val_leaves.extend(bucket_train[len(bucket_train) - n_val :])
+                bucket_train = bucket_train[: len(bucket_train) - n_val]
+            train_leaves.extend(bucket_train)
+
+        def _collect(leaf_ids: Sequence[str]) -> List[Dict[str, Any]]:
+            indices: List[int] = []
+            seen = set()
+            for leaf_id in leaf_ids:
+                if leaf_id in seen:
+                    continue
+                seen.add(leaf_id)
+                indices.extend(leaf_groups.get(leaf_id, []))
+            return [samples[i] for i in sorted(indices)]
+
+        return {
+            "train": _collect(train_leaves),
+            "val": _collect(val_leaves),
+            "test": _collect(test_leaves),
+        }
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int):
+        sample = self.samples[index]
+        path = sample["path"]
+        label = int(sample["label"])
+
+        with Image.open(path) as img:
+            image = img.convert("RGB")
+
+        if self.transform is not None:
+            image_out = self.transform(image)
+        else:
+            image_out = self.preprocess_image(image)
+
+        if self.target_transform is not None:
+            label = self.target_transform(label)
+
+        if self.return_path:
+            return image_out, label, path
+        return image_out, label
+
+    def __repr__(self) -> str:  # pragma: no cover - convenience only
+        return (
+            f"{self.__class__.__name__}(root={self.root!r}, dataset_version={self.dataset_version!r}, "
+            f"split={self.split!r}, train_ratio={self.train_ratio}, samples={len(self.samples)}, "
+            f"num_classes={self.num_classes})"
+        )

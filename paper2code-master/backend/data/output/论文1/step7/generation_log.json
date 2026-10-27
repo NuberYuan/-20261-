@@ -1,0 +1,204 @@
+{
+  "paper": "论文1",
+  "files": [
+    {
+      "file": "requirements.txt",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "template",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "README.md",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "template",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "models/__init__.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "template",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "config/config.yaml",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "utils/metrics.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "data/dataset.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "failed",
+          "errors": [
+            "data/dataset.py 内容为空",
+            "缺少声明的类: PlantVillageDataset",
+            "缺少声明的方法: __init__",
+            "缺少声明的方法: __len__",
+            "缺少声明的方法: __getitem__",
+            "缺少声明的方法: preprocess_image",
+            "缺少声明的方法: split_dataset"
+          ]
+        },
+        {
+          "attempt": 2,
+          "action": "repair",
+          "status": "passed",
+          "errors": []
+        },
+        {
+          "attempt": 3,
+          "action": "sandbox_repair",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "models/alexnet.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "models/googlenet.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "training/train.py",
+      "status": "sandbox_failed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "failed",
+          "errors": [
+            "语法错误: expected ':' (<unknown>, line 180)",
+            "缺少声明的方法: initialize_model",
+            "缺少声明的方法: train_model",
+            "缺少声明的方法: save_model"
+          ]
+        },
+        {
+          "attempt": 2,
+          "action": "repair",
+          "status": "failed",
+          "errors": [
+            "缺少声明的方法: train_model"
+          ]
+        },
+        {
+          "attempt": 3,
+          "action": "repair",
+          "status": "passed",
+          "errors": []
+        },
+        {
+          "attempt": 4,
+          "action": "sandbox_repair",
+          "status": "failed",
+          "errors": [
+            "[ValueError] num_samples should be a positive integer value, but got num_samples=0",
+            "Traceback:\n    sampler = RandomSampler(dataset, generator=generator)  # type: ignore[arg-type]\n  File \"C:\\Users\\yuan2\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\torch\\utils\\data\\sampler.py\", line 149, in __init__\n    raise ValueError(\n        f\"num_samples should be a positive integer value, but got num_samples={self.num_samples}\"\n    )\nValueError: num_samples should be a positive integer value, but got num_samples=0"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "evaluation/evaluate.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "failed",
+          "errors": [
+            "语法错误: unterminated string literal (detected at line 181) (<unknown>, line 181)",
+            "缺少声明的方法: evaluate_model",
+            "缺少声明的方法: generate_report"
+          ]
+        },
+        {
+          "attempt": 2,
+          "action": "repair",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "file": "main.py",
+      "status": "passed",
+      "attempts": [
+        {
+          "attempt": 1,
+          "action": "generate",
+          "status": "failed",
+          "errors": [
+            "main.py 内容为空",
+            "缺少声明的方法: main"
+          ]
+        },
+        {
+          "attempt": 2,
+          "action": "repair",
+          "status": "passed",
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

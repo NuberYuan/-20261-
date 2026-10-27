@@ -1,0 +1,6823 @@
+{
+  "run_name": "reachability_random_graphs",
+  "run_index": 0,
+  "timing_unit": "seconds",
+  "rows": [
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 0,
+      "seconds": 6.589997792616487e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 1,
+      "seconds": 6.699998630210757e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 2,
+      "seconds": 6.600003689527512e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 3,
+      "seconds": 6.589997792616487e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 4,
+      "seconds": 6.649998249486089e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 5,
+      "seconds": 6.640003994107246e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 6,
+      "seconds": 6.67999847792089e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 7,
+      "seconds": 6.59999786876142e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 8,
+      "seconds": 6.480002775788307e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 9,
+      "seconds": 6.529997335746884e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 10,
+      "seconds": 6.890000076964498e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 11,
+      "seconds": 6.829999620094895e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 12,
+      "seconds": 6.849999772384763e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 13,
+      "seconds": 7.010000990703702e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 14,
+      "seconds": 6.859999848529696e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 15,
+      "seconds": 6.980000762268901e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 16,
+      "seconds": 7.589999586343765e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 17,
+      "seconds": 6.829999620094895e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 18,
+      "seconds": 6.940000457689166e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 19,
+      "seconds": 6.9500005338341e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 20,
+      "seconds": 0.0005798999918624759
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 21,
+      "seconds": 0.00041119998786598444
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 22,
+      "seconds": 0.0002604000037536025
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 23,
+      "seconds": 0.0002631000243127346
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 24,
+      "seconds": 0.000261999957729131
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 25,
+      "seconds": 0.00026240001898258924
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 26,
+      "seconds": 0.0002623000182211399
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 27,
+      "seconds": 0.00027279998175799847
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 28,
+      "seconds": 0.0002668999950401485
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 29,
+      "seconds": 0.00025949999690055847
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 30,
+      "seconds": 0.00026270002126693726
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 31,
+      "seconds": 0.00026539998361840844
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 32,
+      "seconds": 0.00027540000155568123
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 33,
+      "seconds": 0.00027030002092942595
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 34,
+      "seconds": 0.0002668999950401485
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 35,
+      "seconds": 0.00026619998971000314
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 36,
+      "seconds": 0.0002614000113680959
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 37,
+      "seconds": 0.00026050000451505184
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 38,
+      "seconds": 0.00025679997634142637
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 39,
+      "seconds": 0.00025400001322850585
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 40,
+      "seconds": 0.0009744000271894038
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 41,
+      "seconds": 0.0009966000216081738
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 42,
+      "seconds": 0.0011372999870218337
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 43,
+      "seconds": 0.000950800022110343
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 44,
+      "seconds": 0.0010393999982625246
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 45,
+      "seconds": 0.0013006000081077218
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 46,
+      "seconds": 0.0010431999689899385
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 47,
+      "seconds": 0.0009672000305727124
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 48,
+      "seconds": 0.0009380999836139381
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 49,
+      "seconds": 0.0009672999731265008
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 50,
+      "seconds": 0.0015923000173643231
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 51,
+      "seconds": 0.0009935999987646937
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 52,
+      "seconds": 0.0009928999934345484
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 53,
+      "seconds": 0.0009389999904669821
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 54,
+      "seconds": 0.000951700028963387
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 55,
+      "seconds": 0.0009349999600090086
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 56,
+      "seconds": 0.0009380000410601497
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 57,
+      "seconds": 0.0011144999880343676
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 58,
+      "seconds": 0.0020730000105686486
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 59,
+      "seconds": 0.0010072000441141427
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 60,
+      "seconds": 0.004297300009056926
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 61,
+      "seconds": 0.0038520999951288104
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 62,
+      "seconds": 0.005257599987089634
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 63,
+      "seconds": 0.003846700012218207
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 64,
+      "seconds": 0.00476779998280108
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 65,
+      "seconds": 0.003926200035493821
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 66,
+      "seconds": 0.004946300003211945
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 67,
+      "seconds": 0.003903500037267804
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 68,
+      "seconds": 0.003965599986258894
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 69,
+      "seconds": 0.00396780000301078
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 70,
+      "seconds": 0.00472339999396354
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 71,
+      "seconds": 0.004071699979249388
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 72,
+      "seconds": 0.004025299975182861
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 73,
+      "seconds": 0.004103399987798184
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 74,
+      "seconds": 0.005078700021840632
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 75,
+      "seconds": 0.003892800014000386
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 76,
+      "seconds": 0.005230199953075498
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 77,
+      "seconds": 0.003814700001385063
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 78,
+      "seconds": 0.005270300025586039
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 79,
+      "seconds": 0.0038975999923422933
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 80,
+      "seconds": 0.01810059999115765
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 81,
+      "seconds": 0.017517700034659356
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 82,
+      "seconds": 0.018235999974422157
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 83,
+      "seconds": 0.017331400013063103
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 84,
+      "seconds": 0.01754039997467771
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 85,
+      "seconds": 0.017420299991499633
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 86,
+      "seconds": 0.01711979997344315
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 87,
+      "seconds": 0.0190195000031963
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 88,
+      "seconds": 0.016802400001324713
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 89,
+      "seconds": 0.016982599976472557
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 90,
+      "seconds": 0.01925789995584637
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 91,
+      "seconds": 0.018460099992807955
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 92,
+      "seconds": 0.018030399980489165
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 93,
+      "seconds": 0.018144700035918504
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 94,
+      "seconds": 0.018778300029225647
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 95,
+      "seconds": 0.017217299959156662
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 96,
+      "seconds": 0.017332800023723394
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 97,
+      "seconds": 0.01722810004139319
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 98,
+      "seconds": 0.018328500038478523
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 99,
+      "seconds": 0.016639100038446486
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 100,
+      "seconds": 3.50000336766243e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 101,
+      "seconds": 3.4999975468963385e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 102,
+      "seconds": 3.4999975468963385e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 103,
+      "seconds": 3.530003596097231e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 104,
+      "seconds": 3.91000066883862e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 105,
+      "seconds": 3.5299977753311396e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 106,
+      "seconds": 3.519997699186206e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 107,
+      "seconds": 3.550003748387098e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 108,
+      "seconds": 3.5699980799108744e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 109,
+      "seconds": 3.419996937736869e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 110,
+      "seconds": 3.450002986937761e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 111,
+      "seconds": 3.479997394606471e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 112,
+      "seconds": 3.509997623041272e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 113,
+      "seconds": 3.5100034438073635e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 114,
+      "seconds": 3.4699973184615374e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 115,
+      "seconds": 3.520003519952297e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 116,
+      "seconds": 3.4999975468963385e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 117,
+      "seconds": 3.4699973184615374e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 118,
+      "seconds": 3.490003291517496e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 119,
+      "seconds": 3.950000973418355e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 120,
+      "seconds": 0.00013990001752972603
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 121,
+      "seconds": 0.00014000001829117537
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 122,
+      "seconds": 0.00013559998478740454
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 123,
+      "seconds": 0.00013399997260421515
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 124,
+      "seconds": 0.00013280002167448401
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 125,
+      "seconds": 0.0001417000312358141
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 126,
+      "seconds": 0.00014210003428161144
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 127,
+      "seconds": 0.00012889999197795987
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 128,
+      "seconds": 0.00013340002624318004
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 129,
+      "seconds": 0.0001297999988310039
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 130,
+      "seconds": 0.00014030002057552338
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 131,
+      "seconds": 0.00014319998444989324
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 132,
+      "seconds": 0.00013840000610798597
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 133,
+      "seconds": 0.0001306000049225986
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 134,
+      "seconds": 0.00013529998250305653
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 135,
+      "seconds": 0.00014299998292699456
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 136,
+      "seconds": 0.00014150002971291542
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 137,
+      "seconds": 0.00013120000949129462
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 138,
+      "seconds": 0.00013010000111535192
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 139,
+      "seconds": 0.0001303000026382506
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 140,
+      "seconds": 0.0005306999664753675
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 141,
+      "seconds": 0.0005077000241726637
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 142,
+      "seconds": 0.0005403999821282923
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 143,
+      "seconds": 0.00048639997839927673
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 144,
+      "seconds": 0.0004967999993823469
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 145,
+      "seconds": 0.0005436000064946711
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 146,
+      "seconds": 0.0005000000237487257
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 147,
+      "seconds": 0.0005226000212132931
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 148,
+      "seconds": 0.0005156000261195004
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 149,
+      "seconds": 0.0005102999857626855
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 150,
+      "seconds": 0.000548299984075129
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 151,
+      "seconds": 0.0005578999989666045
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 152,
+      "seconds": 0.0005229999660514295
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 153,
+      "seconds": 0.0005253000417724252
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 154,
+      "seconds": 0.0004901000065729022
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 155,
+      "seconds": 0.0005207999492995441
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 156,
+      "seconds": 0.0005673000123351812
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 157,
+      "seconds": 0.0005127000040374696
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 158,
+      "seconds": 0.0005172999808564782
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 159,
+      "seconds": 0.0005085000302642584
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 160,
+      "seconds": 0.002007399976719171
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 161,
+      "seconds": 0.0020274000125937164
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 162,
+      "seconds": 0.0020567000028677285
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 163,
+      "seconds": 0.002356400014832616
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 164,
+      "seconds": 0.0019327999907545745
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 165,
+      "seconds": 0.0019212000188417733
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 166,
+      "seconds": 0.0020522999693639576
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 167,
+      "seconds": 0.0019486999954096973
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 168,
+      "seconds": 0.001962199981790036
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 169,
+      "seconds": 0.0019563999958336353
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 170,
+      "seconds": 0.0019183999975211918
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 171,
+      "seconds": 0.002066899964120239
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 172,
+      "seconds": 0.0019515000167302787
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 173,
+      "seconds": 0.0019462999771349132
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 174,
+      "seconds": 0.0020025999983772635
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 175,
+      "seconds": 0.0024301999947056174
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 176,
+      "seconds": 0.002469099999871105
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 177,
+      "seconds": 0.001887699996586889
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 178,
+      "seconds": 0.0019240999827161431
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 179,
+      "seconds": 0.0020340000046417117
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 180,
+      "seconds": 0.00876960001187399
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 181,
+      "seconds": 0.008320500026457012
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 182,
+      "seconds": 0.008672900032252073
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 183,
+      "seconds": 0.008175999973900616
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 184,
+      "seconds": 0.009388300008140504
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 185,
+      "seconds": 0.008263099996838719
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 186,
+      "seconds": 0.00911340001039207
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 187,
+      "seconds": 0.008108700043521821
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 188,
+      "seconds": 0.009071699983906
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 189,
+      "seconds": 0.008559699985198677
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 190,
+      "seconds": 0.00951940001687035
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 191,
+      "seconds": 0.00915779999922961
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 192,
+      "seconds": 0.00860820000525564
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 193,
+      "seconds": 0.008171499997843057
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 194,
+      "seconds": 0.008185299986507744
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 195,
+      "seconds": 0.008390399976633489
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 196,
+      "seconds": 0.008280400012154132
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 197,
+      "seconds": 0.009367799968458712
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 198,
+      "seconds": 0.00844669999787584
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 199,
+      "seconds": 0.008531300001777709
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 200,
+      "seconds": 5.299982149153948e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 201,
+      "seconds": 5.099980626255274e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 202,
+      "seconds": 5.300040356814861e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 203,
+      "seconds": 5.00003807246685e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 204,
+      "seconds": 4.999979864805937e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 205,
+      "seconds": 4.999979864805937e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 206,
+      "seconds": 4.900037311017513e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 207,
+      "seconds": 4.8999791033566e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 208,
+      "seconds": 4.800036549568176e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 209,
+      "seconds": 4.8999791033566e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 210,
+      "seconds": 5.100038833916187e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 211,
+      "seconds": 4.999979864805937e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 212,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 213,
+      "seconds": 4.900037311017513e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 214,
+      "seconds": 4.999979864805937e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 215,
+      "seconds": 4.999979864805937e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 216,
+      "seconds": 5.00003807246685e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 217,
+      "seconds": 4.999979864805937e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 218,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 219,
+      "seconds": 5.00003807246685e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 220,
+      "seconds": 9.300012607127428e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 221,
+      "seconds": 9.200011845678091e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 222,
+      "seconds": 9.299954399466515e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 223,
+      "seconds": 9.200011845678091e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 224,
+      "seconds": 9.100011084228754e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 225,
+      "seconds": 9.300012607127428e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 226,
+      "seconds": 9.09995287656784e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 227,
+      "seconds": 9.100011084228754e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 228,
+      "seconds": 9.200011845678091e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 229,
+      "seconds": 9.300012607127428e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 230,
+      "seconds": 9.300012607127428e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 231,
+      "seconds": 9.199953638017178e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 232,
+      "seconds": 9.400013368576765e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 233,
+      "seconds": 9.100011084228754e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 234,
+      "seconds": 9.100011084228754e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 235,
+      "seconds": 9.399955160915852e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 236,
+      "seconds": 9.200011845678091e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 237,
+      "seconds": 9.200011845678091e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 238,
+      "seconds": 9.100011084228754e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 239,
+      "seconds": 9.000010322779417e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 240,
+      "seconds": 1.7799960914999247e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 241,
+      "seconds": 1.7400016076862812e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 242,
+      "seconds": 1.8000020645558834e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 243,
+      "seconds": 1.7799960914999247e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 244,
+      "seconds": 1.7900019884109497e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 245,
+      "seconds": 1.7700018361210823e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 246,
+      "seconds": 1.769996015354991e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 247,
+      "seconds": 1.7700018361210823e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 248,
+      "seconds": 1.7900019884109497e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 249,
+      "seconds": 1.7799960914999247e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 250,
+      "seconds": 1.7300015315413475e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 251,
+      "seconds": 1.769996015354991e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 252,
+      "seconds": 1.7600017599761486e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 253,
+      "seconds": 1.7200014553964138e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 254,
+      "seconds": 1.7199956346303225e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 255,
+      "seconds": 1.7600017599761486e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 256,
+      "seconds": 2.0199979189783335e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 257,
+      "seconds": 1.7700018361210823e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 258,
+      "seconds": 1.780001912266016e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 259,
+      "seconds": 1.7499958630651236e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 260,
+      "seconds": 3.44999716617167e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 261,
+      "seconds": 3.400002606213093e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 262,
+      "seconds": 3.3599964808672667e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 263,
+      "seconds": 3.3800024539232254e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 264,
+      "seconds": 3.419996937736869e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 265,
+      "seconds": 3.42000275850296e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 266,
+      "seconds": 3.479997394606471e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 267,
+      "seconds": 3.4800032153725624e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 268,
+      "seconds": 3.509997623041272e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 269,
+      "seconds": 3.5299977753311396e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 270,
+      "seconds": 3.430002834647894e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 271,
+      "seconds": 3.44999716617167e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 272,
+      "seconds": 3.470003139227629e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 273,
+      "seconds": 3.479997394606471e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 274,
+      "seconds": 3.4800032153725624e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 275,
+      "seconds": 3.4299970138818026e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 276,
+      "seconds": 3.4999975468963385e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 277,
+      "seconds": 3.42000275850296e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 278,
+      "seconds": 3.579998156055808e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 279,
+      "seconds": 3.4400029107928276e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 280,
+      "seconds": 0.00015889998758211732
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 281,
+      "seconds": 0.00016110000433400273
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 282,
+      "seconds": 0.00015729997539892793
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 283,
+      "seconds": 0.00015470001380890608
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 284,
+      "seconds": 0.0001556000206619501
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 285,
+      "seconds": 0.00017590000061318278
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 286,
+      "seconds": 7.379997987300158e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 287,
+      "seconds": 7.010000990703702e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 288,
+      "seconds": 6.809999467805028e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 289,
+      "seconds": 6.900000153109431e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 290,
+      "seconds": 6.890000076964498e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 291,
+      "seconds": 6.78999931551516e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 292,
+      "seconds": 6.659998325631022e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 293,
+      "seconds": 7.360003655776381e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 294,
+      "seconds": 6.67999847792089e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 295,
+      "seconds": 6.709998706355691e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 296,
+      "seconds": 6.799999391660094e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 297,
+      "seconds": 6.719998782500625e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 298,
+      "seconds": 6.770004983991385e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 299,
+      "seconds": 6.710004527121782e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 300,
+      "seconds": 4.010001430287957e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 301,
+      "seconds": 4.0300015825778246e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 302,
+      "seconds": 4.199997056275606e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 303,
+      "seconds": 4.010001430287957e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 304,
+      "seconds": 4.870002157986164e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 305,
+      "seconds": 3.9300008211284876e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 306,
+      "seconds": 4.039995837956667e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 307,
+      "seconds": 4.0000013541430235e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 308,
+      "seconds": 4.090002039447427e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 309,
+      "seconds": 4.009995609521866e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 310,
+      "seconds": 3.1100003980100155e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 311,
+      "seconds": 3.070000093430281e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 312,
+      "seconds": 3.070000093430281e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 313,
+      "seconds": 3.2100011594593525e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 314,
+      "seconds": 3.060000017285347e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 315,
+      "seconds": 3.0800001695752144e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 316,
+      "seconds": 3.060000017285347e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 317,
+      "seconds": 3.060000017285347e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 318,
+      "seconds": 3.100000321865082e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 319,
+      "seconds": 3.070000093430281e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 320,
+      "seconds": 4.0599959902465343e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 321,
+      "seconds": 3.9300008211284876e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 322,
+      "seconds": 3.819999983534217e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 323,
+      "seconds": 3.840000135824084e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 324,
+      "seconds": 3.809999907389283e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 325,
+      "seconds": 5.3099996875971556e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 326,
+      "seconds": 3.9700011257082224e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 327,
+      "seconds": 3.91000066883862e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 328,
+      "seconds": 3.9000005926936865e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 329,
+      "seconds": 3.9000005926936865e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 330,
+      "seconds": 3.890000516548753e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 331,
+      "seconds": 3.869994543492794e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 332,
+      "seconds": 3.99000127799809e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 333,
+      "seconds": 3.9300008211284876e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 334,
+      "seconds": 3.980001201853156e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 335,
+      "seconds": 3.99000127799809e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 336,
+      "seconds": 3.8700003642588854e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 337,
+      "seconds": 3.869994543492794e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 338,
+      "seconds": 3.91000066883862e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 339,
+      "seconds": 4.0000013541430235e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 340,
+      "seconds": 7.730000652372837e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 341,
+      "seconds": 7.71000050008297e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 342,
+      "seconds": 7.730000652372837e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 343,
+      "seconds": 7.810001261532307e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 344,
+      "seconds": 7.810001261532307e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 345,
+      "seconds": 0.00017879996448755264
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 346,
+      "seconds": 0.00019779999274760485
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 347,
+      "seconds": 0.00018400000408291817
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 348,
+      "seconds": 0.00017959997057914734
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 349,
+      "seconds": 0.00017910002497956157
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 350,
+      "seconds": 6.880000000819564e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 351,
+      "seconds": 6.839999696239829e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 352,
+      "seconds": 7.16999638825655e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 353,
+      "seconds": 6.740004755556583e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 354,
+      "seconds": 6.729998858645558e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 355,
+      "seconds": 6.78999931551516e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 356,
+      "seconds": 6.829999620094895e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 357,
+      "seconds": 6.78999931551516e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 358,
+      "seconds": 6.809999467805028e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 359,
+      "seconds": 6.819999543949962e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 360,
+      "seconds": 0.00019669998437166214
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 361,
+      "seconds": 0.00019620003877207637
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 362,
+      "seconds": 0.00021629995899274945
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 363,
+      "seconds": 0.0002031000331044197
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 364,
+      "seconds": 0.00019399996381253004
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 365,
+      "seconds": 0.0002039000391960144
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 366,
+      "seconds": 0.00019419996533542871
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 367,
+      "seconds": 0.0002066000015474856
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 368,
+      "seconds": 0.0001965999836102128
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 369,
+      "seconds": 0.00019750004867091775
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 370,
+      "seconds": 0.00019479996990412474
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 371,
+      "seconds": 0.00019230000907555223
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 372,
+      "seconds": 0.00021119997836649418
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 373,
+      "seconds": 0.00023980002151802182
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 374,
+      "seconds": 0.00021609995746985078
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 375,
+      "seconds": 0.000347200024407357
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 376,
+      "seconds": 0.0001962999813258648
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 377,
+      "seconds": 0.00019400002202019095
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 378,
+      "seconds": 0.00019529997371137142
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 379,
+      "seconds": 0.0001941000227816403
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 380,
+      "seconds": 0.0006142000202089548
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 381,
+      "seconds": 0.0006455000257119536
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 382,
+      "seconds": 0.0006069999653846025
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 383,
+      "seconds": 0.0005989000201225281
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 384,
+      "seconds": 0.000630499969702214
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 385,
+      "seconds": 0.0006114999996498227
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 386,
+      "seconds": 0.0007550999871455133
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 387,
+      "seconds": 0.0014476000214926898
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 388,
+      "seconds": 0.0007739000138826668
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 389,
+      "seconds": 0.0006148000247776508
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 390,
+      "seconds": 0.0006900000153109431
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 391,
+      "seconds": 0.0006019999855197966
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 392,
+      "seconds": 0.0005883999983780086
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 393,
+      "seconds": 0.0006171000422909856
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 394,
+      "seconds": 0.0005957999965175986
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 395,
+      "seconds": 0.000596800004132092
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 396,
+      "seconds": 0.0005838999641127884
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 397,
+      "seconds": 0.0005811000009998679
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 398,
+      "seconds": 0.0005943999858573079
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "rule_based",
+      "size": "",
+      "trial": 399,
+      "seconds": 0.0005808999994769692
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 0,
+      "seconds": 4.900037311017513e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 1,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 2,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 3,
+      "seconds": 4.900037311017513e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 4,
+      "seconds": 4.8999791033566e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 5,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 6,
+      "seconds": 4.800036549568176e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 7,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 8,
+      "seconds": 4.699977580457926e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 9,
+      "seconds": 4.800036549568176e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 10,
+      "seconds": 5.300040356814861e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 11,
+      "seconds": 5.199981387704611e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 12,
+      "seconds": 5.099980626255274e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 13,
+      "seconds": 5.100038833916187e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 14,
+      "seconds": 5.199981387704611e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 15,
+      "seconds": 5.199981387704611e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 16,
+      "seconds": 5.099980626255274e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 17,
+      "seconds": 5.100038833916187e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 18,
+      "seconds": 5.099980626255274e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 19,
+      "seconds": 5.099980626255274e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 20,
+      "seconds": 9.90001717582345e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 21,
+      "seconds": 9.800016414374113e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 22,
+      "seconds": 1.0999967344105244e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 23,
+      "seconds": 1.0200019460171461e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 24,
+      "seconds": 9.500014130026102e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 25,
+      "seconds": 9.399955160915852e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 26,
+      "seconds": 9.400013368576765e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 27,
+      "seconds": 9.200011845678091e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 28,
+      "seconds": 9.400013368576765e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 29,
+      "seconds": 9.299954399466515e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 30,
+      "seconds": 9.400013368576765e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 31,
+      "seconds": 9.299954399466515e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 32,
+      "seconds": 9.90001717582345e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 33,
+      "seconds": 1.0200019460171461e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 34,
+      "seconds": 1.0399962775409222e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 35,
+      "seconds": 9.600014891475439e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 36,
+      "seconds": 1.0000017937272787e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 37,
+      "seconds": 9.699957445263863e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 38,
+      "seconds": 9.600014891475439e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 39,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 40,
+      "seconds": 1.880002673715353e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 41,
+      "seconds": 1.839996548369527e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 42,
+      "seconds": 1.8700025975704193e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 43,
+      "seconds": 1.839996548369527e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 44,
+      "seconds": 1.8700025975704193e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 45,
+      "seconds": 1.839996548369527e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 46,
+      "seconds": 1.8200022168457508e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 47,
+      "seconds": 1.8200022168457508e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 48,
+      "seconds": 1.8199963960796595e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 49,
+      "seconds": 1.8400023691356182e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 50,
+      "seconds": 1.6900012269616127e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 51,
+      "seconds": 1.6900012269616127e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 52,
+      "seconds": 1.6900012269616127e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 53,
+      "seconds": 1.7000013031065464e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 54,
+      "seconds": 1.680001150816679e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 55,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 56,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 57,
+      "seconds": 1.650000922381878e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 58,
+      "seconds": 1.6300007700920105e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 59,
+      "seconds": 1.629994949325919e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 60,
+      "seconds": 4.7900015488266945e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 61,
+      "seconds": 3.71999922208488e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 62,
+      "seconds": 4.680000711232424e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 63,
+      "seconds": 3.4699973184615374e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 64,
+      "seconds": 4.350004019215703e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 65,
+      "seconds": 4.1899969801306725e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 66,
+      "seconds": 6.46000262349844e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 67,
+      "seconds": 3.489997470751405e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 68,
+      "seconds": 3.3100019209086895e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 69,
+      "seconds": 0.0001373999984934926
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 70,
+      "seconds": 4.770001396536827e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 71,
+      "seconds": 3.7100049667060375e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 72,
+      "seconds": 3.2999960239976645e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 73,
+      "seconds": 3.270001616328955e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 74,
+      "seconds": 3.320001997053623e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 75,
+      "seconds": 3.2999960239976645e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 76,
+      "seconds": 3.2800016924738884e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 77,
+      "seconds": 3.2800016924738884e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 78,
+      "seconds": 3.239995567128062e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 79,
+      "seconds": 4.840001929551363e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 80,
+      "seconds": 6.859999848529696e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 81,
+      "seconds": 6.819999543949962e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 82,
+      "seconds": 6.839999696239829e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 83,
+      "seconds": 6.689998554065824e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 84,
+      "seconds": 6.749999010935426e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 85,
+      "seconds": 6.680004298686981e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 86,
+      "seconds": 6.67999847792089e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 87,
+      "seconds": 6.719998782500625e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 88,
+      "seconds": 7.180002285167575e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 89,
+      "seconds": 6.709998706355691e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 90,
+      "seconds": 7.499998901039362e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 91,
+      "seconds": 7.429998368024826e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 92,
+      "seconds": 7.449998520314693e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 93,
+      "seconds": 7.499998901039362e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 94,
+      "seconds": 7.33000342734158e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 95,
+      "seconds": 7.309997454285622e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 96,
+      "seconds": 7.03000114299357e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 97,
+      "seconds": 6.67999847792089e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 98,
+      "seconds": 6.719998782500625e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 99,
+      "seconds": 6.760004907846451e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 100,
+      "seconds": 4.500034265220165e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 101,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 102,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 103,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 104,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 105,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 106,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 107,
+      "seconds": 4.600035026669502e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 108,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 109,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 110,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 111,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 112,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 113,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 114,
+      "seconds": 4.300032742321491e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 115,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 116,
+      "seconds": 4.500034265220165e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 117,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 118,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 119,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 120,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 121,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 122,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 123,
+      "seconds": 8.499948307871819e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 124,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 125,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 126,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 127,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 128,
+      "seconds": 8.500006515532732e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 129,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 130,
+      "seconds": 9.000010322779417e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 131,
+      "seconds": 9.000010322779417e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 132,
+      "seconds": 8.899951353669167e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 133,
+      "seconds": 8.90000956133008e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 134,
+      "seconds": 9.000010322779417e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 135,
+      "seconds": 9.000010322779417e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 136,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 137,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 138,
+      "seconds": 8.90000956133008e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 139,
+      "seconds": 8.90000956133008e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 140,
+      "seconds": 1.869996776804328e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 141,
+      "seconds": 1.8700025975704193e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 142,
+      "seconds": 1.8899969290941954e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 143,
+      "seconds": 1.950003206729889e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 144,
+      "seconds": 1.8499966245144606e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 145,
+      "seconds": 1.8600025214254856e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 146,
+      "seconds": 1.8499966245144606e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 147,
+      "seconds": 1.8600025214254856e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 148,
+      "seconds": 1.8899969290941954e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 149,
+      "seconds": 1.8700025975704193e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 150,
+      "seconds": 1.8200022168457508e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 151,
+      "seconds": 1.7700018361210823e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 152,
+      "seconds": 1.7600017599761486e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 153,
+      "seconds": 1.8199963960796595e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 154,
+      "seconds": 1.7300015315413475e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 155,
+      "seconds": 1.7400016076862812e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 156,
+      "seconds": 1.8199963960796595e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 157,
+      "seconds": 1.810002140700817e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 158,
+      "seconds": 1.680001150816679e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 159,
+      "seconds": 1.7200014553964138e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 160,
+      "seconds": 3.339996328577399e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 161,
+      "seconds": 3.350002225488424e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 162,
+      "seconds": 3.3699965570122004e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 163,
+      "seconds": 3.23000131174922e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 164,
+      "seconds": 3.2100011594593525e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 165,
+      "seconds": 3.260001540184021e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 166,
+      "seconds": 3.2599957194179296e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 167,
+      "seconds": 3.220001235604286e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 168,
+      "seconds": 3.2100011594593525e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 169,
+      "seconds": 3.2400013878941536e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 170,
+      "seconds": 3.220001235604286e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 171,
+      "seconds": 3.360002301633358e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 172,
+      "seconds": 3.260001540184021e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 173,
+      "seconds": 3.250001464039087e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 174,
+      "seconds": 3.2400013878941536e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 175,
+      "seconds": 3.1800009310245514e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 176,
+      "seconds": 3.679998917505145e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 177,
+      "seconds": 3.160000778734684e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 178,
+      "seconds": 3.209995338693261e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 179,
+      "seconds": 3.2400013878941536e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 180,
+      "seconds": 7.300003198906779e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 181,
+      "seconds": 7.289997301995754e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 182,
+      "seconds": 7.340003503486514e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 183,
+      "seconds": 7.03000114299357e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 184,
+      "seconds": 7.099995855242014e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 185,
+      "seconds": 6.73000467941165e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 186,
+      "seconds": 6.630003917962313e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 187,
+      "seconds": 6.639998173341155e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 188,
+      "seconds": 6.729998858645558e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 189,
+      "seconds": 6.819999543949962e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 190,
+      "seconds": 6.719998782500625e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 191,
+      "seconds": 6.769999163225293e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 192,
+      "seconds": 6.829999620094895e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 193,
+      "seconds": 7.320003351196647e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 194,
+      "seconds": 6.799999391660094e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 195,
+      "seconds": 6.859999848529696e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 196,
+      "seconds": 6.900000153109431e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 197,
+      "seconds": 6.880000000819564e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 198,
+      "seconds": 6.849999772384763e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 199,
+      "seconds": 6.859999848529696e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 200,
+      "seconds": 4.499976057559252e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 201,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 202,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 203,
+      "seconds": 4.500034265220165e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 204,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 205,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 206,
+      "seconds": 4.500034265220165e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 207,
+      "seconds": 4.599976819008589e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 208,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 209,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 210,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 211,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 212,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 213,
+      "seconds": 4.300032742321491e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 214,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 215,
+      "seconds": 4.399975296109915e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 216,
+      "seconds": 4.400033503770828e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 217,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 218,
+      "seconds": 4.200031980872154e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 219,
+      "seconds": 4.299974534660578e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 220,
+      "seconds": 9.100011084228754e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 221,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 222,
+      "seconds": 8.79995059221983e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 223,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 224,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 225,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 226,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 227,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 228,
+      "seconds": 8.800008799880743e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 229,
+      "seconds": 8.699949830770493e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 230,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 231,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 232,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 233,
+      "seconds": 8.699949830770493e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 234,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 235,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 236,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 237,
+      "seconds": 8.700008038431406e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 238,
+      "seconds": 8.500006515532732e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 239,
+      "seconds": 8.600007276982069e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 240,
+      "seconds": 1.669995253905654e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 241,
+      "seconds": 1.6900012269616127e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 242,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 243,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 244,
+      "seconds": 1.680001150816679e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 245,
+      "seconds": 1.6499951016157866e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 246,
+      "seconds": 1.6700010746717453e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 247,
+      "seconds": 1.6700010746717453e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 248,
+      "seconds": 1.6700010746717453e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 249,
+      "seconds": 1.6700010746717453e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 250,
+      "seconds": 1.699995482340455e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 251,
+      "seconds": 1.680001150816679e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 252,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 253,
+      "seconds": 1.7000013031065464e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 254,
+      "seconds": 1.6600009985268116e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 255,
+      "seconds": 1.669995253905654e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 256,
+      "seconds": 1.680001150816679e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 257,
+      "seconds": 1.680001150816679e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 258,
+      "seconds": 1.6700010746717453e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 259,
+      "seconds": 1.680001150816679e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 260,
+      "seconds": 3.3800024539232254e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 261,
+      "seconds": 3.3299962524324656e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 262,
+      "seconds": 3.300001844763756e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 263,
+      "seconds": 3.3100019209086895e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 264,
+      "seconds": 6.930000381544232e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 265,
+      "seconds": 3.1999952625483274e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 266,
+      "seconds": 3.260001540184021e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 267,
+      "seconds": 3.260001540184021e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 268,
+      "seconds": 3.279995871707797e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 269,
+      "seconds": 3.290001768618822e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 270,
+      "seconds": 5.0799979362636805e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 271,
+      "seconds": 3.659998765215278e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 272,
+      "seconds": 4.8900023102760315e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 273,
+      "seconds": 3.589998232200742e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 274,
+      "seconds": 3.3599964808672667e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 275,
+      "seconds": 3.350002225488424e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 276,
+      "seconds": 3.3100019209086895e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 277,
+      "seconds": 3.2999960239976645e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 278,
+      "seconds": 8.120003622025251e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 279,
+      "seconds": 3.800005652010441e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 280,
+      "seconds": 6.699998630210757e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 281,
+      "seconds": 6.659998325631022e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 282,
+      "seconds": 6.610003765672445e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 283,
+      "seconds": 6.699998630210757e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 284,
+      "seconds": 6.689998554065824e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 285,
+      "seconds": 6.649998249486089e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 286,
+      "seconds": 6.660004146397114e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 287,
+      "seconds": 6.739998934790492e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 288,
+      "seconds": 6.719998782500625e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 289,
+      "seconds": 6.739998934790492e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 290,
+      "seconds": 6.75999908708036e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 291,
+      "seconds": 6.75999908708036e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 292,
+      "seconds": 6.78999931551516e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 293,
+      "seconds": 6.720004603266716e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 294,
+      "seconds": 6.729998858645558e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 295,
+      "seconds": 6.739998934790492e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 296,
+      "seconds": 6.729998858645558e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 297,
+      "seconds": 6.769999163225293e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 298,
+      "seconds": 6.819999543949962e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 299,
+      "seconds": 6.75999908708036e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 300,
+      "seconds": 4.900037311017513e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 301,
+      "seconds": 4.8999791033566e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 302,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 303,
+      "seconds": 4.800036549568176e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 304,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 305,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 306,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 307,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 308,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 309,
+      "seconds": 4.700035788118839e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 310,
+      "seconds": 4.800036549568176e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 311,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 312,
+      "seconds": 4.800036549568176e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 313,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 314,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 315,
+      "seconds": 4.800036549568176e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 316,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 317,
+      "seconds": 4.799978341907263e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 318,
+      "seconds": 4.900037311017513e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 319,
+      "seconds": 4.8999791033566e-06
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 320,
+      "seconds": 1.0599964298307896e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 321,
+      "seconds": 1.0600022505968809e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 322,
+      "seconds": 1.0599964298307896e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 323,
+      "seconds": 1.0300020221620798e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 324,
+      "seconds": 1.0500021744519472e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 325,
+      "seconds": 1.0399962775409222e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 326,
+      "seconds": 1.0400020983070135e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 327,
+      "seconds": 1.0600022505968809e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 328,
+      "seconds": 1.0400020983070135e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 329,
+      "seconds": 1.0700023267418146e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 330,
+      "seconds": 1.0400020983070135e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 331,
+      "seconds": 1.0399962775409222e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 332,
+      "seconds": 1.0500021744519472e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 333,
+      "seconds": 1.0399962775409222e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 334,
+      "seconds": 1.0400020983070135e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 335,
+      "seconds": 1.0300020221620798e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 336,
+      "seconds": 1.0399962775409222e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 337,
+      "seconds": 1.0500021744519472e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 338,
+      "seconds": 1.0200019460171461e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 339,
+      "seconds": 1.0400020983070135e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 340,
+      "seconds": 6.510003004223108e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 341,
+      "seconds": 6.459996802732348e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 342,
+      "seconds": 6.390002090483904e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 343,
+      "seconds": 6.420002318918705e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 344,
+      "seconds": 6.40999642200768e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 345,
+      "seconds": 6.430002395063639e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 346,
+      "seconds": 6.379996193572879e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 347,
+      "seconds": 6.420002318918705e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 348,
+      "seconds": 6.310001481324434e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 349,
+      "seconds": 6.429996574297547e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 350,
+      "seconds": 2.8199981898069382e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 351,
+      "seconds": 2.7999980375170708e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 352,
+      "seconds": 2.7800037059932947e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 353,
+      "seconds": 2.7799978852272034e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 354,
+      "seconds": 2.789997961372137e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 355,
+      "seconds": 2.800003858283162e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 356,
+      "seconds": 2.789997961372137e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 357,
+      "seconds": 2.789997961372137e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 358,
+      "seconds": 2.770003629848361e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 359,
+      "seconds": 2.7699978090822697e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 360,
+      "seconds": 8.029997115954757e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 361,
+      "seconds": 8.09000339359045e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 362,
+      "seconds": 7.979996735230088e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 363,
+      "seconds": 0.00010390003444626927
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 364,
+      "seconds": 9.059999138116837e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 365,
+      "seconds": 7.920002099126577e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 366,
+      "seconds": 7.870001718401909e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 367,
+      "seconds": 7.890001870691776e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 368,
+      "seconds": 7.830001413822174e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 369,
+      "seconds": 7.899996126070619e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 370,
+      "seconds": 8.759996853768826e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 371,
+      "seconds": 8.74000252224505e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 372,
+      "seconds": 8.699996396899223e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 373,
+      "seconds": 9.06999921426177e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 374,
+      "seconds": 8.200004231184721e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 375,
+      "seconds": 8.19999841041863e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 376,
+      "seconds": 8.109997725114226e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 377,
+      "seconds": 8.219998562708497e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 378,
+      "seconds": 8.140003774315119e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 379,
+      "seconds": 8.189998334273696e-05
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 380,
+      "seconds": 0.0002896999940276146
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 381,
+      "seconds": 0.0002893999917432666
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 382,
+      "seconds": 0.0003147000097669661
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 383,
+      "seconds": 0.00029200001154094934
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 384,
+      "seconds": 0.0002893999917432666
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 385,
+      "seconds": 0.0003132999991066754
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 386,
+      "seconds": 0.00035039999056607485
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 387,
+      "seconds": 0.00030150002567097545
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 388,
+      "seconds": 0.00031370000215247273
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 389,
+      "seconds": 0.00031269999453797936
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 390,
+      "seconds": 0.0003106000367552042
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 391,
+      "seconds": 0.00029499997617676854
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 392,
+      "seconds": 0.0003087000222876668
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 393,
+      "seconds": 0.0003046999918296933
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 394,
+      "seconds": 0.00038839998887851834
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 395,
+      "seconds": 0.00035529996966943145
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 396,
+      "seconds": 0.00031810003565624356
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 397,
+      "seconds": 0.00033030001213774085
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 398,
+      "seconds": 0.0003776999656111002
+    },
+    {
+      "algorithm": "reachability",
+      "impl": "imperative",
+      "size": "",
+      "trial": 399,
+      "seconds": 0.0003037999849766493
+    }
+  ],
+  "rule_based_timings": [
+    6.589997792616487e-05,
+    6.699998630210757e-05,
+    6.600003689527512e-05,
+    6.589997792616487e-05,
+    6.649998249486089e-05,
+    6.640003994107246e-05,
+    6.67999847792089e-05,
+    6.59999786876142e-05,
+    6.480002775788307e-05,
+    6.529997335746884e-05,
+    6.890000076964498e-05,
+    6.829999620094895e-05,
+    6.849999772384763e-05,
+    7.010000990703702e-05,
+    6.859999848529696e-05,
+    6.980000762268901e-05,
+    7.589999586343765e-05,
+    6.829999620094895e-05,
+    6.940000457689166e-05,
+    6.9500005338341e-05,
+    0.0005798999918624759,
+    0.00041119998786598444,
+    0.0002604000037536025,
+    0.0002631000243127346,
+    0.000261999957729131,
+    0.00026240001898258924,
+    0.0002623000182211399,
+    0.00027279998175799847,
+    0.0002668999950401485,
+    0.00025949999690055847,
+    0.00026270002126693726,
+    0.00026539998361840844,
+    0.00027540000155568123,
+    0.00027030002092942595,
+    0.0002668999950401485,
+    0.00026619998971000314,
+    0.0002614000113680959,
+    0.00026050000451505184,
+    0.00025679997634142637,
+    0.00025400001322850585,
+    0.0009744000271894038,
+    0.0009966000216081738,
+    0.0011372999870218337,
+    0.000950800022110343,
+    0.0010393999982625246,
+    0.0013006000081077218,
+    0.0010431999689899385,
+    0.0009672000305727124,
+    0.0009380999836139381,
+    0.0009672999731265008,
+    0.0015923000173643231,
+    0.0009935999987646937,
+    0.0009928999934345484,
+    0.0009389999904669821,
+    0.000951700028963387,
+    0.0009349999600090086,
+    0.0009380000410601497,
+    0.0011144999880343676,
+    0.0020730000105686486,
+    0.0010072000441141427,
+    0.004297300009056926,
+    0.0038520999951288104,
+    0.005257599987089634,
+    0.003846700012218207,
+    0.00476779998280108,
+    0.003926200035493821,
+    0.004946300003211945,
+    0.003903500037267804,
+    0.003965599986258894,
+    0.00396780000301078,
+    0.00472339999396354,
+    0.004071699979249388,
+    0.004025299975182861,
+    0.004103399987798184,
+    0.005078700021840632,
+    0.003892800014000386,
+    0.005230199953075498,
+    0.003814700001385063,
+    0.005270300025586039,
+    0.0038975999923422933,
+    0.01810059999115765,
+    0.017517700034659356,
+    0.018235999974422157,
+    0.017331400013063103,
+    0.01754039997467771,
+    0.017420299991499633,
+    0.01711979997344315,
+    0.0190195000031963,
+    0.016802400001324713,
+    0.016982599976472557,
+    0.01925789995584637,
+    0.018460099992807955,
+    0.018030399980489165,
+    0.018144700035918504,
+    0.018778300029225647,
+    0.017217299959156662,
+    0.017332800023723394,
+    0.01722810004139319,
+    0.018328500038478523,
+    0.016639100038446486,
+    3.50000336766243e-05,
+    3.4999975468963385e-05,
+    3.4999975468963385e-05,
+    3.530003596097231e-05,
+    3.91000066883862e-05,
+    3.5299977753311396e-05,
+    3.519997699186206e-05,
+    3.550003748387098e-05,
+    3.5699980799108744e-05,
+    3.419996937736869e-05,
+    3.450002986937761e-05,
+    3.479997394606471e-05,
+    3.509997623041272e-05,
+    3.5100034438073635e-05,
+    3.4699973184615374e-05,
+    3.520003519952297e-05,
+    3.4999975468963385e-05,
+    3.4699973184615374e-05,
+    3.490003291517496e-05,
+    3.950000973418355e-05,
+    0.00013990001752972603,
+    0.00014000001829117537,
+    0.00013559998478740454,
+    0.00013399997260421515,
+    0.00013280002167448401,
+    0.0001417000312358141,
+    0.00014210003428161144,
+    0.00012889999197795987,
+    0.00013340002624318004,
+    0.0001297999988310039,
+    0.00014030002057552338,
+    0.00014319998444989324,
+    0.00013840000610798597,
+    0.0001306000049225986,
+    0.00013529998250305653,
+    0.00014299998292699456,
+    0.00014150002971291542,
+    0.00013120000949129462,
+    0.00013010000111535192,
+    0.0001303000026382506,
+    0.0005306999664753675,
+    0.0005077000241726637,
+    0.0005403999821282923,
+    0.00048639997839927673,
+    0.0004967999993823469,
+    0.0005436000064946711,
+    0.0005000000237487257,
+    0.0005226000212132931,
+    0.0005156000261195004,
+    0.0005102999857626855,
+    0.000548299984075129,
+    0.0005578999989666045,
+    0.0005229999660514295,
+    0.0005253000417724252,
+    0.0004901000065729022,
+    0.0005207999492995441,
+    0.0005673000123351812,
+    0.0005127000040374696,
+    0.0005172999808564782,
+    0.0005085000302642584,
+    0.002007399976719171,
+    0.0020274000125937164,
+    0.0020567000028677285,
+    0.002356400014832616,
+    0.0019327999907545745,
+    0.0019212000188417733,
+    0.0020522999693639576,
+    0.0019486999954096973,
+    0.001962199981790036,
+    0.0019563999958336353,
+    0.0019183999975211918,
+    0.002066899964120239,
+    0.0019515000167302787,
+    0.0019462999771349132,
+    0.0020025999983772635,
+    0.0024301999947056174,
+    0.002469099999871105,
+    0.001887699996586889,
+    0.0019240999827161431,
+    0.0020340000046417117,
+    0.00876960001187399,
+    0.008320500026457012,
+    0.008672900032252073,
+    0.008175999973900616,
+    0.009388300008140504,
+    0.008263099996838719,
+    0.00911340001039207,
+    0.008108700043521821,
+    0.009071699983906,
+    0.008559699985198677,
+    0.00951940001687035,
+    0.00915779999922961,
+    0.00860820000525564,
+    0.008171499997843057,
+    0.008185299986507744,
+    0.008390399976633489,
+    0.008280400012154132,
+    0.009367799968458712,
+    0.00844669999787584,
+    0.008531300001777709,
+    5.299982149153948e-06,
+    5.099980626255274e-06,
+    5.300040356814861e-06,
+    5.00003807246685e-06,
+    4.999979864805937e-06,
+    4.999979864805937e-06,
+    4.900037311017513e-06,
+    4.8999791033566e-06,
+    4.800036549568176e-06,
+    4.8999791033566e-06,
+    5.100038833916187e-06,
+    4.999979864805937e-06,
+    4.799978341907263e-06,
+    4.900037311017513e-06,
+    4.999979864805937e-06,
+    4.999979864805937e-06,
+    5.00003807246685e-06,
+    4.999979864805937e-06,
+    4.799978341907263e-06,
+    5.00003807246685e-06,
+    9.300012607127428e-06,
+    9.200011845678091e-06,
+    9.299954399466515e-06,
+    9.200011845678091e-06,
+    9.100011084228754e-06,
+    9.300012607127428e-06,
+    9.09995287656784e-06,
+    9.100011084228754e-06,
+    9.200011845678091e-06,
+    9.300012607127428e-06,
+    9.300012607127428e-06,
+    9.199953638017178e-06,
+    9.400013368576765e-06,
+    9.100011084228754e-06,
+    9.100011084228754e-06,
+    9.399955160915852e-06,
+    9.200011845678091e-06,
+    9.200011845678091e-06,
+    9.100011084228754e-06,
+    9.000010322779417e-06,
+    1.7799960914999247e-05,
+    1.7400016076862812e-05,
+    1.8000020645558834e-05,
+    1.7799960914999247e-05,
+    1.7900019884109497e-05,
+    1.7700018361210823e-05,
+    1.769996015354991e-05,
+    1.7700018361210823e-05,
+    1.7900019884109497e-05,
+    1.7799960914999247e-05,
+    1.7300015315413475e-05,
+    1.769996015354991e-05,
+    1.7600017599761486e-05,
+    1.7200014553964138e-05,
+    1.7199956346303225e-05,
+    1.7600017599761486e-05,
+    2.0199979189783335e-05,
+    1.7700018361210823e-05,
+    1.780001912266016e-05,
+    1.7499958630651236e-05,
+    3.44999716617167e-05,
+    3.400002606213093e-05,
+    3.3599964808672667e-05,
+    3.3800024539232254e-05,
+    3.419996937736869e-05,
+    3.42000275850296e-05,
+    3.479997394606471e-05,
+    3.4800032153725624e-05,
+    3.509997623041272e-05,
+    3.5299977753311396e-05,
+    3.430002834647894e-05,
+    3.44999716617167e-05,
+    3.470003139227629e-05,
+    3.479997394606471e-05,
+    3.4800032153725624e-05,
+    3.4299970138818026e-05,
+    3.4999975468963385e-05,
+    3.42000275850296e-05,
+    3.579998156055808e-05,
+    3.4400029107928276e-05,
+    0.00015889998758211732,
+    0.00016110000433400273,
+    0.00015729997539892793,
+    0.00015470001380890608,
+    0.0001556000206619501,
+    0.00017590000061318278,
+    7.379997987300158e-05,
+    7.010000990703702e-05,
+    6.809999467805028e-05,
+    6.900000153109431e-05,
+    6.890000076964498e-05,
+    6.78999931551516e-05,
+    6.659998325631022e-05,
+    7.360003655776381e-05,
+    6.67999847792089e-05,
+    6.709998706355691e-05,
+    6.799999391660094e-05,
+    6.719998782500625e-05,
+    6.770004983991385e-05,
+    6.710004527121782e-05,
+    4.010001430287957e-05,
+    4.0300015825778246e-05,
+    4.199997056275606e-05,
+    4.010001430287957e-05,
+    4.870002157986164e-05,
+    3.9300008211284876e-05,
+    4.039995837956667e-05,
+    4.0000013541430235e-05,
+    4.090002039447427e-05,
+    4.009995609521866e-05,
+    3.1100003980100155e-05,
+    3.070000093430281e-05,
+    3.070000093430281e-05,
+    3.2100011594593525e-05,
+    3.060000017285347e-05,
+    3.0800001695752144e-05,
+    3.060000017285347e-05,
+    3.060000017285347e-05,
+    3.100000321865082e-05,
+    3.070000093430281e-05,
+    4.0599959902465343e-05,
+    3.9300008211284876e-05,
+    3.819999983534217e-05,
+    3.840000135824084e-05,
+    3.809999907389283e-05,
+    5.3099996875971556e-05,
+    3.9700011257082224e-05,
+    3.91000066883862e-05,
+    3.9000005926936865e-05,
+    3.9000005926936865e-05,
+    3.890000516548753e-05,
+    3.869994543492794e-05,
+    3.99000127799809e-05,
+    3.9300008211284876e-05,
+    3.980001201853156e-05,
+    3.99000127799809e-05,
+    3.8700003642588854e-05,
+    3.869994543492794e-05,
+    3.91000066883862e-05,
+    4.0000013541430235e-05,
+    7.730000652372837e-05,
+    7.71000050008297e-05,
+    7.730000652372837e-05,
+    7.810001261532307e-05,
+    7.810001261532307e-05,
+    0.00017879996448755264,
+    0.00019779999274760485,
+    0.00018400000408291817,
+    0.00017959997057914734,
+    0.00017910002497956157,
+    6.880000000819564e-05,
+    6.839999696239829e-05,
+    7.16999638825655e-05,
+    6.740004755556583e-05,
+    6.729998858645558e-05,
+    6.78999931551516e-05,
+    6.829999620094895e-05,
+    6.78999931551516e-05,
+    6.809999467805028e-05,
+    6.819999543949962e-05,
+    0.00019669998437166214,
+    0.00019620003877207637,
+    0.00021629995899274945,
+    0.0002031000331044197,
+    0.00019399996381253004,
+    0.0002039000391960144,
+    0.00019419996533542871,
+    0.0002066000015474856,
+    0.0001965999836102128,
+    0.00019750004867091775,
+    0.00019479996990412474,
+    0.00019230000907555223,
+    0.00021119997836649418,
+    0.00023980002151802182,
+    0.00021609995746985078,
+    0.000347200024407357,
+    0.0001962999813258648,
+    0.00019400002202019095,
+    0.00019529997371137142,
+    0.0001941000227816403,
+    0.0006142000202089548,
+    0.0006455000257119536,
+    0.0006069999653846025,
+    0.0005989000201225281,
+    0.000630499969702214,
+    0.0006114999996498227,
+    0.0007550999871455133,
+    0.0014476000214926898,
+    0.0007739000138826668,
+    0.0006148000247776508,
+    0.0006900000153109431,
+    0.0006019999855197966,
+    0.0005883999983780086,
+    0.0006171000422909856,
+    0.0005957999965175986,
+    0.000596800004132092,
+    0.0005838999641127884,
+    0.0005811000009998679,
+    0.0005943999858573079,
+    0.0005808999994769692
+  ],
+  "imperative_timings": [
+    4.900037311017513e-06,
+    4.799978341907263e-06,
+    4.699977580457926e-06,
+    4.900037311017513e-06,
+    4.8999791033566e-06,
+    4.699977580457926e-06,
+    4.800036549568176e-06,
+    4.699977580457926e-06,
+    4.699977580457926e-06,
+    4.800036549568176e-06,
+    5.300040356814861e-06,
+    5.199981387704611e-06,
+    5.099980626255274e-06,
+    5.100038833916187e-06,
+    5.199981387704611e-06,
+    5.199981387704611e-06,
+    5.099980626255274e-06,
+    5.100038833916187e-06,
+    5.099980626255274e-06,
+    5.099980626255274e-06,
+    9.90001717582345e-06,
+    9.800016414374113e-06,
+    1.0999967344105244e-05,
+    1.0200019460171461e-05,
+    9.500014130026102e-06,
+    9.399955160915852e-06,
+    9.400013368576765e-06,
+    9.200011845678091e-06,
+    9.400013368576765e-06,
+    9.299954399466515e-06,
+    9.400013368576765e-06,
+    9.299954399466515e-06,
+    9.90001717582345e-06,
+    1.0200019460171461e-05,
+    1.0399962775409222e-05,
+    9.600014891475439e-06,
+    1.0000017937272787e-05,
+    9.699957445263863e-06,
+    9.600014891475439e-06,
+    8.800008799880743e-06,
+    1.880002673715353e-05,
+    1.839996548369527e-05,
+    1.8700025975704193e-05,
+    1.839996548369527e-05,
+    1.8700025975704193e-05,
+    1.839996548369527e-05,
+    1.8200022168457508e-05,
+    1.8200022168457508e-05,
+    1.8199963960796595e-05,
+    1.8400023691356182e-05,
+    1.6900012269616127e-05,
+    1.6900012269616127e-05,
+    1.6900012269616127e-05,
+    1.7000013031065464e-05,
+    1.680001150816679e-05,
+    1.6600009985268116e-05,
+    1.6600009985268116e-05,
+    1.650000922381878e-05,
+    1.6300007700920105e-05,
+    1.629994949325919e-05,
+    4.7900015488266945e-05,
+    3.71999922208488e-05,
+    4.680000711232424e-05,
+    3.4699973184615374e-05,
+    4.350004019215703e-05,
+    4.1899969801306725e-05,
+    6.46000262349844e-05,
+    3.489997470751405e-05,
+    3.3100019209086895e-05,
+    0.0001373999984934926,
+    4.770001396536827e-05,
+    3.7100049667060375e-05,
+    3.2999960239976645e-05,
+    3.270001616328955e-05,
+    3.320001997053623e-05,
+    3.2999960239976645e-05,
+    3.2800016924738884e-05,
+    3.2800016924738884e-05,
+    3.239995567128062e-05,
+    4.840001929551363e-05,
+    6.859999848529696e-05,
+    6.819999543949962e-05,
+    6.839999696239829e-05,
+    6.689998554065824e-05,
+    6.749999010935426e-05,
+    6.680004298686981e-05,
+    6.67999847792089e-05,
+    6.719998782500625e-05,
+    7.180002285167575e-05,
+    6.709998706355691e-05,
+    7.499998901039362e-05,
+    7.429998368024826e-05,
+    7.449998520314693e-05,
+    7.499998901039362e-05,
+    7.33000342734158e-05,
+    7.309997454285622e-05,
+    7.03000114299357e-05,
+    6.67999847792089e-05,
+    6.719998782500625e-05,
+    6.760004907846451e-05,
+    4.500034265220165e-06,
+    4.599976819008589e-06,
+    4.700035788118839e-06,
+    4.499976057559252e-06,
+    4.399975296109915e-06,
+    4.400033503770828e-06,
+    4.399975296109915e-06,
+    4.600035026669502e-06,
+    4.399975296109915e-06,
+    4.399975296109915e-06,
+    4.499976057559252e-06,
+    4.400033503770828e-06,
+    4.499976057559252e-06,
+    4.499976057559252e-06,
+    4.300032742321491e-06,
+    4.499976057559252e-06,
+    4.500034265220165e-06,
+    4.399975296109915e-06,
+    4.499976057559252e-06,
+    4.400033503770828e-06,
+    8.700008038431406e-06,
+    8.700008038431406e-06,
+    8.600007276982069e-06,
+    8.499948307871819e-06,
+    8.600007276982069e-06,
+    8.600007276982069e-06,
+    8.600007276982069e-06,
+    8.600007276982069e-06,
+    8.500006515532732e-06,
+    8.600007276982069e-06,
+    9.000010322779417e-06,
+    9.000010322779417e-06,
+    8.899951353669167e-06,
+    8.90000956133008e-06,
+    9.000010322779417e-06,
+    9.000010322779417e-06,
+    8.800008799880743e-06,
+    8.800008799880743e-06,
+    8.90000956133008e-06,
+    8.90000956133008e-06,
+    1.869996776804328e-05,
+    1.8700025975704193e-05,
+    1.8899969290941954e-05,
+    1.950003206729889e-05,
+    1.8499966245144606e-05,
+    1.8600025214254856e-05,
+    1.8499966245144606e-05,
+    1.8600025214254856e-05,
+    1.8899969290941954e-05,
+    1.8700025975704193e-05,
+    1.8200022168457508e-05,
+    1.7700018361210823e-05,
+    1.7600017599761486e-05,
+    1.8199963960796595e-05,
+    1.7300015315413475e-05,
+    1.7400016076862812e-05,
+    1.8199963960796595e-05,
+    1.810002140700817e-05,
+    1.680001150816679e-05,
+    1.7200014553964138e-05,
+    3.339996328577399e-05,
+    3.350002225488424e-05,
+    3.3699965570122004e-05,
+    3.23000131174922e-05,
+    3.2100011594593525e-05,
+    3.260001540184021e-05,
+    3.2599957194179296e-05,
+    3.220001235604286e-05,
+    3.2100011594593525e-05,
+    3.2400013878941536e-05,
+    3.220001235604286e-05,
+    3.360002301633358e-05,
+    3.260001540184021e-05,
+    3.250001464039087e-05,
+    3.2400013878941536e-05,
+    3.1800009310245514e-05,
+    3.679998917505145e-05,
+    3.160000778734684e-05,
+    3.209995338693261e-05,
+    3.2400013878941536e-05,
+    7.300003198906779e-05,
+    7.289997301995754e-05,
+    7.340003503486514e-05,
+    7.03000114299357e-05,
+    7.099995855242014e-05,
+    6.73000467941165e-05,
+    6.630003917962313e-05,
+    6.639998173341155e-05,
+    6.729998858645558e-05,
+    6.819999543949962e-05,
+    6.719998782500625e-05,
+    6.769999163225293e-05,
+    6.829999620094895e-05,
+    7.320003351196647e-05,
+    6.799999391660094e-05,
+    6.859999848529696e-05,
+    6.900000153109431e-05,
+    6.880000000819564e-05,
+    6.849999772384763e-05,
+    6.859999848529696e-05,
+    4.499976057559252e-06,
+    4.400033503770828e-06,
+    4.299974534660578e-06,
+    4.500034265220165e-06,
+    4.399975296109915e-06,
+    4.399975296109915e-06,
+    4.500034265220165e-06,
+    4.599976819008589e-06,
+    4.400033503770828e-06,
+    4.399975296109915e-06,
+    4.399975296109915e-06,
+    4.400033503770828e-06,
+    4.399975296109915e-06,
+    4.300032742321491e-06,
+    4.299974534660578e-06,
+    4.399975296109915e-06,
+    4.400033503770828e-06,
+    4.299974534660578e-06,
+    4.200031980872154e-06,
+    4.299974534660578e-06,
+    9.100011084228754e-06,
+    8.700008038431406e-06,
+    8.79995059221983e-06,
+    8.700008038431406e-06,
+    8.600007276982069e-06,
+    8.600007276982069e-06,
+    8.700008038431406e-06,
+    8.800008799880743e-06,
+    8.800008799880743e-06,
+    8.699949830770493e-06,
+    8.700008038431406e-06,
+    8.600007276982069e-06,
+    8.700008038431406e-06,
+    8.699949830770493e-06,
+    8.700008038431406e-06,
+    8.700008038431406e-06,
+    8.600007276982069e-06,
+    8.700008038431406e-06,
+    8.500006515532732e-06,
+    8.600007276982069e-06,
+    1.669995253905654e-05,
+    1.6900012269616127e-05,
+    1.6600009985268116e-05,
+    1.6600009985268116e-05,
+    1.680001150816679e-05,
+    1.6499951016157866e-05,
+    1.6700010746717453e-05,
+    1.6700010746717453e-05,
+    1.6700010746717453e-05,
+    1.6700010746717453e-05,
+    1.699995482340455e-05,
+    1.680001150816679e-05,
+    1.6600009985268116e-05,
+    1.7000013031065464e-05,
+    1.6600009985268116e-05,
+    1.669995253905654e-05,
+    1.680001150816679e-05,
+    1.680001150816679e-05,
+    1.6700010746717453e-05,
+    1.680001150816679e-05,
+    3.3800024539232254e-05,
+    3.3299962524324656e-05,
+    3.300001844763756e-05,
+    3.3100019209086895e-05,
+    6.930000381544232e-05,
+    3.1999952625483274e-05,
+    3.260001540184021e-05,
+    3.260001540184021e-05,
+    3.279995871707797e-05,
+    3.290001768618822e-05,
+    5.0799979362636805e-05,
+    3.659998765215278e-05,
+    4.8900023102760315e-05,
+    3.589998232200742e-05,
+    3.3599964808672667e-05,
+    3.350002225488424e-05,
+    3.3100019209086895e-05,
+    3.2999960239976645e-05,
+    8.120003622025251e-05,
+    3.800005652010441e-05,
+    6.699998630210757e-05,
+    6.659998325631022e-05,
+    6.610003765672445e-05,
+    6.699998630210757e-05,
+    6.689998554065824e-05,
+    6.649998249486089e-05,
+    6.660004146397114e-05,
+    6.739998934790492e-05,
+    6.719998782500625e-05,
+    6.739998934790492e-05,
+    6.75999908708036e-05,
+    6.75999908708036e-05,
+    6.78999931551516e-05,
+    6.720004603266716e-05,
+    6.729998858645558e-05,
+    6.739998934790492e-05,
+    6.729998858645558e-05,
+    6.769999163225293e-05,
+    6.819999543949962e-05,
+    6.75999908708036e-05,
+    4.900037311017513e-06,
+    4.8999791033566e-06,
+    4.799978341907263e-06,
+    4.800036549568176e-06,
+    4.799978341907263e-06,
+    4.799978341907263e-06,
+    4.700035788118839e-06,
+    4.799978341907263e-06,
+    4.799978341907263e-06,
+    4.700035788118839e-06,
+    4.800036549568176e-06,
+    4.799978341907263e-06,
+    4.800036549568176e-06,
+    4.799978341907263e-06,
+    4.799978341907263e-06,
+    4.800036549568176e-06,
+    4.799978341907263e-06,
+    4.799978341907263e-06,
+    4.900037311017513e-06,
+    4.8999791033566e-06,
+    1.0599964298307896e-05,
+    1.0600022505968809e-05,
+    1.0599964298307896e-05,
+    1.0300020221620798e-05,
+    1.0500021744519472e-05,
+    1.0399962775409222e-05,
+    1.0400020983070135e-05,
+    1.0600022505968809e-05,
+    1.0400020983070135e-05,
+    1.0700023267418146e-05,
+    1.0400020983070135e-05,
+    1.0399962775409222e-05,
+    1.0500021744519472e-05,
+    1.0399962775409222e-05,
+    1.0400020983070135e-05,
+    1.0300020221620798e-05,
+    1.0399962775409222e-05,
+    1.0500021744519472e-05,
+    1.0200019460171461e-05,
+    1.0400020983070135e-05,
+    6.510003004223108e-05,
+    6.459996802732348e-05,
+    6.390002090483904e-05,
+    6.420002318918705e-05,
+    6.40999642200768e-05,
+    6.430002395063639e-05,
+    6.379996193572879e-05,
+    6.420002318918705e-05,
+    6.310001481324434e-05,
+    6.429996574297547e-05,
+    2.8199981898069382e-05,
+    2.7999980375170708e-05,
+    2.7800037059932947e-05,
+    2.7799978852272034e-05,
+    2.789997961372137e-05,
+    2.800003858283162e-05,
+    2.789997961372137e-05,
+    2.789997961372137e-05,
+    2.770003629848361e-05,
+    2.7699978090822697e-05,
+    8.029997115954757e-05,
+    8.09000339359045e-05,
+    7.979996735230088e-05,
+    0.00010390003444626927,
+    9.059999138116837e-05,
+    7.920002099126577e-05,
+    7.870001718401909e-05,
+    7.890001870691776e-05,
+    7.830001413822174e-05,
+    7.899996126070619e-05,
+    8.759996853768826e-05,
+    8.74000252224505e-05,
+    8.699996396899223e-05,
+    9.06999921426177e-05,
+    8.200004231184721e-05,
+    8.19999841041863e-05,
+    8.109997725114226e-05,
+    8.219998562708497e-05,
+    8.140003774315119e-05,
+    8.189998334273696e-05,
+    0.0002896999940276146,
+    0.0002893999917432666,
+    0.0003147000097669661,
+    0.00029200001154094934,
+    0.0002893999917432666,
+    0.0003132999991066754,
+    0.00035039999056607485,
+    0.00030150002567097545,
+    0.00031370000215247273,
+    0.00031269999453797936,
+    0.0003106000367552042,
+    0.00029499997617676854,
+    0.0003087000222876668,
+    0.0003046999918296933,
+    0.00038839998887851834,
+    0.00035529996966943145,
+    0.00031810003565624356,
+    0.00033030001213774085,
+    0.0003776999656111002,
+    0.0003037999849766493
+  ],
+  "timings_by_size": {
+    "32": [
+      6.589997792616487e-05,
+      6.699998630210757e-05,
+      6.600003689527512e-05,
+      6.589997792616487e-05,
+      6.649998249486089e-05,
+      6.640003994107246e-05,
+      6.67999847792089e-05,
+      6.59999786876142e-05,
+      6.480002775788307e-05,
+      6.529997335746884e-05,
+      6.890000076964498e-05,
+      6.829999620094895e-05,
+      6.849999772384763e-05,
+      7.010000990703702e-05,
+      6.859999848529696e-05,
+      6.980000762268901e-05,
+      7.589999586343765e-05,
+      6.829999620094895e-05,
+      6.940000457689166e-05,
+      6.9500005338341e-05,
+      3.50000336766243e-05,
+      3.4999975468963385e-05,
+      3.4999975468963385e-05,
+      3.530003596097231e-05,
+      3.91000066883862e-05,
+      3.5299977753311396e-05,
+      3.519997699186206e-05,
+      3.550003748387098e-05,
+      3.5699980799108744e-05,
+      3.419996937736869e-05,
+      3.450002986937761e-05,
+      3.479997394606471e-05,
+      3.509997623041272e-05,
+      3.5100034438073635e-05,
+      3.4699973184615374e-05,
+      3.520003519952297e-05,
+      3.4999975468963385e-05,
+      3.4699973184615374e-05,
+      3.490003291517496e-05,
+      3.950000973418355e-05,
+      5.299982149153948e-06,
+      5.099980626255274e-06,
+      5.300040356814861e-06,
+      5.00003807246685e-06,
+      4.999979864805937e-06,
+      4.999979864805937e-06,
+      4.900037311017513e-06,
+      4.8999791033566e-06,
+      4.800036549568176e-06,
+      4.8999791033566e-06,
+      5.100038833916187e-06,
+      4.999979864805937e-06,
+      4.799978341907263e-06,
+      4.900037311017513e-06,
+      4.999979864805937e-06,
+      4.999979864805937e-06,
+      5.00003807246685e-06,
+      4.999979864805937e-06,
+      4.799978341907263e-06,
+      5.00003807246685e-06,
+      4.010001430287957e-05,
+      4.0300015825778246e-05,
+      4.199997056275606e-05,
+      4.010001430287957e-05,
+      4.870002157986164e-05,
+      3.9300008211284876e-05,
+      4.039995837956667e-05,
+      4.0000013541430235e-05,
+      4.090002039447427e-05,
+      4.009995609521866e-05,
+      3.1100003980100155e-05,
+      3.070000093430281e-05,
+      3.070000093430281e-05,
+      3.2100011594593525e-05,
+      3.060000017285347e-05,
+      3.0800001695752144e-05,
+      3.060000017285347e-05,
+      3.060000017285347e-05,
+      3.100000321865082e-05,
+      3.070000093430281e-05
+    ],
+    "64": [
+      0.0005798999918624759,
+      0.00041119998786598444,
+      0.0002604000037536025,
+      0.0002631000243127346,
+      0.000261999957729131,
+      0.00026240001898258924,
+      0.0002623000182211399,
+      0.00027279998175799847,
+      0.0002668999950401485,
+      0.00025949999690055847,
+      0.00026270002126693726,
+      0.00026539998361840844,
+      0.00027540000155568123,
+      0.00027030002092942595,
+      0.0002668999950401485,
+      0.00026619998971000314,
+      0.0002614000113680959,
+      0.00026050000451505184,
+      0.00025679997634142637,
+      0.00025400001322850585,
+      0.00013990001752972603,
+      0.00014000001829117537,
+      0.00013559998478740454,
+      0.00013399997260421515,
+      0.00013280002167448401,
+      0.0001417000312358141,
+      0.00014210003428161144,
+      0.00012889999197795987,
+      0.00013340002624318004,
+      0.0001297999988310039,
+      0.00014030002057552338,
+      0.00014319998444989324,
+      0.00013840000610798597,
+      0.0001306000049225986,
+      0.00013529998250305653,
+      0.00014299998292699456,
+      0.00014150002971291542,
+      0.00013120000949129462,
+      0.00013010000111535192,
+      0.0001303000026382506,
+      9.300012607127428e-06,
+      9.200011845678091e-06,
+      9.299954399466515e-06,
+      9.200011845678091e-06,
+      9.100011084228754e-06,
+      9.300012607127428e-06,
+      9.09995287656784e-06,
+      9.100011084228754e-06,
+      9.200011845678091e-06,
+      9.300012607127428e-06,
+      9.300012607127428e-06,
+      9.199953638017178e-06,
+      9.400013368576765e-06,
+      9.100011084228754e-06,
+      9.100011084228754e-06,
+      9.399955160915852e-06,
+      9.200011845678091e-06,
+      9.200011845678091e-06,
+      9.100011084228754e-06,
+      9.000010322779417e-06,
+      4.0599959902465343e-05,
+      3.9300008211284876e-05,
+      3.819999983534217e-05,
+      3.840000135824084e-05,
+      3.809999907389283e-05,
+      5.3099996875971556e-05,
+      3.9700011257082224e-05,
+      3.91000066883862e-05,
+      3.9000005926936865e-05,
+      3.9000005926936865e-05,
+      3.890000516548753e-05,
+      3.869994543492794e-05,
+      3.99000127799809e-05,
+      3.9300008211284876e-05,
+      3.980001201853156e-05,
+      3.99000127799809e-05,
+      3.8700003642588854e-05,
+      3.869994543492794e-05,
+      3.91000066883862e-05,
+      4.0000013541430235e-05
+    ],
+    "128": [
+      0.0009744000271894038,
+      0.0009966000216081738,
+      0.0011372999870218337,
+      0.000950800022110343,
+      0.0010393999982625246,
+      0.0013006000081077218,
+      0.0010431999689899385,
+      0.0009672000305727124,
+      0.0009380999836139381,
+      0.0009672999731265008,
+      0.0015923000173643231,
+      0.0009935999987646937,
+      0.0009928999934345484,
+      0.0009389999904669821,
+      0.000951700028963387,
+      0.0009349999600090086,
+      0.0009380000410601497,
+      0.0011144999880343676,
+      0.0020730000105686486,
+      0.0010072000441141427,
+      0.0005306999664753675,
+      0.0005077000241726637,
+      0.0005403999821282923,
+      0.00048639997839927673,
+      0.0004967999993823469,
+      0.0005436000064946711,
+      0.0005000000237487257,
+      0.0005226000212132931,
+      0.0005156000261195004,
+      0.0005102999857626855,
+      0.000548299984075129,
+      0.0005578999989666045,
+      0.0005229999660514295,
+      0.0005253000417724252,
+      0.0004901000065729022,
+      0.0005207999492995441,
+      0.0005673000123351812,
+      0.0005127000040374696,
+      0.0005172999808564782,
+      0.0005085000302642584,
+      1.7799960914999247e-05,
+      1.7400016076862812e-05,
+      1.8000020645558834e-05,
+      1.7799960914999247e-05,
+      1.7900019884109497e-05,
+      1.7700018361210823e-05,
+      1.769996015354991e-05,
+      1.7700018361210823e-05,
+      1.7900019884109497e-05,
+      1.7799960914999247e-05,
+      1.7300015315413475e-05,
+      1.769996015354991e-05,
+      1.7600017599761486e-05,
+      1.7200014553964138e-05,
+      1.7199956346303225e-05,
+      1.7600017599761486e-05,
+      2.0199979189783335e-05,
+      1.7700018361210823e-05,
+      1.780001912266016e-05,
+      1.7499958630651236e-05,
+      7.730000652372837e-05,
+      7.71000050008297e-05,
+      7.730000652372837e-05,
+      7.810001261532307e-05,
+      7.810001261532307e-05,
+      0.00017879996448755264,
+      0.00019779999274760485,
+      0.00018400000408291817,
+      0.00017959997057914734,
+      0.00017910002497956157,
+      6.880000000819564e-05,
+      6.839999696239829e-05,
+      7.16999638825655e-05,
+      6.740004755556583e-05,
+      6.729998858645558e-05,
+      6.78999931551516e-05,
+      6.829999620094895e-05,
+      6.78999931551516e-05,
+      6.809999467805028e-05,
+      6.819999543949962e-05
+    ],
+    "256": [
+      0.004297300009056926,
+      0.0038520999951288104,
+      0.005257599987089634,
+      0.003846700012218207,
+      0.00476779998280108,
+      0.003926200035493821,
+      0.004946300003211945,
+      0.003903500037267804,
+      0.003965599986258894,
+      0.00396780000301078,
+      0.00472339999396354,
+      0.004071699979249388,
+      0.004025299975182861,
+      0.004103399987798184,
+      0.005078700021840632,
+      0.003892800014000386,
+      0.005230199953075498,
+      0.003814700001385063,
+      0.005270300025586039,
+      0.0038975999923422933,
+      0.002007399976719171,
+      0.0020274000125937164,
+      0.0020567000028677285,
+      0.002356400014832616,
+      0.0019327999907545745,
+      0.0019212000188417733,
+      0.0020522999693639576,
+      0.0019486999954096973,
+      0.001962199981790036,
+      0.0019563999958336353,
+      0.0019183999975211918,
+      0.002066899964120239,
+      0.0019515000167302787,
+      0.0019462999771349132,
+      0.0020025999983772635,
+      0.0024301999947056174,
+      0.002469099999871105,
+      0.001887699996586889,
+      0.0019240999827161431,
+      0.0020340000046417117,
+      3.44999716617167e-05,
+      3.400002606213093e-05,
+      3.3599964808672667e-05,
+      3.3800024539232254e-05,
+      3.419996937736869e-05,
+      3.42000275850296e-05,
+      3.479997394606471e-05,
+      3.4800032153725624e-05,
+      3.509997623041272e-05,
+      3.5299977753311396e-05,
+      3.430002834647894e-05,
+      3.44999716617167e-05,
+      3.470003139227629e-05,
+      3.479997394606471e-05,
+      3.4800032153725624e-05,
+      3.4299970138818026e-05,
+      3.4999975468963385e-05,
+      3.42000275850296e-05,
+      3.579998156055808e-05,
+      3.4400029107928276e-05,
+      0.00019669998437166214,
+      0.00019620003877207637,
+      0.00021629995899274945,
+      0.0002031000331044197,
+      0.00019399996381253004,
+      0.0002039000391960144,
+      0.00019419996533542871,
+      0.0002066000015474856,
+      0.0001965999836102128,
+      0.00019750004867091775,
+      0.00019479996990412474,
+      0.00019230000907555223,
+      0.00021119997836649418,
+      0.00023980002151802182,
+      0.00021609995746985078,
+      0.000347200024407357,
+      0.0001962999813258648,
+      0.00019400002202019095,
+      0.00019529997371137142,
+      0.0001941000227816403
+    ],
+    "512": [
+      0.01810059999115765,
+      0.017517700034659356,
+      0.018235999974422157,
+      0.017331400013063103,
+      0.01754039997467771,
+      0.017420299991499633,
+      0.01711979997344315,
+      0.0190195000031963,
+      0.016802400001324713,
+      0.016982599976472557,
+      0.01925789995584637,
+      0.018460099992807955,
+      0.018030399980489165,
+      0.018144700035918504,
+      0.018778300029225647,
+      0.017217299959156662,
+      0.017332800023723394,
+      0.01722810004139319,
+      0.018328500038478523,
+      0.016639100038446486,
+      0.00876960001187399,
+      0.008320500026457012,
+      0.008672900032252073,
+      0.008175999973900616,
+      0.009388300008140504,
+      0.008263099996838719,
+      0.00911340001039207,
+      0.008108700043521821,
+      0.009071699983906,
+      0.008559699985198677,
+      0.00951940001687035,
+      0.00915779999922961,
+      0.00860820000525564,
+      0.008171499997843057,
+      0.008185299986507744,
+      0.008390399976633489,
+      0.008280400012154132,
+      0.009367799968458712,
+      0.00844669999787584,
+      0.008531300001777709,
+      0.00015889998758211732,
+      0.00016110000433400273,
+      0.00015729997539892793,
+      0.00015470001380890608,
+      0.0001556000206619501,
+      0.00017590000061318278,
+      7.379997987300158e-05,
+      7.010000990703702e-05,
+      6.809999467805028e-05,
+      6.900000153109431e-05,
+      6.890000076964498e-05,
+      6.78999931551516e-05,
+      6.659998325631022e-05,
+      7.360003655776381e-05,
+      6.67999847792089e-05,
+      6.709998706355691e-05,
+      6.799999391660094e-05,
+      6.719998782500625e-05,
+      6.770004983991385e-05,
+      6.710004527121782e-05,
+      0.0006142000202089548,
+      0.0006455000257119536,
+      0.0006069999653846025,
+      0.0005989000201225281,
+      0.000630499969702214,
+      0.0006114999996498227,
+      0.0007550999871455133,
+      0.0014476000214926898,
+      0.0007739000138826668,
+      0.0006148000247776508,
+      0.0006900000153109431,
+      0.0006019999855197966,
+      0.0005883999983780086,
+      0.0006171000422909856,
+      0.0005957999965175986,
+      0.000596800004132092,
+      0.0005838999641127884,
+      0.0005811000009998679,
+      0.0005943999858573079,
+      0.0005808999994769692
+    ]
+  }
+}

@@ -335,18 +335,24 @@ class ResourceChecker:
     def check_gpu(self, exp: dict) -> dict:
         """返回 GPU 是否满足该实验（程序检测，非猜测）。
 
-        硬性不满足（SKIP）：仅 gpu_unavailable（要求 GPU 但机器无 GPU）。
-        显存不足（insufficient_gpu_memory）基于粗略显存估算，只产生 warning，不 SKIP
-        —— 估算值并非精确显存需求，不能据此硬性跳过。
+        GPU 不可用（gpu_unavailable）不再硬性 SKIP：生成的训练代码普遍带
+        CUDA→CPU 回退（train.py 检测不到 CUDA 时自动改用 CPU），降级运行
+        只是变慢、不致失败，故记 warning 后放行（CPU-degraded RUN）。
+        显存不足（insufficient_gpu_memory）基于粗略显存估算，同样只产生
+        warning，不 SKIP —— 估算值并非精确显存需求，不能据此硬性跳过。
         """
         warnings = []
         gpu_required = bool(exp.get("gpu_required"))
         gpu_available = bool(self.environment.get("gpu_available"))
         if gpu_required and not gpu_available:
+            warnings.append("gpu_unavailable_cpu_fallback")
             return {
-                "sufficient": False,
-                "reason": "gpu_unavailable",
-                "detail": "实验要求 GPU 但当前无可用 GPU",
+                "sufficient": True,
+                "reason": None,
+                "detail": (
+                    "实验要求 GPU 但当前无可用 GPU；降级为 CPU 运行"
+                    "（慢、结果可能有微小数值差异），生成代码的 CUDA→CPU 回退生效"
+                ),
                 "rough_gpu_memory_gb": None,
                 "warnings": warnings,
             }
@@ -501,7 +507,7 @@ class ResourceChecker:
         """按优先级顺序汇总所有资源检查（ExperimentScheduler 据此决定 RUN/SKIP）。
 
         顺序即 skip_reasons 的优先级：dataset > gpu > cpu > ram > disk > python > dependencies。
-        GPU 非必需：仅在实验要求（gpu_required）且当前无 GPU 时才 insufficient。
+        GPU 不可用不构成 SKIP：降级 CPU 运行，仅记 warning（gpu_unavailable_cpu_fallback）。
         """
         return {
             "dataset": self.check_dataset(exp),

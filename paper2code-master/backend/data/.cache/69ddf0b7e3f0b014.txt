@@ -1,0 +1,468 @@
+"""data/dataset.py — PlantVillage 数据集加载、预处理与划分。
+
+本模块实现 `PlantVillageDataset`（torch.utils.data.Dataset），
+对应 config/config.yaml 中的 `data` / `split_strategy` / `version_selector` 段：
+- 支持三个数据版本：color / grayscale / segmented
+- 预处理：双线性插值 resize -> Tensor -> ImageNet 统计量归一化
+- 划分：leaf_based_split（同一片叶子的多张图像必须落在同一集合）
+- 支持 engineering / strict 两种复现模式（是否从训练集二次划分验证集）
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import random
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+import torch
+from torch.utils.data import Dataset
+
+logger = logging.getLogger(__name__)
+
+try:  # Pillow 为可选硬依赖，延迟失败以保证模块可被 ast / import 检查
+    from PIL import Image as PILImage
+    from PIL import ImageOps
+except Exception:  # pragma: no cover
+    PILImage = None
+    ImageOps = None
+
+
+# --------------------------------------------------------------------------- #
+# 以下常量与 config/config.yaml 保持一致
+# --------------------------------------------------------------------------- #
+DEFAULT_ROOT_DIR = "data/raw/plantvillage"
+DATASET_VERSIONS: Tuple[str, ...] = ("color", "grayscale", "segmented")
+DEFAULT_DATASET_VERSION = "color"
+
+DEFAULT_IMAGE_SIZE = 256
+DEFAULT_RESIZE_MODE = "bilinear"
+DEFAULT_CHANNELS = 3
+DEFAULT_INTERPOLATION = "bilinear"
+
+DEFAULT_MEAN: Tuple[float, ...] = (0.485, 0.456, 0.406)   # data.mean
+DEFAULT_STD: Tuple[float, ...] = (0.229, 0.224, 0.225)    # data.std
+
+# data.color / data.grayscale / data.segmented 各自的通道数与归一化统计量
+VERSION_CHANNELS: Dict[str, int] = {"color": 3, "grayscale": 1, "segmented": 3}
+VERSION_MEAN_STD: Dict[str, Tuple[Tuple[float, ...], Tuple[float, ...]]] = {
+    "color": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+    "grayscale": ((0.5,), (0.5,)),
+    "segmented": ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+}
+
+NUM_CLASSES = 38                      # data.num_classes
+NUM_IMAGES = 54306                    # data.num_images
+NUM_CROP_SPECIES = 14                 # data.num_crop_species
+
+# split_strategy
+DEFAULT_TRAIN_RATIO = 0.8             # split_strategy.default_train_ratio
+DEFAULT_VAL_SPLIT_RATIO = 0.2         # split_strategy.val_split_ratio
+DEFAULT_SEED = 42                     # split_strategy.seed / experiment.seed
+DEFAULT_SHUFFLE = True                # split_strategy.shuffle
+
+# model.input_size = [3, 256, 256] -> 灰度图默认复制到 3 通道以喂给 CNN
+DEFAULT_OUTPUT_CHANNELS = 3
+
+_RESAMPLE_MAP = {
+    "nearest": "NEAREST",
+    "bilinear": "BILINEAR",
+    "bicubic": "BICUBIC",
+    "lanczos": "LANCZOS",
+    "area": "BILINEAR",
+}
+
+SPLITS: Tuple[str, ...] = ("train", "val", "test")
+
+
+def _resample_filter(resize_mode: str):
+    """把 config 中的 resize_mode / interpolation 字符串映射为 PIL 重采样常量。"""
+    if PILImage is None:  # pragma: no cover
+        raise ImportError("Pillow is required for image preprocessing")
+    name = _RESAMPLE_MAP.get(str(resize_mode).lower(), "BILINEAR")
+    # Pillow>=9 使用 Image.Resampling 枚举，旧版本直接挂在 Image 上
+    resampling = getattr(PILImage, "Resampling", PILImage)
+    return getattr(resampling, name)
+
+
+class PlantVillageDataset(Dataset):
+    """PlantVillage（38 类作物-病害组合）图像分类数据集。
+
+    目录约定::
+
+        <root_dir>/<dataset_version>/<ClassName>/*.jpg
+        例: data/raw/plantvillage/color/Apple___Apple_scab/xxx.jpg
+
+    叶子标识（leaf_based_split 用）：文件名中 "___" 之前的部分。
+    """
+
+    # ---- 与 config/config.yaml 对齐的类级默认值 ----
+    default_root_dir = DEFAULT_ROOT_DIR
+    dataset_versions = DATASET_VERSIONS
+    default_dataset_version = DEFAULT_DATASET_VERSION
+    image_size = DEFAULT_IMAGE_SIZE
+    channels = DEFAULT_CHANNELS
+    mean = DEFAULT_MEAN
+    std = DEFAULT_STD
+    num_classes = NUM_CLASSES
+    default_train_ratio = DEFAULT_TRAIN_RATIO
+    default_val_split_ratio = DEFAULT_VAL_SPLIT_RATIO
+    default_seed = DEFAULT_SEED
+
+    # ------------------------------------------------------------------ #
+    # __init__
+    # ------------------------------------------------------------------ #
+    def __init__(
+        self,
+        root_dir: Optional[Union[str, Path]] = None,
+        dataset_version: str = DEFAULT_DATASET_VERSION,
+        split: Optional[str] = "all",
+        indices: Optional[Sequence[int]] = None,
+        image_size: Union[int, Sequence[int]] = DEFAULT_IMAGE_SIZE,
+        resize_mode: str = DEFAULT_RESIZE_MODE,
+        interpolation: str = DEFAULT_INTERPOLATION,
+        channels: Optional[int] = None,
+        mean: Optional[Sequence[float]] = None,
+        std: Optional[Sequence[float]] = None,
+        normalize: bool = True,
+        output_channels: int = DEFAULT_OUTPUT_CHANNELS,
+        transform: Optional[Any] = None,
+        target_transform: Optional[Any] = None,
+        train_ratio: float = DEFAULT_TRAIN_RATIO,
+        val_split_ratio: float = DEFAULT_VAL_SPLIT_RATIO,
+        seed: int = DEFAULT_SEED,
+        shuffle: bool = DEFAULT_SHUFFLE,
+        strict_mode_no_val: bool = False,
+        strict: bool = False,
+    ) -> None:
+        """初始化数据集。
+
+        Args:
+            root_dir: 数据根目录，默认 ``data/raw/plantvillage``（data.root_dir）。
+            dataset_version: ``color`` / ``grayscale`` / ``segmented``（version_selector）。
+            split: ``train`` / ``val`` / ``test`` / ``all``；非 ``all`` 时自动做 leaf_based_split。
+            indices: 显式给定样本索引（优先级高于 split 自动划分）。
+            image_size: 目标边长，默认 256（data.image_size / data.image_size_hw）。
+            resize_mode: 插值方式，默认 bilinear（data.resize_mode / data.interpolation）。
+            channels: 输出通道数；默认取对应 dataset_version 的通道数。
+            mean / std: 归一化统计量；默认取对应 dataset_version 的统计量。
+            normalize: 是否归一化（data.normalize）。
+            output_channels: 返回张量的通道数，默认 3（model.input_size）。
+            transform / target_transform: 可选的 torchvision 变换。
+            train_ratio: 训练集比例（split_strategy.default_train_ratio）。
+            val_split_ratio: 从训练集中二次划分验证集的比例（split_strategy.val_split_ratio）。
+            seed: 随机种子（split_strategy.seed）。
+            shuffle: 划分前是否打乱（split_strategy.shuffle）。
+            strict_mode_no_val: 严格复现模式下不划分验证集。
+            strict: 目录不存在时是否抛出 FileNotFoundError。
+        """
+        super().__init__()
+
+        if dataset_version not in DATASET_VERSIONS:
+            raise ValueError(
+                f"dataset_version must be one of {DATASET_VERSIONS}, got {dataset_version!r}"
+            )
+
+        self.root_dir = str(root_dir) if root_dir is not None else DEFAULT_ROOT_DIR
+        self.dataset_version = dataset_version
+        self.data_root = self._resolve_data_root(self.root_dir, dataset_version)
+
+        # ---- 预处理参数 ----
+        if isinstance(image_size, int):
+            self.image_size_hw: Tuple[int, int] = (int(image_size), int(image_size))
+        else:
+            size = tuple(int(v) for v in image_size)
+            if len(size) != 2:
+                raise ValueError("image_size must be an int or a sequence of length 2")
+            self.image_size_hw = (size[0], size[1])
+        self.image_size = self.image_size_hw[0]
+        self.resize_mode = resize_mode
+        self.interpolation = interpolation or resize_mode
+
+        default_c = VERSION_CHANNELS.get(dataset_version, DEFAULT_CHANNELS)
+        self.channels = int(channels) if channels is not None else default_c
+
+        v_mean, v_std = VERSION_MEAN_STD.get(dataset_version, (DEFAULT_MEAN, DEFAULT_STD))
+        mean = tuple(float(m) for m in (mean if mean is not None else v_mean))
+        std = tuple(float(s) for s in (std if std is not None else v_std))
+        # 若统计量长度与目标通道数不一致，按首元素广播（灰度 -> 3 通道）
+        if len(mean) == 1 and self.channels > 1:
+            mean = mean * self.channels
+        if len(std) == 1 and self.channels > 1:
+            std = std * self.channels
+        self.mean = mean
+        self.std = std
+        self.normalize = bool(normalize)
+        self.output_channels = int(output_channels)
+        self.transform = transform
+        self.target_transform = target_transform
+
+        # ---- 划分参数 ----
+        self.train_ratio = float(train_ratio)
+        self.val_split_ratio = float(val_split_ratio)
+        self.seed = int(seed)
+        self.shuffle = bool(shuffle)
+        self.strict_mode_no_val = bool(strict_mode_no_val)
+
+        # ---- 扫描目录、构建样本与类别映射 ----
+        self.classes: List[str] = []
+        self.class_to_idx: Dict[str, int] = {}
+        self.samples: List[Tuple[str, int]] = []
+        self.paths: List[str] = []
+        self.labels: List[int] = []
+        self.leaf_ids: List[str] = []
+        self._build_index(strict=strict)
+
+        # ---- 划分（leaf_based_split）----
+        self.splits: Dict[str, List[int]] = {name: [] for name in SPLITS}
+        split_name = (split or "all").lower()
+        if indices is not None:
+            idx = [int(i) for i in indices]
+            self.indices = idx
+            if split_name in self.splits:
+                self.splits[split_name] = list(idx)
+        elif split_name in SPLITS:
+            self.splits = self.split_dataset(
+                train_ratio=self.train_ratio,
+                val_split_ratio=self.val_split_ratio,
+                seed=self.seed,
+                shuffle=self.shuffle,
+                strict_mode_no_val=self.strict_mode_no_val,
+            )
+            self.indices = list(self.splits[split_name])
+        else:
+            self.indices = list(range(len(self.samples)))
+            self.splits = {"train": [], "val": [], "test": [], "all": list(self.indices)}
+
+    # ------------------------------------------------------------------ #
+    # 目录 / 样本索引
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _resolve_data_root(root_dir: str, dataset_version: str) -> str:
+        """解析实际数据目录：<root_dir>/<dataset_version> 或 <root_dir>。"""
+        candidate = os.path.join(root_dir, dataset_version)
+        if os.path.isdir(candidate):
+            return candidate
+        return root_dir
+
+    @staticmethod
+    def parse_leaf_id(path: Union[str, Path]) -> str:
+        """从文件名解析叶子标识（同一片叶子的多张图必须落在同一集合）。"""
+        stem = Path(path).stem
+        if "___" in stem:
+            return stem.split("___", 1)[0]
+        return stem
+
+    def _build_index(self, strict: bool = False) -> None:
+        root = Path(self.data_root)
+        if not root.is_dir():
+            if strict:
+                raise FileNotFoundError(f"dataset root not found: {root}")
+            logger.warning("dataset root not found: %s (empty dataset created)", root)
+            self.classes, self.class_to_idx = [], {}
+            self.samples = []
+            return
+
+        class_dirs = sorted(
+            [d for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")],
+            key=lambda p: p.name,
+        )
+        self.classes = [d.name for d in class_dirs]
+        self.class_to_idx = {name: i for i, name in enumerate(self.classes)}
+
+        exts = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+        samples: List[Tuple[str, int]] = []
+        for cls_dir in class_dirs:
+            label = self.class_to_idx[cls_dir.name]
+            for file_path in sorted(cls_dir.rglob("*")):
+                if file_path.is_file() and file_path.suffix.lower() in exts:
+                    samples.append((str(file_path), label))
+
+        self.samples = samples
+        self.paths = [p for p, _ in samples]
+        self.labels = [y for _, y in samples]
+        self.leaf_ids = [self.parse_leaf_id(p) for p in self.paths]
+
+    # ------------------------------------------------------------------ #
+    # __len__ / __getitem__
+    # ------------------------------------------------------------------ #
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def __getitem__(self, index: int):
+        """返回 (image_tensor, label)。
+
+        - 默认使用 :meth:`preprocess_image` 完成 resize / to tensor / normalize；
+        - 若传入 ``transform``（如 torchvision.transforms），则优先使用它。
+        """
+        if len(self.indices) == 0:
+            raise IndexError("PlantVillageDataset is empty")
+
+        real_index = self.indices[index]
+        path, label = self.samples[real_index]
+
+        if PILImage is None:  # pragma: no cover
+            raise ImportError("Pillow is required for image loading")
+
+        with PILImage.open(path) as img:
+            image = img.copy()
+
+        if self.transform is not None:
+            image = self.transform(image)
+        else:
+            image = self.preprocess_image(image)
+
+        if self.target_transform is not None:
+            label = self.target_transform(label)
+
+        return image, int(label)
+
+    # ------------------------------------------------------------------ #
+    # preprocess_image
+    # ------------------------------------------------------------------ #
+    def preprocess_image(
+        self,
+        image: Union[str, Path, Any],
+        mean: Optional[Sequence[float]] = None,
+        std: Optional[Sequence[float]] = None,
+    ) -> torch.Tensor:
+        """单张图像预处理：模式转换 -> 双线性插值 resize -> Tensor -> 归一化。
+
+        Args:
+            image: 图像路径（str / Path）或 PIL.Image.Image。
+            mean / std: 覆盖实例默认的归一化统计量（默认与 config 一致）。
+
+        Returns:
+            形状为 ``(C, H, W)`` 的 ``torch.float32`` 张量。
+        """
+        if PILImage is None:  # pragma: no cover
+            raise ImportError("Pillow is required for image preprocessing")
+
+        # 1) 取得 PIL 图像
+        if isinstance(image, (str, Path)):
+            with PILImage.open(image) as img:
+                pil = img.copy()
+        elif hasattr(image, "convert"):  # PIL.Image.Image
+            pil = image
+        elif torch.is_tensor(image):
+            tensor = image.detach().float()
+            if tensor.dim() == 2:
+                tensor = tensor.unsqueeze(0)
+            return self._normalize_tensor(tensor, mean=mean, std=std)
+        else:
+            raise TypeError(f"unsupported image type: {type(image)!r}")
+
+        # 2) 模式转换（grayscale -> L；否则 RGB）
+        if self.channels == 1:
+            pil = pil.convert("L")
+        else:
+            pil = pil.convert("RGB")
+
+        # 3) resize（双线性插值，data.resize_mode = bilinear）
+        target_h, target_w = self.image_size_hw
+        if pil.size != (target_w, target_h):
+            pil = pil.resize((target_w, target_h), resample=_resample_filter(self.resize_mode))
+
+        # 4) to tensor (HWC uint8 -> CHW float in [0, 1])
+        data = list(pil.getdata())
+        width, height = pil.size
+        if self.channels == 1:
+            flat = torch.tensor(data, dtype=torch.float32).view(height, width)
+            tensor = flat.unsqueeze(0) / 255.0
+        else:
+            flat = torch.tensor(data, dtype=torch.float32).view(height, width, 3)
+            tensor = flat.permute(2, 0, 1).contiguous() / 255.0
+
+        # 5) 灰度 -> 3 通道（model.input_size = [3, 256, 256]）
+        if self.output_channels != tensor.shape[0]:
+            if self.output_channels == 1 and tensor.shape[0] == 3:
+                tensor = tensor.mean(dim=0, keepdim=True)
+            elif self.output_channels == 3 and tensor.shape[0] == 1:
+                tensor = tensor.repeat(3, 1, 1)
+            else:
+                raise ValueError(
+                    f"cannot convert {tensor.shape[0]} channels to {self.output_channels}"
+                )
+
+        # 6) 归一化（data.normalize = true）
+        return self._normalize_tensor(tensor, mean=mean, std=std)
+
+    def _normalize_tensor(
+        self,
+        tensor: torch.Tensor,
+        mean: Optional[Sequence[float]] = None,
+        std: Optional[Sequence[float]] = None,
+    ) -> torch.Tensor:
+        """按 (x - mean) / std 归一化，mean/std 自动广播到通道数。"""
+        if not self.normalize:
+            return tensor
+
+        mean = tuple(float(m) for m in (mean if mean is not None else self.mean))
+        std = tuple(float(s) for s in (std if std is not None else self.std))
+
+        c = tensor.shape[0]
+        if len(mean) == 1 and c > 1:
+            mean = mean * c
+        if len(std) == 1 and c > 1:
+            std = std * c
+        if len(mean) != c or len(std) != c:
+            raise ValueError(
+                f"mean/std length must match channels={c}, got {len(mean)}/{len(std)}"
+            )
+
+        mean_t = torch.tensor(mean, dtype=tensor.dtype).view(c, 1, 1)
+        std_t = torch.tensor(std, dtype=tensor.dtype).view(c, 1, 1)
+        return (tensor - mean_t) / std_t
+
+    # ------------------------------------------------------------------ #
+    # split_dataset —— leaf_based_split（同一叶子不跨集合）
+    # ------------------------------------------------------------------ #
+    def split_dataset(
+        self,
+        train_ratio: float = DEFAULT_TRAIN_RATIO,
+        val_split_ratio: float = DEFAULT_VAL_SPLIT_RATIO,
+        seed: int = DEFAULT_SEED,
+        shuffle: bool = DEFAULT_SHUFFLE,
+        stratified: bool = False,
+        strict_mode_no_val: bool = False,
+    ) -> Dict[str, List[int]]:
+        """按叶子级别（leaf_based_split）划分 train / val / test 索引。
+
+        - 同一片叶子的所有图像保证落在同一个集合；
+        - ``train_ratio`` 支持 config 中的 [0.8, 0.6, 0.5, 0.4, 0.2]；
+        - 从训练集中按 ``val_split_ratio``（默认 0.2）二次划分验证集
+          （engineering 模式）；``strict_mode_no_val=True`` 或
+          ``val_split_ratio<=0`` 时验证集为空（strict 模式）。
+
+        Returns:
+            ``{"train": [...], "val": [...], "test": [...]}``（索引列表）。
+        """
+        train_ratio = float(train_ratio)
+        if not 0.0 <= train_ratio <= 1.0:
+            raise ValueError(f"train_ratio must be in [0, 1], got {train_ratio}")
+        val_split_ratio = float(val_split_ratio)
+        if not 0.0 <= val_split_ratio <= 1.0:
+            raise ValueError(f"val_split_ratio must be in [0, 1], got {val_split_ratio}")
+
+        n_total = len(self.samples)
+        if n_total == 0:
+            return {name: [] for name in SPLITS}
+
+        # 叶子 -> 样本索引
+        leaf_to_indices: Dict[str, List[int]] = defaultdict(list)
+        for idx in range(n_total):
+            leaf_id = self.leaf_ids[idx] if self.leaf_ids else self.parse_leaf_id(self.paths[idx])
+            leaf_to_indices[leaf_id].append(idx)
+
+        leaves = sorted(leaf_to_indices.keys())
+        if shuffle:
+            rng = random.Random(seed)
+            rng.shuffle(leaves)
+
+        # ---- 训练 / 测试（叶子为最小单位）----
+        target_train_samples = n_total * train_ratio
+        train_leaves: List[str] = []
+        test_leaves: List[str] = []
+        n_train

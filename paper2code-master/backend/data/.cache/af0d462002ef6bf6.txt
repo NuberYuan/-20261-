@@ -1,0 +1,165 @@
+import sys
+import json
+import numpy as np
+import cv2
+
+
+def load_image(path):
+    try:
+        data = np.fromfile(path, dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        return img
+    except Exception:
+        return None
+
+
+def extract_visual_features(img):
+    features = {}
+    try:
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        h, w = gray.shape[:2]
+        total_pixels = float(h * w)
+
+        features["white_ratio"] = float(np.sum(gray > 200)) / total_pixels
+        features["light_ratio"] = float(np.sum(gray > 150)) / total_pixels
+
+        s_channel = hsv[:, :, 1].astype(np.float32)
+        features["mean_sat"] = float(np.mean(s_channel))
+        features["colored_ratio"] = float(np.sum(s_channel > 80)) / total_pixels
+
+        hue = hsv[:, :, 0].astype(np.float32)
+        sat_mask = s_channel > 80
+        if np.sum(sat_mask) > 0:
+            features["mean_hue_saturated"] = float(np.mean(hue[sat_mask]))
+        else:
+            features["mean_hue_saturated"] = -1.0
+
+        bs = 32
+        bh, bw = h // bs, w // bs
+        if bh > 0 and bw > 0:
+            blocks = gray[:bh * bs, :bw * bs].reshape(bh, bs, bw, bs)
+            block_vars = np.var(blocks, axis=(1, 3))
+            features["mean_texture"] = float(np.mean(block_vars))
+            features["texture_std"] = float(np.std(block_vars))
+        else:
+            features["mean_texture"] = float(np.var(gray))
+            features["texture_std"] = 0.0
+
+        row_means = np.mean(gray, axis=1)
+        col_means = np.mean(gray, axis=0)
+        features["row_std"] = float(np.std(row_means))
+        features["col_std"] = float(np.std(col_means))
+
+        features["h"] = h
+        features["w"] = w
+    except Exception:
+        features["white_ratio"] = 0.5
+        features["light_ratio"] = 0.6
+        features["mean_sat"] = 50.0
+        features["colored_ratio"] = 0.02
+        features["mean_hue_saturated"] = -1.0
+        features["mean_texture"] = 500.0
+        features["texture_std"] = 300.0
+        features["row_std"] = 10.0
+        features["col_std"] = 10.0
+        features["h"] = 100
+        features["w"] = 100
+    return features
+
+
+def classify_with_ocr(ocr_text):
+    ocr_upper = ocr_text.upper()
+
+    exp_keywords = [
+        "ACCURACY", "LOSS", "EPOCH", "PRECISION", "RECALL", "F1-SCORE",
+        "F1", "MAP", "MIOU", "PSNR", "SSIM", "TOP-1", "TOP-5",
+        "COMPARISON", "PERFORMANCE", "RESULT", "EVALUATION",
+        "RECALL", "ROC", "AUC", "ERROR RATE", "ACC", "TRAINING CURVE",
+        "CONVERGENCE", "BENCHMARK", "ABLATION"
+    ]
+
+    arch_keywords = [
+        "CNN", "TRANSFORMER", "ATTENTION", "ENCODER", "DECODER",
+        "BLOCK", "EMBEDDING", "CLASSIFIER", "FEATURE EXTRACTOR",
+        "ALEXNET", "RESNET", "VGG", "GOOGLENET", "CONVOLUTION",
+        "POOLING", "FC LAYER", "LSTM", "GRU", "BERT", "GPT",
+        "U-NET", "UNET", "YOLO", "FPN", "RPN", "BACKBONE",
+        "HEAD", "NECK", "CONV", "BN", "RELU", "GELU",
+        "MULTI-HEAD", "SELF-ATTENTION", "CROSS-ATTENTION",
+        "RESIDUAL", "SKIP CONNECTION", "DROPOUT", "SOFTMAX",
+        "LOGITS", "INPUT EMBEDDING", "POSITIONAL ENCODING"
+    ]
+
+    dataset_keywords = [
+        "DATASET", "SAMPLE", "CLASS", "CATEGORY", "TRAIN SET",
+        "TEST SET", "VALIDATION", "DATA AUGMENTATION", "INPUT IMAGE",
+        "GROUND TRUTH", "ANNOTATION", "LABEL", "PATCH"
+    ]
+
+    has_exp = any(kw in ocr_upper for kw in exp_keywords)
+    has_arch = any(kw in ocr_upper for kw in arch_keywords)
+    has_data = any(kw in ocr_upper for kw in dataset_keywords)
+
+    if has_exp:
+        return "experiment_result"
+    elif has_arch:
+        return "architecture"
+    elif has_data:
+        return "dataset"
+    return None
+
+
+def extract_components_from_ocr(ocr_text):
+    components = []
+    ocr_upper = ocr_text.upper()
+
+    model_names = [
+        "AlexNet", "ResNet", "VGG", "GoogLeNet", "Transformer",
+        "BERT", "GPT", "U-Net", "YOLO", "DenseNet", "Inception",
+        "MobileNet", "EfficientNet", "ViT", "Swin", "DeiT",
+        "ConvNeXt", "CLIP", "BERT", "T5", "LLaMA", "MAE",
+        "ResNet50", "ResNet18", "ResNet101", "ResNet34"
+    ]
+
+    metrics = [
+        "Accuracy", "Loss", "Precision", "Recall", "F1", "F1-score",
+        "mAP", "mIoU", "PSNR", "SSIM", "Top-1", "Top-5",
+        "AUC", "ROC", "Error Rate", "RMSE", "MAE", "BLEU", "CIDEr"
+    ]
+
+    arch_components = [
+        "CNN", "Transformer", "Attention", "Multi-Head Attention",
+        "Self-Attention", "Encoder", "Decoder", "Block", "Embedding",
+        "Classifier", "Feature Extractor", "Convolution", "Pooling",
+        "FC Layer", "LSTM", "GRU", "FPN", "Backbone", "Neck", "Head",
+        "Residual Block", "Skip Connection", "Positional Encoding",
+        "Input Embedding", "Softmax", "Dropout", "LayerNorm", "BatchNorm"
+    ]
+
+    all_known = model_names + metrics + arch_components
+    for item in all_known:
+        if item.upper() in ocr_upper:
+            if item not in components:
+                components.append(item)
+    return components
+
+
+def classify_with_visual(feat):
+    white_ratio = feat["white_ratio"]
+    light_ratio = feat["light_ratio"]
+    colored_ratio = feat["colored_ratio"]
+    mean_sat = feat["mean_sat"]
+    mean_texture = feat["mean_texture"]
+    texture_std = feat["texture_std"]
+    row_std = feat["row_std"]
+    col_std = feat["col_std"]
+
+    if white_ratio > 0.5 and colored_ratio > 0.003 and mean_texture < 1000:
+        return "experiment_result"
+    elif mean_texture > 1200 and texture_std > 600 and colored_ratio > 0.05:
+        return "dataset"
+    elif white_ratio > 0.4 and mean_texture < 1800 and colored_ratio > 0.005:
+        return "architecture"
+    elif mean_texture > 2500:
+        return "dataset"

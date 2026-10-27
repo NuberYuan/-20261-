@@ -1,0 +1,1 @@
+{"data_source": "synthetic", "acquisition": "n/a", "data_source_note": "实验使用的是程序化生成的各类图（如环图、不同图结构类别）进行运行时基准测试，无任何外部真实数据集依赖。"}

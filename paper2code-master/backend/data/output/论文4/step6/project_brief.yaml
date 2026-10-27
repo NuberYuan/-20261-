@@ -1,0 +1,458 @@
+project:
+  name: RULEBASED_GRAPH_PROGRAMS_MATCHING_THE_TIME_COMPLEX
+  paper_title: RULE-BASED GRAPH PROGRAMS MATCHING THE TIME COMPLEXITY OF IMPERATIVE
+    ALGORITHMS
+  paper_type: empirical_comparison
+  task: other
+  one_liner: 复现论文中 方法 在代码生成的合成数据上的other，对比不同训练模式与数据划分下的性能。
+consistency_report:
+  summary:
+    checks_run: 6
+    checks_passed: 6
+    checks_warning: 0
+    checks_failed: 0
+    conflicts: 0
+    gaps: 16
+    assumptions: 1
+  checks:
+  - id: CHECK-02
+    name: FR-02 → 模块覆盖
+    status: pass
+    detail: 算法/方法实现 映射到 Step5 模块 'src'。
+  - id: CHECK-03
+    name: FR-03 → 模块覆盖
+    status: pass
+    detail: 模型评估 映射到 Step5 模块 'evaluation'。
+  - id: CHECK-04
+    name: FR-04 → 模块覆盖
+    status: pass
+    detail: 论文结果复现与报告 映射到 Step5 模块 'evaluation'。
+  - id: CHECK-05
+    name: 数据划分（train/test vs val）
+    status: pass
+    detail: 划分口径在需求与设计两侧一致。
+  - id: CHECK-06
+    name: 评估指标
+    status: pass
+    detail: Step4 评估指标与 Step5 实验设计对齐（primary=runtime measurements）。
+  - id: CHECK-07
+    name: 数据流接口闭环
+    status: pass
+    detail: 3 个接口端到端链路均有对应实现文件。
+  conflicts: []
+  gaps:
+  - id: GAP-01
+    field: dataset.train_test_split
+    description: 验证集划分比例及方法未明确说明
+    severity: high
+    mitigation: 使用 80/10/10 分层随机划分（train/val/test），或按论文数据集惯例
+  - id: GAP-02
+    field: dataset.preprocessing
+    description: 数据预处理的具体参数未完全给出
+    severity: high
+    mitigation: 按数据语义做标准化（z-score/归一化），无 RGB 通道概念
+  - id: GAP-03
+    field: table_analysis.table_results[0].caption_summary
+    description: '''Output of a GP 2 program showing an execution/program graph structure
+      (likely a graphical diagram of'' 使用了模糊措辞 ''like''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-04
+    field: table_analysis.table_results[2].caption_summary
+    description: '''Primitive operations on the host graph (fetching first/next node
+      of a given mark) with their time co'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-05
+    field: table_analysis.table_results[2].extracted_data.key_values[0].value
+    description: '''Fetch the first node of mark m in the host graph.'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-06
+    field: table_analysis.table_results[2].extracted_data.key_values[2].value
+    description: '''Given a node of mark m, fetch the next node of mark m in the host
+      graph.'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-07
+    field: table_analysis.table_results[3].caption_summary
+    description: '''A table of basic graph traversal operations (fetching first/next
+      in-edges, out-edges, and loop edges'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-08
+    field: table_analysis.table_results[3].extracted_data.key_values[0].label
+    description: '''firstInEdge(m) - Given a node, fetch the first inedge of mark
+      m'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-09
+    field: table_analysis.table_results[3].extracted_data.key_values[1].label
+    description: '''nextInEdge(m) - Given a node and an edge of mark m, fetch the
+      next inedge of mark m'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-10
+    field: table_analysis.table_results[3].extracted_data.key_values[2].label
+    description: '''firstOutEdge(m) - Given a node, fetch the first outedge of mark
+      m'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-11
+    field: table_analysis.table_results[3].extracted_data.key_values[3].label
+    description: '''nextOutEdge(m) - Given a node and an edge of mark m, fetch the
+      next outedge of mark m'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-12
+    field: table_analysis.table_results[3].extracted_data.key_values[4].label
+    description: '''firstLoop(m) - Given a node, fetch the first loop edge of mark
+      m'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-13
+    field: table_analysis.table_results[3].extracted_data.key_values[5].label
+    description: '''nextLoop(m) - Given a node and an edge of mark m, fetch the next
+      loop edge of mark m'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-14
+    field: table_analysis.table_results[4].table_summary
+    description: '''The grid-based extraction of table_5 yielded only filler characters
+      (''. . .'' and rule lines) rather '' 使用了模糊措辞 ''like''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-15
+    field: table_analysis.table_results[5].caption_summary
+    description: '''Fragmentary bullet-list item (detected as a table) containing
+      implication/typing notation such as ''⇒'' 使用了模糊措辞 ''such as''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - id: GAP-16
+    field: table_analysis.table_results[5].table_summary
+    description: '''This ''table'' is a spurious extraction from a bullet list in
+      a logical/type-theoretic manuscript; it '' 使用了模糊措辞 ''like''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  assumptions:
+  - id: ASM-01
+    description: 论文原文使用 GP 2 compiled to C via GP 2-to-C compiler, GCC，代码工程改用 Python
+      标准库 实现。此为显式工程偏离，需在 README 中说明。
+    source: step5/technology.framework
+requirements_digest:
+  summary: 本项目包含 4 个功能需求（FR-01、FR-02、FR-03、FR-04），涉及 dataset, methodology, experiment
+    维度。
+  core_requirements:
+  - id: FR-01
+    what: 加载/构造 various graph classes 数据集（NOT_FOUND）
+    why: 论文指定数据集与预处理要求
+    acceptance: 加载后样本数应与 NOT_FOUND 一致
+  - id: FR-02
+    what: '实现论文提出的方法: Enhanced GP 2 compiler with improved graph data structure'
+    why: 论文对比的模型与训练策略
+    acceptance: 算法可运行并产出预期格式的输出，与论文示例/结论一致
+  - id: FR-03
+    what: '在测试集上计算评估指标: runtime measurements'
+    why: 论文报告的主要结果
+    acceptance: 输出 runtime measurements 的值，与论文报告值对比
+  - id: FR-04
+    what: '[论文要求] 计算并报告: runtime measurements。关键发现: The first two programs run in
+      linear time on (possibly disconnected) input graphs with arbitrary node degrees.
+      The thir…'
+    why: 论文报告的主要结果
+    acceptance: '[论文要求] 评估指标值与论文报告值在容差范围内一致；[工程辅助] 图表可正确生成，不要求与论文图表逐像素一致'
+  data_flow_overview: '数据依次经过: 数据加载（数据样本（张量或结构化数据）） → 数据预处理（标准化后的特征张量 (B, F)） → 算法执行（算法输出结果）
+    → 模型评估（验证报告（结果一致性））。'
+  key_interfaces:
+  - from: 数据加载
+    to: 数据预处理
+    data: 数据样本（张量或结构化数据）
+  - from: 数据预处理
+    to: 算法执行
+    data: 标准化后的特征张量 (B, F)
+  - from: 算法执行
+    to: 模型评估
+    data: 算法输出结果
+design_digest:
+  summary: 项目采用 Python 标准库 框架，实现 ，目录结构包含 evaluation, src, config 模块，入口为 main.py。
+  tech_stack:
+    framework: Python 标准库
+    key_dependencies:
+    - numpy
+    - pyyaml
+    - matplotlib
+    hardware: NOT_FOUND
+  models: []
+  project_structure:
+    root_directories:
+    - evaluation
+    - src
+    - config
+    entry_point: main.py
+  training_config_summary:
+    optimizer: NOT_FOUND
+    learning_rate: NOT_FOUND
+    batch_size: NOT_FOUND
+    epochs: NOT_FOUND
+    loss: NOT_FOUND
+    scheduler: NOT_FOUND (step_size=?, gamma=?)
+decisions:
+  framework: Python 标准库
+  data_source: synthetic
+  acquisition: n/a
+  training_modes: []
+data_dependency:
+  data_source: synthetic
+  acquisition: n/a
+  note: 实验使用的是程序化生成的各类图（如环图、不同图结构类别）进行运行时基准测试，无任何外部真实数据集依赖。
+unresolved_dataset_versions: []
+traceability:
+- requirement_id: FR-01
+  requirement_name: 数据集加载
+  planned_implementation: []
+  design_ref: null
+- requirement_id: FR-02
+  requirement_name: 算法/方法实现
+  planned_implementation:
+  - src/enhancedgp2compilerwithimprovedgraphdatastructure.py::run
+  design_ref: step5/reproduction_goal.yaml
+- requirement_id: FR-03
+  requirement_name: 模型评估
+  planned_implementation:
+  - evaluation/evaluate.py::evaluate_model
+  design_ref: step5/experiment_design.yaml
+- requirement_id: FR-04
+  requirement_name: 论文结果复现与报告
+  planned_implementation:
+  - evaluation/evaluate.py::generate_report
+  design_ref: step5/experiment_design.yaml
+code_generation_plan:
+  generation_order:
+  - phase: 1
+    description: 基础配置
+    files:
+    - config/config.yaml
+    reason: 配置是所有后续模块的基础，必须先定义。
+  - phase: 2
+    description: 核心逻辑（模型/算法）
+    files:
+    - src/enhancedgp2compilerwithimprovedgraphdatastructure.py
+    reason: 模型/算法是训练和评估的前提。
+  - phase: 3
+    description: 训练与评估
+    files:
+    - evaluation/evaluate.py
+    - evaluation/compare.py
+    reason: 训练依赖模型和数据，评估依赖训练好的模型。
+  - phase: 4
+    description: 入口与文档
+    files:
+    - main.py
+    - requirements.txt
+    - README.md
+    reason: 入口文件整合所有模块，文档和依赖列表最后生成。
+  per_file_specs:
+  - file: evaluation/evaluate.py
+    purpose: 实现模型评估和报告生成
+    classes: []
+    key_methods:
+    - evaluate_model
+    - generate_report
+    depends_on:
+    - config/config.yaml
+    satisfies_requirements:
+    - FR-03
+    - FR-04
+    notes: '计算评估指标；生成论文要求数值报告和工程辅助图表。【接口约定】generate_report 的签名是 (metrics, run_name,
+      output_dir, config)，返回单个 run 的报告路径（不要做成接收 results 字典并批量绘制对比图的函数）。本文件只提供 evaluate_model
+      / generate_report 等函数，不要写 __main__ 入口或目录扫描逻辑（入口统一在 main.py）。【绘图参数】_generate_metrics_bar_chart
+      接收完整的 metrics dict（内部一次绘制 mean_f1/precision/recall/accuracy），调用时传 metrics 整个
+      dict，严禁传 metrics[''mean_f1''] 单标量；_generate_confusion_matrix_plot 则接收 metrics[''confusion_matrix'']
+      二维数组。【matplotlib 可选】matplotlib 仅是可视化辅助依赖，目标环境可能未安装，不要假设它一定存在。文件顶部必须用 try/except
+      包裹 matplotlib 导入（try: import matplotlib; matplotlib.use(''Agg''); import matplotlib.pyplot
+      as plt except ImportError: plt = None），所有绘图函数在 plt is None 时直接跳过并返回 None，generate_report
+      在无 matplotlib 时仍输出文本报告。严禁因 matplotlib 缺失在 import 阶段或运行期崩溃——指标计算与文本报告必须无条件完成。'
+  - file: evaluation/compare.py
+    purpose: 实现模型评估和报告生成
+    classes: []
+    key_methods:
+    - evaluate_model
+    - generate_report
+    depends_on:
+    - config/config.yaml
+    satisfies_requirements: []
+    notes: '计算评估指标；生成论文要求数值报告和工程辅助图表。【接口约定】generate_report 的签名是 (metrics, run_name,
+      output_dir, config)，返回单个 run 的报告路径（不要做成接收 results 字典并批量绘制对比图的函数）。本文件只提供 evaluate_model
+      / generate_report 等函数，不要写 __main__ 入口或目录扫描逻辑（入口统一在 main.py）。【绘图参数】_generate_metrics_bar_chart
+      接收完整的 metrics dict（内部一次绘制 mean_f1/precision/recall/accuracy），调用时传 metrics 整个
+      dict，严禁传 metrics[''mean_f1''] 单标量；_generate_confusion_matrix_plot 则接收 metrics[''confusion_matrix'']
+      二维数组。【matplotlib 可选】matplotlib 仅是可视化辅助依赖，目标环境可能未安装，不要假设它一定存在。文件顶部必须用 try/except
+      包裹 matplotlib 导入（try: import matplotlib; matplotlib.use(''Agg''); import matplotlib.pyplot
+      as plt except ImportError: plt = None），所有绘图函数在 plt is None 时直接跳过并返回 None，generate_report
+      在无 matplotlib 时仍输出文本报告。严禁因 matplotlib 缺失在 import 阶段或运行期崩溃——指标计算与文本报告必须无条件完成。'
+  - file: src/enhancedgp2compilerwithimprovedgraphdatastructure.py
+    purpose: 实现论文方法 enhancedgp2compilerwithimprovedgraphdatastructure
+    classes: []
+    key_methods:
+    - run
+    depends_on:
+    - config/config.yaml
+    satisfies_requirements:
+    - FR-02
+    notes: '实现论文提出的算法/方法，构造输入并验证与论文结果的一致性。不要引入 torch/torchvision（非训练论文），依赖 numpy/pyyaml。所有
+      open() 读配置文件必须 encoding=''utf-8''。
+
+      【复现目标】论文核心贡献：The paper enhances the graph data structure generated by the GP
+      2 compiler by storing nodes in separate linked lists based on marks and incident
+      edges in a two-dimensional array of linked lists based on marks and orientation.
+      Three case studies are presented: (1) a GP 2 program checking connectedness
+      in linear time on arbitrary input graphs, (2) a program recognising acyclic
+      graphs in linear time, and (3) a rule-based implementation of Bellman-Ford single-source
+      shortest-path algorithm running in O(nm) time, matching imperative complexity.
+      Each comes with correctness and time complexity proofs…；论文关键结果/案例：The first
+      two programs run in linear time on (possibly disconnected) input graphs with
+      arbitrary node degrees. The third program runs in time O(nm) on arbitrary input
+      graphs, matching the time complexity of imperative implementations of the Bellman-Ford
+      algorithm. The worst-case complexity of matching the forward rule in the old
+      isconnected program is 2|E| + P_{i=1}^{|E|} i = O(|E|^2) where E is the set
+      of edges.。实现时必须覆盖这些具体案例/程序（而非无关示例），构造对应输入验证正确性，并对论文的时间复杂度等结论给出定性验证。'
+  - file: config/config.yaml
+    purpose: 集中管理所有配置参数
+    classes: []
+    key_methods: []
+    depends_on: []
+    satisfies_requirements: []
+    notes: '本论文无训练、无外部数据：不要生成 data/model/training_modes/training/checkpoint/inference/split_strategy
+      键，仅包含算法参数与运行配置。顶层键必须包含: project（name/paper/framework: Python 标准库）、experiment（runs
+      列表）、logging、system（device/num_workers/seed）。其余代码读取的键都必须在此列全，避免代码引用不存在的键。【NOT_FOUND
+      禁止入数值】凡代码会当数字消费的字段（num_classes/batch_size/epochs/learning_rate/feature_dim/dropout_ratio
+      等），论文能推导出具体值时必须写具体数字；确实未知时写 null 或省略该键（让代码用 .get(key, 默认值) 兜底），严禁写字符串 ''NOT_FOUND''，否则代码里
+      np.zeros((''NOT_FOUND'',''NOT_FOUND'')) 或 int(''NOT_FOUND'') 会崩溃。【data_source/acquisition】顶层必须写
+      data_source 和 acquisition 两个键，本论文固定为 data_source: synthetic、acquisition: n/a（data_source
+      非 external_dataset，data 段无需 path，数据在代码内生成/来自环境）；同时每个 experiment.runs[] 条目也必须带
+      data_source 和 acquisition（值同上）。这两个键由 Step7 确定性注入兜底，LLM 写错也会被覆盖，但请保持一致，勿省略。'
+  - file: main.py
+    purpose: 项目入口，执行论文方法
+    classes: []
+    key_methods:
+    - main
+    depends_on:
+    - config/config.yaml
+    - src/enhancedgp2compilerwithimprovedgraphdatastructure.py
+    - evaluation/evaluate.py
+    satisfies_requirements:
+    - FR-01
+    - FR-02
+    - FR-03
+    - FR-04
+    notes: 解析配置，执行论文方法（算法），验证与论文结果的一致性。所有 open() 读配置文件必须 encoding='utf-8'。【命令行参数】支持
+      --config <path>（配置文件路径，默认 'config/config.yaml'）。不要引入 torch/torchvision（非训练论文），依赖
+      numpy/pyyaml。
+  - file: requirements.txt
+    purpose: 列出项目依赖
+    classes: []
+    key_methods: []
+    depends_on: []
+    satisfies_requirements: []
+    notes: 包含 numpy, pyyaml, matplotlib。
+  - file: README.md
+    purpose: 项目说明文档
+    classes: []
+    key_methods: []
+    depends_on: []
+    satisfies_requirements: []
+    notes: "说明项目结构、运行方法和复现步骤。【项目结构】以下为本项目实际的文件结构，README 中的目录树必须与之完全一致，严禁凭空描述不存在的目录/文件（如\
+      \ configs/、setup.py、experiments/、results/、tests/、src/models/、src/training/ 等）：\n\
+      \  README.md\n  main.py\n  requirements.txt\n  config/config/config.yaml\n \
+      \ evaluation/evaluation/compare.py\n  evaluation/evaluation/evaluate.py\n  src/src/enhancedgp2compilerwithimprovedgraphdatastructure.py"
+risks_and_notes:
+  gaps:
+  - issue: 验证集划分比例及方法未明确说明
+    severity: high
+    mitigation: 使用 80/10/10 分层随机划分（train/val/test），或按论文数据集惯例
+  - issue: 数据预处理的具体参数未完全给出
+    severity: high
+    mitigation: 按数据语义做标准化（z-score/归一化），无 RGB 通道概念
+  - issue: '''Output of a GP 2 program showing an execution/program graph structure
+      (likely a graphical diagram of'' 使用了模糊措辞 ''like''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''Primitive operations on the host graph (fetching first/next node of
+      a given mark) with their time co'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''Fetch the first node of mark m in the host graph.'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''Given a node of mark m, fetch the next node of mark m in the host graph.''
+      使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''A table of basic graph traversal operations (fetching first/next in-edges,
+      out-edges, and loop edges'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''firstInEdge(m) - Given a node, fetch the first inedge of mark m'' 使用了模糊措辞
+      ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''nextInEdge(m) - Given a node and an edge of mark m, fetch the next inedge
+      of mark m'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''firstOutEdge(m) - Given a node, fetch the first outedge of mark m''
+      使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''nextOutEdge(m) - Given a node and an edge of mark m, fetch the next
+      outedge of mark m'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''firstLoop(m) - Given a node, fetch the first loop edge of mark m'' 使用了模糊措辞
+      ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''nextLoop(m) - Given a node and an edge of mark m, fetch the next loop
+      edge of mark m'' 使用了模糊措辞 ''etc''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''The grid-based extraction of table_5 yielded only filler characters
+      (''. . .'' and rule lines) rather '' 使用了模糊措辞 ''like''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''Fragmentary bullet-list item (detected as a table) containing implication/typing
+      notation such as ''⇒'' 使用了模糊措辞 ''such as''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  - issue: '''This ''table'' is a spurious extraction from a bullet list in a logical/type-theoretic
+      manuscript; it '' 使用了模糊措辞 ''like''，具体值待确认'
+    severity: low
+    mitigation: 从论文其他章节交叉验证，或标记为可配置参数
+  conflicts: []
+  assumptions:
+  - 论文原文使用 GP 2 compiled to C via GP 2-to-C compiler, GCC，代码工程改用 Python 标准库 实现。此为显式工程偏离，需在
+    README 中说明。
+  for_code_agent:
+  - '[结论] 论文的''关键发现''（如某模型优于另一模型、迁移学习优于从头训练）是论文结论，代码必须从实际评估结果动态计算比较，严禁在报告/README/注释中写死结论性措辞（如
+    ''consistently outperforms'' / ''always yields better results''）。'
+_meta:
+  paper_name: 论文4
+  generated_at: '2026-10-24T16:01:59.123778'
+  method: rule-driven (no LLM)
+  sources:
+    step4_files:
+    - acceptance_criteria
+    - data_flow
+    - functional_requirements
+    - gap_analysis
+    - requirements_summary
+    step5_files:
+    - dataset
+    - experiment_design
+    - model_design
+    - optimized_project_spec
+    - project_analysis
+    - project_structure
+    - reproduction_goal
+    - technology
+    - training_config

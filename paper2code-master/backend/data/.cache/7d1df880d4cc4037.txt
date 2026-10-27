@@ -1,0 +1,24 @@
+```json
+{
+  "type": "diagram",
+  "description": "Temporal Fusion Transformer (TFT) 的整体架构图，包含主干的 Temporal Fusion Decoder（静态协变量编码、变量选择网络、LSTM编码/解码、静态增强、可解释多头自注意力、门控残差前馈网络）以及右上角的 Gated Residual Network (GRN) 和右下角的 Variable Selection Network 的子结构细节。",
+  "important_components": [
+    "Static Covariate Encoders（静态协变量编码器 S）",
+    "Variable Selection Network（变量选择网络）",
+    "LSTM Encoder（历史输入 χ_{t-k} ... χ_t）",
+    "LSTM Decoder（已知未来输入 x_{t+1} ... x_{t+τmax}）",
+    "Static Enrichment（GRN 静态增强）",
+    "Masked Interpretable Multi-head Attention（可解释多头注意力）",
+    "Temporal Self-Attention + Add & Norm + Gate",
+    "Position-wise Feed-forward (GRN)",
+    "Gated Residual Network (GRN): Dense + ELU + Dense + Gate + Add & Norm + Dropout + Residual Connection",
+    "Dense 输出层（分位数预测）",
+    "Quantile Forecasts: ŷ_{t+1}(0.1), ŷ_{t+1}(0.5), ŷ_{t+1}(0.9), ..., ŷ_{t+τ}(0.1), ŷ_{t+τ}(0.5), ŷ_{t+τ}(0.9)",
+    "Quantile Loss（隐含，分位数输出对应 pinball/quantile loss）",
+    "External Context (Optional)",
+    "Variable Selection Weights v_{χt}（Softmax 产生）",
+    "Past Inputs / Known Future Inputs 时间轴划分"
+  ],
+  "code_relevant_information": "模型为 Temporal Fusion Transformer (TFT)。数据流：(1) 静态元数据 S 经 Static Covariate Encoder 编码，输出同时作为 GRN/门控/LSTM 的上下文条件 c；(2) 过去观测输入 χ_{t-k}...χ_t 与已知未来输入 x_{t+1}...x_{t+τmax} 各自经过 Variable Selection Network：每个变量先经线性/Embedding 变换得 ξ_t^{(j)} (j=1..m_χ)，各自通过 GRN 得 ξ̃_t^{(j)}；同时拼接（flatten）后的输入经 GRN + Softmax 得变量选择权重 v_{χt}^{(j)}；输出为加权和 ξ̃_t = Σ_{j=1}^{m_χ} v_{χt}^{(j)} ξ_t^{(j)}。(3) 历史输入经 LSTM Encoder、未来输入经 LSTM Decoder（共享状态），每个 LSTM 输出后接 Gate + Add & Norm（含 Dropout）的残差块。(4) LSTM 输出与静态编码一起进入 Static Enrichment GRN。(5) 进入 Masked Interpretable Multi-head Attention（带掩码的时间自注意力，可输出注意力权重用于可解释性），后接 Gate + Add & Norm。(6) 位置级前馈网络为 GRN，再接 Gate + Add & Norm。(7) 最后经全连接 Dense 层输出多步分位数预测：对预测步长 t+1 到 t+τ 的每一步输出 0.1、0.5、0.9 三个分位数，训练损失为 quantile/pinball loss。GRN 结构：输入 a 与可选外部上下文 c，经 Dense -> ELU -> Dense -> Gate(含 Dropout) -> 与输入残差相加并 LayerNorm，形成 'Add & Norm'。变量选择公式：ξ̃_t = Σ_{j=1}^{m_χ} v_{χt}^{(j)} ξ_t^{(j)}，其中权重 v_{χt} = Softmax(GRN(flatten(Ξ_t), c))。所有 GRN 的门控（GLU）可学习地抑制不相关特征。"
+}
+```

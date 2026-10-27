@@ -1,0 +1,106 @@
+paper_name: 论文1
+parameter_provenance:
+  paper_confirmed:
+  - batch_size
+  - batch_size_note
+  - epochs
+  - learning_rate
+  - loss_function
+  - momentum
+  - optimizer_name
+  - weight_decay
+  inferred_from_paper:
+  - scheduler_name
+  - scheduler_step_size
+  - scheduler_gamma
+  - dropout_ratio
+  - image_size
+  engineering_default:
+  - checkpoint.save_best
+  - checkpoint.best_metric
+  - checkpoint.save_final
+  - checkpoint.save_optimizer_state
+  - inference.device
+  NOT_FOUND_in_paper:
+  - early_stopping
+  - checkpoint.save_frequency_epochs
+  - inference.batch_size
+  - freeze_backbone
+  note: 'paper_confirmed: 值直接来自论文 implementation_details；inferred_from_paper: 从论文描述推断但非逐字引用；engineering_default:
+    我们选择的工程实践值；NOT_FOUND_in_paper: 论文未提供，需自行决定'
+training_modes:
+  scratch:
+    description: 从头训练：所有层随机初始化
+    pretrained: false
+    weight_init: kaiming_normal
+    reset_layers: []
+    freeze_backbone: false
+  transfer:
+    description: 迁移学习：加载ImageNet预训练权重，重置最后一层
+    pretrained: true
+    pretrained_source: torchvision.models (ImageNet)
+    reset_layers:
+    - classifier.6 (fc8, in_features=4096, out_features=38)
+    - fc (主分类器, out_features=38)
+    - aux1.fc2 (辅助分类器1, out_features=38)
+    - aux2.fc2 (辅助分类器2, out_features=38)
+    freeze_backbone:
+      value: NOT_FOUND
+      decision_type: engineering_decision
+      note: ⚠ 此项为纯工程决策（论文未提及，NOT_FOUND），不是论文要求。默认不冻结（全量微调），因为目标域与 ImageNet 差异较大。两种策略可选：(a)
+        不冻结 (fine-tuning)：所有层参与训练，收敛慢但效果好 — 推荐；(b) 冻结 backbone：只训练重置的分类层，收敛快但可能欠拟合。代码
+        Agent 可自由选择，但需在 config.yaml 中显式标注。
+      engineering_default: false
+    note: '论文两种模式的对比结果: Best performance: GoogLeNet::TransferLearning::Color::80-20
+      with mean F1 score 0.9934 and overall accuracy 99.35%. Worst performance: AlexNet::TrainingFromScratch::GrayScale::80-20
+      with mean F1 score 0.8524 and overall accuracy 85.53%. GoogLeNet consistently
+      outperforms AlexNet. Transfer learning always yields better results than training
+      from scratch. Color > Segmented > Grayscale in terms of performance. On real-world
+      images (121 images from trusted online sources), GoogLeNet:Segmented:TransferLearning:80-20
+      achieves 31.40% accuracy, 47.93% when crop information is provided, 52.89% top-5
+      accuracy. In n>=2 case (33 classes, 9 crops): random accuracy 0.273, model accuracy
+      0.478. In n>=3 case (25 classes, 5 crops): random accuracy 0.2, model accuracy
+      0.411.'
+training:
+  batch_size: 24 (in case of GoogLeNet), 100 (in case of AlexNet)
+  batch_size_note: 论文显式指定 batch_size；若为多模型，逐模型数值见 batch_size 字段。
+  epochs: '30'
+  image_size: 256x256
+  optimizer:
+    name: Stochastic Gradient Descent
+    lr: '0.005'
+    momentum: '0.9'
+    weight_decay: '0.0005'
+  scheduler:
+    name: StepLR
+    step_size: '10'
+    gamma: '0.1'
+    note: 每 10 个 epoch 将学习率乘以 0.1；PyTorch StepLR 与此行为等价。
+  loss_function: softmax cross-entropy (inferred from softmax layer)
+  dropout_ratio: '0.5'
+  early_stopping: NOT_FOUND
+checkpoint:
+  save_best: true
+  best_metric: val_accuracy
+  best_mode: max
+  save_final: true
+  save_frequency_epochs: NOT_FOUND
+  save_optimizer_state: true
+  resume_from: NOT_FOUND
+  note: 论文无独立验证集，best_metric 设为 val_accuracy 是工程偏离。如严格复现论文，应从训练集二次划分验证集，或直接用 test_accuracy（不推荐，会导致数据泄露）。
+train_test_splits:
+- 0.8
+- 0.6
+- 0.5
+- 0.4
+- 0.2
+inference:
+  device: cuda
+  batch_size: NOT_FOUND
+reproducibility_notes:
+- Segregation of images of the same leaf into same train/test split (mappings available
+  for only 41,112 out of 54,306 images)
+- Automated leaf segmentation script tuning for the specific dataset
+- Fixing color casts in some image collection subsets
+- Access to GPU cluster for training
+- Own fork of Caffe framework needed for full replication

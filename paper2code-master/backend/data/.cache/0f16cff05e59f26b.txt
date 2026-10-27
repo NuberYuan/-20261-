@@ -1,0 +1,162 @@
+{
+  "title": "Learning Simple Algorithms from Examples",
+  "research_problem": "The paper addresses how machines can learn simple algorithms such as copying, multidigit addition, and single digit multiplication directly from input-output examples, using a controller-interface framework with reinforcement learning.",
+  "motivation": "Many everyday tasks require multistep interaction with the world involving careful sequencing of operations. The paper explores how machines can learn algorithms involving compositional structure, using arithmetic as the domain where operations themselves are simple but require precise coordination (e.g., carrying in addition). The authors want to formalize a controller-interface abstraction and train it from examples using reinforcement learning.",
+  "main_contribution": "The paper presents a controller-interface framework with discrete interfaces (tapes and grids) trained via Q-learning with several enhancements: (i) a novel dynamic discount term making reward invariant to sequence length, (ii) an extra penalty aiding generalization, and (iii) Watkins Q(λ). The authors show these enhancements dramatically improve performance, and that the bottleneck is in controller capabilities rather than Q-learning search.",
+
+  "methodology": {
+    "method_name": "Controller-Interface Framework with Enhanced Q-learning",
+    "core_idea": "An RNN-based controller interacts with the environment through predefined discrete interfaces (input tape, input grid, output tape). The controller learns to issue discrete actions (move left, move right, read, write) to produce correct output. The action output is trained with Q-learning and the symbol output is trained with backpropagation via cross-entropy loss.",
+    "pipeline": "1. Define task-specific interfaces (input tape/grid, output tape). 2. Initialize controller (GRU/LSTM/feedforward). 3. Use curriculum learning starting from sequences of complexity 6, incrementing by 4 upon 100% accuracy. 4. At each timestep, controller reads input interface, outputs action and symbol. 5. Symbol output trained with cross-entropy backpropagation. 6. Action output trained with enhanced Q-learning (dynamic discount, Watkins Q(λ), penalty on Q-function). 7. Terminate episode when incorrect prediction is made. 8. Continue until model generalizes to validation sequences of length 100 or complexity 1000.",
+    "model": "GRU, LSTM, Feedforward Network",
+    "model_architecture": {
+      "input": "Input tape symbols (1-D tape) or input grid symbols (2-D grid), one character at a time via read action",
+      "output": "Discrete action (move left, move right, write) and symbol from vocabulary produced via softmax",
+      "feature_extraction": "RNN-based controller (GRU or LSTM) reads input symbols and maintains hidden state across timesteps; feedforward network has no memory",
+      "classification": "An additional linear layer on top of the controller maps hidden state to either action for a given interface or the target symbol; symbol produced by taking max from softmax output on top of controller",
+      "pretrained_model": "NOT_FOUND",
+      "special_modules": "Input Tape interface (1-D, read head, left/right actions), Input Grid interface (2-D, read head, up/down/left/right actions), Output Tape interface (write head, NOP symbol). Cross-entropy loss on output symbol provides differentiable signal in addition to sparse Q-learning reward.",
+      "alexnet": "NOT_FOUND",
+      "googlenet": "NOT_FOUND",
+      "resnet": "NOT_FOUND",
+      "vgg": "NOT_FOUND",
+      "densenet": "NOT_FOUND",
+      "mobilenet": "NOT_FOUND",
+      "efficientnet": "NOT_FOUND",
+      "transformer": "NOT_FOUND",
+      "lstm": "Two different sizes of 1-layer LSTM: 200 unit 1-layer LSTM and 400 unit LSTM used in experiments. A 200 unit 1-layer GRU and a 200 unit 1-layer feedforward network also explored. An additional linear layer placed on top mapping hidden state to action or target symbol."
+    }
+  },
+
+  "dataset": {
+    "dataset_name": "Synthetic algorithmic tasks (copy, reverse, walk, addition, 3 number addition, single digit multiplication)",
+    "dataset_source": "Generated procedurally; source code at https://github.com/wojzaremba/algorithmlearning",
+    "dataset_size": "3 × 10^7 characters per training run",
+    "number_of_classes": "NOT_FOUND",
+    "data_type": "Sequences of symbols (digits, arrows, special characters) on 1-D tapes or 2-D grids",
+    "train_test_split": "Training on sequences of increasing complexity starting from complexity 6, incrementing by 4 once 100% accuracy on heldout examples; testing on 50 test instances each 100 digits in length; also test sequences of length 1000",
+    "preprocessing": "Arithmetic operations use base 10 unless otherwise stated. For 3-row addition, curriculum starts with examples without carry and containing many zeros. Complexity conversion factors: copy=1, reverse=2, walk=1, addition=2, 3 row addition=3, single digit multiplication=1."
+  },
+
+  "implementation_details": {
+    "programming_framework": "NOT_FOUND",
+    "optimizer": "NOT_FOUND",
+    "learning_rate": "0.1",
+    "batch_size": "20",
+    "epoch": "NOT_FOUND",
+    "loss_function": "Cross-entropy loss (for symbol output) combined with sparse 0/1 reward (for action output via Q-learning)",
+    "hardware": "NOT_FOUND",
+    "training_strategy": "Curriculum learning: sequences start at complexity 6, increment by 4 upon 100% accuracy on heldout examples, until model solves validation sequences of length 100. Each model trained using 3 × 10^7 characters taking ~4 hrs. Repeated 10 times with different random seeds. Initialization same as Glorot & Bengio (2010) but multiplied by 2. Batch size 20, learning rate 0.1. Watkins Q(λ) with λ = 1. ε-greedy policy with ε = 0.05. Penalty coefficient κ starts at 0 and made nonzero once good accuracy reached on short samples. Reward of 1 for correct digit prediction, 0 otherwise; episode terminated on incorrect prediction. Dynamic discount: Q-hat(s,a) = Q(s,a) / V-hat(s) where V-hat(s) is number of remaining symbols to predict."
+  },
+
+  "experiment": {
+    "evaluation_metrics": "Success rate (fraction of test cases where all digits predicted correctly), Test accuracy vs complexity, Median training time (minutes)",
+    "baseline_methods": "Standard Q-learning, Supervised training with ground truth actions",
+    "comparison_results": "Table 2: Standard Q-learning (columns 2-5) fails on most tasks. With dynamic discount + Watkins Q(λ) + penalty: Copying 100%, Reverse (FF) 90%, Walk (FF) 100%, 2row Addition 100%, 3row Addition (extra curriculum) 80%, Single Digit Multiplication 100% (test length 100). Test length 1000: Copying 100%, Reverse (FF) 90%, Walk (FF) 100%, 2row Addition 100%, 3row Addition 60%, Single Digit Multiplication 0%. Increasing controller capacity (600→400→200 units) hurts performance. Table 3: Median training time varies by vocabulary size (base), with larger bases generally preferred. Table 4: 0/1 reward trains faster than discretized or continuous reward.",
+    "ablation_study": "Table 2 ablation across: #Units (600, 400, 200), Discount (1, 0.99, 0.95, Dynamic), Watkins Q(λ) (on/off), Penalty (on/off). Each enhancement gives significant improvements. Dynamic discount + Watkins Q(λ) + penalty together succeed on all tasks with appropriate curriculum and controller. Table 4 ablates reward structure: 0/1 reward vs Discretized reward vs Continuous reward. Table 3 varies vocabulary size (base 2-10) showing reward frequency vs reliability tradeoff.",
+    "important_results": "With dynamic discount + Watkins Q(λ) + penalty + GRU 200 units: all tasks solved at test length 100. Feedforward controller needed for reverse and walk tasks. Increasing controller capacity hurts generalization. λ = 1 better than λ < 1. ε = 0.05 gives ~20 steps unrolling on average. 0/1 reward trains faster than continuous reward. Test length 1000: all tasks generalize except multiplication."
+  },
+
+  "reproduction_requirements": {
+    "required_modules": [
+      "GRU controller (200 units, 1 layer)",
+      "LSTM controller (200 or 400 units, 1 layer)",
+      "Feedforward controller (200 units)",
+      "Input Tape interface (1-D, read, left, right)",
+      "Input Grid interface (2-D, read, up, down, left, right)",
+      "Output Tape interface (write, NOP symbol)",
+      "Q-learning with dynamic discount",
+      "Watkins Q(λ) with λ = 1",
+      "Penalty on Q-function",
+      "Curriculum learning scheduler",
+      "Cross-entropy loss for symbol output"
+    ],
+    "important_parameters": {
+      "learning_rate": "0.1",
+      "batch_size": "20",
+      "epsilon": "0.05",
+      "lambda": "1",
+      "controller_units": "200",
+      "initial_complexity": "6",
+      "complexity_increment": "4",
+      "training_characters": "3 × 10^7",
+      "training_time_hours": "~4",
+      "num_runs": "10",
+      "test_instances": "50",
+      "test_length": "100",
+      "initialization_multiplier": "2",
+      "penalty_kappa_initial": "0"
+    },
+    "possible_difficulties": [
+      "Non-stationary environment due to ongoing backpropagation of symbol output during Q-learning",
+      "Controller capacity must be carefully tuned: too much causes overfitting to training sequence length, too little fails on memory-dependent tasks",
+      "3-row addition requires special curriculum starting with no-carry examples containing many zeros",
+      "Reverse and walk tasks require feedforward controller instead of GRU for successful Q-learning",
+      "RNN-based controllers tend to learn incorrect time-dependent automata that don't generalize to longer sequences",
+      "Multiplication task fails to generalize to test sequences of length 1000"
+    ]
+  },
+
+  "figures": [
+    {
+      "figure_number": "Figure 1",
+      "type": "model_architecture",
+      "description": "(a) Input tape and grid interfaces with read head (gray box) that reads one character at a time. (b) Overview of controller-interface abstraction with input interface, output interface, memory interface (not used), past state and future state. (c) Example applied to addition task: at time step t-1, controller reads symbol 4 from input grid, outputs NOP on output tape and down action on input interface, passing hidden state to next timestep.",
+      "x_axis": "N/A",
+      "y_axis": "N/A",
+      "trend": "N/A",
+      "conclusion": "N/A",
+      "data_characteristics": "N/A",
+      "categories": "N/A",
+      "visual_features": "N/A"
+    },
+    {
+      "figure_number": "Figure 2",
+      "type": "data_example",
+      "description": "Examples of six tasks in initial state: Copy, Reverse, Walk, Addition, 3 number addition, Single digit multiplication. Yellow box indicates starting position of read head on Input Interface. Gray characters on Output Tape are target symbols used in training.",
+      "x_axis": "N/A",
+      "y_axis": "N/A",
+      "trend": "N/A",
+      "conclusion": "N/A",
+      "data_characteristics": "Sequences of digits and symbols on 1-D tapes and 2-D grids; yellow box marks read head start position",
+      "categories": "Copy, Reverse, Walk, Addition, 3 number addition, Single digit multiplication",
+      "visual_features": "Yellow starting box, gray target symbols on output tape, input tape/grid layouts"
+    },
+    {
+      "figure_number": "Figure 3",
+      "type": "experiment_result",
+      "description": "Test accuracy for all tasks with supervised actions over 10 runs for feedforward (green), GRU (red) and LSTM (yellow) controllers. Complexity is number of time steps to compute solution.",
+      "x_axis": "Complexity (number of time steps, up to 20,000)",
+      "y_axis": "Test accuracy",
+      "trend": "Feedforward generalizes perfectly on copy, reverse, walk but fails on remaining tasks. RNN-based controllers succeed to varying degrees with variability.",
+      "conclusion": "Feedforward lacks memory for complex tasks; RNN controllers show capacity-generalization tradeoff; larger capacity models overfit to training sequence length"
+    },
+    {
+      "figure_number": "Figure 4",
+      "type": "other",
+      "description": "(a) Automata describing correct solution to reverse problem: go right while suppressing prediction, then go left predicting what is seen. (b) Incorrect time-dependent automata that solves reverse for short sequences but does not generalize. Expressive models like LSTMs tend to learn such incorrect automata.",
+      "x_axis": "N/A",
+      "y_axis": "N/A",
+      "trend": "N/A",
+      "conclusion": "Incorrect automata with time-dependent states fails on longer sequences; correct automata has only two states (right, left)"
+    },
+    {
+      "figure_number": "Figure 5",
+      "type": "comparison_chart",
+      "description": "Test accuracy as function of task complexity (10 runs) for standard Q-learning (blue) and enhanced version (dynamic discount, Watkins Q(λ) and penalty term).",
+      "x_axis": "Task complexity",
+      "y_axis": "Test accuracy (fraction of correct test cases, all digits must be correct)",
+      "trend": "Enhanced version significantly outperforms standard Q-learning. At very high complexity (1000s of digits) accuracy drops on more complicated tasks.",
+      "conclusion": "Enhancements dramatically improve performance; performance drop at high complexity is due to controller limitations, not Q-learning"
+    },
+    {
+      "figure_number": "Figure 6",
+      "type": "other",
+      "description": "Model found three different solutions to the addition task, all giving correct answer. Arrows show trajectory of read head over the input grid.",
+      "x_axis": "N/A",
+      "y_axis": "N/A",
+      "trend": "N/A",
+      "conclusion": "Multiple valid movement patterns discovered for the addition task"
+    }
+  ]
+}

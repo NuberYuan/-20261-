@@ -1,20 +1,20 @@
 {
   "title": "Temporal Fusion Transformers for Interpretable Multihorizon Time Series Forecasting",
-  "research_problem": "Multihorizon forecasting often contains a complex mix of inputs including static covariates, known future inputs, and exogenous time series only observed in the past, without prior information on how they interact with the target. Existing deep learning methods are often black-box models and do not handle this heterogeneity, and common explainability methods are not well-suited for time series.",
-  "motivation": "Multihorizon forecasting has impactful real-world applications in retail, healthcare and economics. Practical datasets contain heterogeneous data sources, and most current architectures fail to consider different input types or provide interpretable insights into temporal dynamics. The authors argue that designing networks with suitable inductive biases for multihorizon forecasting and enabling interpretability can improve performance and user trust.",
-  "main_contribution": "The paper introduces the Temporal Fusion Transformer (TFT), an attention-based architecture that combines high-performance multihorizon forecasting with interpretable insights into temporal dynamics. TFT uses recurrent layers for local processing, interpretable self-attention for long-term dependencies, variable selection networks, static covariate encoders, and gating layers to suppress unnecessary components.",
+  "research_problem": "Multihorizon forecasting often contains a complex mix of inputs – including static (i.e. time-invariant) covariates, known future inputs, and other exogenous time series that are only observed in the past – without any prior information on how they interact with the target. Existing deep learning methods are typically 'black-box' models which do not shed light on how they use the full range of inputs present in practical scenarios.",
+  "motivation": "Current architectures fail to consider the different types of inputs commonly present in multihorizon forecasting, either assume that all exogenous inputs are known into the future or neglect important static covariates. Additionally, most current architectures are 'black-box' models where forecasts are controlled by complex nonlinear interactions, making it difficult to explain how models arrive at their predictions. Commonly-used explainability methods (LIME, SHAP) are not well-suited for time series as they do not consider time ordering of input features.",
+  "main_contribution": "TFT introduces multiple novel ideas to align the architecture with the full range of potential inputs and temporal relationships common to multihorizon forecasting – specifically incorporating (1) static covariate encoders which encode context vectors for use in other parts of the network, (2) gating mechanisms throughout and sample-dependent variable selection to minimize the contributions of irrelevant inputs, (3) a sequence-to-sequence layer to locally process known and observed inputs, and (4) a temporal self-attention decoder to learn any long-term dependencies. TFT also enables three interpretability use cases: identifying globally-important variables, persistent temporal patterns, and significant events.",
   "methodology": {
     "method_name": "Temporal Fusion Transformer (TFT)",
-    "core_idea": "TFT aligns the architecture with the full range of multihorizon forecasting inputs by using gating mechanisms, variable selection networks, static covariate encoders, sequence-to-sequence local processing, and interpretable multi-head attention. It simultaneously produces quantile forecasts for multiple horizons while enabling interpretability through variable importance and attention patterns.",
-    "pipeline": "Input static metadata, past-observed inputs and future-known inputs. Apply variable selection to static, past and future inputs. Encode static covariates into context vectors cs, ce, cc, ch. Process selected temporal features with LSTM encoder-decoder locality enhancement. Apply static enrichment, temporal self-attention and positionwise feedforward layers. Generate quantile forecasts via linear transformation. Train by jointly minimizing quantile loss across all quantiles and horizons.",
-    "model": "Temporal Fusion Transformer, Gated Residual Network, Interpretable Multi-Head Attention, LSTM encoder-decoder",
+    "core_idea": "TFT combines high-performance multihorizon forecasting with interpretable insights into temporal dynamics using recurrent layers for local processing and interpretable self-attention layers for long-term dependencies, specialized variable selection networks, gating mechanisms (GRN/GLU), and static covariate encoders.",
+    "pipeline": "Input static covariates, known future inputs, and past observed inputs. Encode static covariates via GRN encoders to produce context vectors (cs, ce, cc, ch). Apply variable selection networks to static, past, and future inputs to select relevant features. Feed transformed inputs through an LSTM encoder-decoder (sequence-to-sequence layer) for locality enhancement. Apply static enrichment layer with GRN using context ce. Apply interpretable multi-head self-attention with decoder masking. Apply position-wise feedforward GRN layer with gated residual connection. Generate quantile outputs via linear transformation for specified quantiles.",
+    "model": "LSTM encoder-decoder, Interpretable Multi-Head Attention",
     "model_architecture": {
-      "input": "Static metadata, past-observed time-varying inputs, and a priori known future time-varying inputs. The model uses a finite lookback window k for target and known inputs up to forecast start time t, and known inputs across t-k to t+tau. Input types include static covariates si in R^{ms}, observed inputs zi,t in R^{mz}, known inputs xi,t in R^{mx}, and scalar targets yi,t in R.",
-      "output": "Quantile forecasts for horizons tau=1,...,tau_max at each time step, for quantiles q in {0.1, 0.5, 0.9}. Each quantile forecast is generated by a linear transformation: yhat(q,t,tau)=Wq psi_tilde(t,tau)+bq.",
-      "feature_extraction": "Categorical variables use entity embeddings and continuous variables use linear transformations to produce d_model-dimensional vectors. Separate variable selection networks process static, past and future inputs with GRNs and Softmax selection weights. Static covariate encoders produce context vectors cs, ce, cc, ch. A sequence-to-sequence LSTM encoder-decoder generates uniform temporal features phi(t,n).",
-      "classification": "The output is quantile regression rather than classification. Quantile forecasts are generated using a linear transformation of the temporal fusion decoder output for each specified quantile q.",
+      "input": "Static covariates si ∈ R^ms, past observed inputs zi,t ∈ R^mz, known future inputs xi,t ∈ R^mx, and scalar targets yi,t ∈ R. Lookback window k and forecast horizon τmax vary by dataset (e.g. k=168, τmax=24 for Electricity/Traffic; k=90, τmax=30 for Retail; k=252, τmax=5 for Volatility).",
+      "output": "Quantile forecasts ŷ(q, t, τ) for τ ∈ {1, ..., τmax} using quantiles Q = {0.1, 0.5, 0.9}, generated via linear transformation of decoder output.",
+      "feature_extraction": "Variable selection networks applied to static, past, and future inputs. Entity embeddings for categorical variables, linear transformations for continuous variables – transforming each input variable into a d_model-dimensional vector. GRN-based processing of each variable with weights shared across time steps.",
+      "classification": "Quantile output layer: ŷ(q, t, τ) = Wq ψ̃(t, τ) + bq, where Wq ∈ R^(1×d), bq ∈ R are linear coefficients for specified quantile q.",
       "pretrained_model": "NOT_FOUND",
-      "special_modules": "Gated Residual Network, Gated Linear Unit, variable selection networks, static covariate encoders, interpretable multi-head attention, sequence-to-sequence LSTM encoder-decoder, static enrichment layer, temporal self-attention layer, positionwise feedforward layer, quantile output layer.",
+      "special_modules": "Gated Residual Network (GRN), Gated Linear Units (GLU), Variable Selection Networks, Static Covariate Encoders (producing context vectors cs, ce, cc, ch), Interpretable Multi-Head Attention, LSTM Encoder-Decoder, Static Enrichment Layer, Decoder Masking",
       "alexnet": "NOT_FOUND",
       "googlenet": "NOT_FOUND",
       "resnet": "NOT_FOUND",
@@ -22,84 +22,104 @@
       "densenet": "NOT_FOUND",
       "mobilenet": "NOT_FOUND",
       "efficientnet": "NOT_FOUND",
-      "transformer": "TFT uses a modified interpretable multi-head attention. Attention is computed as Attention(Q,K,V)=A(Q,K)V, with scaled dot-product A(Q,K)=Softmax(QK^T/sqrt(d_attn)). InterpretableMultiHead shares value weights across heads and uses additive aggregation: InterpretableMultiHead(Q,K,V)=H_tilde WH, where H_tilde = (1/H) sum_{h=1}^{mH} Attention(Q W_Q^{(h)}, K W_K^{(h)}) V WV. It sets dV=dattn=dmodel/mH. Decoder masking ensures each temporal dimension can only attend to features preceding it. The model uses a single interpretable multi-head attention layer to preserve explainability.",
-      "lstm": "A sequence-to-sequence LSTM encoder-decoder is used for locality enhancement. Past selected features xi_tilde_{t-k:t} are fed into the encoder and future selected features xi_tilde_{t+1:t+tau_max} into the decoder. Static context vectors cc and ch initialize the cell state and hidden state respectively for the first LSTM in the layer. A gated skip connection is applied over this layer."
+      "transformer": "Interpretable Multi-Head Attention modifies standard multi-head attention by sharing value weights WV across all heads and using additive aggregation of all heads: InterpretableMultiHead(Q, K, V) = H̃ WH where H̃ = Ã(Q,K) V WV = (1/H) Σ A(Q W_K^(h)) V WV. dV = d_attn = d_model/mH. Decoder masking is applied. A single interpretable multi-head attention layer is used to preserve explainability.",
+      "lstm": "LSTM encoder-decoder for locality enhancement. Feeding ξ̃(t-k:t) into the encoder and ξ̃(t+1:t+τmax) into the decoder. cc and ch context vectors from static covariate encoders initialize the cell state and hidden state respectively for the first LSTM in the layer. Gated skip connection over this layer."
     }
   },
   "dataset": {
-    "dataset_name": "Electricity, Traffic, Retail, Volatility",
-    "dataset_source": "Electricity: UCI Electricity Load Diagrams Dataset. Traffic: UCI PEM-SF Traffic Dataset. Retail: Favorita Grocery Sales Dataset from Kaggle (https://www.kaggle.com/c/favoritagrocerysalesforecasting/). Volatility: OMI realized library (https://realized.oxfordman.ox.ac.uk/).",
-    "dataset_size": "Electricity: 370 entities, 500k samples. Traffic: 440 entities, 500k samples. Retail: 130k entities, 500k samples. Volatility: 41 entities, approximately 100k samples.",
+    "dataset_name": "Electricity (UCI Electricity Load Diagrams), Traffic (UCI PEM-SF Traffic), Retail (Favorita Grocery Sales from Kaggle), Volatility (Oxford-Man Institute realized library)",
+    "dataset_source": "UCI Electricity Load Diagrams Dataset, UCI PEM-SF Traffic Dataset, https://www.kaggle.com/c/favoritagrocery-sales-forecasting/, https://realized.oxfordman.ox.ac.uk/",
+    "dataset_size": "Electricity: 500k samples, 370 entities; Traffic: 500k samples, 440 entities; Retail: 500k samples (450k training + 50k validation), 130k entities; Volatility: ~100k samples, 41 entities",
     "number_of_classes": "NOT_FOUND",
-    "data_type": "Multivariate multihorizon time series. Electricity: hourly electricity consumption. Traffic: hourly occupancy rate. Retail: daily log product sales. Volatility: daily realized volatility.",
-    "train_test_split": "Electricity: 500k samples from 2014-01-01 to 2014-09-01, first 90 percent training, last 10 percent validation, testing over 7 days immediately following training set. Traffic: 500k training samples before 2008-06-15, split same as Electricity, testing over 7 days immediately following training set. Retail: training set 450k samples from 2015-01-01 to 2015-12-01, validation set 50k samples from 30 days after training set, test set all entities over 30-day horizon following validation set. Volatility: data from 2000-01-03 to 2019-06-28, training before 2016, validation 2016-2017, test from 2018 onwards.",
-    "preprocessing": "Electricity: z-score normalization separately per entity for real-valued inputs; inputs include electricity usage, day-of-week, hour-of-day, time index; entity identifier is categorical. Traffic: z-score normalization across all entities; inputs include traffic occupancy, day-of-week, hour-of-day, time index; entity identifier is categorical. Retail: product-store pair as entity; data resampled at regular daily intervals; missing days imputed with last available observation; open flag included; holidays grouped into national, regional, local variables; log transform on sales; z-score normalization across all entities; log sales, transactions, oil are real-valued, rest categorical. Volatility: target is 5-min subsampled realized volatility rv5_ss; daily open-to-close returns added; date-related variables categorical; region categorical; log transform on target; all inputs z-score normalized across all entities."
+    "data_type": "Electricity: hourly electricity consumption of customers; Traffic: hourly occupancy rate (yt ∈ [0,1]) of freeways; Retail: daily log product sales with static metadata and exogenous time-varying inputs; Volatility: daily realized volatility of stock indices with daily returns",
+    "train_test_split": "Electricity: 500k samples 2014-01-01 to 2014-09-01, first 90% training, last 10% validation, testing over 7 days immediately following training set. Traffic: 500k samples before 2008-06-15, split same as Electricity, testing over 7 days after training set. Retail: 450k samples 2015-01-01 to 2015-12-01 training, 50k samples from 30 days after training set as validation, all entities over 30-day horizon following validation as test. Volatility: data 2000-01-03 to 2019-06-28, training before 2016, validation 2016-2017, test 2018 onwards.",
+    "preprocessing": "Electricity: z-score normalization separately to each entity for real-valued inputs. Real-valued inputs: electricity usage, day-of-week, hour-of-day, time index. Categorical: entity identifier. Traffic: z-score normalization across all entities. Real-valued: traffic occupancy, day-of-week, hour-of-day, time index. Categorical: entity identifier. Retail: resampled at regular daily intervals, imputing missing days using last available observation, additional 'open' flag, holidays grouped into national/regional/local, log-transform on sales, z-score normalization across all entities. Real-valued: log sales, transactions, oil; rest categorical. Volatility: 5-min subsampled realized volatility (rv5_ss column), daily open-to-close returns as exogenous input, day-of-week, day-of-month, week-of-year, month, 'region' variable (Americas, Europe, Asia), time index. Log transformation on target, z-score normalization across all entities. Date-related variables and region are categorical."
   },
   "implementation_details": {
     "programming_framework": "NOT_FOUND",
     "optimizer": "NOT_FOUND",
-    "learning_rate": "0.01",
-    "batch_size": "64 (Electricity), 128 (Traffic), 128 (Retail), 64 (Volatility)",
+    "learning_rate": "0.001",
+    "batch_size": "64",
     "epoch": "NOT_FOUND",
-    "loss_function": "Quantile loss: QL(y, yhat, q) = q(y-yhat)_+ + (1-q)(yhat-y)_+, summed across all quantile outputs q in {0.1, 0.5, 0.9} and horizons tau=1,...,tau_max, divided by M*tau_max. Test q-Risk = 2 * sum_{yt in Omega_tilde} sum_{tau=1}^{tau_max} QL(yt, yhat(q,t-tau,tau),q) / sum_{tau=1}^{tau_max}|yt|.",
+    "loss_function": "Quantile loss (QL), summed across all quantile outputs: L(Ω, W) = Σ Σ Σ QL(yt, ŷ(q, t-τ, τ), q) / (M τmax), where QL(y, ŷ, q) = q(y - ŷ)+ + (1 - q)(ŷ - y)+",
     "hardware": "NVIDIA Tesla V100 GPU",
-    "training_strategy": "Hyperparameter optimization via random search, using 240 iterations for Volatility and 60 iterations for others. Search ranges: state size {10, 20, 40, 80, 160, 240, 320}; dropout rate {0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9}; minibatch size {64, 128, 256}; learning rate {0.0001, 0.001, 0.01}; max gradient norm {0.01, 1.0, 100.0}; number of heads {1, 4}. Only a single interpretable multi-head attention layer is used. Dropout is applied before the gating layer and layer normalization, specifically to eta1 in Eq. (3). Optimal TFT configuration per dataset is listed in Table 1."
+    "training_strategy": "Hyperparameter optimization via random search: 240 iterations for Volatility, 60 iterations for others. Search ranges: State size – 10, 20, 40, 80, 160, 240, 320. Dropout rate – 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9. Minibatch size – 64, 128, 256. Learning rate – 0.0001, 0.001, 0.01. Max. gradient norm – 0.01, 1.0, 100.0. Num. heads – 1, 4. Single interpretable multi-head attention layer to preserve explainability. Dropout applied before gating layer and layer normalization in GRN. Optimal configs per dataset: Electricity: k=168, τmax=24, dropout=0.1, state size=160, heads=4, batch=64, lr=0.001, max grad norm=0.01. Traffic: k=168, τmax=24, dropout=0.3, state size=320, heads=4, batch=128, lr=0.001, max grad norm=100. Retail: k=90, τmax=30, dropout=0.1, state size=240, heads=4, batch=128, lr=0.001, max grad norm=100. Volatility: k=252, τmax=5, dropout=0.3, state size=160, heads=1, batch=64, lr=0.01, max grad norm=0.01."
   },
   "experiment": {
-    "evaluation_metrics": "q-Risk, P50 risk, P90 risk, normalized quantile losses",
-    "baseline_methods": "DeepAR, Deep State-Space Models, ConvTrans, MQRNN",
-    "comparison_results": "NOT_FOUND",
-    "ablation_study": "NOT_FOUND",
-    "important_results": "TFT demonstrates significant performance improvements over existing benchmarks on a variety of real-world datasets. For the Electricity dataset, the optimal TFT model trains in slightly over 6 hours on an NVIDIA Tesla V100 GPU, each epoch being roughly 52 mins, and batched inference on the entire validation dataset of 50,000 samples takes 8 minutes. TFT enables three interpretability use cases: identifying globally important variables, persistent temporal patterns, and significant events. Variable importance results include Electricity static ID 1.000, past power usage 0.342/0.359/0.366, future hour-of-day 0.718/0.738/0.739; Traffic past occupancy 0.471/0.473/0.483; Volatility past realized volatility 0.620/0.647/0.714."
+    "evaluation_metrics": "Normalized quantile loss (q-Risk) for P50 and P90",
+    "baseline_methods": "DeepAR, DSSM, ConvTrans, MQRNN, and other multihorizon forecasting benchmarks",
+    "comparison_results": "TFT demonstrates significant performance improvements over existing benchmarks on Electricity, Traffic, Retail, and Volatility datasets. Specific benchmark comparison numbers were truncated in the provided text.",
+    "ablation_study": "Variable importance analysis performed using variable selection network weights across Electricity, Traffic, and Volatility datasets (Table B.4). Key findings: static entity ID or region receives weight 1.000; past target values (Power Usage/Occupancy/Realised Vol) play significant role as top 1-2 most significant past inputs; hour-of-day plays significant role for Electricity (0.437 past, 0.718 future) and Traffic (0.285 past, 0.781 future); day-of-month important for Volatility future inputs (0.069, 0.635, 0.913).",
+    "important_results": "TFT optimal model for Electricity takes slightly over 6 hours to train on NVIDIA Tesla V100 (each epoch roughly 52 mins). Batched inference on 50,000 validation samples takes 8 minutes. TFT achieves significant performance improvements over existing benchmarks on all four real-world datasets."
   },
   "reproduction_requirements": {
     "required_modules": [
-      "Gated Residual Network",
-      "Gated Linear Unit",
-      "Variable Selection Network",
-      "Static Covariate Encoder",
+      "Gated Residual Network (GRN)",
+      "Gated Linear Unit (GLU)",
+      "Variable Selection Networks",
+      "Static Covariate Encoders",
+      "LSTM Encoder-Decoder",
       "Interpretable Multi-Head Attention",
-      "Sequence-to-Sequence LSTM Encoder-Decoder",
-      "Temporal Fusion Decoder",
-      "Quantile Output Head"
+      "Static Enrichment Layer",
+      "Quantile Output Layer",
+      "Entity Embeddings"
     ],
     "important_parameters": {
-      "k": "168 (Electricity), 168 (Traffic), 90 (Retail), 252 (Volatility)",
-      "tau_max": "24 (Electricity), 24 (Traffic), 30 (Retail), 5 (Volatility)",
-      "dropout_rate": "0.1 (Electricity), 0.3 (Traffic), 0.1 (Retail), 0.3 (Volatility)",
-      "state_size": "160 (Electricity), 320 (Traffic), 240 (Retail), 160 (Volatility)",
-      "number_of_heads": "4 (Electricity), 4 (Traffic), 4 (Retail), 1 (Volatility)",
-      "minibatch_size": "64 (Electricity), 128 (Traffic), 128 (Retail), 64 (Volatility)",
-      "learning_rate": "0.001 (Electricity), 0.001 (Traffic), 0.001 (Retail), 0.01 (Volatility)",
-      "max_gradient_norm": "0.01 (Electricity), 100 (Traffic), 100 (Retail), 0.01 (Volatility)",
-      "batch_size": "64 (Electricity), 128 (Traffic), 128 (Retail), 64 (Volatility)"
+      "learning_rate": "0.001",
+      "batch_size": "64",
+      "dropout_rate": "0.1",
+      "state_size": "160",
+      "num_heads": "4",
+      "lookback_window_k": "168",
+      "forecast_horizon_tau_max": "24",
+      "max_gradient_norm": "0.01",
+      "quantiles": "0.1, 0.5, 0.9",
+      "hyperparameter_search_iterations": "60"
     },
     "possible_difficulties": [
-      "Full benchmark result tables and ablation study details are not included in the provided excerpt",
-      "Programming framework and optimizer are not explicitly specified in the provided excerpt",
-      "Multiple datasets require different optimal hyperparameters",
-      "Quantile loss and q-Risk evaluation need careful implementation",
-      "Variable selection and interpretable multi-head attention require reproducing complex gating and attention mechanics"
+      "Implementing the Interpretable Multi-Head Attention with shared value weights and additive head aggregation",
+      "Properly wiring four different static context vectors (cs, ce, cc, ch) into different parts of the network",
+      "Implementing decoder masking for causal information flow in self-attention",
+      "Handling the LSTM encoder-decoder with differing numbers of past and future inputs",
+      "Reproducing exact results requires the same random search hyperparameter optimization process",
+      "The programming framework is not explicitly stated in the paper"
     ]
   },
   "figures": [
     {
       "figure_number": "Figure 1",
       "type": "data_example",
-      "description": "Illustration of multihorizon forecasting with static covariates, past-observed inputs and a priori known future time-dependent inputs.",
-      "data_characteristics": "Shows multiple entity time series with static metadata, past observed values, and known future inputs such as calendar information.",
+      "description": "Illustration of multihorizon forecasting with static covariates, past-observed and a priori known future time-dependent inputs.",
+      "data_characteristics": "Multihorizon forecasting setup with three types of inputs: static covariates (time-invariant), past observed inputs, and known future inputs",
       "categories": [
-        "Static covariates",
-        "Past-observed time-dependent inputs",
-        "Known future inputs",
-        "Target"
+        "static covariates",
+        "past observed inputs",
+        "known future inputs"
       ],
-      "visual_features": "Schematic diagram of a forecasting timeline with different input types before and after forecast time."
+      "visual_features": "Time series visualization showing forecast horizon and input types over time"
     },
     {
       "figure_number": "Figure 2",
       "type": "model_architecture",
-      "description": "TFT architecture. TFT inputs static metadata, time-varying past inputs and time-varying a priori known future inputs. Variable Selection is used for judicious selection of salient features. Gated Residual Network blocks enable efficient information flow with skip connections and gating layers. Time-dependent processing is based on LSTMs for local processing and multi-head attention for integrating information from any time step."
+      "description": "TFT architecture. TFT inputs static metadata, time-varying past inputs and time-varying a priori known future inputs. Variable Selection is used for judicious selection of the most salient features based on the input. Gated Residual Network blocks enable efficient information flow with skip connections and gating layers. Time-dependent processing is based on LSTMs for local processing, and multi-head attention for integrating information from any time step."
+    },
+    {
+      "figure_number": "Table 1",
+      "type": "comparison_chart",
+      "description": "Information on dataset and optimal TFT configuration. Shows dataset details (target type, number of entities, number of samples), network parameters (k, τmax, dropout rate, state size, number of heads), and training parameters (minibatch size, learning rate, max gradient norm) for Electricity, Traffic, Retail, and Volatility datasets.",
+      "x_axis": "Datasets (Electricity, Traffic, Retail, Vol.)",
+      "y_axis": "Configuration parameters",
+      "trend": "Optimal configurations vary by dataset",
+      "conclusion": "TFT configuration is dataset-dependent with varying state sizes (160-320), dropout rates (0.1-0.3), and learning rates (0.001-0.01)"
+    },
+    {
+      "figure_number": "Table B.4",
+      "type": "experiment_result",
+      "description": "Variable importance scores for Electricity, Traffic, and Volatility datasets. Shows static, past, and future variable importance weights across quantiles.",
+      "x_axis": "Variables (Static, Past, Future)",
+      "y_axis": "Importance scores (0-1)",
+      "trend": "Static ID/Region receives full weight 1.000. Past target values play significant role. Hour-of-day important for Electricity and Traffic. Day-of-month important for Volatility future inputs.",
+      "conclusion": "TFT successfully identifies globally-important variables; past target values and calendar effects are the most significant inputs across datasets"
     }
   ],
   "table_analysis": {
@@ -108,98 +128,180 @@
   },
   "image_analysis": [
     {
-      "type": "architecture",
-      "description": "展示模型网络结构和数据流关系",
+      "type": "diagram",
+      "description": "时间序列预测任务的概念示意图，展示了预测模型的输入（历史目标值、观测输入、已知输入、静态协变量）与输出（点预测值和预测区间），以预测时刻 t 为分界线划分历史与未来时段。",
       "important_components": [
-        "Prediction Model"
+        "Forecast Time (t)：预测时刻分界线（绿色虚线）",
+        "Past Targets：历史目标时间序列（橙色实线）",
+        "Point Forecasts：点预测值（紫色菱形虚线）",
+        "Prediction Intervals：预测区间（紫色误差棒/箭头）",
+        "Prediction Model：预测模型（蓝色椭圆）",
+        "Static Covariates：静态协变量（灰色标签）",
+        "Observed Inputs：已观测到的输入（橙色块，仅历史部分）",
+        "Known Inputs：已知的输入（浅紫色块，覆盖历史和未来）",
+        "红色虚线箭头：历史数据流入模型的数据流",
+        "紫色虚线箭头：未来/已知输入流入模型的数据流"
       ],
-      "code_relevant_information": "需要实现图中所示模型结构，包含输入处理、预测模型和输出生成",
+      "code_relevant_information": "复现该预测框架时需实现以下数据流与接口：(1) 模型输入包括四类特征——Past Targets（目标变量历史值，长度为历史窗口的序列）、Observed Inputs（仅在历史时段可观测的协变量，未来时刻缺失或需预测）、Known Inputs（历史与未来时刻均提前已知的协变量，如日历/节假日特征）、Static Covariates（不随时间变化的静态特征，如类别ID、元数据）；(2) 以 Forecast Time t 为界，历史段输入模型，未来段输出预测；(3) 模型输出两类结果：Point Forecasts（每个未来时间步的点预测/期望值，图中展示约4个未来时间步）和 Prediction Uncertainty 以 Prediction Intervals 形式表示（对称误差棒，需实现分位数预测或方差估计，如分位数损失/高斯似然输出多个分位数或上下界）；(4) 已知输入需扩展到未来预测窗口，而已观测输入通常只覆盖历史窗口；(5) 典型实现对应概率时间序列预测库（如 GluonTS/N-HiTS/TFT 等）的协变量配置：past_feat_dynamic_real（观测输入）、feat_dynamic_real（已知输入）、static_feat（静态协变量）、target（过去目标）。",
       "id": "image_1",
       "page": 2
     },
     {
-      "type": "other",
-      "description": "无法确定图片类型",
-      "important_components": [],
-      "code_relevant_information": "",
+      "type": "diagram",
+      "description": "Temporal Fusion Transformer (TFT) 的整体架构图，包含主干的 Temporal Fusion Decoder（静态协变量编码、变量选择网络、LSTM编码/解码、静态增强、可解释多头自注意力、门控残差前馈网络）以及右上角的 Gated Residual Network (GRN) 和右下角的 Variable Selection Network 的子结构细节。",
+      "important_components": [
+        "Static Covariate Encoders（静态协变量编码器 S）",
+        "Variable Selection Network（变量选择网络）",
+        "LSTM Encoder（历史输入 χ_{t-k} ... χ_t）",
+        "LSTM Decoder（已知未来输入 x_{t+1} ... x_{t+τmax}）",
+        "Static Enrichment（GRN 静态增强）",
+        "Masked Interpretable Multi-head Attention（可解释多头注意力）",
+        "Temporal Self-Attention + Add & Norm + Gate",
+        "Position-wise Feed-forward (GRN)",
+        "Gated Residual Network (GRN): Dense + ELU + Dense + Gate + Add & Norm + Dropout + Residual Connection",
+        "Dense 输出层（分位数预测）",
+        "Quantile Forecasts: ŷ_{t+1}(0.1), ŷ_{t+1}(0.5), ŷ_{t+1}(0.9), ..., ŷ_{t+τ}(0.1), ŷ_{t+τ}(0.5), ŷ_{t+τ}(0.9)",
+        "Quantile Loss（隐含，分位数输出对应 pinball/quantile loss）",
+        "External Context (Optional)",
+        "Variable Selection Weights v_{χt}（Softmax 产生）",
+        "Past Inputs / Known Future Inputs 时间轴划分"
+      ],
+      "code_relevant_information": "模型为 Temporal Fusion Transformer (TFT)。数据流：(1) 静态元数据 S 经 Static Covariate Encoder 编码，输出同时作为 GRN/门控/LSTM 的上下文条件 c；(2) 过去观测输入 χ_{t-k}...χ_t 与已知未来输入 x_{t+1}...x_{t+τmax} 各自经过 Variable Selection Network：每个变量先经线性/Embedding 变换得 ξ_t^{(j)} (j=1..m_χ)，各自通过 GRN 得 ξ̃_t^{(j)}；同时拼接（flatten）后的输入经 GRN + Softmax 得变量选择权重 v_{χt}^{(j)}；输出为加权和 ξ̃_t = Σ_{j=1}^{m_χ} v_{χt}^{(j)} ξ_t^{(j)}。(3) 历史输入经 LSTM Encoder、未来输入经 LSTM Decoder（共享状态），每个 LSTM 输出后接 Gate + Add & Norm（含 Dropout）的残差块。(4) LSTM 输出与静态编码一起进入 Static Enrichment GRN。(5) 进入 Masked Interpretable Multi-head Attention（带掩码的时间自注意力，可输出注意力权重用于可解释性），后接 Gate + Add & Norm。(6) 位置级前馈网络为 GRN，再接 Gate + Add & Norm。(7) 最后经全连接 Dense 层输出多步分位数预测：对预测步长 t+1 到 t+τ 的每一步输出 0.1、0.5、0.9 三个分位数，训练损失为 quantile/pinball loss。GRN 结构：输入 a 与可选外部上下文 c，经 Dense -> ELU -> Dense -> Gate(含 Dropout) -> 与输入残差相加并 LayerNorm，形成 'Add & Norm'。变量选择公式：ξ̃_t = Σ_{j=1}^{m_χ} v_{χt}^{(j)} ξ_t^{(j)}，其中权重 v_{χt} = Softmax(GRN(flatten(Ξ_t), c))。所有 GRN 的门控（GLU）可学习地抑制不相关特征。",
       "id": "image_2",
       "page": 6
     },
     {
-      "type": "experiment_result",
-      "description": "展示不同模型配置在多个数据集上的性能对比柱状图",
+      "type": "chart",
+      "description": "消融实验结果图，展示移除模型各组件（Gating、Static Encoder、Variable Selection、Self-Attention、Local Processing）后在四个数据集上 P50 损失的百分比增长，左图为各数据集的具体增长值，右图为各消融设置下增长的最大值、平均值与最小值范围。",
       "important_components": [
-        "No Static",
-        "No Variable",
-        "No Self-Attention",
-        "No Local Encoder",
-        "Gating",
-        "Average",
-        "Max",
-        "Min"
+        "左图：% Increase in P50 Loss by Dataset",
+        "右图：Range of P50 Loss Increases",
+        "数据集系列：Electricity（蓝）、Traffic（红）、Retail（黄）、Volatility（绿）",
+        "Average 阶梯虚线（左图）：No Gating 1.5%、No Static Encoder 2.0%、No Variable Selection 3.2%、No Self-Attention 7.6%、No Local Processing 10.2%",
+        "右图平均值标注：No Gating 3.6%、No Static Encoder 5.6%、No Variable Selection 4.9%、No Self-Attention 23.4%、No Local Processing 21.6%",
+        "右图堆叠柱：Max（黄）、Ave（红）、Min（蓝）",
+        "y轴范围：-10.0% 至 30.0%",
+        "消融组件：No Gating、No Static Encoder、No Variable Selection、No Self-Attention、No Local Processing"
       ],
-      "code_relevant_information": "需要实现序列预测模型，并对比不同门控、静态特征、变量选择、局部编码器等模块的消融性能",
+      "code_relevant_information": "该图为模型消融实验，可推断完整模型包含以下五个可复现的模块：(1) Gating（门控机制），(2) Static Encoder（静态/协变量编码器），(3) Variable Selection（变量选择模块，类似 TFT 的 Variable Selection Network），(4) Self-Attention（自注意力模块），(5) Local Processing（局部处理模块，如局部卷积或局部时间特征提取）。评估指标为 P50 Loss（中位数分位数损失，可能为 quantile loss q=0.5 或 P50 pinball loss），以移除组件后损失相对完整模型的百分比增加衡量组件贡献。关键数值：各组件平均损失增长为 No Gating +1.5%（右图 Max+Ave+Min 范围对应 3.6%）、No Static Encoder +2.0%（5.6%）、No Variable Selection +3.2%（4.9%）、No Self-Attention +7.6%（23.4%）、No Local Processing +10.2%（21.6%），说明 Self-Attention 和 Local Processing 对性能影响最大。数据集为 Electricity、Traffic、Retail、Volatility 四个典型时序预测/多元序列数据集。复现时消融实验需逐一去除上述模块并保持其余超参数不变，在相同数据集划分下报告 P50 损失的变化百分比；注意 No Local Processing 在 Electricity 上出现负增长（约 -5%），说明该组件在个别数据集上可能非必需。",
       "id": "image_3",
       "page": 19
     },
     {
-      "type": "architecture",
-      "description": "根据图像宽高比判断为模型结构图",
-      "important_components": [],
-      "code_relevant_information": "需要实现网络结构",
+      "type": "chart",
+      "description": "消融实验柱状图，展示移除模型不同组件后在 Electricity、Traffic、Retail、Volatility 四个数据集上 P90 损失的百分比增加情况，左图为各数据集及平均值，右图为各变体的损失增加范围（最大、平均、最小）。",
+      "important_components": [
+        "No Gating（去除门控机制）",
+        "No Static Encoder（去除静态编码器）",
+        "No Variable Selection（去除变量选择）",
+        "No Self-Attention（去除自注意力）",
+        "No Local Processing（去除局部处理）",
+        "Electricity / Traffic / Retail / Volatility 四个数据集",
+        "Average（平均值，紫色虚线）",
+        "P90 Loss（评估指标，P90 分位损失）",
+        "Max / Ave / Min（右侧范围图的最值与均值）"
+      ],
+      "code_relevant_information": "该图为组件消融实验结果，指标为 P90 损失相对完整模型的百分比增加（% Increase in P90 Loss）。模型包含五个可消融模块：Gating（门控）、Static Encoder（静态编码器）、Variable Selection（变量选择）、Self-Attention（自注意力）、Local Processing（局部处理），复现代码时需将这些模块实现为可开关的独立子模块以便做消融。各组件对性能影响的平均增幅：No Gating +1.9%、No Static Encoder +2.6%、No Variable Selection +4.1%、No Self-Attention +6.0%、No Local Processing +11.9%；右图中各变体损失增幅范围的最大值分别为约 4.1%、6.5%、7.9%、14.9%、28.4%。数据集方面：No Gating 在 Traffic 上反而略有下降（约 -1%），No Local Processing 在 Volatility 上增幅最大（约 28%），说明 Local Processing 对波动性数据最关键。复现时应在四个数据集上分别训练完整模型与 5 个消融变体，并统计 P90 分位数损失（如 quantile loss @0.9）的相对变化百分比。",
+      "note": "未直接给出超参数、优化器等训练细节，仅为消融实验结果图。",
       "id": "image_4",
       "page": 19
     },
     {
-      "type": "experiment_result",
-      "description": "展示实验数据变化趋势与统计结果，用于对比不同条件下的性能或分布",
-      "important_components": [],
-      "code_relevant_information": "需要实现数据处理、指标计算与可视化绘图，以复现图中的实验结果",
+      "type": "chart",
+      "description": "两个子图展示了时间序列模型中注意力权重 α(t, n, ·) 随位置索引 n（小时级，范围约 -160 到 0）的分布情况：上图为不同分位数（10%/50%/90%）与均值的曲线，下图为不同聚合窗口 τ（5/10/15/20）下的平均注意力权重曲线，均显示出明显的 24 小时周期性峰值。",
+      "important_components": [
+        "上子图 y 轴：α(t, n, 1)（单时刻注意力权重），取值范围 0 到 0.20",
+        "上子图图例：10%（蓝色）、50%（红色）、90%（黄色）、Mean（绿色）",
+        "下子图 y 轴：Ave. α(t, n, τ)（平均注意力权重），取值范围 0 到 0.05",
+        "下子图图例：τ=5（蓝色）、τ=10（红色）、τ=15（黄色）、τ=20（绿色）",
+        "x 轴：Position Index (n)，约 -160 至 0，对应过去小时索引",
+        "标注：Previous Hour (n=-1)，指向 n=-1 处的尖峰",
+        "标注：Daily Interval (24 hours)，双向箭头指示相邻峰值间距为 24 个位置单位",
+        "周期性峰值（每 24 小时出现一次注意力尖峰）"
+      ],
+      "code_relevant_information": "1) 该图分析的是时间序列模型（可能为 Transformer/自注意力类）的注意力权重分布：α(t, n, 1) 表示时刻 t 对位置 n（过去第 -n 小时）的注意力，α(t, n, τ) 表示对长度为 τ 的窗口的平均注意力。2) 位置索引 n 为小时分辨率的历史位置（n=0 为当前，n=-1 为前一小时），模型需覆盖至少约 160 小时（≈7 天）的历史上下文窗口。3) 关键超参数 τ ∈ {5, 10, 15, 20}，为注意力聚合/平均的时间窗口长度（小时）。4) 数据流特征：注意力权重在 n=-1（前一小时）处出现最大峰值，且在每 24 小时的整数倍位置出现次级峰值，表明模型学到日周期（周期=24h）与近期依赖；复现时需保证位置编码能捕捉 24 小时节律（如时间位置编码、周期性嵌入或相对位置编码）。5) 上图为跨样本/时刻的统计量（10%、50%、90% 分位数及均值），下图为对 τ 窗口取平均后的统计，绘图范围：上图 y ∈ [0, 0.20]，下图 y ∈ [0, 0.05]，x ∈ [-160, 10]。6) 复现该可视化需记录注意力矩阵 α(t, n) 并按位置索引 n 聚合计算分位数/均值/窗口平均值。",
       "id": "image_5",
       "page": 21
     },
     {
-      "type": "experiment_result",
-      "description": "展示实验曲线和性能变化趋势",
+      "type": "chart",
+      "description": "两个子图展示了注意力权重 α(t, n, 1) 及其平均值 Ave. α(t, n, τ) 随位置索引 n 的分布，揭示了模型注意力集中在以 24 小时为周期的历史时间点上（日周期性）以及前一时刻（n=-1）。",
       "important_components": [
-        "Mean",
-        "IoU",
-        "Forecast"
+        "上图：α(t, n, 1) vs Position Index (n)，含 10%、50%、90% 分位数曲线与 Mean 曲线",
+        "下图：Ave. α(t, n, τ) vs Position Index (n)，含 τ=5、τ=10、τ=15、τ=20 四条曲线",
+        "横轴 Position Index (n)：范围约 -160 到 +20（负值表示历史时刻，0 为当前/预测时刻）",
+        "Daily Interval (24 hours) 标注与双向箭头，指向每 24 个位置出现的周期性尖峰",
+        "Previous Hour (n=-1) 标注，指向临近预测时刻的高注意力峰",
+        "Forecast Time 标注（右侧虚线，位于 n>0 区域）",
+        "周期性尖峰：上图中约 n=-150、-125、-100、-75、-50、-25、0 处出现峰值（间隔约 24-25）"
       ],
-      "code_relevant_information": "需要实现实验评估、指标计算与可视化，关注Mean、IoU、Forecast",
+      "code_relevant_information": [
+        "注意力权重函数 α(t, n, 1)：t 为预测目标时刻，n 为历史位置索引（负值表示过去，n=0 为当前，n=-1 为前一小时），第三个参数 1 表示某个头/层或预测步；上图统计了该权重的 10%、50%、90% 分位数和均值。",
+        "下图为对 τ 个预测步（τ=5, 10, 15, 20）的注意力求平均：Ave. α(t, n, τ)，表明不同预测跨度下的注意力分布模式基本一致（保持日周期性尖峰）。",
+        "关键现象1（日周期性）：注意力权重每隔 24 个位置索引出现尖峰，说明模型显式或隐式地利用同一天中相同小时的历史值（周期 = 24 小时，n 以小时为粒度）。",
+        "关键现象2（近期依赖）：n=-1（前一小时）处的注意力峰值最高（上图 90% 分位约 0.3），说明临近预测时刻的最近观测获得最大权重。",
+        "复现建议：若构建序列预测模型（如 Transformer/注意力时间序列模型），输入序列位置编码需覆盖至少 150-160 个历史小时步；注意力机制应对周期 24 的位置具有高响应，可考虑加入周期性/时间感知位置编码（如基于小时-of-day、day-of-week 的嵌入）。",
+        "预测时间点位于 n=0（Forecast Time），预测目标在未来（n>0），注意力仅分配在历史位置（n≤0），且 n>0 区域权重趋近 0。",
+        "上图分布统计含义：大部分位置注意力接近 0，权重高度集中在少数周期性历史时刻（稀疏、峰值型分布），可据此设计稀疏注意力或周期性采样策略以降低计算量。",
+        "数值范围参考：上图纵轴 α ∈ [0, 0.3]，下图纵轴 Ave. α ∈ [0, 0.15]；τ 越大（如 20）单个位置平均权重越低，且 τ=5 的曲线在 n≈-20 处峰值最高（约 0.14）。"
+      ],
       "id": "image_6",
       "page": 21
     },
     {
-      "type": "experiment_result",
-      "description": "展示实验性能变化或指标比较结果",
+      "type": "chart",
+      "description": "两幅折线统计图，展示时间序列模型中位置权重/注意力值 α(t, n, τ) 随位置索引 n 的分布，具有明显的7天周期性波动，并在 n=0（当前时刻，Past Day n=-1 处）之后骤降。",
       "important_components": [
-        "Mean",
-        "Position Index",
-        "Weekly Interval"
+        "上图：α(t, n, 1) 对 Position Index (n) 的曲线",
+        "上图图例：10%（蓝色）、50%（红色）、90%（黄色）、Mean（绿色）分位数/均值曲线",
+        "下图：Ave. α(t, n, τ) 对 Position Index (n) 的曲线",
+        "下图图例：τ=10（蓝色）、τ=20（红色）、τ=30（黄色）",
+        "Weekly Interval (7 Days) 标注：每7个位置索引出现一个峰值",
+        "Past Day (n=-1) 标注：n=0 处的竖直分界线",
+        "x 轴：Position Index (n)，范围约 -90 到 +25",
+        "y 轴（上图）：α(t, n, 1)，范围 0 到 0.06",
+        "y 轴（下图）：Ave. α(t, n, τ)，范围 0 到 0.02"
       ],
-      "code_relevant_information": "需要实现实验训练与评估流程，计算并可视化相关指标变化",
+      "code_relevant_information": "变量 α(t, n, τ) 是关于时间 t、位置索引 n 和时间尺度/滞后参数 τ 的权重（很可能为注意力权重或位置衰减权重）。核心规律：(1) 权重沿 n 呈7天周期振荡（每个周期内一个尖峰，对应一周中的特定日），且整体包络随 n 接近0（越近的历史）而增大，即近邻位置权重更高；(2) 上图按分位数（10%/50%/90%/均值）统计该权重分布，90%分位峰值约0.05-0.055，均值峰值约0.02-0.025，10%分位接近0，说明不同样本间权重差异大；(3) 在 n=0（Past Day n=-1）之后权重骤降至接近0，说明模型只对历史位置（n<0）分配显著权重，未来/当前位置权重几乎为零；(4) 下图比较不同 τ（10/20/30）的平均权重，τ 越大曲线越平滑、峰值略低，τ=10 时振荡更剧烈，且 τ=10、20 的曲线在 n>0 后很快归零（约 n≈12 和 n≈17），τ=30 在正区间仍保持约0.005 的低权重并延续到 n≈25。复现建议：实现位置权重函数 α(t, n, τ)，包含指数/递减包络乘以7天周期（周期=7）的振荡项，并对 n≥0 施加截断或快速衰减；τ 作为平滑/衰减尺度超参数（10/20/30），统计时可输出分位数（10%、50%、90%）与均值。y 轴量级（最大约0.05）暗示权重经过归一化或稀疏分配。",
       "id": "image_7",
       "page": 21
     },
     {
-      "type": "other",
-      "description": "无法确定图片类型",
-      "important_components": [],
-      "code_relevant_information": "",
+      "type": "chart",
+      "description": "两张折线图，展示注意力权重 α(t, n, ·) 随位置索引 n（从 -250 到 0）的分布情况：上图为不同分位数（10%、50%、90%）与均值的分布，下图为不同前瞻/预测步长 τ（1、3、5）的平均注意力分布。",
+      "important_components": [
+        "上图：α(t, n, 1) vs Position Index (n)",
+        "上图曲线：10%（蓝）、50%（红）、90%（黄）、Mean（绿）",
+        "上图注释：'No strong persistent patterns'",
+        "下图：Ave. α(t, n, τ) vs Position Index (n)",
+        "下图曲线：τ=1（蓝）、τ=3（红）、τ=5（黄）",
+        "下图注释：'Approx equal attention across all time steps'",
+        "x 轴范围：-250 至 0 的位置索引",
+        "y 轴范围：上图 0-0.015，下图 0-0.0125",
+        "位置 0 附近的边界行为（末端骤降/尖峰）"
+      ],
+      "code_relevant_information": "核心对象是注意力分布 α(t, n, τ)，其中 t 为当前时间步，n 为历史位置索引（负值，范围约 -250 到 0，暗示回看窗口约 250 个时间步），τ 为预测步长（取值 1、3、5）。均匀分布下的基线值约为 1/250 = 0.004，与图中平均值 ~0.004-0.005 吻合，表明注意力近似均匀分配到所有历史时间步，无强持续模式（'No strong persistent patterns'，'Approx equal attention across all time steps'）。复现时需：(1) 计算每个查询时间步 t 对所有历史位置 n∈[-250,0] 的注意力权重 α(t,n,τ)，按位置对多个样本/t 取统计量（10%、50%、90% 分位数和均值）；(2) 对不同 τ∈{1,3,5} 分别计算平均 α(t,n,τ)（对 t 取平均）；(3) 绘图时 x 轴为位置索引（负值到 0），y 轴为注意力权重值；(4) 注意位置 0 边界处权重的尖峰与骤降（起点约 0.01-0.014 后迅速回落，终点在 0 处下降）；(5) 上图分位数显示 90% 曲线约 0.006-0.007，50% 约 0.004-0.005，10% 约 0.001-0.003，说明注意力分布相对集中于均匀值附近但存在样本间差异。",
       "id": "image_8",
       "page": 21
     },
     {
-      "type": "experiment_result",
-      "description": "展示时间序列预测结果，包含中位数预测和不确定性区间",
+      "type": "chart",
+      "description": "多面板时间序列图，展示已实现波动率（Realized Vol.）序列、两个样本预测时刻（t1、t2）的注意力权重分布 α(t, n, 1)，以及长时间跨度上基于 dist(t) 的显著市场状态（regime）检测结果。",
       "important_components": [
-        "Median forecast",
-        "Low volatility periods",
-        "Forecast date",
-        "Uncertainty"
+        "左上面板：2004-10 至 2005-07 期间的 Realized Vol. 序列（取值约 -6 至 -12，疑似对数波动率）",
+        "左中面板：注意力权重 α(t1, n, 1)，纵轴范围 0 至 0.06",
+        "右上面板：2008-07 至 2009-04 期间（金融危机）的 Realized Vol. 序列",
+        "右中面板：注意力权重 α(t2, n, 1)，纵轴范围 0 至 0.06",
+        "下部长面板：2002-01 至 2014-01 的 Realized Vol.（蓝色）与 dist(t)（红色曲线，右轴 0 至 0.8）",
+        "紫色阴影区域：Significant Regimes [dist(t) > 0.3]",
+        "标注文字 'Forecast date (n=0)'（预测日位于回看窗口右端）",
+        "标注文字 'Equal attention over range-bound low volatility periods'（低波动震荡期注意力近似均匀分布）",
+        "标注文字 'Increased attention on sharp trend changes'（趋势突变期注意力集中于少数近期样本）",
+        "标注文字 'Median forecast + uncertainty interval'（中位数预测 + 不确定性区间）",
+        "灰色方框标记的采样区间 t1、t2 及其对应放大子图",
+        "图例：Realized Vol.、dist(t)、Significant Regimes [dist(t) > 0.3]"
       ],
-      "code_relevant_information": "需要实现时间序列预测模型，输出中位数预测和不确定性区间估计",
+      "code_relevant_information": "1) 数据为时间序列对数已实现波动率 Realized Vol.（纵轴约 -5 至 -13），横轴为日期（2002-01-01 至 2014-01-01，样本频率看似日度）。2) 模型核心为自适应注意力机制：对回看窗口内 n=1..N 的历史观测计算注意力权重 α(t, n, 1)，在低波动、区间震荡阶段权重近似均匀（约 1/N），在波动率剧烈变化/趋势突变处权重集中于少数近期样本（峰值约 0.06）。3) 预测日为窗口右端 n=0（Forecast date (n=0)），预测输出为中位数预测（Median forecast）加不确定性区间（uncertainty interval），提示使用分位数回归或分位数损失。4) 存在市场状态度量 dist(t)（取值 0~0.8），当 dist(t) > 0.3 时判定为显著 regime（紫色区域），可用于样本加权、分段建模或注意力先验。5) 复现需实现：滚动/滑动窗口构造样本、时间序列注意力层（softmax 归一化权重）、基于 dist(t) 的 regime 标签函数（阈值 0.3）、中位数 + 区间预测头。6) 图中 t1（约 2005 年）与 t2（约 2008 年末）为两个示例预测时刻，其上方子图分别为对应时刻注意力在历史窗口上的分布可视化。",
       "id": "image_9",
       "page": 22
     }
@@ -208,20 +310,37 @@
     {
       "figure_number": "Figure 1",
       "type": "data_example",
-      "description": "Illustration of multihorizon forecasting with static covariates, past-observed inputs and a priori known future time-dependent inputs.",
-      "data_characteristics": "Shows multiple entity time series with static metadata, past observed values, and known future inputs such as calendar information.",
+      "description": "Illustration of multihorizon forecasting with static covariates, past-observed and a priori known future time-dependent inputs.",
+      "data_characteristics": "Multihorizon forecasting setup with three types of inputs: static covariates (time-invariant), past observed inputs, and known future inputs",
       "categories": [
-        "Static covariates",
-        "Past-observed time-dependent inputs",
-        "Known future inputs",
-        "Target"
+        "static covariates",
+        "past observed inputs",
+        "known future inputs"
       ],
-      "visual_features": "Schematic diagram of a forecasting timeline with different input types before and after forecast time."
+      "visual_features": "Time series visualization showing forecast horizon and input types over time"
     },
     {
       "figure_number": "Figure 2",
       "type": "model_architecture",
-      "description": "TFT architecture. TFT inputs static metadata, time-varying past inputs and time-varying a priori known future inputs. Variable Selection is used for judicious selection of salient features. Gated Residual Network blocks enable efficient information flow with skip connections and gating layers. Time-dependent processing is based on LSTMs for local processing and multi-head attention for integrating information from any time step."
+      "description": "TFT architecture. TFT inputs static metadata, time-varying past inputs and time-varying a priori known future inputs. Variable Selection is used for judicious selection of the most salient features based on the input. Gated Residual Network blocks enable efficient information flow with skip connections and gating layers. Time-dependent processing is based on LSTMs for local processing, and multi-head attention for integrating information from any time step."
+    },
+    {
+      "figure_number": "Table 1",
+      "type": "comparison_chart",
+      "description": "Information on dataset and optimal TFT configuration. Shows dataset details (target type, number of entities, number of samples), network parameters (k, τmax, dropout rate, state size, number of heads), and training parameters (minibatch size, learning rate, max gradient norm) for Electricity, Traffic, Retail, and Volatility datasets.",
+      "x_axis": "Datasets (Electricity, Traffic, Retail, Vol.)",
+      "y_axis": "Configuration parameters",
+      "trend": "Optimal configurations vary by dataset",
+      "conclusion": "TFT configuration is dataset-dependent with varying state sizes (160-320), dropout rates (0.1-0.3), and learning rates (0.001-0.01)"
+    },
+    {
+      "figure_number": "Table B.4",
+      "type": "experiment_result",
+      "description": "Variable importance scores for Electricity, Traffic, and Volatility datasets. Shows static, past, and future variable importance weights across quantiles.",
+      "x_axis": "Variables (Static, Past, Future)",
+      "y_axis": "Importance scores (0-1)",
+      "trend": "Static ID/Region receives full weight 1.000. Past target values play significant role. Hour-of-day important for Electricity and Traffic. Day-of-month important for Volatility future inputs.",
+      "conclusion": "TFT successfully identifies globally-important variables; past target values and calendar effects are the most significant inputs across datasets"
     }
   ]
 }

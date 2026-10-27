@@ -1,0 +1,303 @@
+"""utils/metrics.py
+
+Evaluation metrics for image-based plant disease detection (Phase 4).
+
+Implements ``compute_metrics`` which reports:
+    * Mean F1 score (macro-averaged over classes)
+    * Mean precision (macro-averaged over classes)
+    * Mean recall (macro-averaged over classes)
+    * Overall accuracy
+
+The implementation is framework agnostic with respect to its inputs: it accepts
+``torch.Tensor``, ``numpy.ndarray`` or plain Python sequences.  It also accepts
+either class indices (shape ``[N]``) or raw model outputs / probabilities
+(shape ``[N, C]`` or ``[N]``), in which case the decision rule is ``argmax``
+(multi-class) or a threshold (binary scores).
+"""
+
+from __future__ import annotations
+
+import os
+from typing import Any, Dict, Optional, Sequence, Union
+
+import numpy as np
+import torch
+
+try:  # PyYAML is expected to be available in the project environment.
+    import yaml
+except Exception:  # pragma: no cover - graceful degradation
+    yaml = None
+
+
+ArrayLike = Union[torch.Tensor, np.ndarray, Sequence[float], Sequence[int], None]
+
+
+# --------------------------------------------------------------------------- #
+# Config helpers
+# --------------------------------------------------------------------------- #
+def _resolve_config_path() -> str:
+    """Return the absolute path of ``config/config.yaml`` at project root."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(here)
+    return os.path.join(project_root, "config", "config.yaml")
+
+
+def _load_config(config: Any = None) -> Dict[str, Any]:
+    """Load the YAML configuration safely.
+
+    Parameters
+    ----------
+    config:
+        ``None`` -> read ``config/config.yaml`` from the project root.
+        ``dict`` -> used as is.
+        ``str``  -> path to a YAML file.
+
+    Returns
+    -------
+    dict
+        Never ``None``; an empty dict is returned on any failure so that the
+        metrics code can always fall back to its own defaults.
+    """
+    if isinstance(config, dict):
+        return config
+
+    if config is None:
+        path = _resolve_config_path()
+    elif isinstance(config, str):
+        path = config
+    else:
+        return {}
+
+    if not os.path.isfile(path):
+        return {}
+    if yaml is None:
+        return {}
+
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            loaded = yaml.safe_load(handle)
+        return loaded if isinstance(loaded, dict) else {}
+    except Exception:
+        return {}
+
+
+# --------------------------------------------------------------------------- #
+# Small utilities
+# --------------------------------------------------------------------------- #
+def _to_numpy(value: ArrayLike) -> np.ndarray:
+    """Convert tensors / sequences into a contiguous ``numpy.ndarray``."""
+    if value is None:
+        return np.empty((0,), dtype=np.int64)
+    if isinstance(value, torch.Tensor):
+        return value.detach().cpu().numpy()
+    return np.asarray(value)
+
+
+def _zero_metrics() -> Dict[str, float]:
+    return {
+        "mean_f1": 0.0,
+        "mean_precision": 0.0,
+        "mean_recall": 0.0,
+        "overall_accuracy": 0.0,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Public API
+# --------------------------------------------------------------------------- #
+def compute_metrics(
+    predictions: ArrayLike = None,
+    targets: ArrayLike = None,
+    num_classes: Optional[int] = None,
+    class_names: Optional[Sequence[str]] = None,
+    ignore_index: int = -100,
+    threshold: float = 0.5,
+    zero_division: float = 0.0,
+    config: Any = None,
+    verbose: bool = False,
+) -> Dict[str, float]:
+    """Compute Mean F1, mean precision, mean recall and overall accuracy.
+
+    Parameters
+    ----------
+    predictions:
+        Model outputs.  Either class indices of shape ``[N]`` (or ``[N, 1]``)
+        or raw logits / probabilities of shape ``[N, C]``.  When scores are
+        given, ``argmax`` is used for ``C > 1`` and ``threshold`` for ``C == 1``
+        (or for a 1-D floating point vector).
+    targets:
+        Ground-truth class indices of shape ``[N]`` (or ``[N, 1]``).
+    num_classes:
+        Number of classes used to average the per-class metrics.  When ``None``
+        it is inferred from the data (or from ``config`` if available).
+    class_names:
+        Optional class names, only used by the ``verbose`` printing.
+    ignore_index:
+        Target values equal to this index are discarded (default ``-100``, the
+        PyTorch convention for ``CrossEntropyLoss``).
+    threshold:
+        Decision threshold for binary scores (must be a float, default 0.5).
+    zero_division:
+        Value used for precision / recall / F1 when the denominator is zero.
+    config:
+        Optional configuration (dict or path to a YAML file).  Only used to
+        read a default ``num_classes``; every lookup is done with ``.get`` so
+        unknown keys can never break the evaluation.
+    verbose:
+        When ``True`` the four metrics are printed.
+
+    Returns
+    -------
+    dict
+        ``{"mean_f1": float, "mean_precision": float,
+           "mean_recall": float, "overall_accuracy": float}``
+    """
+    # ---- configuration ---------------------------------------------------- #
+    cfg = _load_config(config)
+
+    if num_classes is None:
+        cfg_num_classes = cfg.get("num_classes", None) if isinstance(cfg, dict) else None
+        if isinstance(cfg_num_classes, int) and cfg_num_classes > 0:
+            num_classes = cfg_num_classes
+
+    # ---- validate simple scalar parameters -------------------------------- #
+    if not isinstance(threshold, (int, float)) or isinstance(threshold, bool):
+        threshold = 0.5
+    threshold = float(threshold)
+
+    if not isinstance(zero_division, (int, float)) or isinstance(zero_division, bool):
+        zero_division = 0.0
+    zero_division = float(zero_division)
+
+    if not isinstance(ignore_index, (int, np.integer)):
+        ignore_index = -100
+    ignore_index = int(ignore_index)
+
+    # ---- empty / missing input: degrade gracefully ------------------------ #
+    if predictions is None or targets is None:
+        if verbose:
+            print("compute_metrics: no predictions/targets provided.")
+        return _zero_metrics()
+
+    pred_arr = _to_numpy(predictions)
+    tgt_arr = _to_numpy(targets)
+
+    if pred_arr.size == 0 or tgt_arr.size == 0:
+        if verbose:
+            print("compute_metrics: empty predictions/targets.")
+        return _zero_metrics()
+
+    # ---- normalise shapes ------------------------------------------------- #
+    pred_arr = np.asarray(pred_arr)
+    tgt_arr = np.asarray(tgt_arr)
+
+    # Drop trailing singleton class dimension on targets (e.g. [N, 1]).
+    if tgt_arr.ndim == 2 and tgt_arr.shape[-1] == 1:
+        tgt_arr = tgt_arr.reshape(-1)
+
+    if pred_arr.ndim == tgt_arr.ndim + 1:
+        if pred_arr.shape[-1] == 1:
+            pred_arr = (pred_arr.reshape(-1) >= threshold).astype(np.int64)
+        else:
+            pred_arr = np.argmax(pred_arr, axis=-1)
+    elif pred_arr.ndim == 2 and pred_arr.shape[-1] == 1:
+        pred_arr = (pred_arr.reshape(-1) >= threshold).astype(np.int64)
+    elif np.issubdtype(pred_arr.dtype, np.floating) and pred_arr.ndim == tgt_arr.ndim:
+        pred_arr = (pred_arr >= threshold).astype(np.int64)
+
+    pred_arr = pred_arr.reshape(-1)
+    tgt_arr = tgt_arr.reshape(-1)
+
+    if pred_arr.shape[0] != tgt_arr.shape[0]:
+        raise ValueError(
+            "compute_metrics: predictions and targets must have the same number "
+            f"of elements, got {pred_arr.shape[0]} and {tgt_arr.shape[0]}."
+        )
+
+    # ---- discard ignored targets ----------------------------------------- #
+    valid_mask = tgt_arr != ignore_index
+    if not np.any(valid_mask):
+        if verbose:
+            print("compute_metrics: all targets are ignored.")
+        return _zero_metrics()
+
+    pred_arr = pred_arr[valid_mask].astype(np.int64)
+    tgt_arr = tgt_arr[valid_mask].astype(np.int64)
+
+    if pred_arr.size == 0:
+        return _zero_metrics()
+
+    # ---- infer class count ------------------------------------------------ #
+    if num_classes is not None:
+        if not isinstance(num_classes, (int, np.integer)) or int(num_classes) <= 0:
+            num_classes = None
+        else:
+            num_classes = int(num_classes)
+
+    if num_classes is None:
+        data_max = int(max(pred_arr.max(), tgt_arr.max())) if pred_arr.size else -1
+        data_min = int(min(pred_arr.min(), tgt_arr.min())) if pred_arr.size else 0
+        if data_min < 0:
+            raise ValueError("compute_metrics: negative class indices are not supported.")
+        num_classes = data_max + 1
+
+    if num_classes <= 0:
+        return _zero_metrics()
+
+    # Clamp any out-of-range index to avoid hard crashes on malformed inputs.
+    pred_arr = np.clip(pred_arr, 0, num_classes - 1)
+    tgt_arr = np.clip(tgt_arr, 0, num_classes - 1)
+
+    # ---- per-class counts via the confusion matrix ------------------------ #
+    confusion = np.zeros((num_classes, num_classes), dtype=np.int64)
+    np.add.at(confusion, (tgt_arr, pred_arr), 1)
+
+    true_positive = np.diag(confusion).astype(np.float64)
+    false_positive = confusion.sum(axis=0).astype(np.float64) - true_positive
+    false_negative = confusion.sum(axis=1).astype(np.float64) - true_positive
+
+    def _safe_divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
+        out = np.full_like(numerator, fill_value=zero_division, dtype=np.float64)
+        nonzero = denominator > 0
+        out[nonzero] = numerator[nonzero] / denominator[nonzero]
+        return out
+
+    precision_per_class = _safe_divide(true_positive, true_positive + false_positive)
+    recall_per_class = _safe_divide(true_positive, true_positive + false_negative)
+
+    f1_denominator = precision_per_class + recall_per_class
+    f1_per_class = _safe_divide(
+        2.0 * precision_per_class * recall_per_class, f1_denominator
+    )
+
+    mean_precision = float(np.mean(precision_per_class))
+    mean_recall = float(np.mean(recall_per_class))
+    mean_f1 = float(np.mean(f1_per_class))
+    overall_accuracy = float(np.sum(true_positive) / float(tgt_arr.shape[0]))
+
+    if verbose:
+        print("=" * 60)
+        print("Evaluation metrics")
+        print("=" * 60)
+        print(f"Mean F1 score      : {mean_f1:.6f}")
+        print(f"Mean precision     : {mean_precision:.6f}")
+        print(f"Mean recall        : {mean_recall:.6f}")
+        print(f"Overall accuracy   : {overall_accuracy:.6f}")
+        if class_names is not None and len(class_names) == num_classes:
+            print("-" * 60)
+            print(f"{'class':<28}{'precision':>10}{'recall':>10}{'f1':>10}")
+            for idx, name in enumerate(class_names):
+                print(
+                    f"{str(name):<28}"
+                    f"{precision_per_class[idx]:>10.4f}"
+                    f"{recall_per_class[idx]:>10.4f}"
+                    f"{f1_per_class[idx]:>10.4f}"
+                )
+        print("=" * 60)
+
+    return {
+        "mean_f1": mean_f1,
+        "mean_precision": mean_precision,
+        "mean_recall": mean_recall,
+        "overall_accuracy": overall_accuracy,
+    }

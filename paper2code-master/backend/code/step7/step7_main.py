@@ -7,10 +7,14 @@ Step7 总入口: 代码生成
 流程:
     project_brief.yaml
         ↓ 初始化项目骨架
-    按 Phase / 依赖顺序逐文件生成
+    平凡文件（requirements/README/__init__）确定性模板产出，不调 LLM
+        ↓
+    按拓扑层级逐层生成（层内互不依赖，可并行）
         ↓ 代码检查 (ast / yaml / 类 / 方法 / import)
     失败 → 修复 (最多 MAX_REPAIR_ATTEMPTS 次)
-        ↓ 需求-代码追踪检查
+        ↓ 沙箱冒烟测试在后台线程池运行，与下一层生成重叠
+    需求-代码追踪检查
+        ↓
     generation_report.yaml + generation_log.json
 
 Usage:
@@ -24,6 +28,7 @@ import os
 import ast
 import argparse
 import json
+import re
 import threading
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -32,7 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 
-from config import get_paper_output_dir
+from config import get_paper_output_dir, get_step5_output_dir
 from logger import logger
 
 from step7.project_initializer import ProjectInitializer
@@ -41,6 +46,11 @@ from step7.code_generator import CodeGenerator
 from step7.code_validator import STDLIB, CodeValidator
 from step7.code_repairer import CodeRepairer, MAX_REPAIR_ATTEMPTS
 from step7.code_sandbox import CodeSandbox
+
+# 沙箱参数：单次冒烟测试超时（秒）与后台并发数。
+# 沙箱在后台线程池运行，与后续文件的 LLM 生成重叠，不挡生成关键路径。
+SANDBOX_TIMEOUT = 120
+SANDBOX_WORKERS = 3
 
 
 class Step7Runner:
@@ -56,7 +66,11 @@ class Step7Runner:
 
         self.generator = CodeGenerator()
         self.repairer = CodeRepairer()
-        self.sandbox = CodeSandbox(timeout=120)
+        self.sandbox = CodeSandbox(timeout=SANDBOX_TIMEOUT)
+        self.sandbox_executor = ThreadPoolExecutor(
+            max_workers=SANDBOX_WORKERS, thread_name_prefix="s7-sandbox",
+        )
+        self._sandbox_futures = []
 
     # ============================================================
     # 拓扑分层（用于并行生成）
@@ -108,18 +122,29 @@ class Step7Runner:
 
         def _gen(idx, file):
             spec = spec_map.get(file, {})
-            result = self._generate_one_file(
-                file, spec, context_builder, validator, generated, generated_lock
-            )
+            try:
+                result = self._generate_one_file(
+                    file, spec, context_builder, validator, generated, generated_lock
+                )
+            except Exception as e:
+                logger.error(f"  ✗ {file} 生成异常: {e}")
+                result = {
+                    "file": file, "status": "error", "code": "",
+                    "attempts": [{"attempt": 1, "action": "generate",
+                                  "status": "error", "errors": [str(e)]}],
+                }
             return idx, result
 
         with ThreadPoolExecutor(max_workers=len(level_files)) as ex:
             futures = [ex.submit(_gen, i, f) for i, f in enumerate(level_files)]
             for future in as_completed(futures):
-                idx, result = future.result()
-                results[idx] = result
+                try:
+                    idx, result = future.result()
+                    results[idx] = result
+                except Exception as e:
+                    logger.error(f"  并行生成 future 异常: {e}")
 
-        return results
+        return [r for r in results if r is not None]
 
     # ============================================================
     # 主流程
@@ -146,6 +171,8 @@ class Step7Runner:
         # 3. 生成 + 检查 + 修复
         context_builder = CodeContextBuilder(brief, step5_dir=self.step5_dir)
         validator = CodeValidator(all_files=ordered_files)
+        # 实验矩阵组合数提前注入：入口 main.py/run.py 在 >1 组合时必须支持 --run N
+        validator.set_expected_runs(self._expected_run_count(brief))
         spec_map = {
             s.get("file"): s
             for s in brief.get("code_generation_plan", {}).get("per_file_specs", [])
@@ -155,18 +182,47 @@ class Step7Runner:
         generated_lock = threading.Lock()   # 保护 generated dict 的并发写入
         file_results = []   # 每文件生成日志
 
+        # 平凡文件（requirements.txt / README.md / __init__.py）确定性模板产出，不走 LLM。
+        # 模板先过一次校验，万一 spec 给平凡文件声明了类/方法，回退 LLM 生成。
+        templated = {}
+        for f in ordered_files:
+            content = self._template_trivial_file(
+                f, spec_map.get(f, {}), brief, ordered_files, spec_map,
+            )
+            if content is None:
+                continue
+            if validator.validate(f, content, spec_map.get(f, {}))["status"] == "passed":
+                templated[f] = content
+            else:
+                logger.warning(f"  模板校验未通过，回退 LLM 生成: {f}")
+        if templated:
+            logger.info(f"  模板产出（不调 LLM）: {sorted(templated)}")
+
         # 按拓扑层级并行生成
         levels = self._topological_levels(ordered_files, spec_map)
         logger.info(f"  拓扑分层: {len(levels)} 层, {len(ordered_files)} 个文件"
                     f" (最大并行 {max(len(lv) for lv in levels)})")
 
         for level_idx, level_files in enumerate(levels):
-            if len(level_files) > 1:
-                logger.info(f"  层级 {level_idx}: 并行生成 {level_files}")
+            # 模板文件瞬时产出，其余文件走 LLM
+            llm_files = []
+            level_results = []
+            for f in level_files:
+                if f in templated:
+                    level_results.append(
+                        self._generate_templated_file(
+                            f, templated[f], spec_map.get(f, {}), validator,
+                        )
+                    )
+                else:
+                    llm_files.append(f)
 
-            level_results = self._generate_level(
-                level_files, spec_map, context_builder, validator, generated, generated_lock
-            )
+            if llm_files:
+                if len(llm_files) > 1:
+                    logger.info(f"  层级 {level_idx}: 并行生成 {llm_files}")
+                level_results.extend(self._generate_level(
+                    llm_files, spec_map, context_builder, validator, generated, generated_lock
+                ))
 
             # 每层完成后串行更新 generated dict 和 validator 符号表
             for result in level_results:
@@ -180,11 +236,34 @@ class Step7Runner:
                     if result["file"] in ("config/config.yaml", "config/config.yml"):
                         validator.set_config(self._parse_config(code))
 
+            # 沙箱与生成解耦：本层静态完成后立即提交后台沙箱（快照含同层兄弟文件），
+            # 与下一层的 LLM 生成重叠，不挡依赖链。
+            with generated_lock:
+                snapshot = dict(generated)
+            for result in level_results:
+                if result.get("templated") or result["status"] != "passed":
+                    continue
+                if not result["file"].endswith(".py"):
+                    continue
+                self._submit_sandbox(
+                    result, spec_map.get(result["file"], {}), context_builder,
+                    validator, snapshot, generated, generated_lock,
+                )
+
+        # 包 __init__.py 的 re-export 以最终兄弟模块代码为准再对齐一次（确定性，不调 LLM）
+        self._refresh_package_inits(generated, validator)
+
+        # 等全部沙箱任务（含运行时修复）结束后，再做注入与项目级检查
+        self._join_sandbox()
+
         # 4. 确定性注入未定义 dataset version 的 unresolved 标记（不让 LLM 猜数据来源）
         self._inject_unresolved_versions(generated, brief, validator)
 
         # 4.5 确定性注入 data_source / acquisition（顶层 + 每个 run），不让 LLM 猜数据依赖
         self._inject_data_dependency(generated, brief, validator)
+
+        # 4.6 确定性注入 experiment.runs（从 Step5 experiment_design.yaml 读取）
+        self._inject_experiment_runs(generated, brief, validator)
 
         # 4.7 确定性产出执行配置 execution_spec.yaml（供 Step8 读取入口与命令，避免硬编码）
         self._write_execution_spec(brief, ordered_files, generated)
@@ -236,7 +315,6 @@ class Step7Runner:
         if validator.config:
             ctx["config"] = validator.config
         attempts = []
-        sandbox_result = None
 
         try:
             # 第一次生成
@@ -275,44 +353,7 @@ class Step7Runner:
                 "status": val["status"], "errors": val["errors"],
             })
 
-        # 静态验证通过后，进行沙箱测试（仅 .py 文件）
-        if val["status"] == "passed" and file.endswith(".py"):
-            sandbox_result = self._run_sandbox_test(file, code, gen_snapshot)
-            if not sandbox_result.success:
-                # 超时类错误跳过修复：代码逻辑没问题，只是实例化大模型太慢
-                is_timeout = sandbox_result.error_type == "TimeoutError"
-                if is_timeout:
-                    logger.info(f"  ⚠ {file} 沙箱超时，跳过修复（代码静态检查已通过）")
-                else:
-                    # 沙箱测试失败，进入运行时错误修复循环（最多1次）
-                    sandbox_fix_attempts = 0
-                    while not sandbox_result.success and sandbox_fix_attempts < 1:
-                        sandbox_fix_attempts += 1
-                        runtime_errors = self._extract_runtime_errors(sandbox_result)
-                        logger.info(f"  ⚠ {file} 沙箱测试失败，尝试运行时修复 ({sandbox_fix_attempts}/1)")
-                        try:
-                            code = self.repairer.repair(
-                                file, code, [], spec, ctx,
-                                runtime_errors=runtime_errors,
-                            )
-                        except RuntimeError as e:
-                            if "402" in str(e) or "Insufficient Balance" in str(e):
-                                logger.error(f"  ✗ {file} API 余额不足，跳过修复")
-                                break
-                            raise
-                        val = validator.validate(file, code, spec)
-                        if val["status"] == "failed":
-                            # 修复引入了新的静态错误，跳出
-                            break
-                        sandbox_result = self._run_sandbox_test(file, code, gen_snapshot)
-                        attempts.append({
-                            "attempt": attempt + sandbox_fix_attempts,
-                            "action": "sandbox_repair",
-                            "status": "passed" if sandbox_result.success else "failed",
-                            "errors": runtime_errors if not sandbox_result.success else [],
-                        })
-
-        # 写文件
+        # 写文件（沙箱测试由 _submit_sandbox 在后台执行，不在本函数内联）
         if val["status"] == "passed":
             self._write_code(file, code)
         elif code.strip():
@@ -323,29 +364,15 @@ class Step7Runner:
         if status == "failed":
             logger.warning(f"  ✗ {file} 修复 {attempt} 次仍失败: "
                            f"{val['errors'][0] if val['errors'] else '未知错误'}")
-        elif sandbox_result and not sandbox_result.success:
-            # 静态通过但沙箱失败
-            logger.warning(f"  ⚠ {file} 静态检查通过，但沙箱测试失败: "
-                           f"{sandbox_result.error_message}")
-            status = "sandbox_failed"
         else:
             logger.info(f"  ✓ {file} ({attempt} 次尝试)")
 
-        result = {
+        return {
             "file": file,
             "status": status,
             "code": code,
             "attempts": attempts,
         }
-        if sandbox_result:
-            result["sandbox"] = {
-                "success": sandbox_result.success,
-                "tests_passed": sandbox_result.tests_passed,
-                "tests_total": sandbox_result.tests_total,
-                "error_type": sandbox_result.error_type,
-                "error_message": sandbox_result.error_message,
-            }
-        return result
 
     def _write_code(self, file: str, code: str):
         path = self.project_root / file
@@ -359,6 +386,201 @@ class Step7Runner:
             return yaml.safe_load(code) or {}
         except yaml.YAMLError:
             return {}
+
+    # ============================================================
+    # 平凡文件模板（确定性产出，不调 LLM）
+    # ============================================================
+
+    def _template_trivial_file(self, file: str, spec: dict, brief: dict,
+                               ordered_files: list, spec_map: dict):
+        """requirements.txt / README.md / __init__.py 返回确定性模板内容，其余返回 None。
+
+        这类文件结构固定、不承载算法逻辑，走 LLM 纯属浪费调用与时间；
+        requirements.txt 之后还会被 _sync_requirements 按实际 import 补全。
+        """
+        base = file.rsplit("/", 1)[-1]
+        if base == "__init__.py":
+            return self._template_package_init(file, spec_map)
+        if base == "requirements.txt":
+            return self._template_requirements(spec)
+        if base == "README.md":
+            return self._template_readme(brief, ordered_files)
+        return None
+
+    def _template_package_init(self, file: str, spec_map: dict) -> str:
+        """包 __init__.py：按兄弟模块 spec 声明的类生成 re-export。
+
+        类名由 CodeValidator._check_classes 保证与实际代码一致，可放心引用；
+        全部兄弟模块生成完后 _refresh_package_inits 还会按 AST 再对齐一次。
+        """
+        if "/" not in file:
+            return '"""Package initializer."""\n'
+        pkg_dir = file.rsplit("/", 1)[0]
+        exports = []
+        for f, s in spec_map.items():
+            if f == file or not f.endswith(".py"):
+                continue
+            if "/" in f and f.rsplit("/", 1)[0] == pkg_dir:
+                stem = f.rsplit("/", 1)[-1][:-3]
+                for cls in (s.get("classes") or []):
+                    exports.append((stem, cls))
+        return self._package_init_content(file, exports)
+
+    @staticmethod
+    def _package_init_content(file: str, exports: list) -> str:
+        """把 (模块名, 类名) 列表渲染成 __init__.py 内容（去重、稳定排序）。"""
+        pkg = file.rsplit("/", 1)[0].replace("/", ".") if "/" in file else ""
+        seen = set()
+        unique = []
+        for stem, cls in sorted(exports):
+            if (stem, cls) not in seen:
+                seen.add((stem, cls))
+                unique.append((stem, cls))
+        lines = [f'"""{pkg or "project"} package: re-export key symbols for convenient imports."""']
+        if unique:
+            lines.append("")
+            for stem, cls in unique:
+                lines.append(f"from .{stem} import {cls}")
+            lines.append("")
+            names = ", ".join(f'"{c}"' for _, c in unique)
+            lines.append(f"__all__ = [{names}]")
+        return "\n".join(lines) + "\n"
+
+    def _template_requirements(self, spec: dict) -> str:
+        """requirements.txt：基础依赖 + spec.notes 里点名的包（如「包含 a, b, c」）。
+
+        生成后 _sync_requirements 会按实际 import 补全缺失包并去重。
+        """
+        pkgs = {"numpy", "pyyaml"}
+        notes = spec.get("notes") or ""
+        m = re.search(r"包含[:：]?\s*([^。；;\n]+)", notes)
+        if m:
+            for tok in re.split(r"[,，、\s]+", m.group(1)):
+                tok = tok.strip().lower()
+                if re.fullmatch(r"[a-z0-9][a-z0-9_.\-]*", tok) and len(tok) >= 2:
+                    pkgs.add(tok)
+        lines = ["# Project dependencies. Missing imports are auto-appended by Step7."]
+        lines.extend(sorted(pkgs))
+        return "\n".join(lines) + "\n"
+
+    def _template_readme(self, brief: dict, ordered_files: list) -> str:
+        """README.md：项目结构树严格取自计划文件列表，不臆造任何目录/文件。"""
+        project = brief.get("project", {}) or {}
+        title = project.get("paper_title") or project.get("name") or "generated_project"
+        one_liner = project.get("one_liner") or ""
+        task = project.get("task") or ""
+        entry = (
+            brief.get("design_digest", {}).get("project_structure", {}).get("entry_point")
+            or ("main.py" if "main.py" in ordered_files
+                else (ordered_files[0] if ordered_files else "main.py"))
+        )
+        tree = self._render_tree(ordered_files)
+
+        parts = [f"# {title}", ""]
+        if one_liner:
+            parts += [one_liner, ""]
+        if task:
+            parts += [f"- 任务类型: {task}", ""]
+        parts += [
+            "## 项目结构",
+            "",
+            "```",
+            tree,
+            "```",
+            "",
+            "## 环境准备",
+            "",
+            "```bash",
+            "pip install -r requirements.txt",
+            "```",
+            "",
+            "## 运行方法",
+            "",
+            "```bash",
+            f"python {entry}",
+            "```",
+            "",
+            "实验矩阵（数据版本 / 训练模式 / 运行编号）见 `config/config.yaml` 的 "
+            "`experiment.runs`。",
+            "",
+            "## 复现步骤",
+            "",
+            "1. 安装依赖：`pip install -r requirements.txt`。",
+            "2. 按 `config/config.yaml` 中 `data` / `data_source` 的配置准备数据集"
+            "（标记为 `status: unresolved` 的数据版本需先补齐来源）。",
+            f"3. 运行入口 `{entry}`，按 config 中的实验矩阵逐个 run 复现。",
+            "4. 训练产物（checkpoint、日志）的输出位置见 config 的 `checkpoint` / `logging` 配置。",
+        ]
+        return "\n".join(parts) + "\n"
+
+    @staticmethod
+    def _render_tree(files: list) -> str:
+        """把文件列表渲染成目录树，与实际生成文件一一对应，不多不少。"""
+        root = {}
+        for f in files:
+            node = root
+            parts = f.split("/")
+            for p in parts[:-1]:
+                node = node.setdefault(p, {})
+            node[parts[-1]] = None
+
+        lines = []
+
+        def walk(node, prefix=""):
+            # 目录在前、文件在后，各自按名称排序，保证输出稳定
+            entries = sorted(node.items(), key=lambda kv: (kv[1] is None, kv[0].lower()))
+            for i, (name, child) in enumerate(entries):
+                last = i == len(entries) - 1
+                lines.append(prefix + ("└── " if last else "├── ") + name)
+                if child is not None:
+                    walk(child, prefix + ("    " if last else "│   "))
+
+        walk(root)
+        return "\n".join(lines)
+
+    def _generate_templated_file(self, file: str, content: str, spec: dict,
+                                 validator) -> dict:
+        """模板文件的产出与登记（不调 LLM、不做沙箱）。"""
+        val = validator.validate(file, content, spec)
+        self._write_code(file, content)
+        status = val["status"] if val["status"] == "failed" else "passed"
+        if status == "failed":
+            logger.warning(f"  ✗ {file} 模板产出未通过校验: "
+                           f"{val['errors'][0] if val['errors'] else '未知错误'}")
+        else:
+            logger.info(f"  ✓ {file} (模板产出)")
+        return {
+            "file": file,
+            "status": status,
+            "code": content,
+            "attempts": [{"attempt": 1, "action": "template",
+                          "status": status, "errors": val["errors"]}],
+            "templated": True,
+        }
+
+    def _refresh_package_inits(self, generated: dict, validator) -> None:
+        """以最终生成的兄弟模块为准，确定性刷新各包 __init__.py 的 re-export。
+
+        覆盖 spec 未声明但值得导出的类；只读 AST，不调 LLM。
+        """
+        for init in [f for f in list(generated) if f.endswith("__init__.py") and "/" in f]:
+            pkg_dir = init.rsplit("/", 1)[0]
+            exports = []
+            for f, code in generated.items():
+                if not f.endswith(".py") or f == init:
+                    continue
+                if "/" not in f or f.rsplit("/", 1)[0] != pkg_dir:
+                    continue
+                stem = f.rsplit("/", 1)[-1][:-3]
+                for cls in CodeValidator._defined_classes(code):
+                    exports.append((stem, cls))
+            if not exports:
+                continue
+            content = self._package_init_content(init, exports)
+            if generated.get(init) != content:
+                generated[init] = content
+                self._write_code(init, content)
+                validator.register(init, content)
 
     def _inject_unresolved_versions(self, generated: dict, brief: dict, validator) -> None:
         """把 Step6 标记为未定义来源的 dataset version 确定性注入 config.yaml 的 data 段。
@@ -427,6 +649,8 @@ class Step7Runner:
 
         位置：顶层（data_source / acquisition 两个键，作为 paper 级兜底）+ 每个
         experiment.runs[] 条目（per-run 级，Step8 优先读这里）。LLM 写错也会被覆盖。
+        leaf_based_split 时额外注入 split_strategy.leaf_mapping_file/constraint，
+        供 dataset.py 做叶子级分组划分。
         """
         dd = brief.get("data_dependency", {})
         data_source = dd.get("data_source") or "external_dataset"
@@ -453,6 +677,24 @@ class Step7Runner:
             cfg["acquisition"] = acquisition
             changed = True
 
+        # leaf_mapping 依赖登记（leaf_based_split 论文）：确定性写入 split_strategy，
+        # dataset.py 据此读映射文件做分组划分；缺失时显式告警而非静默随机划分。
+        leaf_map = dd.get("leaf_mapping")
+        if isinstance(leaf_map, dict) and leaf_map.get("required"):
+            ss = cfg.setdefault("split_strategy", {})
+            if not isinstance(ss, dict):
+                ss = {}
+                cfg["split_strategy"] = ss
+            if ss.get("leaf_mapping_file") != leaf_map.get("file"):
+                ss["leaf_mapping_file"] = leaf_map.get("file", "data/leaf_mappings.csv")
+                changed = True
+            if ss.get("leaf_mapping_constraint") != leaf_map.get("constraint"):
+                ss["leaf_mapping_constraint"] = leaf_map.get("constraint", "")
+                changed = True
+            if ss.get("leaf_mapping_on_missing") != leaf_map.get("on_missing"):
+                ss["leaf_mapping_on_missing"] = leaf_map.get("on_missing", "")
+                changed = True
+
         # 每个 run
         runs = cfg.get("experiment", {}).get("runs", [])
         if isinstance(runs, list):
@@ -472,6 +714,72 @@ class Step7Runner:
         generated[config_key] = patched
         self._write_code(config_key, patched)
         validator.set_config(self._parse_config(patched))
+
+    @staticmethod
+    def _expected_run_count(brief: dict) -> int:
+        """从 Step5 experiment_design.yaml 读取实验矩阵组合数（无则 0）。"""
+        exp_design_path = (
+            get_step5_output_dir(brief.get("paper_name", ""))
+            / "experiment_design.yaml"
+        )
+        if not exp_design_path.exists():
+            return 0
+        try:
+            with open(exp_design_path, encoding="utf-8") as f:
+                exp_design = yaml.safe_load(f) or {}
+        except (yaml.YAMLError, OSError):
+            return 0
+        return len(exp_design.get("experiment_matrix", {}).get("runs", []) or [])
+
+    def _inject_experiment_runs(self, generated: dict, brief: dict, validator) -> None:
+        """从 Step5 experiment_design.yaml 读取 experiment.runs 并确定性注入 config.yaml。
+
+        LLM 生成的 config.yaml 可能缺少或写错 experiment.runs；
+        这里用 Step5 已展开的 runs 列表覆盖，确保 Step8 能读到。
+        """
+        config_key = next(
+            (f for f in ("config/config.yaml", "config/config.yml") if f in generated),
+            None,
+        )
+        if not config_key:
+            return
+
+        # 从 Step5 读取 experiment_design.yaml
+        exp_design_path = (
+            get_step5_output_dir(brief.get("paper_name", ""))
+            / "experiment_design.yaml"
+        )
+        if not exp_design_path.exists():
+            return
+        try:
+            with open(exp_design_path, encoding="utf-8") as f:
+                exp_design = yaml.safe_load(f) or {}
+        except (yaml.YAMLError, OSError):
+            return
+
+        runs = exp_design.get("experiment_matrix", {}).get("runs", [])
+        if not runs:
+            return
+
+        try:
+            cfg = yaml.safe_load(generated[config_key]) or {}
+        except yaml.YAMLError:
+            return
+        if not isinstance(cfg, dict):
+            return
+
+        # 注入 experiment.runs（覆盖 LLM 生成的）
+        if "experiment" not in cfg or not isinstance(cfg["experiment"], dict):
+            cfg["experiment"] = {}
+        existing_runs = cfg["experiment"].get("runs", [])
+        # 仅在 runs 为空或数量不匹配时注入
+        if not existing_runs or len(existing_runs) != len(runs):
+            cfg["experiment"]["runs"] = runs
+            patched = yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False)
+            generated[config_key] = patched
+            self._write_code(config_key, patched)
+            validator.set_config(self._parse_config(patched))
+            logger.info(f"  已注入 experiment.runs ({len(runs)} 个)")
 
     # ============================================================
     # 依赖同步
@@ -539,8 +847,105 @@ class Step7Runner:
             logger.info("  📦 requirements.txt 已去重")
 
     # ============================================================
-    # 沙箱测试
+    # 沙箱测试（后台任务：与后续文件的 LLM 生成重叠）
     # ============================================================
+
+    def _submit_sandbox(self, result: dict, spec: dict, context_builder, validator,
+                        snapshot: dict, generated: dict, generated_lock) -> None:
+        """把单文件沙箱冒烟测试（含可能的运行时修复）提交到后台线程池。
+
+        snapshot 为本层结束时的 generated 快照（含同层兄弟文件），
+        后台任务只读快照、只改自己文件对应的 result，线程安全。
+        """
+        future = self.sandbox_executor.submit(
+            self._sandbox_and_repair, result, spec, context_builder, validator,
+            snapshot, generated, generated_lock,
+        )
+        self._sandbox_futures.append(future)
+
+    def _join_sandbox(self) -> None:
+        """等待全部沙箱任务结束（含运行时修复），再继续注入与项目级检查。"""
+        for future in self._sandbox_futures:
+            try:
+                future.result()
+            except Exception as e:
+                logger.warning(f"  ⚠ 沙箱任务异常: {e}")
+        self._sandbox_futures.clear()
+
+    def _sandbox_and_repair(self, result: dict, spec: dict, context_builder, validator,
+                            snapshot: dict, generated: dict, generated_lock) -> None:
+        """后台执行：沙箱冒烟测试 →（必要时）一次运行时修复。只更新本文件的 result。"""
+        file = result["file"]
+        code = result["code"]
+        attempts = result["attempts"]
+        try:
+            sandbox_result = self._run_sandbox_test(file, code, snapshot)
+            if not sandbox_result.success:
+                # 超时类错误跳过修复：代码逻辑没问题，只是实例化大模型太慢
+                is_timeout = sandbox_result.error_type == "TimeoutError"
+                if is_timeout:
+                    logger.info(f"  ⚠ {file} 沙箱超时，跳过修复（代码静态检查已通过）")
+                else:
+                    # 沙箱测试失败，进入运行时错误修复循环（最多1次）
+                    sandbox_fix_attempts = 0
+                    while not sandbox_result.success and sandbox_fix_attempts < 1:
+                        sandbox_fix_attempts += 1
+                        runtime_errors = self._extract_runtime_errors(sandbox_result)
+                        logger.info(f"  ⚠ {file} 沙箱测试失败，尝试运行时修复 ({sandbox_fix_attempts}/1)")
+                        ctx = context_builder.build(file, snapshot)
+                        if validator.config:
+                            ctx["config"] = validator.config
+                        try:
+                            code = self.repairer.repair(
+                                file, code, [], spec, ctx,
+                                runtime_errors=runtime_errors,
+                            )
+                        except RuntimeError as e:
+                            if "402" in str(e) or "Insufficient Balance" in str(e):
+                                logger.error(f"  ✗ {file} API 余额不足，跳过修复")
+                                break
+                            raise
+                        val = validator.validate(file, code, spec)
+                        if val["status"] == "failed":
+                            # 修复引入了新的静态错误：保留原文件，放弃这次修复
+                            logger.warning(f"  ⚠ {file} 运行时修复引入静态错误，保留原代码")
+                            code = result["code"]
+                            break
+                        sandbox_result = self._run_sandbox_test(file, code, snapshot)
+                        attempts.append({
+                            "attempt": len(attempts) + 1,
+                            "action": "sandbox_repair",
+                            "status": "passed" if sandbox_result.success else "failed",
+                            "errors": runtime_errors if not sandbox_result.success else [],
+                        })
+                    # 修复后的代码落盘，并同步 generated 快照之外的正式表与符号表
+                    if code.strip() and code != result["code"]:
+                        self._write_code(file, code)
+                        with generated_lock:
+                            generated[file] = code
+                        validator.register(file, code)
+                        result["code"] = code
+
+            if not sandbox_result.success:
+                # 静态通过但沙箱失败
+                logger.warning(f"  ⚠ {file} 静态检查通过，但沙箱测试失败: "
+                               f"{sandbox_result.error_message}")
+                result["status"] = "sandbox_failed"
+            result["sandbox"] = {
+                "success": sandbox_result.success,
+                "tests_passed": sandbox_result.tests_passed,
+                "tests_total": sandbox_result.tests_total,
+                "error_type": sandbox_result.error_type,
+                "error_message": sandbox_result.error_message,
+            }
+        except Exception as e:
+            # 后台沙箱自身出错不应阻塞主流程
+            logger.warning(f"  ⚠ {file} 沙箱任务异常: {e}")
+            result["sandbox"] = {
+                "success": True,  # 视为通过（不阻塞）
+                "error_type": "SandboxError",
+                "error_message": str(e),
+            }
 
     def _run_sandbox_test(self, file: str, code: str,
                           generated: dict) -> "SandboxResult":
@@ -773,27 +1178,16 @@ class Step7Runner:
 
     @staticmethod
     def _entry_supports_run_arg(script: str, generated: dict = None) -> bool:
-        """检查入口脚本是否接受 --run 参数（通过 AST 分析 argparse 配置）。"""
+        """检查入口脚本是否接受 --run 参数（AST 检测 argparse add_argument）。"""
         if not generated or script not in generated:
             return True  # 无法检测时保守假设支持
         code = generated[script]
         try:
-            tree = ast.parse(code)
+            ast.parse(code)
         except SyntaxError:
-            return True  # 语法错误时保守假设支持
-
-        # 查找 add_argument("--run", ...) 调用
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            # 匹配 parser.add_argument("--run", ...) 或 add_argument("--run", ...)
-            func = node.func
-            if isinstance(func, ast.Attribute) and func.attr == "add_argument":
-                if node.args and isinstance(node.args[0], ast.Constant):
-                    arg_str = str(node.args[0].value)
-                    if arg_str == "--run":
-                        return True
-        return False
+            return True  # 语法错误时保守假设支持（模板路径兜底）
+        # 与 CodeValidator 共用同一检测逻辑，避免两处判断漂移
+        return CodeValidator.supports_run_arg(code)
 
     # ============================================================
     # 报告
